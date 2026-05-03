@@ -2,4 +2,4 @@
 sqlc:
 	sqlc generate
 run:
-	go run ./cmd/api
+	go run ./cmd/server

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,8 @@ import (
 	"time"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	db "github.com/hngprojects/personal-trainer-be/internal/db"
+	"github.com/hngprojects/personal-trainer-be/internal/repository"
 	"github.com/hngprojects/personal-trainer-be/internal/server"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
 	_ "github.com/lib/pq"
@@ -23,11 +26,28 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
-
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-	srv := server.New(cfg, log)
+	sqlDB, err := sql.Open("postgres", cfg.DatabaseURL)
+	if err != nil {
+		log.Error("failed to open db", "err", err)
+		os.Exit(1)
+	}
+	defer sqlDB.Close()
+
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	if err := sqlDB.PingContext(context.Background()); err != nil {
+		log.Error("db unreachable", "err", err)
+		os.Exit(1)
+	}
+
+	dbQueries := db.New(sqlDB)
+	store := repository.NewStore(dbQueries)
+
+	srv := server.New(cfg, log, store)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

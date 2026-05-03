@@ -1,16 +1,16 @@
 package config
 
 import (
+	"errors"
 	"os"
 )
 
 type Config struct {
 	Env                string
 	Port               string
-	DBURL              string
+	DatabaseURL        string
 	LogLevel           string
 	LogFormat          string
-	DatabaseURL        string
 	GoogleClientID     string
 	GoogleRedirectURL  string
 	GoogleClientSecret string
@@ -20,14 +20,28 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Env:                getenv("APP_ENV", "development"),
 		Port:               getenv("PORT", "8080"),
-		DBURL:              os.Getenv("DB_URL"),
-		LogLevel:           getenv("LOG_LEVEL", "info"),
-		LogFormat:          os.Getenv("LOG_FORMAT"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		LogLevel:           getenv("LOG_LEVEL", "info"),
+		LogFormat:          getenv("LOG_FORMAT", "text"),
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 	}
+
+	if cfg.DatabaseURL == "" {
+		return nil, errors.New("DATABASE_URL is required")
+	}
+	if cfg.GoogleClientID == "" {
+		return nil, errors.New("GOOGLE_CLIENT_ID is required")
+	}
+	if cfg.GoogleClientSecret == "" {
+		return nil, errors.New("GOOGLE_CLIENT_SECRET is required")
+	}
+
+	if cfg.GoogleRedirectURL == "" {
+		return nil, errors.New("GOOGLE_REDIRECT_URL is required")
+	}
+
 	return cfg, nil
 }
 
