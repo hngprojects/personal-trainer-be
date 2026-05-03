@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/server"
@@ -29,18 +29,23 @@ func main() {
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-	db, err := sql.Open("pgx", cfg.DatabaseURL)
-	if err != nil {
-		log.Error("failed to open database", "err", err)
-		os.Exit(1)
-	}
-	defer db.Close()
+	var db *sql.DB
+	if cfg.DatabaseURL != "" {
+		db, err = sql.Open("postgres", cfg.DatabaseURL)
+		if err != nil {
+			log.Error("failed to open database", "err", err)
+			os.Exit(1)
+		}
+		defer db.Close()
 
-	if err := db.PingContext(context.Background()); err != nil {
-		log.Error("database ping failed", "err", err)
-		os.Exit(1)
+		if err := db.Ping(); err != nil {
+			log.Error("failed to connect to database", "err", err)
+			os.Exit(1)
+		}
+		log.Info("database connected")
+	} else {
+		log.Warn("DATABASE_URL not set — starting without database connection")
 	}
-	log.Info("database connected")
 
 	srv := server.New(cfg, log, db)
 

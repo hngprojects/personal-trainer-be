@@ -1,92 +1,105 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+
+	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/service"
 )
 
 type AuthHandler struct {
-	auth *service.AuthService
+	auth     *service.AuthService
+	oauthCfg *oauth2.Config
 }
 
-func NewAuthHandler(auth *service.AuthService) *AuthHandler {
-	return &AuthHandler{auth: auth}
+func NewAuthHandler(auth *service.AuthService, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{
+		auth: auth,
+		oauthCfg: &oauth2.Config{
+			ClientID:     cfg.GoogleClientID,
+			ClientSecret: cfg.GoogleClientSecret,
+			RedirectURL:  cfg.GoogleRedirectURL,
+			Scopes:       []string{"openid", "email", "profile"},
+			Endpoint:     google.Endpoint,
+		},
+	}
 }
 
 // POST /auth/register
-func (h *AuthHandler) InitiateSignUp(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) InitiateSignUp(c *gin.Context) {
 	var req struct {
-		Email string `json:"email"`
+		Email string `json:"email" binding:"required,email"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
-		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", "valid email is required")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "valid email is required"))
 		return
 	}
 
-	if err := h.auth.InitiateSignUp(r.Context(), req.Email); err != nil {
+	if err := h.auth.InitiateSignUp(c.Request.Context(), req.Email); err != nil {
 		if errors.Is(err, service.ErrEmailAlreadyExists) {
-			writeError(w, http.StatusConflict, "EMAIL_EXISTS", "email already registered")
+			c.JSON(http.StatusConflict, errorResponse("EMAIL_EXISTS", "email already registered"))
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "something went wrong")
+		c.JSON(http.StatusInternalServerError, errorResponse("INTERNAL_ERROR", "something went wrong"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "verification code sent"})
+	c.JSON(http.StatusOK, gin.H{"status": "verification code sent"})
 }
 
 // POST /auth/register/verify
-func (h *AuthHandler) VerifyCode(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) VerifyCode(c *gin.Context) {
 	var req struct {
-		Email string `json:"email"`
-		Code  string `json:"code"`
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" {
-		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", "email and code are required")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "email and code are required"))
 		return
 	}
 
-	if err := h.auth.VerifyCode(r.Context(), req.Email, req.Code); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_CODE", "invalid or expired verification code")
+	if err := h.auth.VerifyCode(c.Request.Context(), req.Email, req.Code); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("INVALID_CODE", "invalid or expired verification code"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "code verified"})
+	c.JSON(http.StatusOK, gin.H{"status": "code verified"})
 }
 
 // POST /auth/register/complete
-func (h *AuthHandler) CompleteSignUp(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) CompleteSignUp(c *gin.Context) {
 	var req struct {
-		Email    string `json:"email"`
-		Name     string `json:"name"`
-		Code     string `json:"code"`
-		Password string `json:"password"`
+		Email    string `json:"email" binding:"required,email"`
+		Name     string `json:"name" binding:"required"`
+		Code     string `json:"code" binding:"required"`
+		Password string `json:"password" binding:"required"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
-		req.Email == "" || req.Name == "" || req.Code == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", "email, name, code, and password are required")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "email, name, code, and password are required"))
 		return
 	}
 
-	session, err := h.auth.CompleteSignUp(r.Context(), req.Email, req.Name, req.Code, req.Password)
+	session, err := h.auth.CompleteSignUp(c.Request.Context(), req.Email, req.Name, req.Code, req.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidCode):
-			writeError(w, http.StatusBadRequest, "INVALID_CODE", "invalid or expired verification code")
+			c.JSON(http.StatusBadRequest, errorResponse("INVALID_CODE", "invalid or expired verification code"))
 		case errors.Is(err, service.ErrWeakPassword):
-			writeError(w, http.StatusBadRequest, "WEAK_PASSWORD", err.Error())
+			c.JSON(http.StatusBadRequest, errorResponse("WEAK_PASSWORD", err.Error()))
 		default:
-			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "something went wrong")
+			c.JSON(http.StatusInternalServerError, errorResponse("INTERNAL_ERROR", "something went wrong"))
 		}
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
+	c.JSON(http.StatusCreated, gin.H{
 		"status": "account created",
-		"data": map[string]any{
+		"data": gin.H{
 			"session_id": session.ID,
 			"expires_at": session.ExpiresAt,
 		},
@@ -94,35 +107,35 @@ func (h *AuthHandler) CompleteSignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /auth/login
-func (h *AuthHandler) SignIn(w http.ResponseWriter, r *http.Request) {
+func (h *AuthHandler) SignIn(c *gin.Context) {
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
-		writeError(w, http.StatusBadRequest, "VALIDATION_FAILED", "email and password are required")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "email and password are required"))
 		return
 	}
 
-	session, user, err := h.auth.SignIn(r.Context(), req.Email, req.Password)
+	session, user, err := h.auth.SignIn(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidCredentials):
-			writeError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid email or password")
+			c.JSON(http.StatusUnauthorized, errorResponse("INVALID_CREDENTIALS", "invalid email or password"))
 		case errors.Is(err, service.ErrAccountNotActive):
-			writeError(w, http.StatusForbidden, "ACCOUNT_INACTIVE", "account is not active")
+			c.JSON(http.StatusForbidden, errorResponse("ACCOUNT_INACTIVE", "account is not active"))
 		default:
-			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "something went wrong")
+			c.JSON(http.StatusInternalServerError, errorResponse("INTERNAL_ERROR", "something went wrong"))
 		}
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	c.JSON(http.StatusOK, gin.H{
 		"status": "logged in",
-		"data": map[string]any{
+		"data": gin.H{
 			"session_id": session.ID,
 			"expires_at": session.ExpiresAt,
-			"user": map[string]any{
+			"user": gin.H{
 				"id":    user.ID,
 				"email": user.Email,
 				"name":  user.Name,
@@ -131,11 +144,11 @@ func (h *AuthHandler) SignIn(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{
-		"error": map[string]any{
+func errorResponse(code, message string) gin.H {
+	return gin.H{
+		"error": gin.H{
 			"code":    code,
 			"message": message,
 		},
-	})
+	}
 }

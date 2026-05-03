@@ -8,15 +8,19 @@ import (
 type Config struct {
 	Env         string
 	Port        string
+	DatabaseURL string
 	LogLevel    string
 	LogFormat   string
-	DatabaseURL string
 
 	SMTPHost     string
 	SMTPPort     string
 	SMTPUser     string
 	SMTPPassword string
 	SMTPFrom     string
+
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func Load() (*Config, error) {
@@ -33,6 +37,10 @@ func Load() (*Config, error) {
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:     os.Getenv("SMTP_FROM"),
+
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
 	}
 
 	if cfg.DatabaseURL == "" {

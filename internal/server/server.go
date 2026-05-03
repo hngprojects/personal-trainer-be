@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/db"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
@@ -25,31 +27,40 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Server {
 }
 
 func (s *Server) Routes() http.Handler {
-	mux := http.NewServeMux()
+	if s.cfg.Env == "development" {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	r := gin.New()
+	r.HandleMethodNotAllowed = true
+	r.Use(
+		middleware.Logger(s.log),
+		middleware.Recover(s.log),
+	)
 
 	health := handlers.NewHealthHandler()
-	mux.HandleFunc("GET /health", health.Check)
-	mux.HandleFunc("GET /{$}", health.Root)
+	r.GET("/", health.Root)
+	r.GET("/health", health.Check)
 
-	queries := db.New(s.db)
-	mailer := s.buildMailer()
+	if s.db != nil {
+		queries := db.New(s.db)
+		mailer := s.buildMailer()
 
-	userRepo := repository.NewUserRepository(queries)
-	sessionRepo := repository.NewSessionRepository(queries)
-	codeRepo := repository.NewVerificationCodeRepository(queries)
-	authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
-	auth := handlers.NewAuthHandler(authSvc)
+		userRepo := repository.NewUserRepository(queries)
+		sessionRepo := repository.NewSessionRepository(queries)
+		codeRepo := repository.NewVerificationCodeRepository(queries)
+		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
+		auth := handlers.NewAuthHandler(authSvc, s.cfg)
 
-	mux.HandleFunc("POST /auth/register", auth.InitiateSignUp)
-	mux.HandleFunc("POST /auth/register/verify", auth.VerifyCode)
-	mux.HandleFunc("POST /auth/register/complete", auth.CompleteSignUp)
-	mux.HandleFunc("POST /auth/login", auth.SignIn)
+		r.POST("/auth/register", auth.InitiateSignUp)
+		r.POST("/auth/register/verify", auth.VerifyCode)
+		r.POST("/auth/register/complete", auth.CompleteSignUp)
+		r.POST("/auth/login", auth.SignIn)
+	}
 
-	chain := middleware.Chain(
-		middleware.Recover(s.log),
-		middleware.Logger(s.log),
-	)
-	return chain(mux)
+	return r
 }
 
 func (s *Server) buildMailer() email.Mailer {

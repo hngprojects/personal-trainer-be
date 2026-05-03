@@ -175,10 +175,9 @@ Each session record typically contains:
 - `user_id`
 - `created_at`
 - `expires_at` (7 days from creation)
-- `last_seen_at` (optional, for activity tracking)
 - Optional metadata (device, IP address, user agent)
 
-Sessions are stored in a fast key-value store (commonly Redis) or a database.
+Sessions are stored in the database.
 
 Expired sessions are cleaned up automatically via background jobs or TTL expiration.
 
@@ -220,14 +219,6 @@ Expired sessions are cleaned up automatically via background jobs or TTL expirat
 - Dependencies (DB pool, logger, config) are explicitly injected via constructors — no global state or `init()` functions.
 - Interfaces are defined at the **consumer** side (the layer that uses them), not the implementation side.
 
-### Testing
-
-- Unit tests live alongside the code they test (`foo_test.go` in the same package).
-- Integration tests (those touching a real DB) are in a separate `_integration_test.go` file and are gated behind a build tag: `//go:build integration`.
-- The repository layer is tested against a real database using a test container ([`testcontainers-go`](https://golang.testcontainers.org/)) or a local Docker Compose setup.
-- Handler tests use `net/http/httptest` — no live server required.
-- Target: ≥ 80% coverage on the service layer.
-
 ### Logging
 
 - Structured logging via [`log/slog`](https://pkg.go.dev/log/slog) (stdlib, Go 1.21+).
@@ -245,25 +236,10 @@ Expired sessions are cleaned up automatically via background jobs or TTL expirat
 
 ## Getting Started
 
-### Prerequisites
-
-- Go 1.22+
-- Docker & Docker Compose
-- `golang-migrate` CLI (`go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest`)
-
 ### Running Locally
 
 ```bash
-# 1. Copy and fill in environment variables
-cp .env.example .env
-
-# 2. Start dependencies (Postgres, etc.)
-docker compose up -d
-
-# 3. Run database migrations
-make migrate-up
-
-# 4. Start the server
+go mod tidy
 make run
 ```
 
@@ -271,10 +247,4 @@ make run
 
 ```bash
 make run          # Run the server
-make test         # Run unit tests
-make test-all     # Run unit + integration tests
-make lint         # Run golangci-lint
-make migrate-up   # Apply all pending migrations
-make migrate-down # Roll back the last migration
-make build        # Compile the binary
 ```
