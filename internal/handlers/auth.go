@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/service"
 )
@@ -16,12 +16,13 @@ func NewLocalAuthHandler(authService *service.AuthService) *LocalAuthHandler {
 	return &LocalAuthHandler{authService: authService}
 }
 
-func (h *LocalAuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	token := strings.SplitN(r.Header.Get("Authorization"), " ", 2)[1]
+func (h *LocalAuthHandler) Logout(c *gin.Context) {
+	token := c.GetHeader("Authorization")
+	token = token[7:] // strip "Bearer "
 
-	if err := h.authService.Logout(r.Context(), token); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error": map[string]any{
+	if err := h.authService.Logout(c.Request.Context(), token); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
 				"code":    "LOGOUT_FAILED",
 				"message": "could not log out",
 			},
@@ -29,17 +30,17 @@ func (h *LocalAuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   map[string]any{"message": "logged out successfully"},
+		"data":   gin.H{"message": "logged out successfully"},
 	})
 }
 
-func (h *LocalAuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(int64)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{
-			"error": map[string]any{
+func (h *LocalAuthHandler) ChangePassword(c *gin.Context) {
+	userID, exists := c.Get(string(middleware.UserIDKey))
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": gin.H{
 				"code":    "UNAUTHORIZED",
 				"message": "unauthorized",
 			},
@@ -50,9 +51,9 @@ func (h *LocalAuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request
 	var input struct {
 		NewPassword string `json:"new_password"`
 	}
-	if err := readJSON(r, &input); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error": map[string]any{
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
 				"code":    "INVALID_INPUT",
 				"message": "invalid request body",
 			},
@@ -60,9 +61,9 @@ func (h *LocalAuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.authService.ChangePassword(r.Context(), userID, input.NewPassword); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error": map[string]any{
+	if err := h.authService.ChangePassword(c.Request.Context(), userID.(int64), input.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
 				"code":    "VALIDATION_FAILED",
 				"message": err.Error(),
 			},
@@ -70,8 +71,8 @@ func (h *LocalAuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   map[string]any{"message": "password updated successfully"},
+		"data":   gin.H{"message": "password updated successfully"},
 	})
 }

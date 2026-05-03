@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"unicode"
 
-	db "github.com/hngprojects/personal-trainer-be/internal/db"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"golang.org/x/crypto/bcrypt"
 )
 

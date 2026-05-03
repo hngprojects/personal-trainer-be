@@ -28,7 +28,6 @@ func main() {
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-<<<<<<< HEAD
 	var db *sql.DB
 	if cfg.DatabaseURL != "" {
 		db, err = sql.Open("postgres", cfg.DatabaseURL)
@@ -48,24 +47,6 @@ func main() {
 	}
 
 	srv := server.New(cfg, log, db)
-=======
-
-	// the db connection needed
-	sqlDB, err := sql.Open("postgres", cfg.DBURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to connect to database: %v\n", err)
-		os.Exit(1)
-	}
-	defer sqlDB.Close()
-
-	if err := sqlDB.Ping(); err != nil {
-		fmt.Fprintf(os.Stderr, "database unreachable: %v\n", err)
-		os.Exit(1)
-	}
-	log.Info("database connected")
-
-	srv := server.New(cfg, log, sqlDB)
->>>>>>> feat: wire db connection and auth routes in server and main
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
