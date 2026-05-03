@@ -23,7 +23,16 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	return s.queries.DeleteSessionByToken(ctx, token)
 }
 
-func (s *AuthService) ChangePassword(ctx context.Context, userID int64, newPassword string) error {
+func (s *AuthService) ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) error {
+	user, err := s.queries.GetUserByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(oldPassword)); err != nil {
+		return errors.New("invalid current password")
+	}
+
 	if err := validatePassword(newPassword); err != nil {
 		return err
 	}
