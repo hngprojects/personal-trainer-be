@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,7 +28,25 @@ func main() {
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-	srv := server.New(cfg, log)
+	var db *sql.DB
+	if cfg.DatabaseURL != "" {
+		db, err = sql.Open("postgres", cfg.DatabaseURL)
+		if err != nil {
+			log.Error("failed to open database", "err", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		if err := db.Ping(); err != nil {
+			log.Error("failed to connect to database", "err", err)
+			os.Exit(1)
+		}
+		log.Info("database connected")
+	} else {
+		log.Warn("DATABASE_URL not set — starting without database connection")
+	}
+
+	srv := server.New(cfg, log, db)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -4,22 +4,24 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+
+	"github.com/gin-gonic/gin"
 )
 
-func Recover(log *slog.Logger) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if rec := recover(); rec != nil {
-					log.Error("panic recovered",
-						"err", rec,
-						"path", r.URL.Path,
-						"stack", string(debug.Stack()),
-					)
-					http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
-				}
-			}()
-			next.ServeHTTP(w, r)
-		})
+func Recover(log *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Error("panic recovered",
+					"err", rec,
+					"path", c.Request.URL.Path,
+					"stack", string(debug.Stack()),
+				)
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "internal server error",
+				})
+			}
+		}()
+		c.Next()
 	}
 }
