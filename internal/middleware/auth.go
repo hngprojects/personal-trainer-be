@@ -69,7 +69,7 @@ func Auth(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.Set(string(UserIDKey), userID)
+		c.Set(UserIDKey, userID)
 		c.Next()
 	}
 }
