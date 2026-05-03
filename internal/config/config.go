@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 )
 
@@ -10,16 +11,34 @@ type Config struct {
 	LogLevel    string
 	LogFormat   string
 	DatabaseURL string
+
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUser     string
+	SMTPPassword string
+	SMTPFrom     string
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Env:         getenv("APP_ENV", "development"),
-		Port:        getenv("PORT", "8080"),
-		LogLevel:    getenv("LOG_LEVEL", "info"),
-		LogFormat:   os.Getenv("LOG_FORMAT"),
+		Env:       getenv("APP_ENV", "development"),
+		Port:      getenv("PORT", "8080"),
+		LogLevel:  getenv("LOG_LEVEL", "info"),
+		LogFormat: os.Getenv("LOG_FORMAT"),
+
 		DatabaseURL: os.Getenv("DATABASE_URL"),
+
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     getenv("SMTP_PORT", "587"),
+		SMTPUser:     os.Getenv("SMTP_USER"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:     os.Getenv("SMTP_FROM"),
 	}
+
+	if cfg.DatabaseURL == "" {
+		return nil, errors.New("DATABASE_URL is required")
+	}
+
 	return cfg, nil
 }
 

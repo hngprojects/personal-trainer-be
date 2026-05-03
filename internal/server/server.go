@@ -1,21 +1,27 @@
 package server
 
 import (
+	"database/sql"
 	"log/slog"
 	"net/http"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/db"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
+	"github.com/hngprojects/personal-trainer-be/internal/repository"
+	"github.com/hngprojects/personal-trainer-be/internal/service"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 type Server struct {
 	cfg *config.Config
 	log *slog.Logger
+	db  *sql.DB
 }
 
-func New(cfg *config.Config, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, log: log}
+func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Server {
+	return &Server{cfg: cfg, log: log, db: db}
 }
 
 func (s *Server) Routes() http.Handler {
@@ -25,9 +31,36 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /health", health.Check)
 	mux.HandleFunc("GET /{$}", health.Root)
 
+	queries := db.New(s.db)
+	mailer := s.buildMailer()
+
+	userRepo := repository.NewUserRepository(queries)
+	sessionRepo := repository.NewSessionRepository(queries)
+	codeRepo := repository.NewVerificationCodeRepository(queries)
+	authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
+	auth := handlers.NewAuthHandler(authSvc)
+
+	mux.HandleFunc("POST /auth/register", auth.InitiateSignUp)
+	mux.HandleFunc("POST /auth/register/verify", auth.VerifyCode)
+	mux.HandleFunc("POST /auth/register/complete", auth.CompleteSignUp)
+	mux.HandleFunc("POST /auth/login", auth.SignIn)
+
 	chain := middleware.Chain(
 		middleware.Recover(s.log),
 		middleware.Logger(s.log),
 	)
 	return chain(mux)
+}
+
+func (s *Server) buildMailer() email.Mailer {
+	if s.cfg.SMTPHost == "" || s.cfg.Env == "development" {
+		return email.NewLogMailer()
+	}
+	return email.NewSMTPMailer(
+		s.cfg.SMTPHost,
+		s.cfg.SMTPPort,
+		s.cfg.SMTPUser,
+		s.cfg.SMTPPassword,
+		s.cfg.SMTPFrom,
+	)
 }
