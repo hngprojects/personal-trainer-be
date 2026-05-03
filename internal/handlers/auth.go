@@ -18,7 +18,7 @@ func NewLocalAuthHandler(authService *service.AuthService) *LocalAuthHandler {
 
 func (h *LocalAuthHandler) Logout(c *gin.Context) {
 	token := c.GetHeader("Authorization")
-	token = token[7:] // strip "Bearer "
+	token = strings.TrimPrefix(token, "Bearer ")
 
 	if err := h.authService.Logout(c.Request.Context(), token); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
