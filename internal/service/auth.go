@@ -29,6 +29,10 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int64, oldPassw
 		return fmt.Errorf("user not found: %w", err)
 	}
 
+	if !user.Password.Valid {
+		return errors.New("user has no local password set")
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(oldPassword)); err != nil {
 		return errors.New("invalid current password")
 	}
