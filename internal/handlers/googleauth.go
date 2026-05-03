@@ -9,20 +9,22 @@ type AuthHandler struct {
 	oauthCfg *oauth2.Config
 }
 
-func NewAuthHandler(clientID, clientSecret, redirecURL string) *AuthHandler {
+func NewAuthHandler(clientID, clientSecret, redirectURL string) *AuthHandler {
 	return &AuthHandler{
 		oauthCfg: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectURL:  redirecURL,
+			RedirectURL:  redirectURL,
 			Scopes:       []string{"openid", "email", "profile"},
 			Endpoint:     google.Endpoint,
 		},
 	}
 }
 
-// func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+// func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 // 	state := generateState()
+// 	url := h.oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
+// 	c.Redirect(http.StatusTemporaryRedirect, url)
 // }
 
 // func generateState() string {
