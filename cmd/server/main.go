@@ -14,6 +14,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/server"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
+	_ "github.com/lib/pq"
 )
 
 func main() {
