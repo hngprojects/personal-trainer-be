@@ -51,6 +51,8 @@ func (h *LocalAuthHandler) ChangePassword(c *gin.Context) {
 
 	var input struct {
 		NewPassword string `json:"new_password"`
+		OldPassword string `json:"old_password"`
+
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
