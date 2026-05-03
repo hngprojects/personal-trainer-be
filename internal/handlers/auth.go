@@ -61,7 +61,13 @@ func (h *LocalAuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ChangePassword(c.Request.Context(), userID.(int64), input.NewPassword); err != nil {
+	id, ok := userID.(int64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "INTERNAL_ERROR", "message": "invalid user ID"}})
+		return
+	}
+
+	if err := h.authService.ChangePassword(c.Request.Context(), id, input.OldPassword, input.NewPassword); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
 				"code":    "VALIDATION_FAILED",
