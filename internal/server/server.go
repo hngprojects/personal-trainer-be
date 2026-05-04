@@ -51,7 +51,7 @@ func (s *Server) Routes() http.Handler {
 		userRepo := repository.NewUserRepository(queries)
 		sessionRepo := repository.NewSessionRepository(queries)
 		codeRepo := repository.NewVerificationCodeRepository(queries)
-		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
+		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer, s.cfg.SessionTTL)
 		auth := handlers.NewAuthHandler(authSvc, s.cfg, queries)
 
 		r.POST("/auth/register", auth.InitiateSignUp)

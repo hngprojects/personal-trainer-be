@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -14,15 +15,17 @@ import (
 )
 
 type AuthHandler struct {
-	auth     *service.AuthService
-	oauthCfg *oauth2.Config
-	queries  *db.Queries
+	auth       *service.AuthService
+	oauthCfg   *oauth2.Config
+	queries    *db.Queries
+	sessionTTL time.Duration
 }
 
 func NewAuthHandler(auth *service.AuthService, cfg *config.Config, queries *db.Queries) *AuthHandler {
 	return &AuthHandler{
-		auth:    auth,
-		queries: queries,
+		auth:       auth,
+		queries:    queries,
+		sessionTTL: cfg.SessionTTL,
 		oauthCfg: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,

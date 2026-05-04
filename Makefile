@@ -1,7 +1,11 @@
 .PHONY: help run build test test-cover lint fmt tidy clean \
         install-tools sqlc \
         migrate-up migrate-down migrate-create \
-        migrate-version migrate-force migrate-drop
+        migrate-version migrate-status migrate-reset
+
+# Auto-load .env if present (so DATABASE_URL etc. are available without manual export)
+-include .env
+export
 
 # ----------------------------------------------------------------------
 # Variables
@@ -11,9 +15,9 @@ PKG        := ./...
 MIGRATIONS := migrations
 DB_URL     ?= $(DATABASE_URL)
 
-MIGRATE_VERSION := v4.17.1
+GOOSE_VERSION := v3.24.3
 
-MIGRATE ?= $(shell command -v migrate 2>/dev/null || echo $(shell go env GOPATH 2>/dev/null)/bin/migrate)
+GOOSE ?= $(shell command -v goose 2>/dev/null || echo $(shell go env GOPATH 2>/dev/null)/bin/goose)
 
 export CGO_ENABLED ?= 0
 
@@ -66,46 +70,42 @@ sqlc: ## Regenerate sqlc DB layer from SQL files
 # ----------------------------------------------------------------------
 # Tooling
 # ----------------------------------------------------------------------
-install-tools: ## Install golang-migrate CLI
-	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+install-tools: ## Install goose CLI
+	go install github.com/pressly/goose/v3/cmd/goose@$(GOOSE_VERSION)
 
 # ----------------------------------------------------------------------
-# Database migrations (golang-migrate)
+# Database migrations (goose)
 # ----------------------------------------------------------------------
-_check-migrate:
-	@if [ ! -x "$(MIGRATE)" ]; then \
-	  echo "ERROR: migrate CLI not found. Run 'make install-tools' first."; \
+_check-goose:
+	@if [ ! -x "$(GOOSE)" ]; then \
+	  echo "ERROR: goose CLI not found. Run 'make install-tools' first."; \
 	  exit 1; \
 	fi
 
-_check-db: _check-migrate
+_check-db: _check-goose
 	@if [ -z "$(DB_URL)" ]; then \
 	  echo "ERROR: DATABASE_URL is not set. Copy .env.example to .env and export it."; \
 	  exit 1; \
 	fi
 
 migrate-up: _check-db ## Apply all pending migrations
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" up
+	$(GOOSE) -dir $(MIGRATIONS) postgres "$(DB_URL)" up
 
 migrate-down: _check-db ## Rollback the most recent migration
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" down 1
+	$(GOOSE) -dir $(MIGRATIONS) postgres "$(DB_URL)" down
 
-migrate-create: _check-migrate ## Create new migration files: make migrate-create NAME=add_trainers
+migrate-create: _check-goose ## Create a new migration file: make migrate-create NAME=add_trainers
 	@if [ -z "$(NAME)" ]; then \
 	  echo "ERROR: NAME is required, e.g. make migrate-create NAME=add_trainers"; \
 	  exit 1; \
 	fi
-	$(MIGRATE) create -ext sql -dir $(MIGRATIONS) -seq $(NAME)
+	$(GOOSE) -dir $(MIGRATIONS) -s create $(NAME) sql
 
 migrate-version: _check-db ## Print current migration version
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" version
+	$(GOOSE) -dir $(MIGRATIONS) postgres "$(DB_URL)" version
 
-migrate-force: _check-db ## Force a version to fix a dirty state: make migrate-force VERSION=1
-	@if [ -z "$(VERSION)" ]; then \
-	  echo "ERROR: VERSION is required, e.g. make migrate-force VERSION=1"; \
-	  exit 1; \
-	fi
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" force $(VERSION)
+migrate-status: _check-db ## Show applied/pending migration status
+	$(GOOSE) -dir $(MIGRATIONS) postgres "$(DB_URL)" status
 
-migrate-drop: _check-db ## Drop EVERYTHING in the database (destructive!)
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" drop -f
+migrate-reset: _check-db ## Rollback ALL migrations (destructive!)
+	$(GOOSE) -dir $(MIGRATIONS) postgres "$(DB_URL)" reset

@@ -12,6 +12,21 @@ import (
 )
 
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
+
+	if token, err := c.Cookie("session_token"); err == nil {
+		session, err := h.queries.GetSessionByToken(c.Request.Context(), token)
+		if err == nil {
+			c.JSON(http.StatusOK, gin.H{
+				"status": "already authenticated",
+				"data": gin.H{
+					"session_id": session.ID,
+					"expires_at": session.ExpiresAt,
+				},
+			})
+			return
+		}
+	}
+
 	state := service.GenerateState()
 	c.SetCookie("oauth_state", state, 300, "/", "", false, true)
 	url := h.oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
@@ -60,16 +75,26 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		}
 	}
 
-	sessionToken := service.GenerateSessionToken()
-	_, err = h.queries.CreateSession(c.Request.Context(), db.CreateSessionParams{
-		UserID:    user.ID,
-		Token:     sessionToken,
-		ExpiresAt: time.Now().UTC().Add(2 * time.Minute),
-	})
+	existing, err := h.queries.GetActiveSessionByUserID(c.Request.Context(), user.ID)
+	if err == nil {
+		maxAge := max(1, int(time.Until(existing.ExpiresAt).Seconds()))
+		c.SetCookie("session_token", existing.Token, maxAge, "/", "", false, true)
+		c.JSON(http.StatusOK, gin.H{
+			"token":      existing.Token,
+			"expires_at": existing.ExpiresAt,
+		})
+		return
+	}
+
+	session, err := h.auth.CreateSession(c.Request.Context(), user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": sessionToken})
+	c.SetCookie("session_token", session.Token, int(h.sessionTTL.Seconds()), "/", "", false, true)
+	c.JSON(http.StatusOK, gin.H{
+		"token":      session.Token,
+		"expires_at": session.ExpiresAt,
+	})
 }

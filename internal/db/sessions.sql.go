@@ -33,6 +33,23 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
+const getActiveSessionByUserID = `-- name: GetActiveSessionByUserID :one
+SELECT id, user_id, token, expires_at, created_at FROM sessions WHERE user_id = $1 AND expires_at > NOW() ORDER BY expires_at DESC LIMIT 1
+`
+
+func (q *Queries) GetActiveSessionByUserID(ctx context.Context, userID int64) (Session, error) {
+	row := q.db.QueryRowContext(ctx, getActiveSessionByUserID, userID)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Token,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions WHERE token = $1
 `

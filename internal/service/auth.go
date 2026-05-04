@@ -29,10 +29,11 @@ var (
 var hasNumber = regexp.MustCompile(`[0-9]`)
 
 type AuthService struct {
-	users    *repository.UserRepository
-	sessions *repository.SessionRepository
-	codes    *repository.VerificationCodeRepository
-	mailer   email.Mailer
+	users      *repository.UserRepository
+	sessions   *repository.SessionRepository
+	codes      *repository.VerificationCodeRepository
+	mailer     email.Mailer
+	sessionTTL time.Duration
 }
 
 func NewAuthService(
@@ -40,8 +41,9 @@ func NewAuthService(
 	sessions *repository.SessionRepository,
 	codes *repository.VerificationCodeRepository,
 	mailer email.Mailer,
+	sessionTTL time.Duration,
 ) *AuthService {
-	return &AuthService{users: users, sessions: sessions, codes: codes, mailer: mailer}
+	return &AuthService{users: users, sessions: sessions, codes: codes, mailer: mailer, sessionTTL: sessionTTL}
 }
 
 func (s *AuthService) InitiateSignUp(ctx context.Context, emailAddr string) error {
@@ -118,7 +120,7 @@ func (s *AuthService) CompleteSignUp(ctx context.Context, emailAddr, name, code,
 		return nil, err
 	}
 
-	return s.createSession(ctx, user.ID)
+	return s.CreateSession(ctx, user.ID)
 }
 
 func (s *AuthService) SignIn(ctx context.Context, emailAddr, password string) (*models.Session, *models.User, error) {
@@ -142,7 +144,7 @@ func (s *AuthService) SignIn(ctx context.Context, emailAddr, password string) (*
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	session, err := s.createSession(ctx, user.ID)
+	session, err := s.CreateSession(ctx, user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +152,7 @@ func (s *AuthService) SignIn(ctx context.Context, emailAddr, password string) (*
 	return session, user, nil
 }
 
-func (s *AuthService) createSession(ctx context.Context, userID int64) (*models.Session, error) {
+func (s *AuthService) CreateSession(ctx context.Context, userID int64) (*models.Session, error) {
 	token, err := generateToken()
 	if err != nil {
 		return nil, err
@@ -158,7 +160,7 @@ func (s *AuthService) createSession(ctx context.Context, userID int64) (*models.
 	session := &models.Session{
 		UserID:    userID,
 		Token:     token,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(s.sessionTTL),
 	}
 	if err := s.sessions.Create(ctx, session); err != nil {
 		return nil, err
