@@ -1,8 +1,10 @@
 package config
 
 import (
-	"errors"
+	"fmt"
 	"os"
+
+	"github.com/lpernett/godotenv"
 )
 
 type Config struct {
@@ -24,6 +26,7 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	godotenv.Load()
 	cfg := &Config{
 		Env:       getenv("APP_ENV", "development"),
 		Port:      getenv("PORT", "8080"),
@@ -40,11 +43,19 @@ func Load() (*Config, error) {
 
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 	}
 
-	if cfg.DatabaseURL == "" {
-		return nil, errors.New("DATABASE_URL is required")
+	required := map[string]string{
+		"DATABASE_URL":         cfg.DatabaseURL,
+		"GOOGLE_CLIENT_ID":     cfg.GoogleClientID,
+		"GOOGLE_CLIENT_SECRET": cfg.GoogleClientSecret,
+		"GOOGLE_REDIRECT_URL":  cfg.GoogleRedirectURL,
+	}
+	for key, val := range required {
+		if val == "" {
+			return nil, fmt.Errorf("%s is required", key)
+		}
 	}
 
 	return cfg, nil

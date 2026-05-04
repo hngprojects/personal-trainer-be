@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewAuthHandler_NotNil(t *testing.T) {
-	h := NewAuthHandler("client-id", "client-secret", "http://localhost/callback")
+	h := NewAuthHandler("client-id", "client-secret", "http://localhost/callback", nil)
 	if h == nil {
 		t.Fatal("expected non-nil AuthHandler")
 	}
@@ -20,7 +20,7 @@ func TestNewAuthHandler_OAuthConfigCredentials(t *testing.T) {
 	clientSecret := "test-client-secret"
 	redirectURL := "http://localhost:8080/auth/google/callback"
 
-	h := NewAuthHandler(clientID, clientSecret, redirectURL)
+	h := NewAuthHandler(clientID, clientSecret, redirectURL, nil)
 
 	if h.oauthCfg.ClientID != clientID {
 		t.Errorf("expected ClientID %q, got %q", clientID, h.oauthCfg.ClientID)
@@ -34,7 +34,7 @@ func TestNewAuthHandler_OAuthConfigCredentials(t *testing.T) {
 }
 
 func TestNewAuthHandler_GoogleEndpoint(t *testing.T) {
-	h := NewAuthHandler("id", "secret", "http://localhost/callback")
+	h := NewAuthHandler("id", "secret", "http://localhost/callback", nil)
 
 	if h.oauthCfg.Endpoint != google.Endpoint {
 		t.Errorf("expected Google OAuth endpoint, got %+v", h.oauthCfg.Endpoint)
@@ -42,7 +42,7 @@ func TestNewAuthHandler_GoogleEndpoint(t *testing.T) {
 }
 
 func TestNewAuthHandler_Scopes(t *testing.T) {
-	h := NewAuthHandler("id", "secret", "http://localhost/callback")
+	h := NewAuthHandler("id", "secret", "http://localhost/callback", nil)
 
 	expected := []string{"openid", "email", "profile"}
 	if len(h.oauthCfg.Scopes) != len(expected) {

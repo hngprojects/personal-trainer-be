@@ -6,6 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/lib/pq v1.12.3
 	github.com/lmittmann/tint v1.1.3
+	github.com/lpernett/godotenv v0.0.0-20230527005122-0de1d4c5ef5e
 	golang.org/x/crypto v0.50.0
 	golang.org/x/oauth2 v0.36.0
 )

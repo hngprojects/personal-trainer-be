@@ -9,17 +9,20 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/db"
 	"github.com/hngprojects/personal-trainer-be/internal/service"
 )
 
 type AuthHandler struct {
 	auth     *service.AuthService
 	oauthCfg *oauth2.Config
+	queries  *db.Queries
 }
 
-func NewAuthHandler(auth *service.AuthService, cfg *config.Config) *AuthHandler {
+func NewAuthHandler(auth *service.AuthService, cfg *config.Config, queries *db.Queries) *AuthHandler {
 	return &AuthHandler{
-		auth: auth,
+		auth:    auth,
+		queries: queries,
 		oauthCfg: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,

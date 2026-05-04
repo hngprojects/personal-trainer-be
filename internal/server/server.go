@@ -52,12 +52,14 @@ func (s *Server) Routes() http.Handler {
 		sessionRepo := repository.NewSessionRepository(queries)
 		codeRepo := repository.NewVerificationCodeRepository(queries)
 		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
-		auth := handlers.NewAuthHandler(authSvc, s.cfg)
+		auth := handlers.NewAuthHandler(authSvc, s.cfg, queries)
 
 		r.POST("/auth/register", auth.InitiateSignUp)
 		r.POST("/auth/register/verify", auth.VerifyCode)
 		r.POST("/auth/register/complete", auth.CompleteSignUp)
 		r.POST("/auth/login", auth.SignIn)
+		r.GET("/auth/google/login", auth.GoogleLogin)
+		r.GET("/auth/google/callback", auth.GoogleCallback)
 	}
 
 	return r
