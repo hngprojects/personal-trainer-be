@@ -17,7 +17,7 @@ A modern, scalable backend service for personal training management built with G
 
 - **Language**: Go 1.25.3
 - **Database**: PostgreSQL
-- **HTTP Framework**: Standard library (`Gin`)
+- **HTTP Framework**: Gin
 - **Logging**: `log/slog` (stdlib)
 - **Migrations**: `golang-migrate`
 - **Logging Enhancement**: `tint` for colored console output
