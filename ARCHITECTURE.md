@@ -111,9 +111,13 @@ This service exposes a **RESTful JSON API**.
 
 ### Response Format
 
-All responses return `Content-Type: application/json`.
+**Content-Type Header and Body Rules:**
 
-#### Success
+- Successful responses (`2xx`) with content MUST return `Content-Type: application/json` with a JSON envelope.
+- `204 No Content` responses MUST NOT include a response body or a Content-Type header (this is the HTTP standard).
+- All other responses (errors, success with data) use the JSON envelope format below.
+
+#### Success (200, 201, and responses with body)
 
 ```json
 {
@@ -125,7 +129,7 @@ All responses return `Content-Type: application/json`.
 }
 ```
 
-#### Error
+#### Error (4xx, 5xx)
 
 ```json
 {

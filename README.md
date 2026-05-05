@@ -215,7 +215,13 @@ log.Error("database error", "err", err)
 ```json
 {
   "status": "success",
-  "data": { ... },
+  "message": "User created successfully",
+  "code": "USER_CREATED",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "name": "John Doe"
+  },
   "meta": {
     "page": 1,
     "per_page": 20,
@@ -228,11 +234,15 @@ log.Error("database error", "err", err)
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "message": "Email is required.",
-    "details": [ ... ]
-  }
+  "status": "error",
+  "message": "Validation failed",
+  "code": "VALIDATION_FAILED",
+  "errors": [
+    {
+      "field": "email",
+      "message": "Email is required"
+    }
+  ]
 }
 ```
 
