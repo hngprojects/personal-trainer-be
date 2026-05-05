@@ -99,12 +99,13 @@ This service exposes a **RESTful JSON API**.
 
 ### HTTP Methods
 
-| Method   | Usage                   |
-| -------- | ----------------------- |
-| `GET`    | Read a resource or list |
-| `POST`   | Create a new resource   |
-| `PUT`    | Replace a resource      |
-| `DELETE` | Remove a resource       |
+| Method   | Usage                        |
+| -------- | ---------------------------- |
+| `GET`    | Read a resource or list      |
+| `POST`   | Create a new resource        |
+| `PUT`    | Replace a resource           |
+| `PATCH`  | Partial update of a resource |
+| `DELETE` | Remove a resource            |
 
 ---
 

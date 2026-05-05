@@ -7,4 +7,5 @@ WHERE token = $1 AND expires_at > NOW()
 LIMIT 1;
 
 -- name: DeleteSession :exec
-DELETE FROM sessions WHERE token = $1;
+DELETE FROM sessions
+WHERE token = $1;
