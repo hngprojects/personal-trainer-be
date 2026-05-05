@@ -1,12 +1,12 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "internal/db/queries/"
-    schema: "migrations/"
+    queries: "internal/models/queries"
+    schema: "migrations"
     gen:
       go:
         package: "db"
-        out: "internal/db"
+        out: "internal/repository/db"
         overrides:
           - db_type: "uuid"
             go_type: "string"

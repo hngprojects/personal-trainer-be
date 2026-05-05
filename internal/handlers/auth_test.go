@@ -26,6 +26,8 @@ type mockAuthService struct {
 	verifyCodeFn     func(ctx context.Context, email, code string) error
 	completeSignUpFn func(ctx context.Context, email, name, code, password string) (*models.Session, error)
 	signInFn         func(ctx context.Context, email, password string) (*models.Session, *models.User, error)
+	forgotPasswordFn func(ctx context.Context, email string) error
+	resetPasswordFn  func(ctx context.Context, token, newPassword string) error
 }
 
 func (m *mockAuthService) InitiateSignUp(ctx context.Context, email string) error {
@@ -52,6 +54,18 @@ func (m *mockAuthService) SignIn(ctx context.Context, email, password string) (*
 	}
 	return nil, nil, nil
 }
+func (m *mockAuthService) ForgotPassword(ctx context.Context, email string) error {
+	if m.forgotPasswordFn != nil {
+		return m.forgotPasswordFn(ctx, email)
+	}
+	return nil
+}
+func (m *mockAuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if m.resetPasswordFn != nil {
+		return m.resetPasswordFn(ctx, token, newPassword)
+	}
+	return nil
+}
 
 func newTestRouter(svc *mockAuthService) *gin.Engine {
 	r := gin.New()
@@ -60,6 +74,8 @@ func newTestRouter(svc *mockAuthService) *gin.Engine {
 	r.POST("/auth/register/verify", h.VerifyCode)
 	r.POST("/auth/register/complete", h.CompleteSignUp)
 	r.POST("/auth/login", h.SignIn)
+	r.POST("/auth/forgot-password", h.ForgotPassword)
+	r.POST("/auth/reset-password", h.ResetPassword)
 	return r
 }
 
@@ -377,5 +393,132 @@ func TestSignIn_Success(t *testing.T) {
 	}
 	if resp.Data.User.Email == "" {
 		t.Error("expected non-empty user.email in response")
+	}
+}
+
+// --- ForgotPassword tests ---
+
+func TestForgotPassword_InvalidEmail(t *testing.T) {
+	r := newTestRouter(&mockAuthService{})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/forgot-password", `{"email":"not-an-email"}`))
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	assertErrorCode(t, w, "VALIDATION_FAILED")
+}
+
+func TestForgotPassword_Success(t *testing.T) {
+	svc := &mockAuthService{
+		forgotPasswordFn: func(_ context.Context, _ string) error { return nil },
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/forgot-password", `{"email":"user@example.com"}`))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestForgotPassword_UnknownEmail_StillReturns200(t *testing.T) {
+	svc := &mockAuthService{
+		forgotPasswordFn: func(_ context.Context, _ string) error { return nil },
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/forgot-password", `{"email":"unknown@example.com"}`))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 to avoid email enumeration, got %d", w.Code)
+	}
+}
+
+func TestForgotPassword_ServiceError(t *testing.T) {
+	svc := &mockAuthService{
+		forgotPasswordFn: func(_ context.Context, _ string) error {
+			return errors.New("db error")
+		},
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/forgot-password", `{"email":"user@example.com"}`))
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+	assertErrorCode(t, w, "INTERNAL_ERROR")
+}
+
+// --- ResetPassword tests ---
+
+func TestResetPassword_MissingFields(t *testing.T) {
+	r := newTestRouter(&mockAuthService{})
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"missing both", `{}`},
+		{"missing password", `{"token":"abc"}`},
+		{"missing token", `{"password":"Secret123"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/reset-password", tc.body))
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d", w.Code)
+			}
+			assertErrorCode(t, w, "VALIDATION_FAILED")
+		})
+	}
+}
+
+func TestResetPassword_InvalidToken(t *testing.T) {
+	svc := &mockAuthService{
+		resetPasswordFn: func(_ context.Context, _, _ string) error {
+			return service.ErrInvalidResetToken
+		},
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	body := `{"token":"expired-token","password":"NewSecret1"}`
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/reset-password", body))
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	assertErrorCode(t, w, "INVALID_TOKEN")
+}
+
+func TestResetPassword_WeakPassword(t *testing.T) {
+	svc := &mockAuthService{
+		resetPasswordFn: func(_ context.Context, _, _ string) error {
+			return service.ErrWeakPassword
+		},
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	body := `{"token":"valid-token","password":"weak"}`
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/reset-password", body))
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+	assertErrorCode(t, w, "WEAK_PASSWORD")
+}
+
+func TestResetPassword_Success(t *testing.T) {
+	svc := &mockAuthService{
+		resetPasswordFn: func(_ context.Context, _, _ string) error { return nil },
+	}
+	r := newTestRouter(svc)
+	w := httptest.NewRecorder()
+	body := `{"token":"valid-token","password":"NewSecret1"}`
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/reset-password", body))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
 	}
 }

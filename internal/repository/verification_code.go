@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hngprojects/personal-trainer-be/internal/db"
+	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/models"
 )
 
