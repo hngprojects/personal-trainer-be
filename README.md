@@ -68,7 +68,7 @@ git clone <repository-url>
 cd personal-trainer-be
 ```
 
-### 2. Set Up Environment Variables
+### 2. Set Up Environment Variables in Terminal
 
 ```bash
 cp .env.example .env
@@ -81,7 +81,7 @@ APP_ENV=development
 PORT=8080
 LOG_LEVEL=debug
 LOG_FORMAT=json
-DATABASE_URL=postgres://user:password@localhost:5432/trainer_db?sslmode=disable
+DATABASE_URL=postgres://user:password@localhost:5432/personal_trainer?sslmode=disable
 ```
 
 ### 3. Start Dependencies
@@ -238,18 +238,18 @@ log.Error("database error", "err", err)
 
 ### HTTP Status Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | OK |
-| 201 | Created |
-| 204 | No Content |
-| 400 | Bad Request |
-| 401 | Unauthenticated |
-| 403 | Forbidden |
-| 404 | Not Found |
-| 409 | Conflict |
-| 422 | Unprocessable Entity |
-| 500 | Internal Server Error |
+| Code | Meaning               |
+| ---- | --------------------- |
+| 200  | OK                    |
+| 201  | Created               |
+| 204  | No Content            |
+| 400  | Bad Request           |
+| 401  | Unauthenticated       |
+| 403  | Forbidden             |
+| 404  | Not Found             |
+| 409  | Conflict              |
+| 422  | Unprocessable Entity  |
+| 500  | Internal Server Error |
 
 ## Configuration
 
