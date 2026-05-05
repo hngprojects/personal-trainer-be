@@ -17,8 +17,9 @@ func NewPasswordResetRepository(q *db.Queries) *PasswordResetRepository {
 }
 
 func (r *PasswordResetRepository) Save(ctx context.Context, prt *models.PasswordResetToken) error {
-	// Invalidate any existing tokens for this user before creating a new one
-	_ = r.q.DeletePasswordResetTokensByUserID(ctx, prt.UserID)
+	if err := r.q.DeletePasswordResetTokensByUserID(ctx, prt.UserID); err != nil {
+		return err
+	}
 
 	row, err := r.q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
 		UserID:    prt.UserID,
