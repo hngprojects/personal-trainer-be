@@ -285,6 +285,7 @@ Missing required variables will cause the server to exit with a descriptive erro
 ### Conventions
 
 - Timestamps stored as `TIMESTAMPTZ` (UTC)
+- UUIDs used as primary keys (`uuid_generate_v4()`)
 - Connection pooling configured via pgx
 - Parameterized queries to prevent SQL injection
 

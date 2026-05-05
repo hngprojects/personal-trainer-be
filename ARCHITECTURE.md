@@ -76,6 +76,7 @@ The application is structured as a single deployable binary. Inter-service commu
 - Avoid ORM frameworks. Raw SQL (or a thin query builder like [`sqlc`](https://sqlc.dev/)) keeps queries explicit, testable, and performant.
 - Connection pooling is configured via `pgx`'s pool settings (`MaxConns`, `MinConns`, `MaxConnLifetime`).
 - All timestamps are stored as `TIMESTAMPTZ` (UTC). The application never stores local time.
+- UUIDs (`uuid_generate_v4()`) are used as primary keys across all tables.
 
 ---
 
@@ -204,7 +205,7 @@ This service exposes a **RESTful JSON API**.
 
 Each session record typically contains:
 
-- `id`
+- `id` (UUID)
 - `user_id`
 - `created_at`
 - `expires_at` (7 days from creation)
