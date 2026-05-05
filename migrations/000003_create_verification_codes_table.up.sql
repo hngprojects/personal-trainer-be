@@ -1,9 +1,0 @@
-CREATE TABLE IF NOT EXISTS verification_codes (
-    id         BIGSERIAL   PRIMARY KEY,
-    email      TEXT        NOT NULL,
-    code       TEXT        NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
