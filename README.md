@@ -17,7 +17,7 @@ A modern, scalable backend service for personal training management built with G
 
 - **Language**: Go 1.25.3
 - **Database**: PostgreSQL
-- **HTTP Framework**: Standard library (`net/http`)
+- **HTTP Framework**: Standard library (`Gin`)
 - **Logging**: `log/slog` (stdlib)
 - **Migrations**: `golang-migrate`
 - **Logging Enhancement**: `tint` for colored console output
@@ -238,18 +238,18 @@ log.Error("database error", "err", err)
 
 ### HTTP Status Codes
 
-| Code | Meaning |
-|------|---------|
-| 200 | OK |
-| 201 | Created |
-| 204 | No Content |
-| 400 | Bad Request |
-| 401 | Unauthenticated |
-| 403 | Forbidden |
-| 404 | Not Found |
-| 409 | Conflict |
-| 422 | Unprocessable Entity |
-| 500 | Internal Server Error |
+| Code | Meaning               |
+| ---- | --------------------- |
+| 200  | OK                    |
+| 201  | Created               |
+| 204  | No Content            |
+| 400  | Bad Request           |
+| 401  | Unauthenticated       |
+| 403  | Forbidden             |
+| 404  | Not Found             |
+| 409  | Conflict              |
+| 422  | Unprocessable Entity  |
+| 500  | Internal Server Error |
 
 ## Configuration
 

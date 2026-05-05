@@ -8,10 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	"github.com/hngprojects/personal-trainer-be/internal/db"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository"
+	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/service"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )

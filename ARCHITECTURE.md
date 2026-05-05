@@ -99,58 +99,147 @@ This service exposes a **RESTful JSON API**.
 
 ### HTTP Methods
 
-| Method   | Usage                     |
-| -------- | ------------------------- |
-| `GET`    | Read a resource or list   |
-| `POST`   | Create a new resource     |
-| `PUT`    | Replacement of a resource |
-| `DELETE` | Remove a resource         |
+| Method   | Usage                   |
+| -------- | ----------------------- |
+| `GET`    | Read a resource or list |
+| `POST`   | Create a new resource   |
+| `PUT`    | Replace a resource      |
+| `DELETE` | Remove a resource       |
+
+---
 
 ### Response Format
 
-Responses return `Content-Type: application/json`.
+All responses return `Content-Type: application/json`.
 
-**Success:**
-
-```json
-{
-  "status":"",
-  "data": { ... },
-  "meta": { "page": 1, "per_page": 20, "total": 100 }
-}
-```
-
-**Error:**
+#### Success
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "message": "Email is required.",
-    "details": [ ... ]
-  }
+  "status": "success",
+  "message": "Human-readable message",
+  "code": "MACHINE_READABLE_CODE",
+  "data": {},
+  "meta": {}
 }
 ```
+
+#### Error
+
+```json
+{
+  "status": "error",
+  "message": "Human-readable error message",
+  "code": "MACHINE_READABLE_ERROR_CODE",
+  "errors": []
+}
+```
+
+---
+
+### Conventions
+
+- Always include: `status`, `message`, `code`
+- Use:
+
+  - `data` → successful responses only
+  - `errors` → validation or detailed errors only
+  - `meta` → pagination or extra metadata
+
+- Do not mix `data` and `errors`
+- `code` values must be:
+
+  - UPPERCASE
+  - underscore-separated
+  - stable (do not change frequently)
+
+- Messages are human-readable, not for program logic
+
+---
+
+### HTTP Methods
+
+| Method   | Usage                   |
+| -------- | ----------------------- |
+| `GET`    | Read a resource or list |
+| `POST`   | Create a new resource   |
+| `PUT`    | Replace a resource      |
+| `DELETE` | Remove a resource       |
+
+---
+
+### Response Format
+
+All responses return `Content-Type: application/json`.
+
+#### Success
+
+```json
+{
+  "status": "success",
+  "message": "Human-readable message",
+  "code": "MACHINE_READABLE_CODE",
+  "data": {},
+  "meta": {}
+}
+```
+
+#### Error
+
+```json
+{
+  "status": "error",
+  "message": "Human-readable error message",
+  "code": "MACHINE_READABLE_ERROR_CODE",
+  "errors": []
+}
+```
+
+---
+
+### Conventions
+
+- Always include: `status`, `message`, `code`
+- Use:
+
+  - `data` → successful responses only
+  - `errors` → validation or detailed errors only
+  - `meta` → pagination or extra metadata
+
+- Do not mix `data` and `errors`
+- `code` values must be:
+
+  - UPPERCASE
+  - underscore-separated
+  - stable (do not change frequently)
+
+- Messages are human-readable, not for program logic
+
+---
 
 ### HTTP Status Codes
 
-| Code  | Meaning                        |
-| ----- | ------------------------------ |
-| `200` | OK                             |
-| `201` | Created                        |
-| `204` | No Content (successful delete) |
-| `400` | Bad Request / Validation error |
-| `401` | Unauthenticated                |
-| `403` | Forbidden                      |
-| `404` | Not Found                      |
-| `409` | Conflict                       |
-| `422` | Unprocessable Entity           |
-| `500` | Internal Server Error          |
-
-- Never return `200` with an error body.
-- `500` responses never expose internal error details to the client — log them server-side only.
+| Code  | Meaning               |
+| ----- | --------------------- |
+| `200` | OK                    |
+| `201` | Created               |
+| `204` | No Content            |
+| `400` | Bad Request           |
+| `401` | Unauthorized          |
+| `403` | Forbidden             |
+| `404` | Not Found             |
+| `409` | Conflict              |
+| `422` | Validation Error      |
+| `500` | Internal Server Error |
 
 ---
+
+### Rules
+
+- Never return `200` with an error body
+- Use `201` for resource creation
+- Use `422` for validation errors
+- `500` responses must not expose internal details (log internally)
 
 ## Authentication & Security
 

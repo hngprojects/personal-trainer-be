@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/hngprojects/personal-trainer-be/internal/db"
 	"github.com/hngprojects/personal-trainer-be/internal/models"
+	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 type UserRepository struct {
