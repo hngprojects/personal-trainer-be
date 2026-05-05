@@ -1,6 +1,6 @@
 -- +goose Up
 CREATE TABLE IF NOT EXISTS verification_codes (
-    id         BIGSERIAL   PRIMARY KEY,
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     email      TEXT        NOT NULL,
     code       TEXT        NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -38,14 +38,14 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models
 	return toUserModel(row), nil
 }
 
-func (r *UserRepository) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error {
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID string, hashedPassword string) error {
 	return r.q.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{
 		ID:       userID,
 		Password: sql.NullString{String: hashedPassword, Valid: true},
 	})
 }
 
-func (r *UserRepository) UpdateNameAndActivate(ctx context.Context, userID int64, name string) error {
+func (r *UserRepository) UpdateNameAndActivate(ctx context.Context, userID string, name string) error {
 	return r.q.ActivateUser(ctx, db.ActivateUserParams{
 		ID:   userID,
 		Name: name,

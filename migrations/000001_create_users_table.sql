@@ -1,8 +1,8 @@
 -- +goose Up
 CREATE TABLE IF NOT EXISTS users (
-    id            BIGSERIAL   PRIMARY KEY,
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     email         TEXT        NOT NULL UNIQUE,
-    name          TEXT        NOT NULL,
+    name          TEXT        NOT NULL DEFAULT '',
     password      TEXT,
     auth_provider TEXT        NOT NULL DEFAULT 'local',
     is_active     BOOLEAN     NOT NULL DEFAULT true,
@@ -10,8 +10,5 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
 -- +goose Down
-DROP INDEX IF EXISTS idx_users_email;
 DROP TABLE IF EXISTS users;

@@ -11,11 +11,13 @@ import (
 )
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (user_id, token, expires_at) VALUES ($1, $2, $3) RETURNING id, user_id, token, expires_at, created_at
+INSERT INTO sessions (user_id, token, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, token, expires_at, created_at
 `
 
 type CreateSessionParams struct {
-	UserID    int64
+	UserID    string
 	Token     string
 	ExpiresAt time.Time
 }
@@ -34,7 +36,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 }
 
 const deleteSession = `-- name: DeleteSession :exec
-DELETE FROM sessions WHERE token = $1
+DELETE FROM sessions
+WHERE token = $1
 `
 
 func (q *Queries) DeleteSession(ctx context.Context, token string) error {
@@ -43,7 +46,12 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 }
 
 const getSessionByToken = `-- name: GetSessionByToken :one
-SELECT id, user_id, token, expires_at, created_at FROM sessions WHERE token = $1 AND expires_at > NOW() LIMIT 1
+SELECT id, user_id, token, expires_at, created_at
+FROM sessions
+WHERE
+    token = $1
+    AND expires_at > NOW()
+LIMIT 1
 `
 
 func (q *Queries) GetSessionByToken(ctx context.Context, token string) (Session, error) {

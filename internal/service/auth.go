@@ -28,6 +28,13 @@ var (
 
 var hasNumber = regexp.MustCompile(`[0-9]`)
 
+func validatePassword(password string) error {
+	if len(password) < 8 || !hasNumber.MatchString(password) {
+		return ErrWeakPassword
+	}
+	return nil
+}
+
 type AuthService struct {
 	users    *repository.UserRepository
 	sessions *repository.SessionRepository
@@ -87,8 +94,8 @@ func (s *AuthService) VerifyCode(ctx context.Context, emailAddr, code string) er
 }
 
 func (s *AuthService) CompleteSignUp(ctx context.Context, emailAddr, name, code, password string) (*models.Session, error) {
-	if len(password) < 8 || !hasNumber.MatchString(password) {
-		return nil, ErrWeakPassword
+	if err := validatePassword(password); err != nil {
+		return nil, err
 	}
 
 	vc, err := s.codes.FindByEmailAndCode(ctx, emailAddr, code)
@@ -150,7 +157,7 @@ func (s *AuthService) SignIn(ctx context.Context, emailAddr, password string) (*
 	return session, user, nil
 }
 
-func (s *AuthService) createSession(ctx context.Context, userID int64) (*models.Session, error) {
+func (s *AuthService) createSession(ctx context.Context, userID string) (*models.Session, error) {
 	token, err := generateToken()
 	if err != nil {
 		return nil, err

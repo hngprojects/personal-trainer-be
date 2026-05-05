@@ -254,7 +254,7 @@ func TestCompleteSignUp_InvalidCode(t *testing.T) {
 func TestCompleteSignUp_Success(t *testing.T) {
 	svc := &mockAuthService{
 		completeSignUpFn: func(_ context.Context, _, _, _, _ string) (*models.Session, error) {
-			return &models.Session{ID: 1}, nil
+			return &models.Session{ID: "550e8400-e29b-41d4-a716-446655440000"}, nil
 		},
 	}
 	r := newTestRouter(svc)
@@ -352,7 +352,9 @@ func TestSignIn_ServiceError(t *testing.T) {
 func TestSignIn_Success(t *testing.T) {
 	svc := &mockAuthService{
 		signInFn: func(_ context.Context, _, _ string) (*models.Session, *models.User, error) {
-			return &models.Session{ID: 1}, &models.User{ID: 1, Email: "user@example.com", Name: "Test"}, nil
+			return &models.Session{ID: "550e8400-e29b-41d4-a716-446655440000"},
+				&models.User{ID: "550e8400-e29b-41d4-a716-446655440001", Email: "user@example.com", Name: "Test"},
+				nil
 		},
 	}
 	r := newTestRouter(svc)
