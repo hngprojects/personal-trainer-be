@@ -19,29 +19,33 @@ import (
 )
 
 var (
-	ErrEmailAlreadyExists = errors.New("email already registered")
-	ErrInvalidCode        = errors.New("invalid or expired verification code")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrAccountNotActive   = errors.New("account not active")
-	ErrWeakPassword       = errors.New("password must be at least 8 characters and contain at least one number")
+	ErrEmailAlreadyExists  = errors.New("email already registered")
+	ErrInvalidCode         = errors.New("invalid or expired verification code")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrAccountNotActive    = errors.New("account not active")
+	ErrWeakPassword        = errors.New("password must be at least 8 characters and contain at least one number")
+	ErrInvalidResetToken   = errors.New("invalid or expired reset token")
+	ErrUserNotFound        = errors.New("user not found")
 )
 
 var hasNumber = regexp.MustCompile(`[0-9]`)
 
 type AuthService struct {
-	users    *repository.UserRepository
-	sessions *repository.SessionRepository
-	codes    *repository.VerificationCodeRepository
-	mailer   email.Mailer
+	users        *repository.UserRepository
+	sessions     *repository.SessionRepository
+	codes        *repository.VerificationCodeRepository
+	resetTokens  *repository.PasswordResetRepository
+	mailer       email.Mailer
 }
 
 func NewAuthService(
 	users *repository.UserRepository,
 	sessions *repository.SessionRepository,
 	codes *repository.VerificationCodeRepository,
+	resetTokens *repository.PasswordResetRepository,
 	mailer email.Mailer,
 ) *AuthService {
-	return &AuthService{users: users, sessions: sessions, codes: codes, mailer: mailer}
+	return &AuthService{users: users, sessions: sessions, codes: codes, resetTokens: resetTokens, mailer: mailer}
 }
 
 func (s *AuthService) InitiateSignUp(ctx context.Context, emailAddr string) error {
@@ -172,4 +176,62 @@ func generateToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) error {
+	user, err := s.users.FindByEmail(ctx, emailAddr)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Return nil so we don't reveal whether the email exists
+			return nil
+		}
+		return err
+	}
+
+	if !user.IsActive {
+		return nil
+	}
+
+	token, err := generateToken()
+	if err != nil {
+		return err
+	}
+
+	prt := &models.PasswordResetToken{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+	if err := s.resetTokens.Save(ctx, prt); err != nil {
+		return err
+	}
+
+	return s.mailer.Send(emailAddr, "Reset your password",
+		fmt.Sprintf("Use this token to reset your password:\n\n%s\n\nThis token expires in 30 minutes. If you did not request a password reset, ignore this email.", token),
+	)
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if len(newPassword) < 8 || !hasNumber.MatchString(newPassword) {
+		return ErrWeakPassword
+	}
+
+	prt, err := s.resetTokens.FindByToken(ctx, token)
+	if err != nil || prt == nil {
+		return ErrInvalidResetToken
+	}
+	if prt.UsedAt != nil || time.Now().After(prt.ExpiresAt) {
+		return ErrInvalidResetToken
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+		return err
+	}
+
+	if err := s.users.UpdatePassword(ctx, prt.UserID, string(hashed)); err != nil {
+		return err
+	}
+
+	return s.resetTokens.MarkUsed(ctx, token)
 }

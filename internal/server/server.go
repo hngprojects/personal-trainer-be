@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	"github.com/hngprojects/personal-trainer-be/internal/db"
+	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository"
@@ -51,13 +51,16 @@ func (s *Server) Routes() http.Handler {
 		userRepo := repository.NewUserRepository(queries)
 		sessionRepo := repository.NewSessionRepository(queries)
 		codeRepo := repository.NewVerificationCodeRepository(queries)
-		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, mailer)
+		resetRepo := repository.NewPasswordResetRepository(queries)
+		authSvc := service.NewAuthService(userRepo, sessionRepo, codeRepo, resetRepo, mailer)
 		auth := handlers.NewAuthHandler(authSvc, s.cfg)
 
 		r.POST("/auth/register", auth.InitiateSignUp)
 		r.POST("/auth/register/verify", auth.VerifyCode)
 		r.POST("/auth/register/complete", auth.CompleteSignUp)
 		r.POST("/auth/login", auth.SignIn)
+		r.POST("/auth/forgot-password", auth.ForgotPassword)
+		r.POST("/auth/reset-password", auth.ResetPassword)
 	}
 
 	return r

@@ -144,6 +144,50 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 	})
 }
 
+// POST /auth/forgot-password
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "valid email is required"))
+		return
+	}
+
+	if err := h.auth.ForgotPassword(c.Request.Context(), req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse("INTERNAL_ERROR", "something went wrong"))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "if that email exists, a reset token has been sent"})
+}
+
+// POST /auth/reset-password
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req struct {
+		Token    string `json:"token" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse("VALIDATION_FAILED", "token and password are required"))
+		return
+	}
+
+	if err := h.auth.ResetPassword(c.Request.Context(), req.Token, req.Password); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidResetToken):
+			c.JSON(http.StatusBadRequest, errorResponse("INVALID_TOKEN", "invalid or expired reset token"))
+		case errors.Is(err, service.ErrWeakPassword):
+			c.JSON(http.StatusBadRequest, errorResponse("WEAK_PASSWORD", err.Error()))
+		default:
+			c.JSON(http.StatusInternalServerError, errorResponse("INTERNAL_ERROR", "something went wrong"))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "password reset successful"})
+}
+
 func errorResponse(code, message string) gin.H {
 	return gin.H{
 		"error": gin.H{
