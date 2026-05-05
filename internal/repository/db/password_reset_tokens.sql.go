@@ -10,25 +10,41 @@ import (
 	"time"
 )
 
+const claimPasswordResetToken = `-- name: ClaimPasswordResetToken :one
+UPDATE password_reset_tokens
+SET used_at = NOW()
+WHERE token_hash = $1
+    AND used_at IS NULL
+    AND expires_at > NOW()
+RETURNING user_id
+`
+
+func (q *Queries) ClaimPasswordResetToken(ctx context.Context, tokenHash string) (string, error) {
+	row := q.db.QueryRowContext(ctx, claimPasswordResetToken, tokenHash)
+	var user_id string
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
-INSERT INTO password_reset_tokens (user_id, token, expires_at)
+INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
 VALUES ($1, $2, $3)
-RETURNING id, user_id, token, expires_at, used_at, created_at
+RETURNING id, user_id, token_hash, expires_at, used_at, created_at
 `
 
 type CreatePasswordResetTokenParams struct {
 	UserID    string
-	Token     string
+	TokenHash string
 	ExpiresAt time.Time
 }
 
 func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error) {
-	row := q.db.QueryRowContext(ctx, createPasswordResetToken, arg.UserID, arg.Token, arg.ExpiresAt)
+	row := q.db.QueryRowContext(ctx, createPasswordResetToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
 	var i PasswordResetToken
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Token,
+		&i.TokenHash,
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
@@ -43,38 +59,5 @@ WHERE user_id = $1
 
 func (q *Queries) DeletePasswordResetTokensByUserID(ctx context.Context, userID string) error {
 	_, err := q.db.ExecContext(ctx, deletePasswordResetTokensByUserID, userID)
-	return err
-}
-
-const getPasswordResetToken = `-- name: GetPasswordResetToken :one
-SELECT id, user_id, token, expires_at, used_at, created_at
-FROM password_reset_tokens
-WHERE token = $1
-LIMIT 1
-`
-
-func (q *Queries) GetPasswordResetToken(ctx context.Context, token string) (PasswordResetToken, error) {
-	row := q.db.QueryRowContext(ctx, getPasswordResetToken, token)
-	var i PasswordResetToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Token,
-		&i.ExpiresAt,
-		&i.UsedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
-UPDATE password_reset_tokens
-SET used_at = NOW()
-WHERE token = $1
-    AND used_at IS NULL
-`
-
-func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) error {
-	_, err := q.db.ExecContext(ctx, markPasswordResetTokenUsed, token)
 	return err
 }

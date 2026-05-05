@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -196,6 +197,11 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
 func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) error {
 	user, err := s.users.FindByEmail(ctx, emailAddr)
 	if err != nil {
@@ -209,14 +215,14 @@ func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) erro
 		return nil
 	}
 
-	token, err := generateToken()
+	rawToken, err := generateToken()
 	if err != nil {
 		return err
 	}
 
 	prt := &models.PasswordResetToken{
 		UserID:    user.ID,
-		Token:     token,
+		TokenHash: hashToken(rawToken),
 		ExpiresAt: time.Now().Add(resetTokenExpiry),
 	}
 	if err := s.resetTokens.Save(ctx, prt); err != nil {
@@ -224,24 +230,13 @@ func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) erro
 	}
 
 	return s.mailer.Send(emailAddr, "Reset your password",
-		fmt.Sprintf("Use this token to reset your password:\n\n%s\n\nThis token expires in 30 minutes. If you did not request a password reset, ignore this email.", token),
+		fmt.Sprintf("Use this token to reset your password:\n\n%s\n\nThis token expires in 30 minutes. If you did not request a password reset, ignore this email.", rawToken),
 	)
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
 	if err := validatePassword(newPassword); err != nil {
 		return err
-	}
-
-	prt, err := s.resetTokens.FindByToken(ctx, token)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrInvalidResetToken
-		}
-		return err
-	}
-	if prt.UsedAt != nil || time.Now().After(prt.ExpiresAt) {
-		return ErrInvalidResetToken
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
@@ -253,20 +248,28 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	qtx := dbpkg.New(tx)
+
+	userID, err := qtx.ClaimPasswordResetToken(ctx, hashToken(token))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidResetToken
+		}
+		return err
+	}
+
 	if err := qtx.UpdateUserPassword(ctx, dbpkg.UpdateUserPasswordParams{
-		ID:       prt.UserID,
+		ID:       userID,
 		Password: sql.NullString{String: string(hashed), Valid: true},
 	}); err != nil {
 		return err
 	}
-	if err := qtx.MarkPasswordResetTokenUsed(ctx, token); err != nil {
+
+	if err := qtx.DeleteSessionsByUserID(ctx, userID); err != nil {
 		return err
 	}
-	if err := qtx.DeleteSessionsByUserID(ctx, prt.UserID); err != nil {
-		return err
-	}
+
 	return tx.Commit()
 }

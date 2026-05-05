@@ -12,7 +12,7 @@ import (
 type PasswordResetToken struct {
 	ID        string
 	UserID    string
-	Token     string
+	TokenHash string
 	ExpiresAt time.Time
 	UsedAt    sql.NullTime
 	CreatedAt time.Time
