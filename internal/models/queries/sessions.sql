@@ -14,3 +14,7 @@ LIMIT 1;
 -- name: DeleteSession :exec
 DELETE FROM sessions
 WHERE token = $1;
+
+-- name: DeleteSessionsByUserID :exec
+DELETE FROM sessions
+WHERE user_id = $1;

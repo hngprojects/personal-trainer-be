@@ -46,3 +46,7 @@ func (r *SessionRepository) FindByToken(ctx context.Context, token string) (*mod
 func (r *SessionRepository) Delete(ctx context.Context, token string) error {
 	return r.q.DeleteSession(ctx, token)
 }
+
+func (r *SessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	return r.q.DeleteSessionsByUserID(ctx, userID)
+}

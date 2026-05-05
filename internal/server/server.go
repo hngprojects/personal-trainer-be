@@ -51,7 +51,7 @@ func (s *Server) Routes() http.Handler {
 		userRepo := repository.NewUserRepository(queries)
 		sessionRepo := repository.NewSessionRepository(queries)
 		codeRepo := repository.NewVerificationCodeRepository(queries)
-		resetRepo := repository.NewPasswordResetRepository(queries)
+		resetRepo := repository.NewPasswordResetRepository(s.db, queries)
 		authSvc := service.NewAuthService(s.db, userRepo, sessionRepo, codeRepo, resetRepo, mailer)
 		auth := handlers.NewAuthHandler(authSvc, s.cfg)
 

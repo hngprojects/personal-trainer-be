@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -9,19 +10,27 @@ import (
 )
 
 type PasswordResetRepository struct {
-	q *db.Queries
+	db *sql.DB
+	q  *db.Queries
 }
 
-func NewPasswordResetRepository(q *db.Queries) *PasswordResetRepository {
-	return &PasswordResetRepository{q: q}
+func NewPasswordResetRepository(database *sql.DB, q *db.Queries) *PasswordResetRepository {
+	return &PasswordResetRepository{db: database, q: q}
 }
 
 func (r *PasswordResetRepository) Save(ctx context.Context, prt *models.PasswordResetToken) error {
-	if err := r.q.DeletePasswordResetTokensByUserID(ctx, prt.UserID); err != nil {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	qtx := r.q.WithTx(tx)
+	if err := qtx.DeletePasswordResetTokensByUserID(ctx, prt.UserID); err != nil {
 		return err
 	}
 
-	row, err := r.q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
+	row, err := qtx.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
 		UserID:    prt.UserID,
 		Token:     prt.Token,
 		ExpiresAt: prt.ExpiresAt,
@@ -29,9 +38,10 @@ func (r *PasswordResetRepository) Save(ctx context.Context, prt *models.Password
 	if err != nil {
 		return err
 	}
+
 	prt.ID = row.ID
 	prt.CreatedAt = row.CreatedAt
-	return nil
+	return tx.Commit()
 }
 
 func (r *PasswordResetRepository) FindByToken(ctx context.Context, token string) (*models.PasswordResetToken, error) {

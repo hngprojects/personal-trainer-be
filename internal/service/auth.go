@@ -234,8 +234,11 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 	}
 
 	prt, err := s.resetTokens.FindByToken(ctx, token)
-	if err != nil || prt == nil {
-		return ErrInvalidResetToken
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInvalidResetToken
+		}
+		return err
 	}
 	if prt.UsedAt != nil || time.Now().After(prt.ExpiresAt) {
 		return ErrInvalidResetToken
@@ -260,6 +263,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return err
 	}
 	if err := qtx.MarkPasswordResetTokenUsed(ctx, token); err != nil {
+		return err
+	}
+	if err := qtx.DeleteSessionsByUserID(ctx, prt.UserID); err != nil {
 		return err
 	}
 	return tx.Commit()
