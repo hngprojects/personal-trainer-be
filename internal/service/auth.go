@@ -13,9 +13,15 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	dbpkg "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/models"
 	"github.com/hngprojects/personal-trainer-be/internal/repository"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+)
+
+const (
+	bcryptCost       = 12
+	resetTokenExpiry = 30 * time.Minute
 )
 
 var (
@@ -41,21 +47,23 @@ func validatePassword(password string) error {
 }
 
 type AuthService struct {
-	users        *repository.UserRepository
-	sessions     *repository.SessionRepository
-	codes        *repository.VerificationCodeRepository
-	resetTokens  *repository.PasswordResetRepository
-	mailer       email.Mailer
+	db          *sql.DB
+	users       *repository.UserRepository
+	sessions    *repository.SessionRepository
+	codes       *repository.VerificationCodeRepository
+	resetTokens *repository.PasswordResetRepository
+	mailer      email.Mailer
 }
 
 func NewAuthService(
+	db *sql.DB,
 	users *repository.UserRepository,
 	sessions *repository.SessionRepository,
 	codes *repository.VerificationCodeRepository,
 	resetTokens *repository.PasswordResetRepository,
 	mailer email.Mailer,
 ) *AuthService {
-	return &AuthService{users: users, sessions: sessions, codes: codes, resetTokens: resetTokens, mailer: mailer}
+	return &AuthService{db: db, users: users, sessions: sessions, codes: codes, resetTokens: resetTokens, mailer: mailer}
 }
 
 func (s *AuthService) InitiateSignUp(ctx context.Context, emailAddr string) error {
@@ -110,7 +118,7 @@ func (s *AuthService) CompleteSignUp(ctx context.Context, emailAddr, name, code,
 		return nil, ErrInvalidCode
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +200,6 @@ func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) erro
 	user, err := s.users.FindByEmail(ctx, emailAddr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// Return nil so we don't reveal whether the email exists
 			return nil
 		}
 		return err
@@ -210,7 +217,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, emailAddr string) erro
 	prt := &models.PasswordResetToken{
 		UserID:    user.ID,
 		Token:     token,
-		ExpiresAt: time.Now().Add(30 * time.Minute),
+		ExpiresAt: time.Now().Add(resetTokenExpiry),
 	}
 	if err := s.resetTokens.Save(ctx, prt); err != nil {
 		return err
@@ -234,14 +241,26 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword stri
 		return ErrInvalidResetToken
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
 	if err != nil {
 		return err
 	}
 
-	if err := s.users.UpdatePassword(ctx, prt.UserID, string(hashed)); err != nil {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
-	return s.resetTokens.MarkUsed(ctx, token)
+	qtx := dbpkg.New(tx)
+	if err := qtx.UpdateUserPassword(ctx, dbpkg.UpdateUserPasswordParams{
+		ID:       prt.UserID,
+		Password: sql.NullString{String: string(hashed), Valid: true},
+	}); err != nil {
+		return err
+	}
+	if err := qtx.MarkPasswordResetTokenUsed(ctx, token); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

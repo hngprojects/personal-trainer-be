@@ -71,6 +71,7 @@ const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
 UPDATE password_reset_tokens
 SET used_at = NOW()
 WHERE token = $1
+    AND used_at IS NULL
 `
 
 func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) error {
