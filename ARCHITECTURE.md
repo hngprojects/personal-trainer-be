@@ -93,7 +93,6 @@ This service exposes a **RESTful JSON API**.
 ```
 
 - Resources are **plural nouns** (`/users`, `/orders`)
-- Versioning is in the path (`/api/v1/`)
 - Paths are **lowercase, hyphen-separated**
 
 ---
@@ -203,7 +202,7 @@ All responses return:
 
 **Flow:**
 
-1. Client sends credentials to `POST /api/v1/auth/login`.
+1. Client sends credentials to `POST /api/auth/login`.
 2. Server validates credentials and creates a **session** with a lifespan of **7 days**.
 3. Server stores the session server-side (Database) and returns a secure session ID to the client.
 4. Client automatically includes the session ID on all subsequent requests.

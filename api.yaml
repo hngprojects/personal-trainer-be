@@ -3,16 +3,50 @@ info:
   title: Personal-Trainer
   version: 1.0.0
 
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
 paths:
-  /auth:
+  /auth/login:
     post:
+      security: []
       operationId: HandleLocalAuth
       responses:
         "200":
-          description: OK
+          description: Login successful
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: string
+                type: object
+                required:
+                  - status
+                  - message
+                  - code
+                  - data
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Login successful
+                  code:
+                    type: string
+                    example: AUTH_LOGIN_SUCCESS
+                  data:
+                    type: object
+                    required:
+                      - access_token
+                      - refresh_token
+                    properties:
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
