@@ -16,7 +16,15 @@ const (
 	RefreshToken TokenType = "refresh"
 )
 
-func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
+type TokenRole string
+
+const (
+	Admin   TokenRole = "admin"
+	User    TokenRole = "user"
+	Trainer TokenRole = "trainer"
+)
+
+func GenerateJWTToken(userId string, tokenType TokenType, role TokenRole) (string, error) {
 	ttl := 10 * time.Minute
 	if tokenType == RefreshToken {
 		ttl = 7 * 24 * time.Hour
@@ -28,6 +36,7 @@ func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
 		"iat":  time.Now().Unix(),
 		"iss":  "api.fitcall",
 		"type": string(tokenType),
+		"role": string(role),
 		"jti":  uuid.NewString(),
 	}
 
