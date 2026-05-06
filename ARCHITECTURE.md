@@ -1,6 +1,6 @@
-# Project Name
+# FitCall
 
-> A brief one-line description of what this service does.
+project database stucture: https://dbdiagram.io/d/69f8e42bc6a36f9c1bff6648
 
 ---
 
@@ -12,7 +12,6 @@
 - [API Standards](#api-standards)
 - [Authentication & Security](#authentication--security)
 - [Code Practices](#code-practices)
-- [Getting Started](#getting-started)
 
 ---
 
@@ -291,18 +290,3 @@ Expired sessions are cleaned up automatically via background jobs or TTL expirat
 - An `.env.example` file documents every variable — it is always kept up to date.
 
 ---
-
-## Getting Started
-
-### Running Locally
-
-```bash
-go mod tidy
-make run
-```
-
-### Common Makefile Commands
-
-```bash
-make run          # Run the server
-```
