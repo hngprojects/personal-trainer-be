@@ -59,6 +59,12 @@ func TestValidatePassword_NoNumber(t *testing.T) {
 	}
 }
 
+func TestValidatePassword_NoLetter(t *testing.T) {
+	if err := validatePassword("12345678"); err == nil {
+		t.Error("expected error for password with no letter")
+	}
+}
+
 func TestValidatePassword_TooLong(t *testing.T) {
 	pw := strings.Repeat("a", 72) + "1"
 	if err := validatePassword(pw); err == nil {
@@ -67,7 +73,7 @@ func TestValidatePassword_TooLong(t *testing.T) {
 }
 
 func TestValidatePassword_Valid(t *testing.T) {
-	cases := []string{"Secret123", "pass1word", "12345678", "a1bcdefg"}
+	cases := []string{"Secret123", "pass1word", "a1bcdefg", "Passw0rd!"}
 	for _, pw := range cases {
 		if err := validatePassword(pw); err != nil {
 			t.Errorf("unexpected error for valid password %q: %v", pw, err)
