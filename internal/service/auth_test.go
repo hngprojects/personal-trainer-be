@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/hex"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,13 @@ func TestValidatePassword_TooShort(t *testing.T) {
 func TestValidatePassword_NoNumber(t *testing.T) {
 	if err := validatePassword("abcdefgh"); err == nil {
 		t.Error("expected error for password with no number")
+	}
+}
+
+func TestValidatePassword_TooLong(t *testing.T) {
+	pw := strings.Repeat("a", 72) + "1"
+	if err := validatePassword(pw); err == nil {
+		t.Error("expected error for password exceeding 72 bytes")
 	}
 }
 

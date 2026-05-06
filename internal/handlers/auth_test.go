@@ -63,6 +63,16 @@ func newTestRouter(svc *mockAuthService) *gin.Engine {
 	return r
 }
 
+func newJSONRequest(t *testing.T, method, path, body string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), method, path, bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
 func assertErrorCode(t *testing.T, w *httptest.ResponseRecorder, code string) {
 	t.Helper()
 	var resp struct {
@@ -83,9 +93,7 @@ func assertErrorCode(t *testing.T, w *httptest.ResponseRecorder, code string) {
 func TestInitiateSignUp_MissingEmail(t *testing.T) {
 	r := newTestRouter(&mockAuthService{})
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register", `{}`))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -96,9 +104,7 @@ func TestInitiateSignUp_MissingEmail(t *testing.T) {
 func TestInitiateSignUp_InvalidEmail(t *testing.T) {
 	r := newTestRouter(&mockAuthService{})
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"email":"not-an-email"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register", `{"email":"not-an-email"}`))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -114,9 +120,7 @@ func TestInitiateSignUp_EmailAlreadyExists(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"email":"user@example.com"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register", `{"email":"user@example.com"}`))
 
 	if w.Code != http.StatusConflict {
 		t.Errorf("expected 409, got %d", w.Code)
@@ -130,9 +134,7 @@ func TestInitiateSignUp_Success(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"email":"user@example.com"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register", `{"email":"user@example.com"}`))
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -154,9 +156,7 @@ func TestVerifyCode_MissingFields(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodPost, "/auth/register/verify", bytes.NewBufferString(tc.body))
-			req.Header.Set("Content-Type", "application/json")
-			r.ServeHTTP(w, req)
+			r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/verify", tc.body))
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", w.Code)
 			}
@@ -173,9 +173,7 @@ func TestVerifyCode_InvalidCode(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/verify", bytes.NewBufferString(`{"email":"user@example.com","code":"000000"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/verify", `{"email":"user@example.com","code":"000000"}`))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -189,9 +187,7 @@ func TestVerifyCode_Success(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/verify", bytes.NewBufferString(`{"email":"user@example.com","code":"123456"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/verify", `{"email":"user@example.com","code":"123456"}`))
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
@@ -203,9 +199,7 @@ func TestVerifyCode_Success(t *testing.T) {
 func TestCompleteSignUp_MissingFields(t *testing.T) {
 	r := newTestRouter(&mockAuthService{})
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/complete", bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/complete", `{}`))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -222,9 +216,7 @@ func TestCompleteSignUp_WeakPassword(t *testing.T) {
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
 	body := `{"email":"user@example.com","name":"Test","code":"123456","password":"weak"}`
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/complete", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/complete", body))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -241,9 +233,7 @@ func TestCompleteSignUp_InvalidCode(t *testing.T) {
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
 	body := `{"email":"user@example.com","name":"Test","code":"000000","password":"Secret123"}`
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/complete", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/complete", body))
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -260,12 +250,22 @@ func TestCompleteSignUp_Success(t *testing.T) {
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
 	body := `{"email":"user@example.com","name":"Test","code":"123456","password":"Secret123"}`
-	req, _ := http.NewRequest(http.MethodPost, "/auth/register/complete", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/register/complete", body))
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data struct {
+			SessionID string `json:"session_id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Data.SessionID == "" {
+		t.Error("expected non-empty session_id in response")
 	}
 }
 
@@ -284,9 +284,7 @@ func TestSignIn_MissingFields(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(tc.body))
-			req.Header.Set("Content-Type", "application/json")
-			r.ServeHTTP(w, req)
+			r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/login", tc.body))
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected 400, got %d", w.Code)
 			}
@@ -303,9 +301,7 @@ func TestSignIn_InvalidCredentials(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"user@example.com","password":"Wrong123"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/login", `{"email":"user@example.com","password":"Wrong123"}`))
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
@@ -321,9 +317,7 @@ func TestSignIn_AccountInactive(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"user@example.com","password":"Secret123"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/login", `{"email":"user@example.com","password":"Secret123"}`))
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", w.Code)
@@ -339,9 +333,7 @@ func TestSignIn_ServiceError(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"user@example.com","password":"Secret123"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/login", `{"email":"user@example.com","password":"Secret123"}`))
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
@@ -359,11 +351,31 @@ func TestSignIn_Success(t *testing.T) {
 	}
 	r := newTestRouter(svc)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"user@example.com","password":"Secret123"}`))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(w, newJSONRequest(t, http.MethodPost, "/auth/login", `{"email":"user@example.com","password":"Secret123"}`))
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data struct {
+			SessionID string `json:"session_id"`
+			User      struct {
+				ID    string `json:"id"`
+				Email string `json:"email"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Data.SessionID == "" {
+		t.Error("expected non-empty session_id in response")
+	}
+	if resp.Data.User.ID == "" {
+		t.Error("expected non-empty user.id in response")
+	}
+	if resp.Data.User.Email == "" {
+		t.Error("expected non-empty user.email in response")
 	}
 }

@@ -23,13 +23,14 @@ var (
 	ErrInvalidCode        = errors.New("invalid or expired verification code")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAccountNotActive   = errors.New("account not active")
-	ErrWeakPassword       = errors.New("password must be at least 8 characters and contain at least one number")
+	ErrWeakPassword       = errors.New("password must be 8-72 characters and contain at least one number")
 )
 
 var hasNumber = regexp.MustCompile(`[0-9]`)
 
 func validatePassword(password string) error {
-	if len(password) < 8 || !hasNumber.MatchString(password) {
+	n := len([]byte(password))
+	if n < 8 || n > 72 || !hasNumber.MatchString(password) {
 		return ErrWeakPassword
 	}
 	return nil
