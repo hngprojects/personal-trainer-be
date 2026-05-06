@@ -120,7 +120,6 @@ All responses return:
 {
   "status": "success",
   "message": "Human-readable message",
-  "code": "MACHINE_READABLE_CODE",
   "data": {},
   "meta": {}
 }
@@ -132,7 +131,6 @@ All responses return:
 {
   "status": "error",
   "message": "Human-readable error message",
-  "code": "MACHINE_READABLE_ERROR_CODE",
   "errors": []
 }
 ```
@@ -141,7 +139,7 @@ All responses return:
 
 ### Field Rules
 
-- **Always include:** `status`, `message`, `code`
+- **Always include:** `status`, `message`
 - **Use `data`** → only for successful responses
 - **Use `errors`** → only for validation or detailed errors
 - **Use `meta`** → pagination or extra metadata
@@ -150,12 +148,6 @@ All responses return:
 ---
 
 ### Code & Message Conventions
-
-- `code` values must be:
-
-  - UPPERCASE
-  - underscore_separated
-  - stable (do not change frequently)
 
 - `message` must be:
 
