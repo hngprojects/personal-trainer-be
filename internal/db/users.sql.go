@@ -11,12 +11,14 @@ import (
 )
 
 const activateUser = `-- name: ActivateUser :exec
-UPDATE users SET name = $1, is_active = true, updated_at = NOW() WHERE id = $2
+UPDATE users
+SET name = $1, is_active = true, updated_at = NOW()
+WHERE id = $2
 `
 
 type ActivateUserParams struct {
 	Name string
-	ID   int64
+	ID   string
 }
 
 func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) error {
@@ -25,7 +27,9 @@ func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) erro
 }
 
 const createLocalUser = `-- name: CreateLocalUser :one
-INSERT INTO users (email, name, auth_provider, is_active) VALUES ($1, $2, 'local', false) RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+INSERT INTO users (email, name, auth_provider, is_active)
+VALUES ($1, $2, 'local', false)
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
 `
 
 type CreateLocalUserParams struct {
@@ -50,7 +54,9 @@ func (q *Queries) CreateLocalUser(ctx context.Context, arg CreateLocalUserParams
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, auth_provider) VALUES ($1, $2, $3) RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+INSERT INTO users (email, name, auth_provider)
+VALUES ($1, $2, $3)
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -76,7 +82,10 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at FROM users WHERE email = $1 LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at
+FROM users
+WHERE email = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -96,7 +105,12 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at FROM users WHERE email = $1 AND auth_provider = $2 LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at
+FROM users
+WHERE
+    email = $1
+    AND auth_provider = $2
+LIMIT 1
 `
 
 type GetUserByEmailAndProviderParams struct {
@@ -121,12 +135,14 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec
-UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2
+UPDATE users
+SET password = $1, updated_at = NOW()
+WHERE id = $2
 `
 
 type UpdateUserPasswordParams struct {
 	Password sql.NullString
-	ID       int64
+	ID       string
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {

@@ -10,15 +10,15 @@ import (
 )
 
 type Session struct {
-	ID        int64
-	UserID    int64
+	ID        string
+	UserID    string
 	Token     string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
 
 type User struct {
-	ID           int64
+	ID           string
 	Email        string
 	Name         string
 	Password     sql.NullString
@@ -29,7 +29,7 @@ type User struct {
 }
 
 type VerificationCode struct {
-	ID        int64
+	ID        string
 	Email     string
 	Code      string
 	CreatedAt time.Time

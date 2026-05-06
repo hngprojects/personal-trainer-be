@@ -10,7 +10,7 @@ const (
 )
 
 type User struct {
-	ID           int64
+	ID           string
 	Email        string
 	Name         string
 	Password     *string

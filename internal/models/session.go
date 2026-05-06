@@ -3,8 +3,8 @@ package models
 import "time"
 
 type Session struct {
-	ID        int64
-	UserID    int64
+	ID        string
+	UserID    string
 	Token     string
 	ExpiresAt time.Time
 	CreatedAt time.Time

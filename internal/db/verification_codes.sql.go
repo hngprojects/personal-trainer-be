@@ -11,7 +11,9 @@ import (
 )
 
 const createVerificationCode = `-- name: CreateVerificationCode :one
-INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3) RETURNING id, email, code, created_at, expires_at
+INSERT INTO verification_codes (email, code, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, email, code, created_at, expires_at
 `
 
 type CreateVerificationCodeParams struct {
@@ -34,7 +36,8 @@ func (q *Queries) CreateVerificationCode(ctx context.Context, arg CreateVerifica
 }
 
 const deleteVerificationCodesByEmail = `-- name: DeleteVerificationCodesByEmail :exec
-DELETE FROM verification_codes WHERE email = $1
+DELETE FROM verification_codes
+WHERE email = $1
 `
 
 func (q *Queries) DeleteVerificationCodesByEmail(ctx context.Context, email string) error {
@@ -43,7 +46,12 @@ func (q *Queries) DeleteVerificationCodesByEmail(ctx context.Context, email stri
 }
 
 const getVerificationCode = `-- name: GetVerificationCode :one
-SELECT id, email, code, created_at, expires_at FROM verification_codes WHERE email = $1 AND code = $2 LIMIT 1
+SELECT id, email, code, created_at, expires_at
+FROM verification_codes
+WHERE
+    email = $1
+    AND code = $2
+LIMIT 1
 `
 
 type GetVerificationCodeParams struct {

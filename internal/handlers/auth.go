@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -9,15 +10,23 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/models"
 	"github.com/hngprojects/personal-trainer-be/internal/service"
 )
 
+type authService interface {
+	InitiateSignUp(ctx context.Context, email string) error
+	VerifyCode(ctx context.Context, email, code string) error
+	CompleteSignUp(ctx context.Context, email, name, code, password string) (*models.Session, error)
+	SignIn(ctx context.Context, email, password string) (*models.Session, *models.User, error)
+}
+
 type AuthHandler struct {
-	auth     *service.AuthService
+	auth     authService
 	oauthCfg *oauth2.Config
 }
 
-func NewAuthHandler(auth *service.AuthService, cfg *config.Config) *AuthHandler {
+func NewAuthHandler(auth authService, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
 		auth: auth,
 		oauthCfg: &oauth2.Config{

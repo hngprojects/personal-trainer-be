@@ -23,10 +23,21 @@ var (
 	ErrInvalidCode        = errors.New("invalid or expired verification code")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAccountNotActive   = errors.New("account not active")
-	ErrWeakPassword       = errors.New("password must be at least 8 characters and contain at least one number")
+	ErrWeakPassword       = errors.New("password must be 8-72 characters and contain at least one letter and one number")
 )
 
-var hasNumber = regexp.MustCompile(`[0-9]`)
+var (
+	hasNumber = regexp.MustCompile(`[0-9]`)
+	hasLetter = regexp.MustCompile(`[a-zA-Z]`)
+)
+
+func validatePassword(password string) error {
+	n := len([]byte(password))
+	if n < 8 || n > 72 || !hasNumber.MatchString(password) || !hasLetter.MatchString(password) {
+		return ErrWeakPassword
+	}
+	return nil
+}
 
 type AuthService struct {
 	users    *repository.UserRepository
@@ -87,8 +98,8 @@ func (s *AuthService) VerifyCode(ctx context.Context, emailAddr, code string) er
 }
 
 func (s *AuthService) CompleteSignUp(ctx context.Context, emailAddr, name, code, password string) (*models.Session, error) {
-	if len(password) < 8 || !hasNumber.MatchString(password) {
-		return nil, ErrWeakPassword
+	if err := validatePassword(password); err != nil {
+		return nil, err
 	}
 
 	vc, err := s.codes.FindByEmailAndCode(ctx, emailAddr, code)
@@ -150,7 +161,7 @@ func (s *AuthService) SignIn(ctx context.Context, emailAddr, password string) (*
 	return session, user, nil
 }
 
-func (s *AuthService) createSession(ctx context.Context, userID int64) (*models.Session, error) {
+func (s *AuthService) createSession(ctx context.Context, userID string) (*models.Session, error) {
 	token, err := generateToken()
 	if err != nil {
 		return nil, err
