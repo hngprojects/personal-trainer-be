@@ -1,4 +1,5 @@
 # Technical Product Requirements
+
 ## African Personal Trainer Platform
 
 **Version:** 1.0  
@@ -16,10 +17,12 @@ The African Personal Trainer Platform connects top Nigerian personal trainers wi
 ## 2. Target Users
 
 **Trainers**
+
 - Nigerian-based certified personal trainers
 - Looking to expand their client base internationally
 
 **Clients**
+
 - Fitness enthusiasts in the US and UK
 - Looking for affordable, quality personal training online
 
@@ -35,6 +38,7 @@ The African Personal Trainer Platform connects top Nigerian personal trainers wi
 ## 4. Core Features
 
 ### 4.1 Authentication
+
 - Email and password registration with email verification
 - Google OAuth sign in and sign up
 - Forgot password and reset password
@@ -42,31 +46,37 @@ The African Personal Trainer Platform connects top Nigerian personal trainers wi
 - Session management
 
 ### 4.2 Trainer Discovery
+
 - Browse and search for trainers
 - View trainer profiles, specialties, and ratings
 - Filter trainers by category and availability
 
 ### 4.3 Booking & Sessions
+
 - Book a session with a trainer
 - View upcoming and past sessions
 - Session history and details
 
 ### 4.4 Workout Plans
+
 - Trainers create and assign workout plans to clients
 - Clients view and track assigned plans
 
 ### 4.5 Progress Tracking
+
 - Clients log workout metrics and performance
 - Progress charts and analytics over time
 - Personal bests and milestone tracking
 
 ### 4.6 Subscriptions & Payments
+
 - Subscription plans (e.g. The Committed — $80/month, The Casual — $15/session)
 - Plan upgrade and downgrade
 - USDC crypto payouts for trainers
 - Payment history
 
 ### 4.7 User Profile & Account Settings
+
 - Edit personal information
 - Change email and password
 - Linked accounts (Google, Apple)
@@ -75,6 +85,7 @@ The African Personal Trainer Platform connects top Nigerian personal trainers wi
 - Account deactivation
 
 ### 4.8 Notifications & Reminders
+
 - Session reminders
 - Progress updates
 - Subscription alerts
@@ -84,28 +95,31 @@ The African Personal Trainer Platform connects top Nigerian personal trainers wi
 ## 5. Technical Stack
 
 ### Backend
-| Service | Technology |
-|---|---|
-| Primary API | Go (Golang) |
-| Performance & Analytics | Rust |
-| Database | PostgreSQL |
-| Authentication | Session-based with secure tokens |
-| Email | SMTP |
-| Password Hashing | bcrypt |
+
+| Service                 | Technology                       |
+| ----------------------- | -------------------------------- |
+| Primary API             | Go (Golang)                      |
+| Performance & Analytics | Rust                             |
+| Database                | PostgreSQL                       |
+| Authentication          | Session-based with secure tokens |
+| Email                   | SMTP                             |
+| Password Hashing        | bcrypt                           |
 
 ### Frontend
-| Layer | Technology |
-|---|---|
-| Mobile App | TBD (React Native / Flutter) |
-| Web Landing Page | TBD (Next.js / React) |
+
+| Layer            | Technology                   |
+| ---------------- | ---------------------------- |
+| Mobile App       | TBD (React Native / Flutter) |
+| Web Landing Page | TBD (Next.js / React)        |
 
 ### Infrastructure
-| Component | Tool |
-|---|---|
-| Hosting | Render |
+
+| Component        | Tool                         |
+| ---------------- | ---------------------------- |
+| Hosting          | Render                       |
 | Database Hosting | Supabase / Render PostgreSQL |
-| File Storage | Cloudinary / AWS S3 |
-| CI/CD | GitHub Actions |
+| File Storage     | Cloudinary / AWS S3          |
+| CI/CD            | GitHub Actions               |
 
 ---
 
@@ -134,20 +148,23 @@ PostgreSQL Database
 - Consistent response format:
 
 **Success:**
+
 ```json
 {
   "status": "success",
-  "data": {}
+  "message": "Human-readable message",
+  "data": {},
+  "meta": {}
 }
 ```
 
 **Error:**
+
 ```json
 {
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human readable message"
-  }
+  "status": "error",
+  "message": "Human-readable error message",
+  "errors": []
 }
 ```
 
@@ -155,51 +172,53 @@ PostgreSQL Database
 
 ## 8. Database Schema (Core Tables)
 
-| Table | Purpose |
-|---|---|
-| `users` | Stores all user accounts (trainers and clients) |
-| `sessions` | Auth session management |
-| `verification_codes` | Email verification during sign up |
-| `trainer_profiles` | Trainer-specific information |
-| `bookings` | Session bookings between trainers and clients |
-| `workout_plans` | Trainer-created plans |
-| `progress_logs` | Client workout tracking |
-| `subscriptions` | Client subscription and payment records |
+| Table                | Purpose                                         |
+| -------------------- | ----------------------------------------------- |
+| `users`              | Stores all user accounts (trainers and clients) |
+| `sessions`           | Auth session management                         |
+| `verification_codes` | Email verification during sign up               |
+| `trainer_profiles`   | Trainer-specific information                    |
+| `bookings`           | Session bookings between trainers and clients   |
+| `workout_plans`      | Trainer-created plans                           |
+| `progress_logs`      | Client workout tracking                         |
+| `subscriptions`      | Client subscription and payment records         |
 
 ---
 
 ## 9. Security Requirements
 
-- Passwords hashed with bcrypt (cost factor ≥ 12)
-- Session tokens are cryptographically random (256-bit)
-- Sessions expire after 7 days
-- Verification and reset codes expire after 10 minutes
-- HTTPS enforced in production
-- CORS explicitly configured
-- Rate limiting on all auth routes
-- No plaintext passwords stored or logged
-
----
+- Passwords are hashed using **bcrypt** (cost factor ≥ 12)
+- Authentication uses **access and refresh tokens (JWT-based)**
+- Access tokens are short-lived; refresh tokens are used to obtain new access tokens
+- All tokens are **cryptographically signed and secure**
+- Revoked or invalidated tokens are stored in a **cache layer** (e.g. Redis) and checked on each request
+- Session lifetime is controlled via token expiration (access + refresh flow)
+- Verification and password reset codes expire after **10 minutes**
+- HTTPS is enforced in production
+- CORS is explicitly configured (no wildcard origins in production)
+- Rate limiting is applied on all authentication routes
+- No plaintext passwords are ever stored or logged
+- Sensitive data (tokens, credentials) are never exposed in API responses or logs
 
 ## 10. Non-Functional Requirements
 
-| Requirement | Target |
-|---|---|
-| API Response Time | < 300ms for standard requests |
-| Uptime | 99.5% |
-| Mobile Support | iOS and Android |
-| Data Privacy | GDPR compliant (for UK users) |
-| Scalability | Horizontal scaling via stateless API design |
+| Requirement       | Target                                      |
+| ----------------- | ------------------------------------------- |
+| API Response Time | < 300ms for standard requests               |
+| Uptime            | 99.5%                                       |
+| Mobile Support    | iOS and Android                             |
+| Data Privacy      | GDPR compliant (for UK users)               |
+| Scalability       | Horizontal scaling via stateless API design |
 
 ---
 
 ## 11. Milestones
 
-| Milestone | Description |
-|---|---|
-| v0.1 | Authentication module complete (sign up, login, OAuth) |
-| v0.2 | Trainer discovery and profiles |
-| v0.3 | Booking and session management |
-| v0.4 | Progress tracking and analytics |
-| v0.5 | Payments and subscriptions |
-| v1.0 | Full platform launch |
+| Milestone | Description                                            |
+| --------- | ------------------------------------------------------ |
+| v0.1      | Authentication module complete (sign up, login, OAuth) |
+| v0.2      | Trainer discovery and profiles                         |
+| v0.3      | Booking and session management                         |
+| v0.4      | Progress tracking and analytics                        |
+| v0.5      | Payments and subscriptions                             |
+| v1.0      | Full platform launch                                   |

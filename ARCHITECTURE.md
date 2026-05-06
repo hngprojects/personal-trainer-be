@@ -90,67 +90,111 @@ This service exposes a **RESTful JSON API**.
 /api/{resource}
 /api/{resource}/{id}
 /api/{resource}/{id}/{sub-resource}
-
 ```
 
-- Resources are always **plural nouns** (`/users`, `/orders`).
-- Versioning is in the URL path (`/v1/`).
-- All paths are **lowercase and hyphen-separated** (`/api/v1/user-profiles`).
+- Resources are **plural nouns** (`/users`, `/orders`)
+- Paths are **lowercase, hyphen-separated**
+
+---
 
 ### HTTP Methods
 
-| Method   | Usage                     |
-| -------- | ------------------------- |
-| `GET`    | Read a resource or list   |
-| `POST`   | Create a new resource     |
-| `PUT`    | Replacement of a resource |
-| `DELETE` | Remove a resource         |
+| Method   | Usage                   |
+| -------- | ----------------------- |
+| `GET`    | Read a resource or list |
+| `POST`   | Create a resource       |
+| `PUT`    | Replace a resource      |
+| `DELETE` | Remove a resource       |
+
+---
 
 ### Response Format
 
-Responses return `Content-Type: application/json`.
+All responses return:
+`Content-Type: application/json`
 
-**Success:**
-
-```json
-{
-  "status":"",
-  "data": { ... },
-  "meta": { "page": 1, "per_page": 20, "total": 100 }
-}
-```
-
-**Error:**
+#### Success Response
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "message": "Email is required.",
-    "details": [ ... ]
-  }
+  "status": "success",
+  "message": "Human-readable message",
+  "data": {},
+  "meta": {}
 }
 ```
+
+#### Error Response
+
+```json
+{
+  "status": "error",
+  "message": "Human-readable error message",
+  "errors": []
+}
+```
+
+---
+
+### Field Rules
+
+- **Always include:** `status`, `message`
+- **Use `data`** → only for successful responses
+- **Use `errors`** → only for validation or detailed errors
+- **Use `meta`** → pagination or extra metadata
+- **Never mix `data` and `errors`**
+
+---
+
+### Code & Message Conventions
+
+- `message` must be:
+
+  - human-readable
+  - not used for program logic
+
+---
+
+### Common Success Patterns
+
+- **Generic success:** `"REQUEST_SUCCESS"`
+- **Resource retrieval:** `"*_RETRIEVED"`
+- **Resource creation:** `"*_CREATED"` / `"*_LOGGED"`
+
+---
+
+### Common Error Patterns
+
+- Validation → `"VALIDATION_ERROR"` (include `errors[]`)
+- Auth → `"AUTH_UNAUTHORIZED"`, `"AUTH_FORBIDDEN"`
+- Not found → `"*_NOT_FOUND"`
+- Conflict → `"*_CONFLICT"`
+- Server → `"INTERNAL_SERVER_ERROR"`
+
+---
 
 ### HTTP Status Codes
 
-| Code  | Meaning                        |
-| ----- | ------------------------------ |
-| `200` | OK                             |
-| `201` | Created                        |
-| `204` | No Content (successful delete) |
-| `400` | Bad Request / Validation error |
-| `401` | Unauthenticated                |
-| `403` | Forbidden                      |
-| `404` | Not Found                      |
-| `409` | Conflict                       |
-| `422` | Unprocessable Entity           |
-| `500` | Internal Server Error          |
-
-- Never return `200` with an error body.
-- `500` responses never expose internal error details to the client — log them server-side only.
+| Code  | Meaning               |
+| ----- | --------------------- |
+| `200` | Success               |
+| `201` | Resource created      |
+| `204` | No content (delete)   |
+| `400` | Bad request           |
+| `401` | Unauthorized          |
+| `403` | Forbidden             |
+| `404` | Not found             |
+| `409` | Conflict              |
+| `422` | Validation error      |
+| `500` | Internal server error |
 
 ---
+
+### Rules
+
+- Never return `200` for errors
+- `500` responses must not expose internal details
+- Keep responses consistent across all endpoints
 
 ## Authentication & Security
 
@@ -158,14 +202,28 @@ Responses return `Content-Type: application/json`.
 
 **Flow:**
 
-1. Client sends credentials to `POST /api/v1/auth/login`.
-2. Server validates credentials and creates a **session** with a lifespan of **7 days**.
-3. Server stores the session server-side (Database) and returns a secure session ID to the client.
-4. Client automatically includes the session ID on all subsequent requests.
-5. On each request, the server validates the session ID, retrieves the session, and loads the associated user.
-6. Logout deletes the session server-side and clears it on the client.
+1. Client sends credentials to `POST /api/auth/login`.
+2. Server validates credentials and issues:
 
----
+   - an **access token** (JWT, lifespan: ~10 minutes)
+   - a **refresh token** (JWT, lifespan: ~7 days)
+
+3. Server stores the refresh token (or its identifier) in the **database** for tracking and revocation.
+4. Client stores both tokens securely (access token typically in memory, refresh token in a secure storage mechanism).
+5. Client includes the **access token** in the `Authorization: Bearer <token>` header on all authenticated requests.
+6. On each request, the server:
+
+   - verifies the access token signature and expiration
+   - checks that the token has not been **revoked** (via database cache lookup)
+   - extracts the user identity from the token
+
+7. When the access token expires, the client calls `POST /api/auth/refresh` with the refresh token.
+8. Server validates the refresh token (signature, expiry, and revocation status) and issues a new access token.
+9. Logout:
+
+   - refresh token is marked as **revoked** in the database(cache) with a TTL of **7 days**
+   - any associated access tokens are considered invalid
+   - client deletes stored tokens
 
 ### Session Details
 
