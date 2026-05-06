@@ -90,67 +90,120 @@ This service exposes a **RESTful JSON API**.
 /api/{resource}
 /api/{resource}/{id}
 /api/{resource}/{id}/{sub-resource}
-
 ```
 
-- Resources are always **plural nouns** (`/users`, `/orders`).
-- Versioning is in the URL path (`/v1/`).
-- All paths are **lowercase and hyphen-separated** (`/api/v1/user-profiles`).
+- Resources are **plural nouns** (`/users`, `/orders`)
+- Versioning is in the path (`/api/v1/`)
+- Paths are **lowercase, hyphen-separated**
+
+---
 
 ### HTTP Methods
 
-| Method   | Usage                     |
-| -------- | ------------------------- |
-| `GET`    | Read a resource or list   |
-| `POST`   | Create a new resource     |
-| `PUT`    | Replacement of a resource |
-| `DELETE` | Remove a resource         |
+| Method   | Usage                   |
+| -------- | ----------------------- |
+| `GET`    | Read a resource or list |
+| `POST`   | Create a resource       |
+| `PUT`    | Replace a resource      |
+| `DELETE` | Remove a resource       |
+
+---
 
 ### Response Format
 
-Responses return `Content-Type: application/json`.
+All responses return:
+`Content-Type: application/json`
 
-**Success:**
-
-```json
-{
-  "status":"",
-  "data": { ... },
-  "meta": { "page": 1, "per_page": 20, "total": 100 }
-}
-```
-
-**Error:**
+#### Success Response
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_FAILED",
-    "message": "Email is required.",
-    "details": [ ... ]
-  }
+  "status": "success",
+  "message": "Human-readable message",
+  "code": "MACHINE_READABLE_CODE",
+  "data": {},
+  "meta": {}
 }
 ```
+
+#### Error Response
+
+```json
+{
+  "status": "error",
+  "message": "Human-readable error message",
+  "code": "MACHINE_READABLE_ERROR_CODE",
+  "errors": []
+}
+```
+
+---
+
+### Field Rules
+
+- **Always include:** `status`, `message`, `code`
+- **Use `data`** → only for successful responses
+- **Use `errors`** → only for validation or detailed errors
+- **Use `meta`** → pagination or extra metadata
+- **Never mix `data` and `errors`**
+
+---
+
+### Code & Message Conventions
+
+- `code` values must be:
+
+  - UPPERCASE
+  - underscore_separated
+  - stable (do not change frequently)
+
+- `message` must be:
+
+  - human-readable
+  - not used for program logic
+
+---
+
+### Common Success Patterns
+
+- **Generic success:** `"REQUEST_SUCCESS"`
+- **Resource retrieval:** `"*_RETRIEVED"`
+- **Resource creation:** `"*_CREATED"` / `"*_LOGGED"`
+
+---
+
+### Common Error Patterns
+
+- Validation → `"VALIDATION_ERROR"` (include `errors[]`)
+- Auth → `"AUTH_UNAUTHORIZED"`, `"AUTH_FORBIDDEN"`
+- Not found → `"*_NOT_FOUND"`
+- Conflict → `"*_CONFLICT"`
+- Server → `"INTERNAL_SERVER_ERROR"`
+
+---
 
 ### HTTP Status Codes
 
-| Code  | Meaning                        |
-| ----- | ------------------------------ |
-| `200` | OK                             |
-| `201` | Created                        |
-| `204` | No Content (successful delete) |
-| `400` | Bad Request / Validation error |
-| `401` | Unauthenticated                |
-| `403` | Forbidden                      |
-| `404` | Not Found                      |
-| `409` | Conflict                       |
-| `422` | Unprocessable Entity           |
-| `500` | Internal Server Error          |
-
-- Never return `200` with an error body.
-- `500` responses never expose internal error details to the client — log them server-side only.
+| Code  | Meaning               |
+| ----- | --------------------- |
+| `200` | Success               |
+| `201` | Resource created      |
+| `204` | No content (delete)   |
+| `400` | Bad request           |
+| `401` | Unauthorized          |
+| `403` | Forbidden             |
+| `404` | Not found             |
+| `409` | Conflict              |
+| `422` | Validation error      |
+| `500` | Internal server error |
 
 ---
+
+### Rules
+
+- Never return `200` for errors
+- `500` responses must not expose internal details
+- Keep responses consistent across all endpoints
 
 ## Authentication & Security
 
