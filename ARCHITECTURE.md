@@ -203,13 +203,27 @@ All responses return:
 **Flow:**
 
 1. Client sends credentials to `POST /api/auth/login`.
-2. Server validates credentials and creates a **session** with a lifespan of **7 days**.
-3. Server stores the session server-side (Database) and returns a secure session ID to the client.
-4. Client automatically includes the session ID on all subsequent requests.
-5. On each request, the server validates the session ID, retrieves the session, and loads the associated user.
-6. Logout deletes the session server-side and clears it on the client.
+2. Server validates credentials and issues:
 
----
+   - an **access token** (JWT, lifespan: ~10 minutes)
+   - a **refresh token** (JWT, lifespan: ~7 days)
+
+3. Server stores the refresh token (or its identifier) in the **database** for tracking and revocation.
+4. Client stores both tokens securely (access token typically in memory, refresh token in a secure storage mechanism).
+5. Client includes the **access token** in the `Authorization: Bearer <token>` header on all authenticated requests.
+6. On each request, the server:
+
+   - verifies the access token signature and expiration
+   - checks that the token has not been **revoked** (via database cache lookup)
+   - extracts the user identity from the token
+
+7. When the access token expires, the client calls `POST /api/auth/refresh` with the refresh token.
+8. Server validates the refresh token (signature, expiry, and revocation status) and issues a new access token.
+9. Logout:
+
+   - refresh token is marked as **revoked** in the database(cache) with a TTL of **7 days**
+   - any associated access tokens are considered invalid
+   - client deletes stored tokens
 
 ### Session Details
 
