@@ -1,6 +1,7 @@
 package health
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,7 +31,7 @@ func TestHealthHandler_Check(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/health", nil)
+			c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 
 			handler.Check(c)
 

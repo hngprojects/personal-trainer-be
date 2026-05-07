@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -31,7 +32,7 @@ func TestRecover_CatchesPanic(t *testing.T) {
 		panic("simulated panic")
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusInternalServerError {
@@ -49,7 +50,7 @@ func TestRecover_ReturnsJSONError(t *testing.T) {
 		panic("simulated panic")
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/panic", nil)
 	r.ServeHTTP(w, req)
 
 	var body map[string]string
@@ -71,7 +72,7 @@ func TestRecover_DoesNotAffectNormalRequests(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ok", nil)
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
