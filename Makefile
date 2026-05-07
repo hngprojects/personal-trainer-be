@@ -107,3 +107,9 @@ migrate-drop: _check-db ## Drop EVERYTHING in the database (destructive!)
 
 codegen:
 	oapi-codegen -config oapi-codegen.yaml api.yaml
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down

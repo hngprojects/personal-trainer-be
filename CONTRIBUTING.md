@@ -80,6 +80,12 @@ make migrate-create NAME=your_migration_name
 make migrate-up
 ```
 
+- setup redis server with
+
+```bash
+make up
+```
+
 ## 6. Testing
 
 All new features must include tests.

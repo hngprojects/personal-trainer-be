@@ -17,9 +17,11 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/server"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
+	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
 func main() {
+	redisClient := redis.NewClient()
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)

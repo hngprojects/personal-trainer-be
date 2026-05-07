@@ -38,7 +38,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		token, err := auth.ValidateToken(parts[1], auth.AccessToken)
 		if err != nil || !token.Valid {
-			slog.Error("validateToken error: ", err)
+			slog.Error("validateToken", "error", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, struct {
 				Status  string `json:"status"`
 				Message string `json:"message"`
