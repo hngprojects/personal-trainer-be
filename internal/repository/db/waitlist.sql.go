@@ -13,6 +13,7 @@ import (
 const addWaitlist = `-- name: AddWaitlist :execresult
 INSERT INTO waitlist (email, feedback)
 VALUES ($1, $2)
+ON CONFLICT (email) DO NOTHING
 `
 
 type AddWaitlistParams struct {
