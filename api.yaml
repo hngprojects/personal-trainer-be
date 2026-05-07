@@ -11,6 +11,7 @@ components:
       bearerFormat: JWT
 
   schemas:
+<<<<<<< HEAD
     BaseResponse:
       type: object
       required: [status, message, code]
@@ -84,6 +85,8 @@ components:
           type: string
           nullable: true
 
+=======
+>>>>>>> c0e53e7 (Completed Trainers Features)
     AuthUser:
       type: object
       required: [id, email, name, user_type, profile_complete]
@@ -101,26 +104,214 @@ components:
         profile_complete:
           type: boolean
 
-    GoogleAuthData:
+    GoogleAuthResponse:
       type: object
-      required: [user, access_token, refresh_token, is_new_user, expires_in]
+      required: [status, message, data]
       properties:
+<<<<<<< HEAD
         user:
           $ref: "#/components/schemas/AuthUser"
         access_token:
+=======
+        status:
+>>>>>>> c0e53e7 (Completed Trainers Features)
           type: string
-        refresh_token:
+          example: success
+        message:
           type: string
-        is_new_user:
-          type: boolean
-        expires_in:
+          example: GOOGLE_AUTH_SUCCESSFUL
+        data:
+          type: object
+          required: [user, access_token, refresh_token, is_new_user, expires_in]
+          properties:
+            user:
+              $ref: "#/components/schemas/AuthUser"
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            is_new_user:
+              type: boolean
+            expires_in:
+              type: integer
+              example: 600
+
+    Trainer:
+      type: object
+      required:
+        - id
+        - user_id
+        - calendly_connected
+        - onboarding_status
+        - total_reviews
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Trainer ID (trainers.id)
+        user_id:
+          type: string
+          format: uuid
+          description: Linked user ID (trainers.user_id)
+
+        specialization:
+          type: string
+          nullable: true
+          description: Category/specialization used for filtering
+
+        bio:
+          type: string
+          nullable: true
+
+        years_of_experience:
           type: integer
-          example: 600
+          nullable: true
+
+        intro_video_url:
+          type: string
+          nullable: true
+
+        display_picture:
+          type: string
+          nullable: true
+          description: URL to trainer display picture (uploaded separately)
+
+        calendly_connected:
+          type: boolean
+
+        calendly_link:
+          type: string
+          nullable: true
+
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+          example: pending
+
+        average_rating:
+          type: number
+          nullable: true
+
+        total_reviews:
+          type: integer
+          example: 0
+
+        created_at:
+          type: string
+          format: date-time
+
+        updated_at:
+          type: string
+          format: date-time
+
+    TrainersListResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: TRAINERS_FETCHED
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trainer"
+
+    CreateTrainerRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        years_of_experience:
+          type: integer
+          nullable: true
+        intro_video_url:
+          type: string
+          nullable: true
+        display_picture:
+          type: string
+          nullable: true
+        calendly_connected:
+          type: boolean
+          nullable: true
+        calendly_link:
+          type: string
+          nullable: true
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+          nullable: true
+
+    UpdateTrainerRequest:
+      type: object
+      properties:
+        specialization:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        years_of_experience:
+          type: integer
+          nullable: true
+        intro_video_url:
+          type: string
+          nullable: true
+        display_picture:
+          type: string
+          nullable: true
+        calendly_connected:
+          type: boolean
+          nullable: true
+        calendly_link:
+          type: string
+          nullable: true
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+          nullable: true
+
+    TrainerResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: TRAINER_UPDATED
+        data:
+          $ref: "#/components/schemas/Trainer"
+
+    ErrorResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Forbidden; Admin access required
 
 security:
   - bearerAuth: []
 
 paths:
+<<<<<<< HEAD
   /:
     get:
       operationId: Root
@@ -158,31 +349,19 @@ paths:
                 data:
                   timestamp: "2026-05-07T10:00:00Z"
 
+=======
+>>>>>>> c0e53e7 (Completed Trainers Features)
   /auth/login:
     post:
       security: []
       operationId: HandleLocalAuth
-      summary: Login with email and password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
       responses:
         "200":
           description: Login successful
           content:
             application/json:
               schema:
+<<<<<<< HEAD
                 $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
@@ -221,6 +400,34 @@ paths:
                 status: error
                 message: Invalid email or password
                 code: UNAUTHORIZED
+=======
+                type: object
+                required:
+                  - status
+                  - message
+                  - code
+                  - data
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Login successful
+                  code:
+                    type: string
+                    example: AUTH_LOGIN_SUCCESS
+                  data:
+                    type: object
+                    required:
+                      - access_token
+                      - refresh_token
+                    properties:
+                      access_token:
+                        type: string
+                      refresh_token:
+                        type: string
+>>>>>>> c0e53e7 (Completed Trainers Features)
 
   /auth/google:
     get:
@@ -253,6 +460,7 @@ paths:
           content:
             application/json:
               schema:
+<<<<<<< HEAD
                 $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
@@ -269,11 +477,15 @@ paths:
                   refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                   is_new_user: true
                   expires_in: 600
+=======
+                $ref: "#/components/schemas/GoogleAuthResponse"
+>>>>>>> c0e53e7 (Completed Trainers Features)
         "400":
           description: Invalid or missing state
           content:
             application/json:
               schema:
+<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
@@ -289,11 +501,18 @@ paths:
                 status: error
                 message: Failed to authenticate with Google
                 code: UNAUTHORIZED
+=======
+                type: object
+                properties:
+                  error:
+                    type: string
+>>>>>>> c0e53e7 (Completed Trainers Features)
         "500":
-          description: Internal server error
+          description: Failed to exchange code or fetch user info
           content:
             application/json:
               schema:
+<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
@@ -305,11 +524,53 @@ paths:
       security: []
       operationId: HandleAddWaitlist
       summary: Handle adding an email address to the waitlist table
+=======
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /trainers:
+    get:
+      operationId: GetTrainers
+      summary: Get trainers (admin-only)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filters trainers by specialization (exact match)
+      responses:
+        "200":
+          description: Trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainersListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (admin-only)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: CreateTrainer
+      summary: Add trainer (admin-only)
+>>>>>>> c0e53e7 (Completed Trainers Features)
       requestBody:
         required: true
         content:
           application/json:
             schema:
+<<<<<<< HEAD
               type: object
               required: [email]
               properties:
@@ -339,20 +600,48 @@ paths:
                 code: OK
         "400":
           description: Invalid or missing email
+=======
+              $ref: "#/components/schemas/CreateTrainerRequest"
+      responses:
+        "201":
+          description: Trainer created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message, data]
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: TRAINER_CREATED
+                  data:
+                    $ref: "#/components/schemas/Trainer"
+        "400":
+          description: Bad request
+>>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+<<<<<<< HEAD
               example:
                 status: error
                 message: Invalid or missing email
                 code: BAD_REQUEST
         "500":
           description: Internal server error
+=======
+        "401":
+          description: Unauthorized
+>>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+<<<<<<< HEAD
               example:
                 status: error
                 message: Internal server error
@@ -381,31 +670,86 @@ paths:
                 code: OK
         "404":
           description: Email not found
+=======
+        "403":
+          description: Forbidden (admin-only)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}:
+    put:
+      operationId: UpdateTrainer
+      summary: Update trainer (admin-only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Trainer ID (trainers.id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTrainerRequest"
+      responses:
+        "200":
+          description: Trainer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "400":
+          description: Bad request
+>>>>>>> c0e53e7 (Completed Trainers Features)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+<<<<<<< HEAD
               example:
                 status: error
                 message: Requested email is not on the waitlist
                 code: NOT_FOUND
         "401":
           description: Client is unauthorized
+=======
+        "401":
+          description: Unauthorized
+>>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+<<<<<<< HEAD
               example:
                 status: error
                 message: Unauthorized access
                 code: UNAUTHORIZED
         "500":
           description: Internal server error
+=======
+        "403":
+          description: Forbidden (admin-only)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+>>>>>>> c0e53e7 (Completed Trainers Features)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+<<<<<<< HEAD
               example:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+=======
+>>>>>>> c0e53e7 (Completed Trainers Features)
