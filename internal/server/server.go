@@ -7,9 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
@@ -40,6 +42,16 @@ func (s *Server) Routes() http.Handler {
 	health := handlers.NewHealthHandler()
 	r.GET("/", health.Root)
 	r.GET("/health", health.Check)
+
+	queries := db.New(s.db)
+	userRepo := auth.NewPostgresUserRepo(queries)
+	googleHandler := auth.NewGoogleHandler(s.cfg, userRepo, queries, s.log)
+
+	authGroup := r.Group("/auth")
+	{
+		authGroup.GET("/google", googleHandler.HandleGoogleLogin)
+		authGroup.GET("/google/callback", googleHandler.HandleGoogleCallback)
+	}
 
 	return r
 }
