@@ -1,6 +1,6 @@
 # FitCall
 
-project database stucture: https://dbdiagram.io/d/69f8e42bc6a36f9c1bff6648
+project database stucture: https://dbdiagram.io/d/Copy-of-Untitled-Diagram-69fc46487a923b947240c3ef
 
 ---
 
