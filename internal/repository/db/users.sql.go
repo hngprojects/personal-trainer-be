@@ -7,14 +7,16 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
-ON CONFLICT (email, auth_provider) DO UPDATE
+ON CONFLICT (email) DO UPDATE
     SET updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role
 `
 
 type CreateUserParams struct {
@@ -35,12 +37,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at FROM users WHERE email = $1 AND auth_provider = $2 LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role FROM users WHERE email = $1 AND auth_provider = $2 LIMIT 1
 `
 
 type GetUserByEmailAndProviderParams struct {
@@ -60,6 +63,18 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Role,
 	)
 	return i, err
+}
+
+const getUserRoleByID = `-- name: GetUserRoleByID :one
+SELECT role FROM users WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserRoleByID, id)
+	var role string
+	err := row.Scan(&role)
+	return role, err
 }

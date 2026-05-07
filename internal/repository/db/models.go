@@ -19,6 +19,23 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Trainer struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Specialization    sql.NullString
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	CalendlyConnected bool
+	CalendlyLink      sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullString
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string
@@ -28,6 +45,7 @@ type User struct {
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	Role         string
 }
 
 type VerificationCode struct {
