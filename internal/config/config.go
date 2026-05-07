@@ -22,6 +22,8 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+
+	JwtSecret string
 }
 
 func Load() (*Config, error) {
@@ -43,10 +45,15 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+
+		JwtSecret: os.Getenv("JWT_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, errors.New("DATABASE_URL is required")
+	}
+	if cfg.JwtSecret == "" {
+		return nil, errors.New("JWT_SECRET is required")
 	}
 
 	return cfg, nil
