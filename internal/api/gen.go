@@ -35,11 +35,11 @@ func (e AuthUserUserType) Valid() bool {
 
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
-	Email           *string             `json:"email,omitempty"`
-	Id              *openapi_types.UUID `json:"id,omitempty"`
-	Name            *string             `json:"name,omitempty"`
-	ProfileComplete *bool               `json:"profile_complete,omitempty"`
-	UserType        *AuthUserUserType   `json:"user_type,omitempty"`
+	Email           string             `json:"email"`
+	Id              openapi_types.UUID `json:"id"`
+	Name            string             `json:"name"`
+	ProfileComplete bool               `json:"profile_complete"`
+	UserType        AuthUserUserType   `json:"user_type"`
 }
 
 // AuthUserUserType defines model for AuthUser.UserType.
@@ -70,7 +70,7 @@ type HandleGoogleCallbackParams struct {
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Initiate Google OAuth — redirects browser to Google consent screen
-	// (POST /auth/google)
+	// (GET /auth/google)
 	HandleGoogleLogin(c *gin.Context)
 	// Handle Google OAuth callback and return JWT tokens
 	// (GET /auth/google/callback)
@@ -177,7 +177,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
-	router.POST(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
+	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 }

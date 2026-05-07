@@ -15,8 +15,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
+	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	authsvc "github.com/hngprojects/personal-trainer-be/internal/service"
 )
 
@@ -28,15 +28,15 @@ type googleUserInfo struct {
 type GoogleHandler struct {
 	oauthCfg *oauth2.Config
 	users    UserRepository
-	queries  *db.Queries
 	log      *slog.Logger
+	isProd   bool
 }
 
-func NewGoogleHandler(cfg *config.Config, users UserRepository, queries *db.Queries, log *slog.Logger) *GoogleHandler {
+func NewGoogleHandler(cfg *config.Config, users UserRepository, log *slog.Logger) *GoogleHandler {
 	return &GoogleHandler{
-		users:   users,
-		queries: queries,
-		log:     log,
+		users:  users,
+		log:    log,
+		isProd: cfg.Env == "production",
 		oauthCfg: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,
@@ -47,24 +47,35 @@ func NewGoogleHandler(cfg *config.Config, users UserRepository, queries *db.Quer
 	}
 }
 
-// GET /auth/google — generates state, sets cookie, redirects to Google.
+// HandleGoogleLogin generates a CSRF state token, sets it as a cookie,
+// and redirects the browser to Google's OAuth consent screen.
 func (h *GoogleHandler) HandleGoogleLogin(c *gin.Context) {
-	state := generateState()
-	c.SetCookie("oauth_state", state, 300, "/", "", false, true)
+	state, err := generateState()
+	if err != nil {
+		h.log.Error("failed to generate state", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("oauth_state", state, 300, "/", "", h.isProd, true)
 	url := h.oauthCfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
-	c.Redirect(http.StatusTemporaryRedirect, url)
+	c.Redirect(http.StatusFound, url)
 }
 
-// GET /auth/google/callback — exchanges code, upserts user, returns JWTs.
-func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context) {
-	stateFromGoogle := c.Query("state")
+// HandleGoogleCallback verifies the CSRF state, exchanges the Google code
+// for tokens, upserts the user, and returns our own JWTs.
+func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string) {
 	stateFromCookie, err := c.Cookie("oauth_state")
-	if err != nil || stateFromGoogle != stateFromCookie {
+
+	// always clear the state cookie — it is single-use regardless of outcome
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("oauth_state", "", -1, "/", "", h.isProd, true)
+
+	if err != nil || state != stateFromCookie {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid state"})
 		return
 	}
 
-	code := c.Query("code")
 	googleToken, err := h.oauthCfg.Exchange(c.Request.Context(), code)
 	if err != nil {
 		h.log.Error("failed to exchange Google code", "err", err)
@@ -112,38 +123,56 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context) {
 
 	h.log.Info("google oauth successful", "email", userInfo.Email, "is_new_user", isNewUser)
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "GOOGLE_AUTH_SUCCESSFUL",
-		"data": gin.H{
-			"user": gin.H{
-				"id":               user.ID,
-				"email":            user.Email,
-				"name":             user.Name,
-				"user_type":        "client",
-				"profile_complete": false,
+	resp := api.GoogleAuthResponse{
+		Status:  "success",
+		Message: "GOOGLE_AUTH_SUCCESSFUL",
+		Data: struct {
+			AccessToken  string       `json:"access_token"`
+			ExpiresIn    int          `json:"expires_in"`
+			IsNewUser    bool         `json:"is_new_user"`
+			RefreshToken string       `json:"refresh_token"`
+			User         api.AuthUser `json:"user"`
+		}{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			IsNewUser:    isNewUser,
+			ExpiresIn:    int(10 * time.Minute / time.Second),
+			User: api.AuthUser{
+				Id:              user.ID,
+				Email:           user.Email,
+				Name:            user.Name,
+				UserType:        api.Client,
+				ProfileComplete: false,
 			},
-			"access_token":  accessToken,
-			"refresh_token": refreshToken,
-			"is_new_user":   isNewUser,
-			"expires_in":    int(10 * time.Minute / time.Second),
 		},
-	})
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
-func generateState() string {
+func generateState() (string, error) {
 	b := make([]byte, 16)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate state: %w", err)
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 func fetchGoogleUserInfo(ctx context.Context, cfg *oauth2.Config, token *oauth2.Token) (*googleUserInfo, error) {
 	client := cfg.Client(ctx, token)
-	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create userinfo request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch userinfo: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo request failed with status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -153,6 +182,9 @@ func fetchGoogleUserInfo(ctx context.Context, cfg *oauth2.Config, token *oauth2.
 	var info googleUserInfo
 	if err := json.Unmarshal(body, &info); err != nil {
 		return nil, fmt.Errorf("decode userinfo: %w", err)
+	}
+	if info.Email == "" {
+		return nil, fmt.Errorf("google userinfo returned empty email")
 	}
 	return &info, nil
 }

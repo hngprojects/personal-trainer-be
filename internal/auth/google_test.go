@@ -48,7 +48,7 @@ func testHandler(repo auth.UserRepository) *auth.GoogleHandler {
 		GoogleRedirectURL:  "http://localhost:8080/auth/google/callback",
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return auth.NewGoogleHandler(cfg, repo, nil, log)
+	return auth.NewGoogleHandler(cfg, repo, log)
 }
 
 func TestGoogleLogin_SetsStateCookie(t *testing.T) {
@@ -58,7 +58,7 @@ func TestGoogleLogin_SetsStateCookie(t *testing.T) {
 	h := testHandler(&fakeUserRepo{})
 	r.GET("/auth/google", h.HandleGoogleLogin)
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/google", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/google", nil)
 	r.ServeHTTP(w, req)
 
 	cookies := w.Result().Cookies()
@@ -80,10 +80,10 @@ func TestGoogleLogin_RedirectsToGoogle(t *testing.T) {
 	h := testHandler(&fakeUserRepo{})
 	r.GET("/auth/google", h.HandleGoogleLogin)
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/google", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/google", nil)
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusTemporaryRedirect {
+	if w.Code != http.StatusFound {
 		t.Errorf("expected 302, got %d", w.Code)
 	}
 	location := w.Header().Get("Location")
@@ -97,9 +97,11 @@ func TestGoogleCallback_MissingStateCookie(t *testing.T) {
 	_, r := gin.CreateTestContext(w)
 
 	h := testHandler(&fakeUserRepo{})
-	r.GET("/auth/google/callback", h.HandleGoogleCallback)
+	r.GET("/auth/google/callback", func(c *gin.Context) {
+		h.HandleGoogleCallback(c, c.Query("state"), c.Query("code"))
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=abc&state=xyz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/google/callback?code=abc&state=xyz", nil)
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -112,9 +114,11 @@ func TestGoogleCallback_StateMismatch(t *testing.T) {
 	_, r := gin.CreateTestContext(w)
 
 	h := testHandler(&fakeUserRepo{})
-	r.GET("/auth/google/callback", h.HandleGoogleCallback)
+	r.GET("/auth/google/callback", func(c *gin.Context) {
+		h.HandleGoogleCallback(c, c.Query("state"), c.Query("code"))
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/google/callback?code=abc&state=wrong-state", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/auth/google/callback?code=abc&state=wrong-state", nil)
 	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "correct-state"})
 	r.ServeHTTP(w, req)
 

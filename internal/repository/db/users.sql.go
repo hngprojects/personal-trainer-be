@@ -10,7 +10,11 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, auth_provider) VALUES ($1, $2, $3) RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+INSERT INTO users (email, name, auth_provider)
+VALUES ($1, $2, $3)
+ON CONFLICT (email, auth_provider) DO UPDATE
+    SET updated_at = NOW()
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
 `
 
 type CreateUserParams struct {

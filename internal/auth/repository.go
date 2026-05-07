@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -19,7 +20,7 @@ type UserRepository interface {
 
 // SessionRepository defines what the auth feature needs from the sessions table.
 type SessionRepository interface {
-	Create(ctx context.Context, userID uuid.UUID, token string, expiresAt interface{}) (*db.Session, error)
+	Create(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) (*db.Session, error)
 }
 
 // postgresUserRepo implements UserRepository using sqlc-generated queries.

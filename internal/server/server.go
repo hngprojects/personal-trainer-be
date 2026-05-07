@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
@@ -23,6 +24,24 @@ type Server struct {
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Server {
 	return &Server{cfg: cfg, log: log, db: db}
+}
+
+// serverImpl satisfies api.ServerInterface by delegating to domain handlers.
+type serverImpl struct {
+	google *auth.GoogleHandler
+}
+
+func (s *serverImpl) HandleGoogleLogin(c *gin.Context) {
+	s.google.HandleGoogleLogin(c)
+}
+
+func (s *serverImpl) HandleGoogleCallback(c *gin.Context, params api.HandleGoogleCallbackParams) {
+	s.google.HandleGoogleCallback(c, params.State, params.Code)
+}
+
+// HandleLocalAuth is not yet implemented — placeholder for local auth handler.
+func (s *serverImpl) HandleLocalAuth(c *gin.Context) {
+	c.JSON(http.StatusNotImplemented, gin.H{"error": "not implemented"})
 }
 
 func (s *Server) Routes() http.Handler {
@@ -45,13 +64,13 @@ func (s *Server) Routes() http.Handler {
 
 	queries := db.New(s.db)
 	userRepo := auth.NewPostgresUserRepo(queries)
-	googleHandler := auth.NewGoogleHandler(s.cfg, userRepo, queries, s.log)
+	googleHandler := auth.NewGoogleHandler(s.cfg, userRepo, s.log)
 
-	authGroup := r.Group("/auth")
-	{
-		authGroup.GET("/google", googleHandler.HandleGoogleLogin)
-		authGroup.GET("/google/callback", googleHandler.HandleGoogleCallback)
-	}
+	api.RegisterHandlersWithOptions(r, &serverImpl{google: googleHandler}, api.GinServerOptions{
+		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
+			c.JSON(statusCode, gin.H{"error": err.Error()})
+		},
+	})
 
 	return r
 }

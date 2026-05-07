@@ -13,6 +13,7 @@ components:
   schemas:
     AuthUser:
       type: object
+      required: [id, email, name, user_type, profile_complete]
       properties:
         id:
           type: string
