@@ -28,6 +28,7 @@ type LocalHandler struct {
 	codes    VerificationCodeRepository
 	mailer   email.Mailer
 	log      *slog.Logger
+	limiter  *verifyRateLimiter
 }
 
 func NewLocalHandler(
@@ -43,6 +44,7 @@ func NewLocalHandler(
 		codes:    codes,
 		mailer:   mailer,
 		log:      log,
+		limiter:  newVerifyRateLimiter(),
 	}
 }
 
@@ -113,6 +115,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
+	h.limiter.reset(req.Email)
 	c.JSON(http.StatusCreated, api.NewSuccess("Verification code sent to your email", api.CodeCreated, nil))
 }
 
@@ -134,6 +137,11 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code is required"},
 		}))
+		return
+	}
+
+	if !h.limiter.allow(req.Email) {
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
 
@@ -176,6 +184,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
+	h.limiter.reset(req.Email)
 	h.log.Info("user verified and logged in", "user_id", user.ID.String())
 
 	data := map[string]interface{}{

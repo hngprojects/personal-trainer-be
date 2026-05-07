@@ -347,3 +347,24 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 		t.Errorf("expected 500, got %d", w.Code)
 	}
 }
+
+func TestVerifyEmail_RateLimited(t *testing.T) {
+	codes := &fakeCodeRepo{getErr: auth.ErrNotFound}
+	h := newLocalTestHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+
+	// Exhaust the 5 allowed attempts
+	for i := 0; i < 5; i++ {
+		w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+			`{"email":"victim@example.com","code":"000000"}`, h.VerifyEmail)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("attempt %d: expected 400, got %d", i+1, w.Code)
+		}
+	}
+
+	// 6th attempt should be rate limited
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"victim@example.com","code":"000000"}`, h.VerifyEmail)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 after exceeding attempts, got %d: %s", w.Code, w.Body.String())
+	}
+}
