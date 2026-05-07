@@ -1,6 +1,6 @@
 # FitCall
 
-project database stucture: https://dbdiagram.io/d/Copy-of-Untitled-Diagram-69fc46487a923b947240c3ef
+project database stucture: https://dbdiagram.io/d/Personail-Trainer-ERD-69fc46487a923b947240c3ef
 
 ---
 

@@ -21,6 +21,9 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+
+	RedisAddress  string
+	RedisPassword string
 }
 
 func Load() (*Config, error) {
@@ -41,10 +44,21 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+
+		RedisAddress:  os.Getenv("REDIS_ADDR"),
+		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, errors.New("DATABASE_URL is required")
+	}
+
+	if cfg.RedisAddress == "" {
+		return nil, errors.New("REDIS_ADDR is required")
+	}
+
+	if cfg.RedisPassword == "" {
+		return nil, errors.New("REDIS_PASSWORD is required")
 	}
 
 	return cfg, nil
