@@ -10,6 +10,50 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  schemas:
+    AuthUser:
+      type: object
+      required: [id, email, name, user_type, profile_complete]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        user_type:
+          type: string
+          enum: [client, trainer, admin]
+        profile_complete:
+          type: boolean
+
+    GoogleAuthResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: GOOGLE_AUTH_SUCCESSFUL
+        data:
+          type: object
+          required: [user, access_token, refresh_token, is_new_user, expires_in]
+          properties:
+            user:
+              $ref: '#/components/schemas/AuthUser'
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            is_new_user:
+              type: boolean
+            expires_in:
+              type: integer
+              example: 600
+
 security:
   - bearerAuth: []
 
@@ -50,3 +94,54 @@ paths:
                         type: string
                       refresh_token:
                         type: string
+
+  /auth/google:
+    get:
+      security: []
+      operationId: HandleGoogleLogin
+      summary: Initiate Google OAuth — redirects browser to Google consent screen
+      responses:
+        "302":
+          description: Redirect to Google login
+
+  /auth/google/callback:
+    get:
+      security: []
+      operationId: HandleGoogleCallback
+      summary: Handle Google OAuth callback and return JWT tokens
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthResponse'
+        "400":
+          description: Invalid or missing state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Failed to exchange code or fetch user info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string

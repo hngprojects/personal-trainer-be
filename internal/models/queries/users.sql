@@ -1,5 +1,9 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name, auth_provider) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO users (email, name, auth_provider)
+VALUES ($1, $2, $3)
+ON CONFLICT (email, auth_provider) DO UPDATE
+    SET updated_at = NOW()
+RETURNING *;
 
 
 -- name: GetUserByEmailAndProvider :one
