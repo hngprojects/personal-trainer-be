@@ -1,6 +1,6 @@
-# Project Name
+# Personal Trainer — Backend Architecture
 
-> A brief one-line description of what this service does.
+> REST API backend for the African Personal Trainer Platform (FitCall.me), connecting Nigerian personal trainers with clients in the US and UK.
 
 ---
 
