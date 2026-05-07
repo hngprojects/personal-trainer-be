@@ -1,5 +1,5 @@
 .PHONY: help run build test test-cover lint fmt tidy clean \
-        install-tools sqlc \
+        install-tools sqlc codegen \
         migrate-up migrate-down migrate-create \
         migrate-version migrate-force migrate-drop
 

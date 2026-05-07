@@ -11,6 +11,79 @@ components:
       bearerFormat: JWT
 
   schemas:
+    BaseResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+          description: Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              description: Response payload (omitted when null)
+            meta:
+              type: object
+              nullable: true
+              description: Pagination or additional metadata (omitted when null)
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            errors:
+              type: array
+              nullable: true
+              items:
+                $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: The field that failed validation
+        message:
+          type: string
+          description: Human-readable error message for this field
+
+    PaginationMeta:
+      type: object
+      required: [page, per_page, total_pages, total_count]
+      properties:
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 10
+        total_pages:
+          type: integer
+          example: 3
+        total_count:
+          type: integer
+          example: 25
+        next:
+          type: string
+          nullable: true
+          example: "/progress?page=2"
+        prev:
+          type: string
+          nullable: true
+
     AuthUser:
       type: object
       required: [id, email, name, user_type, profile_complete]
@@ -28,72 +101,126 @@ components:
         profile_complete:
           type: boolean
 
-    GoogleAuthResponse:
+    GoogleAuthData:
       type: object
-      required: [status, message, data]
+      required: [user, access_token, refresh_token, is_new_user, expires_in]
       properties:
-        status:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        access_token:
           type: string
-          example: success
-        message:
+        refresh_token:
           type: string
-          example: GOOGLE_AUTH_SUCCESSFUL
-        data:
-          type: object
-          required: [user, access_token, refresh_token, is_new_user, expires_in]
-          properties:
-            user:
-              $ref: '#/components/schemas/AuthUser'
-            access_token:
-              type: string
-            refresh_token:
-              type: string
-            is_new_user:
-              type: boolean
-            expires_in:
-              type: integer
-              example: 600
+        is_new_user:
+          type: boolean
+        expires_in:
+          type: integer
+          example: 600
 
 security:
   - bearerAuth: []
 
 paths:
+  /:
+    get:
+      operationId: Root
+      summary: Root endpoint
+      security: []
+      responses:
+        "200":
+          description: Server is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: Personal Trainer API is running
+                code: OK
+                data: {}
+
+  /health:
+    get:
+      operationId: HealthCheck
+      summary: Health check endpoint
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: Service is healthy
+                code: OK
+                data:
+                  timestamp: "2026-05-07T10:00:00Z"
+
   /auth/login:
     post:
       security: []
       operationId: HandleLocalAuth
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
       responses:
         "200":
           description: Login successful
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - status
-                  - message
-                  - code
-                  - data
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Login successful
-                  code:
-                    type: string
-                    example: AUTH_LOGIN_SUCCESS
-                  data:
-                    type: object
-                    required:
-                      - access_token
-                      - refresh_token
-                    properties:
-                      access_token:
-                        type: string
-                      refresh_token:
-                        type: string
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: Login successful
+                code: OK
+                data:
+                  user:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "jane@example.com"
+                    name: "Jane Doe"
+                    user_type: client
+                    profile_complete: true
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: Email is required
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Invalid email or password
+                code: UNAUTHORIZED
 
   /auth/google:
     get:
@@ -126,22 +253,49 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GoogleAuthResponse'
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: Google authentication successful
+                code: OK
+                data:
+                  user:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "jane@example.com"
+                    name: "Jane Doe"
+                    user_type: client
+                    profile_complete: false
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  is_new_user: true
+                  expires_in: 600
         "400":
           description: Invalid or missing state
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-        "500":
-          description: Failed to exchange code or fetch user info
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Invalid or missing state parameter
+                code: BAD_REQUEST
+        "401":
+          description: OAuth exchange failed
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Failed to authenticate with Google
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR

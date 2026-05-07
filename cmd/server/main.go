@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
@@ -21,11 +22,14 @@ import (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("failed to load environment variables: %v", err)
+	}
 	redisClient := redis.NewClient()
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("failed to laod configuration varialbe %v", err)
 	}
 
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
