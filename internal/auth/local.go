@@ -147,15 +147,15 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if err := h.codes.DeleteByEmail(c.Request.Context(), req.Email); err != nil {
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-
 	user, err := h.users.MarkVerified(c.Request.Context(), req.Email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
+	}
+
+	if err := h.codes.DeleteByEmail(c.Request.Context(), req.Email); err != nil {
+		h.log.Warn("failed to delete verification codes after successful verification",
+			"user_id", user.ID.String(), "err", err)
 	}
 
 	userIDStr := user.ID.String()
@@ -176,7 +176,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("user verified and logged in", "email", user.Email, "user_id", user.ID.String())
+	h.log.Info("user verified and logged in", "user_id", user.ID.String())
 
 	data := map[string]interface{}{
 		"user": map[string]interface{}{

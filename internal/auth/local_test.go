@@ -55,6 +55,7 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 type fakeCodeRepo struct {
 	getErr    error
 	createErr error
+	deleteErr error
 }
 
 func (f *fakeCodeRepo) Create(_ context.Context, _, _ string, _ time.Time) error {
@@ -69,7 +70,7 @@ func (f *fakeCodeRepo) GetByEmailAndCode(_ context.Context, _, _ string) (*db.Ve
 }
 
 func (f *fakeCodeRepo) DeleteByEmail(_ context.Context, _ string) error {
-	return nil
+	return f.deleteErr
 }
 
 // fakeLocalSessionRepo controls session creation behaviour.
@@ -221,6 +222,18 @@ func TestRegister_MailerError(t *testing.T) {
 	}
 }
 
+func TestRegister_CodeCreateError(t *testing.T) {
+	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
+	codes := &fakeCodeRepo{createErr: errors.New("db error")}
+	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
 // ── VerifyEmail tests ────────────────────────────────────────────────────────
 
 func TestVerifyEmail_Success(t *testing.T) {
@@ -290,6 +303,33 @@ func TestVerifyEmail_InvalidJSON(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestVerifyEmail_MarkVerifiedError(t *testing.T) {
+	users := &fakeLocalUserRepo{markVerifiedErr: errors.New("db error")}
+	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestVerifyEmail_DeleteCodeError(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+
+	// deleteErr is non-fatal — verification should still succeed
+	codes := &fakeCodeRepo{deleteErr: errors.New("delete error")}
+	h := newLocalTestHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 even when delete fails, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

@@ -91,7 +91,11 @@ func (s *Router) Routes() *gin.Engine {
 }
 
 func (s *Router) buildMailer() email.Mailer {
-	if s.cfg.SMTPHost == "" || s.cfg.Env == "development" {
+	if s.cfg.Env == "development" {
+		return email.NewLogMailer()
+	}
+	if s.cfg.SMTPHost == "" {
+		s.log.Warn("SMTP not configured — falling back to log mailer; verification emails will NOT be delivered")
 		return email.NewLogMailer()
 	}
 	return email.NewSMTPMailer(
