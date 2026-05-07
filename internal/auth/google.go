@@ -14,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	authsvc "github.com/hngprojects/personal-trainer-be/internal/service"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -101,13 +100,13 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	}
 
 	userIDStr := user.ID.String()
-	accessToken, err := authsvc.GenerateJWTToken(userIDStr, authsvc.AccessToken)
+	accessToken, err := GenerateJWTToken(userIDStr, AccessToken)
 	if err != nil {
 		h.log.Error("failed to generate access token", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to generate access token", api.CodeServerError))
 		return
 	}
-	refreshToken, err := authsvc.GenerateJWTToken(userIDStr, authsvc.RefreshToken)
+	refreshToken, err := GenerateJWTToken(userIDStr, RefreshToken)
 	if err != nil {
 		h.log.Error("failed to generate refresh token", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to generate refresh token", api.CodeServerError))

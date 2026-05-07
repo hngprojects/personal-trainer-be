@@ -16,7 +16,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	"github.com/hngprojects/personal-trainer-be/internal/server"
+	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
 )
 
@@ -51,7 +51,7 @@ func main() {
 		log.Warn("DATABASE_URL not set — starting without database connection")
 	}
 
-	srv := server.New(cfg, log, db)
+	srv := routes.New(cfg, log, db)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

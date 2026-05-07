@@ -2,8 +2,8 @@ package api
 
 const (
 	// Success
-	CodeOK           = "OK"
-	CodeCreated      = "CREATED"
+	CodeOK      = "OK"
+	CodeCreated = "CREATED"
 
 	// Client Errors
 	CodeBadRequest   = "BAD_REQUEST"
@@ -12,5 +12,6 @@ const (
 	CodeNotFound     = "NOT_FOUND"
 
 	// Server Error
-	CodeServerError   = "SERVER_ERROR"
+	CodeServerError    = "SERVER_ERROR"
+	CodeNotImplemented = "NOT_IMPLEMENTED"
 )
