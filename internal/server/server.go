@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -62,15 +63,13 @@ func (s *Server) Routes() http.Handler {
 	r.GET("/", health.Root)
 	r.GET("/health", health.Check)
 
-	queries := db.New(s.db)
-	userRepo := auth.NewPostgresUserRepo(queries)
-	googleHandler := auth.NewGoogleHandler(s.cfg, userRepo, s.log)
-
-	api.RegisterHandlersWithOptions(r, &serverImpl{google: googleHandler}, api.GinServerOptions{
-		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
-			c.JSON(statusCode, gin.H{"error": err.Error()})
-		},
-	})
+	spec, err := os.ReadFile("api.yaml")
+	if err != nil {
+		s.log.Warn("could not read api.yaml — /docs/spec will be unavailable", "err", err)
+	}
+	docs := handlers.NewDocsHandler(spec)
+	r.GET("/docs", docs.UI)
+	r.GET("/docs/spec", docs.Spec)
 
 	return r
 }
