@@ -1,3 +1,4 @@
+// routes/root.go
 package routes
 
 import (

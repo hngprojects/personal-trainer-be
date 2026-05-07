@@ -25,9 +25,9 @@ INSERT INTO trainers (
   onboarding_status
 ) VALUES (
   $1, $2, $3, $4, $5, $6,
-  COALESCE($7, false),
+  COALESCE($7::boolean, false),
   $8,
-  COALESCE($9, 'pending')
+  COALESCE($9::text, 'pending')
 )
 RETURNING
   id,
@@ -53,9 +53,9 @@ type CreateTrainerParams struct {
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	Column7           interface{}
+	Column7           bool
 	CalendlyLink      sql.NullString
-	Column9           interface{}
+	Column9           string
 }
 
 func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (Trainer, error) {
@@ -70,6 +70,48 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		arg.CalendlyLink,
 		arg.Column9,
 	)
+	var i Trainer
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Specialization,
+		&i.Bio,
+		&i.YearsOfExperience,
+		&i.IntroVideoUrl,
+		&i.DisplayPicture,
+		&i.CalendlyConnected,
+		&i.CalendlyLink,
+		&i.OnboardingStatus,
+		&i.AverageRating,
+		&i.TotalReviews,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteTrainer = `-- name: DeleteTrainer :one
+DELETE FROM trainers
+WHERE id = $1
+RETURNING
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,
+  calendly_link,
+  onboarding_status,
+  average_rating,
+  total_reviews,
+  created_at,
+  updated_at
+`
+
+func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
+	row := q.db.QueryRowContext(ctx, deleteTrainer, id)
 	var i Trainer
 	err := row.Scan(
 		&i.ID,
@@ -150,7 +192,7 @@ SELECT
   created_at,
   updated_at
 FROM trainers
-WHERE ($1::text IS NULL OR specialization = $1)
+WHERE ($1::text = '' OR specialization = $1)
 ORDER BY created_at DESC
 `
 
@@ -200,9 +242,9 @@ SET
   years_of_experience = COALESCE($4, years_of_experience),
   intro_video_url     = COALESCE($5, intro_video_url),
   display_picture     = COALESCE($6, display_picture),
-  calendly_connected  = COALESCE($7, calendly_connected),
+  calendly_connected  = COALESCE($7::boolean, calendly_connected),
   calendly_link       = COALESCE($8, calendly_link),
-  onboarding_status   = COALESCE($9, onboarding_status),
+  onboarding_status   = COALESCE($9::text, onboarding_status),
   updated_at          = NOW()
 WHERE id = $1
 RETURNING
@@ -229,9 +271,9 @@ type UpdateTrainerParams struct {
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	CalendlyConnected bool
+	Column7           bool
 	CalendlyLink      sql.NullString
-	OnboardingStatus  string
+	Column9           string
 }
 
 func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (Trainer, error) {
@@ -242,9 +284,9 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		arg.YearsOfExperience,
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
-		arg.CalendlyConnected,
+		arg.Column7,
 		arg.CalendlyLink,
-		arg.OnboardingStatus,
+		arg.Column9,
 	)
 	var i Trainer
 	err := row.Scan(

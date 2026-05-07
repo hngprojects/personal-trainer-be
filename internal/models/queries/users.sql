@@ -1,7 +1,7 @@
 -- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
-ON CONFLICT (email) DO UPDATE
+ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
 RETURNING *;
 

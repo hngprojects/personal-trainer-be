@@ -1,3 +1,4 @@
+// email/email.go
 package email
 
 import (

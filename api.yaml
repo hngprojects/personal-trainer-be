@@ -12,6 +12,9 @@ components:
 
   schemas:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
     BaseResponse:
       type: object
       required: [status, message, code]
@@ -25,6 +28,7 @@ components:
           type: string
           description: Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 
+<<<<<<< HEAD
     SuccessResponse:
       allOf:
         - $ref: "#/components/schemas/BaseResponse"
@@ -50,12 +54,15 @@ components:
               items:
                 $ref: "#/components/schemas/FieldError"
 
+=======
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
     FieldError:
       type: object
       required: [field, message]
       properties:
         field:
           type: string
+<<<<<<< HEAD
           description: The field that failed validation
         message:
           type: string
@@ -87,6 +94,47 @@ components:
 
 =======
 >>>>>>> c0e53e7 (Completed Trainers Features)
+=======
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+
+    SuccessResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
     AuthUser:
       type: object
       required: [id, email, name, user_type, profile_complete]
@@ -143,6 +191,7 @@ components:
         - user_id
         - calendly_connected
         - onboarding_status
+        - average_rating
         - total_reviews
         - created_at
         - updated_at
@@ -150,76 +199,42 @@ components:
         id:
           type: string
           format: uuid
-          description: Trainer ID (trainers.id)
         user_id:
           type: string
           format: uuid
-          description: Linked user ID (trainers.user_id)
-
         specialization:
           type: string
           nullable: true
-          description: Category/specialization used for filtering
-
         bio:
           type: string
           nullable: true
-
         years_of_experience:
           type: integer
           nullable: true
-
         intro_video_url:
           type: string
           nullable: true
-
         display_picture:
           type: string
           nullable: true
-          description: URL to trainer display picture (uploaded separately)
-
         calendly_connected:
           type: boolean
-
         calendly_link:
           type: string
           nullable: true
-
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          example: pending
-
         average_rating:
           type: number
-          nullable: true
-
         total_reviews:
           type: integer
-          example: 0
-
         created_at:
           type: string
           format: date-time
-
         updated_at:
           type: string
           format: date-time
-
-    TrainersListResponse:
-      type: object
-      required: [status, message, data]
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          example: TRAINERS_FETCHED
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/Trainer"
 
     CreateTrainerRequest:
       type: object
@@ -230,82 +245,42 @@ components:
           format: uuid
         specialization:
           type: string
-          nullable: true
         bio:
           type: string
-          nullable: true
         years_of_experience:
           type: integer
-          nullable: true
         intro_video_url:
           type: string
-          nullable: true
         display_picture:
           type: string
-          nullable: true
         calendly_connected:
           type: boolean
-          nullable: true
         calendly_link:
           type: string
-          nullable: true
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          nullable: true
 
     UpdateTrainerRequest:
       type: object
       properties:
         specialization:
           type: string
-          nullable: true
         bio:
           type: string
-          nullable: true
         years_of_experience:
           type: integer
-          nullable: true
         intro_video_url:
           type: string
-          nullable: true
         display_picture:
           type: string
-          nullable: true
         calendly_connected:
           type: boolean
-          nullable: true
         calendly_link:
           type: string
-          nullable: true
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          nullable: true
-
-    TrainerResponse:
-      type: object
-      required: [status, message, data]
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          example: TRAINER_UPDATED
-        data:
-          $ref: "#/components/schemas/Trainer"
-
-    ErrorResponse:
-      type: object
-      required: [status, message]
-      properties:
-        status:
-          type: string
-          example: error
-        message:
-          type: string
-          example: Forbidden; Admin access required
 
 security:
   - bearerAuth: []
@@ -361,6 +336,7 @@ paths:
           content:
             application/json:
               schema:
+<<<<<<< HEAD
 <<<<<<< HEAD
                 $ref: "#/components/schemas/SuccessResponse"
               example:
@@ -428,6 +404,9 @@ paths:
                       refresh_token:
                         type: string
 >>>>>>> c0e53e7 (Completed Trainers Features)
+=======
+                $ref: "#/components/schemas/SuccessResponse"
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
   /auth/google:
     get:
@@ -486,6 +465,7 @@ paths:
             application/json:
               schema:
 <<<<<<< HEAD
+<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
@@ -507,11 +487,15 @@ paths:
                   error:
                     type: string
 >>>>>>> c0e53e7 (Completed Trainers Features)
+=======
+                $ref: "#/components/schemas/ErrorResponse"
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
         "500":
           description: Failed to exchange code or fetch user info
           content:
             application/json:
               schema:
+<<<<<<< HEAD
 <<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
               example:
@@ -529,25 +513,52 @@ paths:
                 properties:
                   error:
                     type: string
+=======
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+    get:
+      security: []
+      operationId: HealthCheck
+      responses:
+        "200":
+          description: Health OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /:
+    get:
+      security: []
+      operationId: Root
+      responses:
+        "200":
+          description: Root OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
   /trainers:
     get:
       operationId: GetTrainers
-      summary: Get trainers (admin-only)
+      summary: Get trainers (admin only)
       parameters:
         - name: category
           in: query
           required: false
           schema:
             type: string
-          description: Filters trainers by specialization (exact match)
+          description: Filter by category (maps to trainers.specialization)
       responses:
         "200":
           description: Trainers fetched
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrainersListResponse"
+                $ref: "#/components/schemas/SuccessResponse"
         "401":
           description: Unauthorized
           content:
@@ -555,7 +566,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
@@ -563,8 +580,12 @@ paths:
 
     post:
       operationId: CreateTrainer
+<<<<<<< HEAD
       summary: Add trainer (admin-only)
 >>>>>>> c0e53e7 (Completed Trainers Features)
+=======
+      summary: Add trainer (admin only)
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
       requestBody:
         required: true
         content:
@@ -608,17 +629,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [status, message, data]
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: TRAINER_CREATED
-                  data:
-                    $ref: "#/components/schemas/Trainer"
+                $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Bad request
 >>>>>>> c0e53e7 (Completed Trainers Features)
@@ -672,16 +683,22 @@ paths:
           description: Email not found
 =======
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /trainers/{id}:
-    put:
-      operationId: UpdateTrainer
-      summary: Update trainer (admin-only)
+    get:
+      operationId: GetTrainerByID
+      summary: Get trainer by ID (admin only)
       parameters:
         - name: id
           in: path
@@ -689,7 +706,48 @@ paths:
           schema:
             type: string
             format: uuid
-          description: Trainer ID (trainers.id)
+      responses:
+        "200":
+          description: Trainer fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: UpdateTrainer
+      summary: Update trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -702,7 +760,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrainerResponse"
+                $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Bad request
 >>>>>>> c0e53e7 (Completed Trainers Features)
@@ -711,6 +769,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 <<<<<<< HEAD
+<<<<<<< HEAD
               example:
                 status: error
                 message: Requested email is not on the waitlist
@@ -718,6 +777,14 @@ paths:
         "401":
           description: Client is unauthorized
 =======
+=======
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
         "401":
           description: Unauthorized
 >>>>>>> c0e53e7 (Completed Trainers Features)
@@ -734,11 +801,35 @@ paths:
           description: Internal server error
 =======
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: DeleteTrainer
+      summary: Delete trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trainer deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
         "404":
           description: Trainer not found
 >>>>>>> c0e53e7 (Completed Trainers Features)
@@ -747,9 +838,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 <<<<<<< HEAD
+<<<<<<< HEAD
               example:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
 =======
 >>>>>>> c0e53e7 (Completed Trainers Features)
+=======
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+>>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
