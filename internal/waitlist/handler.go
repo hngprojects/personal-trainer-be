@@ -21,7 +21,6 @@ func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger) *WaitlistHand
 	}
 }
 
-// HandleAddWaitlist handles POST /waitlist
 func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -46,7 +45,6 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	c.JSON(http.StatusOK, api.NewSuccessResponse("successfully added to the waitlist", api.CodeOK, nil, nil))
 }
 
-// HandleGetWaitlist handles GET /waitlist
 func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGetWaitlistParams) {
 	email := ""
 	if params.Email != nil {
@@ -54,7 +52,6 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 	}
 
 	if email != "" {
-		// Get specific email
 		result, err := h.repo.GetByEmail(c.Request.Context(), email)
 		if err != nil {
 			if err == ErrNotFound {
@@ -77,7 +74,6 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 		return
 	}
 
-	// Get all waitlist entries
 	results, err := h.repo.GetAll(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to get waitlist", "err", err)
