@@ -118,6 +118,7 @@ All responses return:
 {
   "status": "success",
   "message": "Human-readable message",
+  "code": "MACHINE_READABLE_CODE",
   "data": {},
   "meta": {}
 }
@@ -129,6 +130,7 @@ All responses return:
 {
   "status": "error",
   "message": "Human-readable error message",
+  "code": "MACHINE_READABLE_ERROR_CODE",
   "errors": []
 }
 ```

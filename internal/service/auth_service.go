@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -25,6 +26,10 @@ const (
 )
 
 func GenerateJWTToken(userId string, tokenType TokenType, role TokenRole) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("no env variable 'JWT_SECRET'")
+	}
 	ttl := 10 * time.Minute
 	if tokenType == RefreshToken {
 		ttl = 7 * 24 * time.Hour
@@ -41,15 +46,19 @@ func GenerateJWTToken(userId string, tokenType TokenType, role TokenRole) (strin
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	return token.SignedString([]byte(secret))
 }
 
 func ValidateToken(tokenString string) (*jwt.Token, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("no env variable 'JWT_SECRET'")
+	}
 	return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("invalid signing method")
 		}
 
-		return []byte(os.Getenv("JWT_SECRET")), nil
+		return []byte(secret), nil
 	})
 }
