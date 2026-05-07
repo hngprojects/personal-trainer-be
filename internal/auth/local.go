@@ -16,6 +16,12 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
+const (
+	codeExpiry         = 15 * time.Minute
+	refreshTokenExpiry = 7 * 24 * time.Hour
+	accessTokenTTL     = 10 * time.Minute
+)
+
 type LocalHandler struct {
 	users    UserRepository
 	sessions SessionRepository
@@ -63,25 +69,31 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
+	existingUser, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
 	if err == nil {
-		c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
-		return
-	}
-	if !errors.Is(err, ErrNotFound) {
+		if existingUser.IsActive {
+			// Already verified — block re-registration
+			c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
+			return
+		}
+		// User exists but not yet verified — allow resending the code
+	} else if errors.Is(err, ErrNotFound) {
+		// New user — create them
+		if _, err = h.users.CreateEmailUser(c.Request.Context(), req.Email); err != nil {
+			if errors.Is(err, ErrEmailExists) {
+				c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
+		}
+	} else {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
-	_, err = h.users.CreateEmailUser(c.Request.Context(), req.Email)
-	if err != nil {
-		if errors.Is(err, ErrEmailExists) {
-			c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
+	// Clear any previous codes for this email before creating a new one
+	_ = h.codes.DeleteByEmail(c.Request.Context(), req.Email)
 
 	code, err := generateVerificationCode()
 	if err != nil {
@@ -89,13 +101,13 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.codes.Create(c.Request.Context(), req.Email, code, time.Now().Add(15*time.Minute)); err != nil {
+	if err := h.codes.Create(c.Request.Context(), req.Email, code, time.Now().Add(codeExpiry)); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
 	subject := "Your verification code"
-	body := fmt.Sprintf("Your verification code is: %s\n\nThis code expires in 15 minutes.", code)
+	body := fmt.Sprintf("Your verification code is: %s\n\nThis code expires in %d minutes.", code, int(codeExpiry.Minutes()))
 	if err := h.mailer.Send(req.Email, subject, body); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send verification email", api.CodeServerError))
 		return
@@ -158,7 +170,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(7*24*time.Hour))
+	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
@@ -176,7 +188,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		},
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
-		"expires_in":    int(10 * time.Minute / time.Second),
+		"expires_in":    int(accessTokenTTL / time.Second),
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Email verified successfully", api.CodeOK, data))
 }
