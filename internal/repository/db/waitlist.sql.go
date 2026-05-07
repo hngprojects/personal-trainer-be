@@ -25,6 +25,23 @@ func (q *Queries) AddWaitlist(ctx context.Context, arg AddWaitlistParams) (sql.R
 	return q.db.ExecContext(ctx, addWaitlist, arg.Email, arg.Feedback)
 }
 
+const getSingleWaitlist = `-- name: GetSingleWaitlist :one
+SELECT id, email, feedback, created_at FROM waitlist
+WHERE email = $1
+`
+
+func (q *Queries) GetSingleWaitlist(ctx context.Context, email string) (Waitlist, error) {
+	row := q.db.QueryRowContext(ctx, getSingleWaitlist, email)
+	var i Waitlist
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Feedback,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWaitlist = `-- name: GetWaitlist :many
 SELECT id, email, feedback, created_at FROM waitlist
 `

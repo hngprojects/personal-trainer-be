@@ -34,10 +34,8 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 		return
 	}
 
-	// Normalize email
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
-	// Add to waitlist
 	if err := h.repo.AddEmail(c.Request.Context(), email, req.Feedback); err != nil {
 		h.log.Error("failed to add email to waitlist", "err", err, "email", email)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
@@ -68,8 +66,14 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 			return
 		}
+		data := map[string]interface{}{
+			"id":         result.ID,
+			"email":      result.Email,
+			"feedback":   result.Feedback,
+			"created_at": result.CreatedAt,
+		}
 
-		c.JSON(http.StatusOK, api.NewSuccessResponse("success", api.CodeOK, result, nil))
+		c.JSON(http.StatusOK, api.NewSuccess("success", api.CodeOK, data))
 		return
 	}
 
@@ -80,6 +84,20 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
+	items := make([]map[string]interface{}, 0, len(results))
 
-	c.JSON(http.StatusOK, api.NewSuccessResponse("success", api.CodeOK, results, nil))
+	for _, r := range results {
+		items = append(items, map[string]interface{}{
+			"id":         r.ID,
+			"email":      r.Email,
+			"feedback":   r.Feedback,
+			"created_at": r.CreatedAt,
+		})
+	}
+
+	data := map[string]interface{}{
+		"items": items,
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("success", api.CodeOK, data))
 }
