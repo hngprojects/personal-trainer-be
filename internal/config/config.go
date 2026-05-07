@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL string
 	LogLevel    string
 	LogFormat   string
+	FrontendURL string
 
 	SMTPHost     string
 	SMTPPort     string
@@ -25,10 +26,11 @@ type Config struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Env:       getenv("APP_ENV", "development"),
-		Port:      getenv("PORT", "8080"),
-		LogLevel:  getenv("LOG_LEVEL", "info"),
-		LogFormat: os.Getenv("LOG_FORMAT"),
+		Env:         getenv("APP_ENV", "development"),
+		Port:        getenv("PORT", "8080"),
+		LogLevel:    getenv("LOG_LEVEL", "info"),
+		LogFormat:   os.Getenv("LOG_FORMAT"),
+		FrontendURL: getenv("FRONTEND_URL", "http://localhost:3000"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 

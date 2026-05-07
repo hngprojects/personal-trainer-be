@@ -1,105 +1,342 @@
-# Contributing Guide
+# Contributing to Personal Trainer Backend
 
-This document outlines how to get started with the codebase and the required development workflow.
+Thank you for contributing to **Personal Trainer Backend**, a Go REST API for managing trainers, clients, sessions, and fitness programs.
+
+This guide explains how to contribute effectively. Read it before opening a pull request.
 
 ---
 
-## 1. Project Setup
+## How to Contribute
 
-Install all required development tools:
+### 1. Fork and Clone
+
+```bash
+git clone https://github.com/<your-username>/personal-trainer-be.git
+cd personal-trainer-be
+```
+
+### 2. Add Upstream Remote
+
+```bash
+git remote add upstream https://github.com/hngprojects/personal-trainer-be.git
+git fetch upstream
+```
+
+### 3. Create a Branch
+
+Branch from `dev`.
+
+| Prefix    | Use case          |
+| --------- | ----------------- |
+| feat/     | New feature       |
+| fix/      | Bug fix           |
+| refactor/ | Code changes only |
+| test/     | Tests             |
+| chore/    | Maintenance       |
+| docs/     | Documentation     |
+
+```bash
+git checkout dev
+git pull upstream dev
+git checkout -b feat/your-feature
+```
+
+### 4. Make Changes
+
+Follow code style and API rules. Add tests for new logic.
+
+### 5. Push and Open PR
+
+```bash
+git push origin feat/your-feature
+```
+
+Open a PR to `dev`.
+
+---
+
+## Development Setup
+
+### Requirements
+
+* Go 1.22+
+* PostgreSQL 12+
+* Docker
+* Make
+
+### Setup
 
 ```bash
 make install-tools
-```
-
----
-
-## 2. Environment Variables
-
-Copy the example environment file and fill in your local values:
-
-```bash
 cp .env.example .env
-```
-
----
-
-## 3. Running the Project
-
-```bash
+docker compose up -d
+make migrate-up
 make run
 ```
 
----
+Server runs on:
 
-## 4. Code Generation
+```
+http://localhost:8080
+```
 
-**API routes / boilerplate** — run after any changes to `api.yaml`:
+### Code Generation
+
+After changes:
 
 ```bash
 make codegen
-```
-
-**Database models** — run after any changes to SQL queries:
-
-```bash
 make sqlc
 ```
 
-Do not manually edit generated files.
+Do not edit generated files manually.
 
----
-
-## 5. Database Migrations
-
-```bash
-make migrate-create NAME=your_migration_name
-make migrate-up
-```
-
----
-
-## 6. Testing
-
-All new features must include tests.
+### Tests
 
 ```bash
 make test
-make test-cover   # generates coverage.html
+make test-cover
 ```
 
 ---
 
-## 7. Branching
+## Code Style
 
-- Branch off `dev`
-- PRs must target `dev`, not `main`
+### General Rules
 
----
+* Format code with `gofmt -s` (`make fmt`)
+* Follow Effective Go guidelines
+* Keep functions small and focused
 
-## 8. Commit Style
+### Architecture
 
-Follow conventional commits:
+Structure is domain-based:
 
-```text
-feat: add trainer profile endpoint
-fix: resolve token expiry bug
-refactor: simplify auth middleware
-test: add unit tests for booking service
-chore: update dependencies
+```
+cmd/server          app entry
+internal/
+  routes            routing only
+  auth              auth domain
+  root              root endpoint
+  health            health checks
+  common            shared utilities
+  middleware        middleware
+  repository        database access
+  models            domain models and queries
+  config            environment config
+  handlers          non-domain handlers
+  api               generated OpenAPI code
+```
+
+### Rules
+
+* Business logic stays in domain packages
+* Only repositories access the database
+* Handlers use dependency injection
+* Routes only wire components
+
+### Errors
+
+```go
+return fmt.Errorf("create user: %w", err)
+```
+
+### Logging
+
+```go
+log.Info("user created", "user_id", id)
+log.Error("db error", "err", err)
 ```
 
 ---
 
-## 9. Before Opening a PR
+## API Guidelines
 
-- [ ] `make test` passes
-- [ ] `make codegen` run if `api.yaml` changed
-- [ ] `make sqlc` run if SQL queries changed
-- [ ] Branch is up to date with `dev`
+### Response Format
+
+Use standard helpers only.
+
+**Success**
+
+```go
+api.NewSuccess("Created", api.CodeCreated, data)
+```
+
+```json
+{
+  "status": "success",
+  "message": "Created",
+  "code": "CREATED",
+  "data": {}
+}
+```
+
+**Error**
+
+```go
+api.NewError("Invalid request", api.CodeBadRequest)
+```
+
+```json
+{
+  "status": "error",
+  "message": "Invalid request",
+  "code": "BAD_REQUEST"
+}
+```
+
+### Response Codes
+
+* OK: 200
+* CREATED: 201
+* BAD_REQUEST: 400
+* UNAUTHORIZED: 401
+* FORBIDDEN: 403
+* NOT_FOUND: 404
+* SERVER_ERROR: 500
+
+### Pagination
+
+```go
+meta := api.NewPaginationMeta(page, perPage, total)
+api.NewSuccessWithMeta("List", api.CodeOK, data, meta)
+```
 
 ---
 
-## 10. Getting Help
+## Commit Standards
 
-Ask the lead developer, a teammate, or a mentor. Raise questions early.
+Use Conventional Commits.
+
+### Format
+
+```
+type(scope): description
+```
+
+### Types
+
+* feat
+* fix
+* refactor
+* test
+* docs
+* chore
+* style
+* perf
+* ci
+
+### Examples
+
+```
+feat(auth): add login endpoint
+fix(auth): correct token expiry
+refactor(repo): simplify query layer
+test(auth): add login tests
+docs: update setup guide
+```
+
+Rules:
+
+* Use present tense
+* Keep under 72 characters
+* Reference issues when needed
+
+---
+
+## Pull Requests
+
+### Title
+
+Follow commit format.
+
+### Checklist
+
+* Tests pass
+* Lint passes
+* Code formatted
+* Codegen run if needed
+* SQLC run if needed
+* Up to date with `dev`
+
+```bash
+make test
+make lint
+make fmt
+make codegen
+make sqlc
+```
+
+### PR Content
+
+Include:
+
+* What changed
+* Why it changed
+* How it was tested
+* Related issue
+
+### Review Rules
+
+* One approval required
+* Address all comments
+* Keep PRs small
+
+### Merge
+
+* Squash merge into `dev`
+* `main` is for releases only
+
+---
+
+## Security
+
+* Never commit secrets
+* Use `.env` only locally
+* Validate all OAuth state values
+* Use strong JWT secrets
+* Never log credentials
+* Use parameterized queries only
+
+Report vulnerabilities privately.
+
+---
+
+## Good First Issues
+
+Look for:
+
+* good first issue
+* help wanted
+* docs
+
+Examples:
+
+* Add tests
+* Improve validation
+* Fix docs
+* Extend OpenAPI spec
+
+---
+
+## General Rules
+
+* Follow domain structure
+* Write tests
+* Keep PRs small
+* Do not modify generated code
+* Propose new dependencies first
+* Document exported functions
+* Keep changes focused
+
+---
+
+## Getting Help
+
+* Open a discussion for questions
+* Open an issue for bugs
+* Ask before large changes
+
+---
+
+Contributions are welcome. Keep changes focused and intentional.
