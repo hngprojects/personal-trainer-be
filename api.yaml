@@ -11,6 +11,64 @@ components:
       bearerFormat: JWT
 
   schemas:
+    BaseResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+          description: Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+
+    SuccessResponse:
+      type: object
+      required: [status, message, code]
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+        message:
+          type: string
+        code:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+
     AuthUser:
       type: object
       required: [id, email, name, user_type, profile_complete]
@@ -61,6 +119,7 @@ components:
         - user_id
         - calendly_connected
         - onboarding_status
+        - average_rating
         - total_reviews
         - created_at
         - updated_at
@@ -68,76 +127,42 @@ components:
         id:
           type: string
           format: uuid
-          description: Trainer ID (trainers.id)
         user_id:
           type: string
           format: uuid
-          description: Linked user ID (trainers.user_id)
-
         specialization:
           type: string
           nullable: true
-          description: Category/specialization used for filtering
-
         bio:
           type: string
           nullable: true
-
         years_of_experience:
           type: integer
           nullable: true
-
         intro_video_url:
           type: string
           nullable: true
-
         display_picture:
           type: string
           nullable: true
-          description: URL to trainer display picture (uploaded separately)
-
         calendly_connected:
           type: boolean
-
         calendly_link:
           type: string
           nullable: true
-
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          example: pending
-
         average_rating:
           type: number
-          nullable: true
-
         total_reviews:
           type: integer
-          example: 0
-
         created_at:
           type: string
           format: date-time
-
         updated_at:
           type: string
           format: date-time
-
-    TrainersListResponse:
-      type: object
-      required: [status, message, data]
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          example: TRAINERS_FETCHED
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/Trainer"
 
     CreateTrainerRequest:
       type: object
@@ -148,82 +173,42 @@ components:
           format: uuid
         specialization:
           type: string
-          nullable: true
         bio:
           type: string
-          nullable: true
         years_of_experience:
           type: integer
-          nullable: true
         intro_video_url:
           type: string
-          nullable: true
         display_picture:
           type: string
-          nullable: true
         calendly_connected:
           type: boolean
-          nullable: true
         calendly_link:
           type: string
-          nullable: true
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          nullable: true
 
     UpdateTrainerRequest:
       type: object
       properties:
         specialization:
           type: string
-          nullable: true
         bio:
           type: string
-          nullable: true
         years_of_experience:
           type: integer
-          nullable: true
         intro_video_url:
           type: string
-          nullable: true
         display_picture:
           type: string
-          nullable: true
         calendly_connected:
           type: boolean
-          nullable: true
         calendly_link:
           type: string
-          nullable: true
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
-          nullable: true
-
-    TrainerResponse:
-      type: object
-      required: [status, message, data]
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          example: TRAINER_UPDATED
-        data:
-          $ref: "#/components/schemas/Trainer"
-
-    ErrorResponse:
-      type: object
-      required: [status, message]
-      properties:
-        status:
-          type: string
-          example: error
-        message:
-          type: string
-          example: Forbidden; Admin access required
 
 security:
   - bearerAuth: []
@@ -239,32 +224,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - status
-                  - message
-                  - code
-                  - data
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Login successful
-                  code:
-                    type: string
-                    example: AUTH_LOGIN_SUCCESS
-                  data:
-                    type: object
-                    required:
-                      - access_token
-                      - refresh_token
-                    properties:
-                      access_token:
-                        type: string
-                      refresh_token:
-                        type: string
+                $ref: "#/components/schemas/SuccessResponse"
 
   /auth/google:
     get:
@@ -303,38 +263,56 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Failed to exchange code or fetch user info
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+    get:
+      security: []
+      operationId: HealthCheck
+      responses:
+        "200":
+          description: Health OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /:
+    get:
+      security: []
+      operationId: Root
+      responses:
+        "200":
+          description: Root OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
 
   /trainers:
     get:
       operationId: GetTrainers
-      summary: Get trainers (admin-only)
+      summary: Get trainers (admin only)
       parameters:
         - name: category
           in: query
           required: false
           schema:
             type: string
-          description: Filters trainers by specialization (exact match)
+          description: Filter by category (maps to trainers.specialization)
       responses:
         "200":
           description: Trainers fetched
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrainersListResponse"
+                $ref: "#/components/schemas/SuccessResponse"
         "401":
           description: Unauthorized
           content:
@@ -342,7 +320,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
@@ -350,7 +334,7 @@ paths:
 
     post:
       operationId: CreateTrainer
-      summary: Add trainer (admin-only)
+      summary: Add trainer (admin only)
       requestBody:
         required: true
         content:
@@ -363,17 +347,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [status, message, data]
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: TRAINER_CREATED
-                  data:
-                    $ref: "#/components/schemas/Trainer"
+                $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Bad request
           content:
@@ -387,16 +361,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /trainers/{id}:
-    put:
-      operationId: UpdateTrainer
-      summary: Update trainer (admin-only)
+    get:
+      operationId: GetTrainerByID
+      summary: Get trainer by ID (admin only)
       parameters:
         - name: id
           in: path
@@ -404,7 +384,48 @@ paths:
           schema:
             type: string
             format: uuid
-          description: Trainer ID (trainers.id)
+      responses:
+        "200":
+          description: Trainer fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: UpdateTrainer
+      summary: Update trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -417,9 +438,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrainerResponse"
+                $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
           content:
             application/json:
               schema:
@@ -431,13 +458,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden (admin-only)
+          description: Forbidden
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: DeleteTrainer
+      summary: Delete trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trainer deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:

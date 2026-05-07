@@ -1,3 +1,4 @@
+// routes.go
 package routes
 
 import (
@@ -32,6 +33,7 @@ type routerImpl struct {
 	google *auth.GoogleHandler
 	root   *root.RootHandler
 	health *health.HealthHandler
+	trainers *trainersStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -60,20 +62,37 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		var google *auth.GoogleHandler
+		var (
+			google   *auth.GoogleHandler
+			trainers *trainersStore
+			q *db.Queries
+		)
 		if s.db != nil {
-			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
+			q = db.New(s.db)
+
+			usersRepo := auth.NewPostgresUserRepo(q)
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+			trainers = newTrainersStore(q)
 		} else {
-			s.log.Warn("database not configured — auth endpoints unavailable")
+			s.log.Warn("database not configured — auth/trainers endpoints unavailable")
 		}
 
 		impl := &routerImpl{
 			google: google,
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
+			trainers: trainers,
 		}
-		api.RegisterHandlers(v1, impl)
+		opts := api.GinServerOptions{}
+		if q != nil {
+			adminOnly := middleware.TrainersAdminOnly(q)
+
+			opts.Middlewares = []api.MiddlewareFunc{
+				func(c *gin.Context) { adminOnly(c) }, 
+			}
+		}
+
+		api.RegisterHandlersWithOptions(v1, impl, opts)
 	}
 
 	return r

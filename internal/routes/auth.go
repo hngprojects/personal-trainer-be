@@ -1,3 +1,4 @@
+// routes/auth.go
 package routes
 
 import (

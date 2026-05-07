@@ -1,3 +1,4 @@
+// api/response.go
 package api
 
 import "fmt"
@@ -6,7 +7,7 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 	resp := SuccessResponse{
 		Code:    code,
 		Message: message,
-		Status:  Success,
+		Status:  SuccessResponseStatusSuccess,
 	}
 	if data != nil {
 		d := data.(map[string]interface{})

@@ -1,3 +1,4 @@
+// auth/google_test.go
 package auth_test
 
 import (
