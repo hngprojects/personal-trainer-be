@@ -8,7 +8,7 @@ import (
 const createEmailUser = `
 INSERT INTO users (email, auth_provider, is_active)
 VALUES ($1, 'local', false)
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+RETURNING id, email, COALESCE(name, ''), COALESCE(password, ''), auth_provider, is_active, created_at, updated_at
 `
 
 func (q *Queries) CreateEmailUser(ctx context.Context, email string) (User, error) {
@@ -30,7 +30,7 @@ func (q *Queries) CreateEmailUser(ctx context.Context, email string) (User, erro
 const markUserVerified = `
 UPDATE users SET is_active = true, updated_at = NOW()
 WHERE email = $1 AND auth_provider = 'local'
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at
+RETURNING id, email, COALESCE(name, ''), COALESCE(password, ''), auth_provider, is_active, created_at, updated_at
 `
 
 func (q *Queries) MarkUserVerified(ctx context.Context, email string) (User, error) {

@@ -71,14 +71,10 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	existingUser, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
+	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
 	if err == nil {
-		if existingUser.IsActive {
-			// Already verified — block re-registration
-			c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
-			return
-		}
-		// User exists but not yet verified — allow resending the code
+		// User exists (verified or not) — allow sending a new code.
+		// Since there is no password, this endpoint serves as both signup and login.
 	} else if errors.Is(err, ErrNotFound) {
 		// New user — create them
 		if _, err = h.users.CreateEmailUser(c.Request.Context(), req.Email); err != nil {

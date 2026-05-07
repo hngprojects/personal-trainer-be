@@ -20,10 +20,28 @@ type verifyRateLimiter struct {
 }
 
 func newVerifyRateLimiter() *verifyRateLimiter {
-	return &verifyRateLimiter{
+	rl := &verifyRateLimiter{
 		entries: make(map[string]*rlEntry),
 		window:  codeExpiry,
 		max:     maxVerifyAttempts,
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+// cleanupLoop runs every window duration and evicts expired entries to prevent unbounded memory growth.
+func (r *verifyRateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(r.window)
+	defer ticker.Stop()
+	for range ticker.C {
+		r.mu.Lock()
+		now := time.Now()
+		for email, e := range r.entries {
+			if now.Sub(e.windowStart) >= r.window {
+				delete(r.entries, email)
+			}
+		}
+		r.mu.Unlock()
 	}
 }
 

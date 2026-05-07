@@ -135,14 +135,15 @@ func TestRegister_Success(t *testing.T) {
 	}
 }
 
-func TestRegister_DuplicateEmail(t *testing.T) {
+func TestRegister_ExistingActiveUser_SendsNewCode(t *testing.T) {
+	// Active users can request a new OTP — this endpoint is signup AND login for email-only auth
 	users := &fakeLocalUserRepo{findUser: &db.User{ID: uuid.New(), IsActive: true}, findErr: nil}
 	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected 409, got %d", w.Code)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected 201 for existing active user, got %d", w.Code)
 	}
 }
 
@@ -177,7 +178,6 @@ func TestRegister_InvalidJSON(t *testing.T) {
 }
 
 func TestRegister_UnverifiedUserResendCode(t *testing.T) {
-	// User exists but is not yet active — should resend code, not 409
 	users := &fakeLocalUserRepo{findUser: &db.User{ID: uuid.New(), IsActive: false}, findErr: nil}
 	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
 
@@ -185,18 +185,6 @@ func TestRegister_UnverifiedUserResendCode(t *testing.T) {
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected 201 for unverified user resend, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestRegister_VerifiedUserConflict(t *testing.T) {
-	// User exists and is already active — should return 409
-	users := &fakeLocalUserRepo{findUser: &db.User{ID: uuid.New(), IsActive: true}, findErr: nil}
-	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
-
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
-
-	if w.Code != http.StatusConflict {
-		t.Errorf("expected 409 for verified user, got %d", w.Code)
 	}
 }
 
