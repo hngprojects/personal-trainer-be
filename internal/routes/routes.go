@@ -71,7 +71,7 @@ func (s *Router) Routes() *gin.Engine {
 			codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
 			mailer := s.buildMailer()
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-			local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log)
+			local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log, s.cfg.OTPSecret)
 		} else {
 			s.log.Warn("database not configured — auth endpoints unavailable")
 		}

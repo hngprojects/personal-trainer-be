@@ -17,6 +17,7 @@ type verifyRateLimiter struct {
 	entries map[string]*rlEntry
 	window  time.Duration
 	max     int
+	done    chan struct{}
 }
 
 func newVerifyRateLimiter() *verifyRateLimiter {
@@ -24,24 +25,35 @@ func newVerifyRateLimiter() *verifyRateLimiter {
 		entries: make(map[string]*rlEntry),
 		window:  codeExpiry,
 		max:     maxVerifyAttempts,
+		done:    make(chan struct{}),
 	}
 	go rl.cleanupLoop()
 	return rl
+}
+
+// Stop signals the cleanup goroutine to exit.
+func (r *verifyRateLimiter) Stop() {
+	close(r.done)
 }
 
 // cleanupLoop runs every window duration and evicts expired entries to prevent unbounded memory growth.
 func (r *verifyRateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(r.window)
 	defer ticker.Stop()
-	for range ticker.C {
-		r.mu.Lock()
-		now := time.Now()
-		for email, e := range r.entries {
-			if now.Sub(e.windowStart) >= r.window {
-				delete(r.entries, email)
+	for {
+		select {
+		case <-ticker.C:
+			r.mu.Lock()
+			now := time.Now()
+			for email, e := range r.entries {
+				if now.Sub(e.windowStart) >= r.window {
+					delete(r.entries, email)
+				}
 			}
+			r.mu.Unlock()
+		case <-r.done:
+			return
 		}
-		r.mu.Unlock()
 	}
 }
 

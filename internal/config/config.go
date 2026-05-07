@@ -22,6 +22,8 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+
+	OTPSecret string
 }
 
 func Load() (*Config, error) {
@@ -43,6 +45,8 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+
+		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
 	}
 
 	if cfg.DatabaseURL == "" {

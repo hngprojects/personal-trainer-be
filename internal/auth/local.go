@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -28,12 +27,13 @@ const (
 )
 
 type LocalHandler struct {
-	users    UserRepository
-	sessions SessionRepository
-	codes    VerificationCodeRepository
-	mailer   email.Mailer
-	log      *slog.Logger
-	limiter  *verifyRateLimiter
+	users     UserRepository
+	sessions  SessionRepository
+	codes     VerificationCodeRepository
+	mailer    email.Mailer
+	log       *slog.Logger
+	limiter   *verifyRateLimiter
+	otpSecret string
 }
 
 func NewLocalHandler(
@@ -42,15 +42,22 @@ func NewLocalHandler(
 	codes VerificationCodeRepository,
 	mailer email.Mailer,
 	log *slog.Logger,
+	otpSecret string,
 ) *LocalHandler {
 	return &LocalHandler{
-		users:    users,
-		sessions: sessions,
-		codes:    codes,
-		mailer:   mailer,
-		log:      log,
-		limiter:  newVerifyRateLimiter(),
+		users:     users,
+		sessions:  sessions,
+		codes:     codes,
+		mailer:    mailer,
+		log:       log,
+		limiter:   newVerifyRateLimiter(),
+		otpSecret: otpSecret,
 	}
+}
+
+// Close stops the background rate-limiter cleanup goroutine.
+func (h *LocalHandler) Close() {
+	h.limiter.Stop()
 }
 
 type registerRequest struct {
@@ -79,11 +86,12 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
-	if err == nil {
-		// User exists (verified or not) — allow sending a new code.
-		// Since there is no password, this endpoint serves as both signup and login.
-	} else if errors.Is(err, ErrNotFound) {
-		// New user — create them
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if errors.Is(err, ErrNotFound) {
 		if _, err = h.users.CreateEmailUser(c.Request.Context(), req.Email); err != nil {
 			if errors.Is(err, ErrEmailExists) {
 				c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
@@ -92,9 +100,6 @@ func (h *LocalHandler) Register(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 			return
 		}
-	} else {
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
 	}
 
 	// Clear any previous codes for this email before creating a new one
@@ -106,7 +111,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.codes.Create(c.Request.Context(), req.Email, hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
+	if err := h.codes.Create(c.Request.Context(), req.Email, h.hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
@@ -150,7 +155,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	_, err := h.codes.ConsumeByEmailAndCode(c.Request.Context(), req.Email, hashOTP(req.Code))
+	_, err := h.codes.ConsumeByEmailAndCode(c.Request.Context(), req.Email, h.hashOTP(req.Code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
@@ -193,7 +198,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 			"email":            user.Email,
 			"name":             user.Name,
 			"user_type":        "client",
-			"profile_complete": false,
+			"profile_complete": user.Name != "",
 		},
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
@@ -210,12 +215,8 @@ func generateVerificationCode() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
-func hashOTP(code string) string {
-	secret := os.Getenv("OTP_SECRET")
-	if secret == "" {
-		secret = os.Getenv("JWT_SECRET")
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
+func (h *LocalHandler) hashOTP(code string) string {
+	mac := hmac.New(sha256.New, []byte(h.otpSecret))
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
