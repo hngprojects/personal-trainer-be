@@ -216,6 +216,25 @@ func TestRegister_UnverifiedUserResendCode(t *testing.T) {
 	}
 }
 
+func TestRegister_RateLimited(t *testing.T) {
+	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	// Exhaust the 3 allowed register attempts
+	for i := 0; i < 3; i++ {
+		w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"flood@example.com"}`, h.Register)
+		if w.Code != http.StatusCreated {
+			t.Errorf("attempt %d: expected 201, got %d", i+1, w.Code)
+		}
+	}
+
+	// 4th attempt should be rate limited
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"flood@example.com"}`, h.Register)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 after exceeding register attempts, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestRegister_DBCreateUserError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound, createUserErr: errors.New("db error")}
 	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
@@ -247,6 +266,18 @@ func TestRegister_CodeCreateError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestRegister_DeleteCodeError(t *testing.T) {
+	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
+	codes := &fakeCodeRepo{deleteErr: errors.New("delete error")}
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 when delete fails, got %d", w.Code)
 	}
 }
 
@@ -298,6 +329,28 @@ func TestVerifyEmail_MissingCode(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestVerifyEmail_CodeTooShort(t *testing.T) {
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"john@example.com","code":"123"}`, h.VerifyEmail)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for short code, got %d", w.Code)
+	}
+}
+
+func TestVerifyEmail_CodeNotDigits(t *testing.T) {
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"john@example.com","code":"abc123"}`, h.VerifyEmail)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-digit code, got %d", w.Code)
 	}
 }
 

@@ -27,13 +27,14 @@ const (
 )
 
 type LocalHandler struct {
-	users     UserRepository
-	sessions  SessionRepository
-	codes     VerificationCodeRepository
-	mailer    email.Mailer
-	log       *slog.Logger
-	limiter   *verifyRateLimiter
-	otpSecret string
+	users           UserRepository
+	sessions        SessionRepository
+	codes           VerificationCodeRepository
+	mailer          email.Mailer
+	log             *slog.Logger
+	verifyLimiter   *verifyRateLimiter
+	registerLimiter *verifyRateLimiter
+	otpSecret       string
 }
 
 func NewLocalHandler(
@@ -44,20 +45,25 @@ func NewLocalHandler(
 	log *slog.Logger,
 	otpSecret string,
 ) *LocalHandler {
+	if otpSecret == "" {
+		log.Warn("OTP_SECRET is not set — OTP hashes have no secret protection; set OTP_SECRET in production")
+	}
 	return &LocalHandler{
-		users:     users,
-		sessions:  sessions,
-		codes:     codes,
-		mailer:    mailer,
-		log:       log,
-		limiter:   newVerifyRateLimiter(),
-		otpSecret: otpSecret,
+		users:           users,
+		sessions:        sessions,
+		codes:           codes,
+		mailer:          mailer,
+		log:             log,
+		verifyLimiter:   newRateLimiter(maxVerifyAttempts),
+		registerLimiter: newRateLimiter(maxRegisterAttempts),
+		otpSecret:       otpSecret,
 	}
 }
 
-// Close stops the background rate-limiter cleanup goroutine.
+// Close stops the background rate-limiter cleanup goroutines.
 func (h *LocalHandler) Close() {
-	h.limiter.Stop()
+	h.verifyLimiter.Stop()
+	h.registerLimiter.Stop()
 }
 
 type registerRequest struct {
@@ -85,6 +91,11 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if !h.registerLimiter.allow(req.Email) {
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
+		return
+	}
+
 	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), req.Email, "local")
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
@@ -102,8 +113,12 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		}
 	}
 
-	// Clear any previous codes for this email before creating a new one
-	_ = h.codes.DeleteByEmail(c.Request.Context(), req.Email)
+	// Clear any previous codes — abort if this fails to keep one-code-at-a-time semantics
+	if err := h.codes.DeleteByEmail(c.Request.Context(), req.Email); err != nil {
+		h.log.Error("failed to delete previous verification codes", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
 
 	code, err := generateVerificationCode()
 	if err != nil {
@@ -123,7 +138,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	h.limiter.reset(req.Email)
+	h.verifyLimiter.reset(req.Email)
 	c.JSON(http.StatusCreated, api.NewSuccess("Verification code sent to your email", api.CodeCreated, nil))
 }
 
@@ -143,14 +158,21 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
+	req.Code = strings.TrimSpace(req.Code)
 	if req.Code == "" {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code is required"},
 		}))
 		return
 	}
+	if len(req.Code) != 6 || !isDigits(req.Code) {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "code", Message: "code must be a 6-digit number"},
+		}))
+		return
+	}
 
-	if !h.limiter.allow(req.Email) {
+	if !h.verifyLimiter.allow(req.Email) {
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
@@ -189,7 +211,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	h.limiter.reset(req.Email)
+	h.verifyLimiter.reset(req.Email)
 	h.log.Info("user verified and logged in", "user_id", user.ID.String())
 
 	data := map[string]interface{}{
@@ -213,6 +235,15 @@ func generateVerificationCode() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *LocalHandler) hashOTP(code string) string {

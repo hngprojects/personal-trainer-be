@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-const maxVerifyAttempts = 5
+const (
+	maxVerifyAttempts   = 5
+	maxRegisterAttempts = 3
+)
 
 type rlEntry struct {
 	count       int
@@ -13,27 +16,28 @@ type rlEntry struct {
 }
 
 type verifyRateLimiter struct {
-	mu      sync.Mutex
-	entries map[string]*rlEntry
-	window  time.Duration
-	max     int
-	done    chan struct{}
+	mu       sync.Mutex
+	entries  map[string]*rlEntry
+	window   time.Duration
+	max      int
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
-func newVerifyRateLimiter() *verifyRateLimiter {
+func newRateLimiter(max int) *verifyRateLimiter {
 	rl := &verifyRateLimiter{
 		entries: make(map[string]*rlEntry),
 		window:  codeExpiry,
-		max:     maxVerifyAttempts,
+		max:     max,
 		done:    make(chan struct{}),
 	}
 	go rl.cleanupLoop()
 	return rl
 }
 
-// Stop signals the cleanup goroutine to exit.
+// Stop signals the cleanup goroutine to exit. Safe to call multiple times.
 func (r *verifyRateLimiter) Stop() {
-	close(r.done)
+	r.stopOnce.Do(func() { close(r.done) })
 }
 
 // cleanupLoop runs every window duration and evicts expired entries to prevent unbounded memory growth.
