@@ -1,12 +1,17 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -64,6 +69,8 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	if !common.IsValidEmail(req.Email) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
@@ -99,7 +106,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.codes.Create(c.Request.Context(), req.Email, code, time.Now().Add(codeExpiry)); err != nil {
+	if err := h.codes.Create(c.Request.Context(), req.Email, hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
@@ -122,6 +129,8 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	if !common.IsValidEmail(req.Email) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
@@ -141,7 +150,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	_, err := h.codes.GetByEmailAndCode(c.Request.Context(), req.Email, req.Code)
+	_, err := h.codes.ConsumeByEmailAndCode(c.Request.Context(), req.Email, hashOTP(req.Code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
@@ -155,11 +164,6 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
-	}
-
-	if err := h.codes.DeleteByEmail(c.Request.Context(), req.Email); err != nil {
-		h.log.Warn("failed to delete verification codes after successful verification",
-			"user_id", user.ID.String(), "err", err)
 	}
 
 	userIDStr := user.ID.String()
@@ -204,4 +208,14 @@ func generateVerificationCode() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+func hashOTP(code string) string {
+	secret := os.Getenv("OTP_SECRET")
+	if secret == "" {
+		secret = os.Getenv("JWT_SECRET")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(code))
+	return hex.EncodeToString(mac.Sum(nil))
 }

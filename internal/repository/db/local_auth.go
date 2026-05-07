@@ -29,7 +29,7 @@ func (q *Queries) CreateEmailUser(ctx context.Context, email string) (User, erro
 
 const markUserVerified = `
 UPDATE users SET is_active = true, updated_at = NOW()
-WHERE email = $1 AND auth_provider = 'local'
+WHERE email = $1 AND auth_provider = 'local' AND is_active = false
 RETURNING id, email, COALESCE(name, ''), COALESCE(password, ''), auth_provider, is_active, created_at, updated_at
 `
 
@@ -65,15 +65,14 @@ func (q *Queries) CreateVerificationCode(ctx context.Context, arg CreateVerifica
 	return err
 }
 
-const getVerificationCode = `
-SELECT id, email, code, created_at, expires_at
-FROM verification_codes
+const consumeVerificationCode = `
+DELETE FROM verification_codes
 WHERE email = $1 AND code = $2 AND expires_at > NOW()
-LIMIT 1
+RETURNING id, email, code, created_at, expires_at
 `
 
-func (q *Queries) GetVerificationCode(ctx context.Context, email, code string) (VerificationCode, error) {
-	row := q.db.QueryRowContext(ctx, getVerificationCode, email, code)
+func (q *Queries) ConsumeVerificationCode(ctx context.Context, email, code string) (VerificationCode, error) {
+	row := q.db.QueryRowContext(ctx, consumeVerificationCode, email, code)
 	var v VerificationCode
 	err := row.Scan(&v.ID, &v.Email, &v.Code, &v.CreatedAt, &v.ExpiresAt)
 	return v, err

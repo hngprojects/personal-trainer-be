@@ -31,7 +31,7 @@ type SessionRepository interface {
 // VerificationCodeRepository defines what the auth feature needs from the verification_codes table.
 type VerificationCodeRepository interface {
 	Create(ctx context.Context, email, code string, expiresAt time.Time) error
-	GetByEmailAndCode(ctx context.Context, email, code string) (*db.VerificationCode, error)
+	ConsumeByEmailAndCode(ctx context.Context, email, code string) (*db.VerificationCode, error)
 	DeleteByEmail(ctx context.Context, email string) error
 }
 
@@ -86,7 +86,18 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 	user, err := r.q.MarkUserVerified(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			// No rows updated means the user is already active — fetch and return current data.
+			existing, fetchErr := r.q.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
+				Email:        email,
+				AuthProvider: "local",
+			})
+			if fetchErr != nil {
+				if errors.Is(fetchErr, sql.ErrNoRows) {
+					return nil, ErrNotFound
+				}
+				return nil, fetchErr
+			}
+			return &existing, nil
 		}
 		return nil, err
 	}
@@ -131,8 +142,8 @@ func (r *postgresVerificationCodeRepo) Create(ctx context.Context, email, code s
 	})
 }
 
-func (r *postgresVerificationCodeRepo) GetByEmailAndCode(ctx context.Context, email, code string) (*db.VerificationCode, error) {
-	vc, err := r.q.GetVerificationCode(ctx, email, code)
+func (r *postgresVerificationCodeRepo) ConsumeByEmailAndCode(ctx context.Context, email, code string) (*db.VerificationCode, error) {
+	vc, err := r.q.ConsumeVerificationCode(ctx, email, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

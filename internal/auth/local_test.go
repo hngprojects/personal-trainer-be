@@ -53,18 +53,18 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 
 // fakeCodeRepo controls verification code behaviour.
 type fakeCodeRepo struct {
-	getErr    error
-	createErr error
-	deleteErr error
+	consumeErr error
+	createErr  error
+	deleteErr  error
 }
 
 func (f *fakeCodeRepo) Create(_ context.Context, _, _ string, _ time.Time) error {
 	return f.createErr
 }
 
-func (f *fakeCodeRepo) GetByEmailAndCode(_ context.Context, _, _ string) (*db.VerificationCode, error) {
-	if f.getErr != nil {
-		return nil, f.getErr
+func (f *fakeCodeRepo) ConsumeByEmailAndCode(_ context.Context, _, _ string) (*db.VerificationCode, error) {
+	if f.consumeErr != nil {
+		return nil, f.consumeErr
 	}
 	return &db.VerificationCode{ID: uuid.New()}, nil
 }
@@ -132,6 +132,31 @@ func TestRegister_Success(t *testing.T) {
 	resp := decodeBody(t, w)
 	if resp["status"] != "success" {
 		t.Errorf("expected status success, got %v", resp["status"])
+	}
+}
+
+func TestRegister_NormalizesEmail(t *testing.T) {
+	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
+	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	// Uppercase + whitespace should be accepted and normalised
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"  JOHN@EXAMPLE.COM  "}`, h.Register)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected 201 for unnormalized email, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestVerifyEmail_NormalizesEmail(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+
+	h := newLocalTestHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		`{"email":"  JOHN@EXAMPLE.COM  ","code":"123456"}`, h.VerifyEmail)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for unnormalized email, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -251,7 +276,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 
 func TestVerifyEmail_InvalidCode(t *testing.T) {
 	users := &fakeLocalUserRepo{}
-	codes := &fakeCodeRepo{getErr: auth.ErrNotFound}
+	codes := &fakeCodeRepo{consumeErr: auth.ErrNotFound}
 	h := newLocalTestHandler(users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
@@ -306,21 +331,6 @@ func TestVerifyEmail_MarkVerifiedError(t *testing.T) {
 	}
 }
 
-func TestVerifyEmail_DeleteCodeError(t *testing.T) {
-	t.Setenv("JWT_SECRET", "test-secret")
-
-	// deleteErr is non-fatal — verification should still succeed
-	codes := &fakeCodeRepo{deleteErr: errors.New("delete error")}
-	h := newLocalTestHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
-
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
-		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 even when delete fails, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
 func TestVerifyEmail_SessionError(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 
@@ -337,7 +347,7 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 }
 
 func TestVerifyEmail_RateLimited(t *testing.T) {
-	codes := &fakeCodeRepo{getErr: auth.ErrNotFound}
+	codes := &fakeCodeRepo{consumeErr: auth.ErrNotFound}
 	h := newLocalTestHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
 
 	// Exhaust the 5 allowed attempts
