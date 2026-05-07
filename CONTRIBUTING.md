@@ -59,10 +59,10 @@ Open a PR to `dev`.
 
 ### Requirements
 
-* Go 1.22+
-* PostgreSQL 12+
-* Docker
-* Make
+- Go 1.22+
+- PostgreSQL 12+
+- Docker
+- Make
 
 ### Setup
 
@@ -104,9 +104,9 @@ make test-cover
 
 ### General Rules
 
-* Format code with `gofmt -s` (`make fmt`)
-* Follow Effective Go guidelines
-* Keep functions small and focused
+- Format code with `gofmt -s` (`make fmt`)
+- Follow Effective Go guidelines
+- Keep functions small and focused
 
 ### Architecture
 
@@ -130,10 +130,10 @@ internal/
 
 ### Rules
 
-* Business logic stays in domain packages
-* Only repositories access the database
-* Handlers use dependency injection
-* Routes only wire components
+- Business logic stays in domain packages
+- Only repositories access the database
+- Handlers use dependency injection
+- Routes only wire components
 
 ### Errors
 
@@ -187,13 +187,13 @@ api.NewError("Invalid request", api.CodeBadRequest)
 
 ### Response Codes
 
-* OK: 200
-* CREATED: 201
-* BAD_REQUEST: 400
-* UNAUTHORIZED: 401
-* FORBIDDEN: 403
-* NOT_FOUND: 404
-* SERVER_ERROR: 500
+- OK: 200
+- CREATED: 201
+- BAD_REQUEST: 400
+- UNAUTHORIZED: 401
+- FORBIDDEN: 403
+- NOT_FOUND: 404
+- SERVER_ERROR: 500
 
 ### Pagination
 
@@ -216,15 +216,15 @@ type(scope): description
 
 ### Types
 
-* feat
-* fix
-* refactor
-* test
-* docs
-* chore
-* style
-* perf
-* ci
+- feat
+- fix
+- refactor
+- test
+- docs
+- chore
+- style
+- perf
+- ci
 
 ### Examples
 
@@ -238,9 +238,9 @@ docs: update setup guide
 
 Rules:
 
-* Use present tense
-* Keep under 72 characters
-* Reference issues when needed
+- Use present tense
+- Keep under 72 characters
+- Reference issues when needed
 
 ---
 
@@ -252,12 +252,12 @@ Follow commit format.
 
 ### Checklist
 
-* Tests pass
-* Lint passes
-* Code formatted
-* Codegen run if needed
-* SQLC run if needed
-* Up to date with `dev`
+- Tests pass
+- Lint passes
+- Code formatted
+- Codegen run if needed
+- SQLC run if needed
+- Up to date with `dev`
 
 ```bash
 make test
@@ -271,32 +271,32 @@ make sqlc
 
 Include:
 
-* What changed
-* Why it changed
-* How it was tested
-* Related issue
+- What changed
+- Why it changed
+- How it was tested
+- Related issue
 
 ### Review Rules
 
-* One approval required
-* Address all comments
-* Keep PRs small
+- One approval required
+- Address all comments
+- Keep PRs small
 
 ### Merge
 
-* Squash merge into `dev`
-* `main` is for releases only
+- Squash merge into `dev`
+- `main` is for releases only
 
 ---
 
 ## Security
 
-* Never commit secrets
-* Use `.env` only locally
-* Validate all OAuth state values
-* Use strong JWT secrets
-* Never log credentials
-* Use parameterized queries only
+- Never commit secrets
+- Use `.env` only locally
+- Validate all OAuth state values
+- Use strong JWT secrets
+- Never log credentials
+- Use parameterized queries only
 
 Report vulnerabilities privately.
 
@@ -306,36 +306,36 @@ Report vulnerabilities privately.
 
 Look for:
 
-* good first issue
-* help wanted
-* docs
+- good first issue
+- help wanted
+- docs
 
 Examples:
 
-* Add tests
-* Improve validation
-* Fix docs
-* Extend OpenAPI spec
+- Add tests
+- Improve validation
+- Fix docs
+- Extend OpenAPI spec
 
 ---
 
 ## General Rules
 
-* Follow domain structure
-* Write tests
-* Keep PRs small
-* Do not modify generated code
-* Propose new dependencies first
-* Document exported functions
-* Keep changes focused
+- Follow domain structure
+- Write tests
+- Keep PRs small
+- Do not modify generated code
+- Propose new dependencies first
+- Document exported functions
+- Keep changes focused
 
 ---
 
 ## Getting Help
 
-* Open a discussion for questions
-* Open an issue for bugs
-* Ask before large changes
+- Open a discussion for questions
+- Open an issue for bugs
+- Ask before large changes
 
 ---
 
