@@ -12,5 +12,6 @@ const (
 	CodeNotFound     = "NOT_FOUND"
 
 	// Server Error
-	CodeServerError = "SERVER_ERROR"
+	CodeServerError    = "SERVER_ERROR"
+	CodeNotImplemented = "NOT_IMPLEMENTED"
 )

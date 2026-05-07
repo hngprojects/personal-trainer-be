@@ -60,9 +60,16 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
+		var google *auth.GoogleHandler
+		if s.db != nil {
+			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
+			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+		} else {
+			s.log.Warn("database not configured — auth endpoints unavailable")
+		}
+
 		impl := &routerImpl{
-			google: auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
+			google: google,
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 		}
