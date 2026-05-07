@@ -14,6 +14,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
@@ -29,9 +30,10 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Router {
 }
 
 type routerImpl struct {
-	google *auth.GoogleHandler
-	root   *root.RootHandler
-	health *health.HealthHandler
+	google   *auth.GoogleHandler
+	root     *root.RootHandler
+	health   *health.HealthHandler
+	waitlist *waitlist.WaitlistHandler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -61,17 +63,23 @@ func (s *Router) Routes() *gin.Engine {
 	v1 := r.Group("/api/v1")
 	{
 		var google *auth.GoogleHandler
+		var waitlistHandler *waitlist.WaitlistHandler
+
 		if s.db != nil {
 			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+
+			waitlistRepo := waitlist.NewPostgresWaitlistRepo(db.New(s.db))
+			waitlistHandler = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
 		} else {
-			s.log.Warn("database not configured — auth endpoints unavailable")
+			s.log.Warn("database not configured — auth and waitlist endpoints unavailable")
 		}
 
 		impl := &routerImpl{
-			google: google,
-			root:   root.NewRootHandler(s.log),
-			health: health.NewHealthHandler(s.log),
+			google:   google,
+			root:     root.NewRootHandler(s.log),
+			health:   health.NewHealthHandler(s.log),
+			waitlist: waitlistHandler,
 		}
 		api.RegisterHandlers(v1, impl)
 	}
