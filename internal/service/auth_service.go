@@ -49,16 +49,31 @@ func GenerateJWTToken(userId string, tokenType TokenType, role TokenRole) (strin
 	return token.SignedString([]byte(secret))
 }
 
-func ValidateToken(tokenString string) (*jwt.Token, error) {
+func ValidateToken(tokenString string, expectedType TokenType) (*jwt.Token, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		log.Fatal("no env variable 'JWT_SECRET'")
 	}
-	return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, fmt.Errorf("invalid signing method")
 		}
-
 		return []byte(secret), nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	tokenType, ok := claims["type"].(string)
+	if !ok || TokenType(tokenType) != expectedType {
+		return nil, fmt.Errorf("invalid token type: expected %s", expectedType)
+	}
+
+	return token, nil
 }

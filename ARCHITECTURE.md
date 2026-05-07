@@ -226,22 +226,6 @@ All responses return:
    - any associated access tokens are considered invalid
    - client deletes stored tokens
 
-### Session Details
-
-Each session record typically contains:
-
-- `id` (UUID)
-- `user_id`
-- `created_at`
-- `expires_at` (7 days from creation)
-- Optional metadata (device, IP address, user agent)
-
-Sessions are stored in the database.
-
-Expired sessions are cleaned up automatically via background jobs or TTL expiration.
-
----
-
 ## Security Practices
 
 - Passwords are hashed using **bcrypt** (cost factor ≥ 12). Plaintext passwords are never stored or logged.

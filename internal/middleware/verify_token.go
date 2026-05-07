@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -36,9 +36,9 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		token, err := auth.ValidateToken(parts[1])
+		token, err := auth.ValidateToken(parts[1], auth.AccessToken)
 		if err != nil || !token.Valid {
-			log.Println("validate token err: ", err)
+			slog.Error("validateToken error: ", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, struct {
 				Status  string `json:"status"`
 				Message string `json:"message"`
