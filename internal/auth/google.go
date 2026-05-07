@@ -12,12 +12,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	authsvc "github.com/hngprojects/personal-trainer-be/internal/service"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 )
 
 type googleUserInfo struct {
@@ -47,13 +46,11 @@ func NewGoogleHandler(cfg *config.Config, users UserRepository, log *slog.Logger
 	}
 }
 
-// HandleGoogleLogin generates a CSRF state token, sets it as a cookie,
-// and redirects the browser to Google's OAuth consent screen.
 func (h *GoogleHandler) HandleGoogleLogin(c *gin.Context) {
 	state, err := generateState()
 	if err != nil {
 		h.log.Error("failed to generate state", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 	c.SetSameSite(http.SameSiteLaxMode)
@@ -62,31 +59,27 @@ func (h *GoogleHandler) HandleGoogleLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, url)
 }
 
-// HandleGoogleCallback verifies the CSRF state, exchanges the Google code
-// for tokens, upserts the user, and returns our own JWTs.
 func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string) {
 	stateFromCookie, err := c.Cookie("oauth_state")
-
-	// always clear the state cookie — it is single-use regardless of outcome
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("oauth_state", "", -1, "/", "", h.isProd, true)
 
 	if err != nil || state != stateFromCookie {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid state"})
+		c.JSON(http.StatusBadRequest, api.NewErrorResponse("invalid state", api.CodeBadRequest, nil))
 		return
 	}
 
 	googleToken, err := h.oauthCfg.Exchange(c.Request.Context(), code)
 	if err != nil {
 		h.log.Error("failed to exchange Google code", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to exchange code"})
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to exchange code", api.CodeServerError))
 		return
 	}
 
 	userInfo, err := fetchGoogleUserInfo(c.Request.Context(), h.oauthCfg, googleToken)
 	if err != nil {
 		h.log.Error("failed to fetch Google user info", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user info"})
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch user info", api.CodeServerError))
 		return
 	}
 
@@ -95,13 +88,13 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	if err != nil {
 		if err != ErrNotFound {
 			h.log.Error("database error looking up user", "err", err, "email", userInfo.Email)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+			c.JSON(http.StatusInternalServerError, api.NewError("database error", api.CodeServerError))
 			return
 		}
 		user, err = h.users.Create(c.Request.Context(), userInfo.Email, userInfo.Name, "google")
 		if err != nil {
 			h.log.Error("failed to create user", "err", err, "email", userInfo.Email)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to create user", api.CodeServerError))
 			return
 		}
 		isNewUser = true
@@ -111,42 +104,32 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	accessToken, err := authsvc.GenerateJWTToken(userIDStr, authsvc.AccessToken)
 	if err != nil {
 		h.log.Error("failed to generate access token", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate access token"})
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to generate access token", api.CodeServerError))
 		return
 	}
 	refreshToken, err := authsvc.GenerateJWTToken(userIDStr, authsvc.RefreshToken)
 	if err != nil {
 		h.log.Error("failed to generate refresh token", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to generate refresh token", api.CodeServerError))
 		return
 	}
 
 	h.log.Info("google oauth successful", "email", userInfo.Email, "is_new_user", isNewUser)
 
-	resp := api.GoogleAuthResponse{
-		Status:  "success",
-		Message: "GOOGLE_AUTH_SUCCESSFUL",
-		Data: struct {
-			AccessToken  string       `json:"access_token"`
-			ExpiresIn    int          `json:"expires_in"`
-			IsNewUser    bool         `json:"is_new_user"`
-			RefreshToken string       `json:"refresh_token"`
-			User         api.AuthUser `json:"user"`
-		}{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-			IsNewUser:    isNewUser,
-			ExpiresIn:    int(10 * time.Minute / time.Second),
-			User: api.AuthUser{
-				Id:              user.ID,
-				Email:           user.Email,
-				Name:            user.Name,
-				UserType:        api.Client,
-				ProfileComplete: false,
-			},
+	googleData := map[string]interface{}{
+		"user": map[string]interface{}{
+			"id":               user.ID.String(),
+			"email":            user.Email,
+			"name":             user.Name,
+			"user_type":        "client",
+			"profile_complete": isNewUser,
 		},
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"is_new_user":   isNewUser,
+		"expires_in":    int(10 * time.Minute / time.Second),
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, api.NewSuccessResponse("Google authentication successful", api.CodeOK, googleData, nil))
 }
 
 func generateState() (string, error) {
