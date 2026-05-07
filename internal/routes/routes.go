@@ -16,6 +16,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 type Router struct {
@@ -30,6 +31,7 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Router {
 
 type routerImpl struct {
 	google *auth.GoogleHandler
+	local  *auth.LocalHandler
 	root   *root.RootHandler
 	health *health.HealthHandler
 }
@@ -61,20 +63,42 @@ func (s *Router) Routes() *gin.Engine {
 	v1 := r.Group("/api/v1")
 	{
 		var google *auth.GoogleHandler
+		var local *auth.LocalHandler
 		if s.db != nil {
-			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
+			queries := db.New(s.db)
+			usersRepo := auth.NewPostgresUserRepo(queries)
+			sessionsRepo := auth.NewPostgresSessionRepo(queries)
+			codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
+			mailer := s.buildMailer()
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+			local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log)
 		} else {
 			s.log.Warn("database not configured — auth endpoints unavailable")
 		}
 
 		impl := &routerImpl{
 			google: google,
+			local:  local,
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 		}
 		api.RegisterHandlers(v1, impl)
+		v1.POST("/auth/register", impl.HandleRegister)
+		v1.POST("/auth/verify-email", impl.HandleVerifyEmail)
 	}
 
 	return r
+}
+
+func (s *Router) buildMailer() email.Mailer {
+	if s.cfg.SMTPHost == "" || s.cfg.Env == "development" {
+		return email.NewLogMailer()
+	}
+	return email.NewSMTPMailer(
+		s.cfg.SMTPHost,
+		s.cfg.SMTPPort,
+		s.cfg.SMTPUser,
+		s.cfg.SMTPPassword,
+		s.cfg.SMTPFrom,
+	)
 }

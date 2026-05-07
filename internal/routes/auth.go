@@ -26,3 +26,19 @@ func (s *routerImpl) HandleGoogleCallback(c *gin.Context, params api.HandleGoogl
 func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, api.NewError("not implemented", api.CodeNotImplemented))
 }
+
+func (s *routerImpl) HandleRegister(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.Register(c)
+}
+
+func (s *routerImpl) HandleVerifyEmail(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.VerifyEmail(c)
+}
