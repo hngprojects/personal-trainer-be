@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -51,7 +52,7 @@ func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, pr
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, pkgerrors.ErrNotFound
 		}
 		return nil, err
 	}
