@@ -18,7 +18,6 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
-	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
 func main() {
@@ -52,15 +51,8 @@ func main() {
 		log.Warn("DATABASE_URL not set — starting without database connection")
 	}
 
-	redisClient, err := appredis.New(cfg.RedisURL)
-	if err != nil {
-		log.Error("failed to connect to redis", "err", err)
-		os.Exit(1)
-	}
-	log.Info("redis connected")
-	defer redisClient.Close()
+	srv := routes.New(cfg, log, db)
 
-	srv := routes.New(cfg, log, db, redisClient)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),

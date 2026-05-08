@@ -35,15 +35,6 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
-const deleteSessionByToken = `-- name: DeleteSessionByToken :exec
-DELETE FROM sessions WHERE token = $1
-`
-
-func (q *Queries) DeleteSessionByToken(ctx context.Context, token string) error {
-	_, err := q.db.ExecContext(ctx, deleteSessionByToken, token)
-	return err
-}
-
 const getSessionByToken = `-- name: GetSessionByToken :one
 SELECT id, user_id, token, expires_at, created_at FROM sessions WHERE token = $1 AND expires_at > NOW() LIMIT 1
 `

@@ -63,15 +63,6 @@ sqlc: ## Regenerate sqlc DB layer from SQL files
 	sqlc generate
 
 # ----------------------------------------------------------------------
-# Docker
-# ----------------------------------------------------------------------
-docker-up: ## Start Redis container
-	docker compose up -d
-
-docker-down: ## Stop Redis container
-	docker compose down
-
-# ----------------------------------------------------------------------
 # Tooling
 # ----------------------------------------------------------------------
 install-tools: ## Install golang-migrate CLI

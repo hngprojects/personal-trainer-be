@@ -14,20 +14,18 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
-	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 type Router struct {
-	cfg   *config.Config
-	log   *slog.Logger
-	db    *sql.DB
-	redis *appredis.Client
+	cfg *config.Config
+	log *slog.Logger
+	db  *sql.DB
 }
 
-func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redis *appredis.Client) *Router {
-	return &Router{cfg: cfg, log: log, db: db, redis: redis}
+func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Router {
+	return &Router{cfg: cfg, log: log, db: db}
 }
 
 type routerImpl struct {
