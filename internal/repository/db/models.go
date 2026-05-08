@@ -37,3 +37,9 @@ type VerificationCode struct {
 	CreatedAt time.Time
 	ExpiresAt time.Time
 }
+
+type Waitlist struct {
+	ID        uuid.UUID
+	Email     string
+	CreatedAt time.Time
+}
