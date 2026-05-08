@@ -134,7 +134,29 @@ components:
           additionalProperties: true
           nullable: true
 
+<<<<<<< HEAD
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+=======
+    TrainerResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Trainer"
+
+    TrainersListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              maxItems: 1000
+              items:
+                $ref: "#/components/schemas/Trainer"
+
+>>>>>>> dfcaa1d (Add TrainerResponse and TrainersListResponse schemas)
     AuthUser:
       type: object
       required: [id, email, name, user_type, profile_complete]
