@@ -39,3 +39,7 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 	n, err := c.rdb.Exists(ctx, key).Result()
 	return n > 0, err
 }
+
+func (c *Client) Close() error {
+	return c.rdb.Close()
+}
