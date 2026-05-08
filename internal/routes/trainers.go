@@ -126,11 +126,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		return
 	}
 
-	userID, err := uuid.FromBytes(body.UserId[:])
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid user_id", api.CodeBadRequest))
-		return
-	}
+	userID := uuid.UUID(body.UserId)
 
 	calendlyConnected := false
 	if body.CalendlyConnected != nil {
@@ -170,11 +166,7 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID, err := uuid.FromBytes(id[:])
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid id", api.CodeBadRequest))
-		return
-	}
+	trainerID := uuid.UUID(body.TrainerId)
 
 	t, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
@@ -198,11 +190,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID, err := uuid.FromBytes(id[:])
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid id", api.CodeBadRequest))
-		return
-	}
+	trainerID := uuid.UUID(body.TrainerId)
 
 	var body api.UpdateTrainerRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -262,11 +250,7 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID, err := uuid.FromBytes(id[:])
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid id", api.CodeBadRequest))
-		return
-	}
+	trainerID := uuid.UUID(body.TrainerId)
 
 	deleted, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
 	if err != nil {
