@@ -62,6 +62,9 @@ func testHandler(repo waitlist.WaitlistRepository) *waitlist.WaitlistHandler {
 // TestHandleAddWaitlist_Success tests adding email successfully
 func TestHandleAddWaitlist_Success(t *testing.T) {
 	repo := &mockWaitlistRepo{
+		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
+			return nil, waitlist.ErrNotFound
+		},
 		addEmailFn: func(ctx context.Context, email string) error {
 			return nil
 		},
@@ -159,11 +162,62 @@ func TestHandleAddWaitlist_InvalidEmail(t *testing.T) {
 	}
 }
 
+// TestHandleAddWaitlist_EmailAlreadyExists tests adding an email that already exists
+func TestHandleAddWaitlist_EmailAlreadyExists(t *testing.T) {
+	now := time.Now()
+	existingEntry := &db.Waitlist{
+		ID:        uuid.New(),
+		Email:     "test@example.com",
+		CreatedAt: now,
+	}
+
+	repo := &mockWaitlistRepo{
+		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
+			if email == "test@example.com" {
+				return existingEntry, nil
+			}
+			return nil, waitlist.ErrNotFound
+		},
+	}
+
+	handler := testHandler(repo)
+
+	body := map[string]string{
+		"email": "test@example.com",
+	}
+	bodyBytes, _ := json.Marshal(body)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("POST", "/waitlist", bytes.NewReader(bodyBytes))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.HandleAddWaitlist(c)
+
+	// Should return 200 OK (not 201) when email already exists
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "success" {
+		t.Errorf("expected status 'success', got %v", resp["status"])
+	}
+	if resp["code"] != "OK" {
+		t.Errorf("expected code 'OK', got %v", resp["code"])
+	}
+}
+
 // TestHandleAddWaitlist_EmailNormalization tests email is normalized (lowercase, trimmed)
 func TestHandleAddWaitlist_EmailNormalization(t *testing.T) {
 	var capturedEmail string
 
 	repo := &mockWaitlistRepo{
+		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
+			return nil, waitlist.ErrNotFound
+		},
 		addEmailFn: func(ctx context.Context, email string) error {
 			capturedEmail = email
 			return nil
@@ -193,6 +247,9 @@ func TestHandleAddWaitlist_EmailNormalization(t *testing.T) {
 // TestHandleAddWaitlist_RepositoryError tests handling repository errors
 func TestHandleAddWaitlist_RepositoryError(t *testing.T) {
 	repo := &mockWaitlistRepo{
+		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
+			return nil, waitlist.ErrNotFound
+		},
 		addEmailFn: func(ctx context.Context, email string) error {
 			return context.DeadlineExceeded
 		},

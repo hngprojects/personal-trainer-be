@@ -317,6 +317,16 @@ paths:
                   type: string
                   format: email
       responses:
+        "200":
+          description: You are already on the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: You're already on the waitlist
+                code: OK
         "201":
           description: You have been added to the waitlist
           content:
