@@ -22,6 +22,8 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+
+	RedisURL string
 }
 
 func Load() (*Config, error) {
@@ -43,6 +45,8 @@ func Load() (*Config, error) {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+
+		RedisURL: getenv("REDIS_URL", "redis://localhost:6379"),
 	}
 
 	if cfg.DatabaseURL == "" {
