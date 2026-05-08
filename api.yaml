@@ -39,7 +39,7 @@ components:
       properties:
         status:
           type: string
-          enum: [success, error]
+          enum: [error]
         message:
           type: string
         code:
@@ -55,7 +55,7 @@ components:
       properties:
         status:
           type: string
-          enum: [success, error]
+          enum: [success]
         message:
           type: string
         code:
