@@ -24,6 +24,7 @@ func New(redisURL string) (*Client, error) {
 	defer cancel()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
+		rdb.Close()
 		return nil, fmt.Errorf("connect to redis: %w", err)
 	}
 
