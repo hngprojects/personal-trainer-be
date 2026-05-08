@@ -84,5 +84,6 @@ func main() {
 		os.Exit(1)
 	}
 
+	srv.Close()
 	log.Info("server stopped")
 }

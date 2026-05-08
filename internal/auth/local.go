@@ -104,10 +104,6 @@ func (h *LocalHandler) Register(c *gin.Context) {
 
 	if errors.Is(err, ErrNotFound) {
 		if _, err = h.users.CreateEmailUser(c.Request.Context(), req.Email); err != nil {
-			if errors.Is(err, ErrEmailExists) {
-				c.JSON(http.StatusConflict, api.NewError("email already registered", api.CodeConflict))
-				return
-			}
 			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 			return
 		}

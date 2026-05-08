@@ -20,9 +20,17 @@ import (
 )
 
 type Router struct {
-	cfg *config.Config
-	log *slog.Logger
-	db  *sql.DB
+	cfg   *config.Config
+	log   *slog.Logger
+	db    *sql.DB
+	local *auth.LocalHandler
+}
+
+// Close stops background goroutines started by the router (e.g. rate-limiter cleanup).
+func (s *Router) Close() {
+	if s.local != nil {
+		s.local.Close()
+	}
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Router {
@@ -72,6 +80,7 @@ func (s *Router) Routes() *gin.Engine {
 			mailer := s.buildMailer()
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log, s.cfg.OTPSecret)
+			s.local = local
 		} else {
 			s.log.Warn("database not configured — auth endpoints unavailable")
 		}
