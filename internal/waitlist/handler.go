@@ -42,7 +42,7 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	h.log.Info("email added to waitlist", "email", email)
-	c.JSON(http.StatusOK, api.NewSuccessResponse("successfully added to the waitlist", api.CodeOK, nil, nil))
+	c.JSON(http.StatusCreated, api.NewSuccessResponse("successfully added to the waitlist", api.CodeCreated, nil, nil))
 }
 
 func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGetWaitlistParams) {

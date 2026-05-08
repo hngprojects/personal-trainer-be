@@ -84,8 +84,8 @@ func TestHandleAddWaitlist_Success(t *testing.T) {
 	handler.HandleAddWaitlist(c)
 
 	// Assertions
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", w.Code)
 	}
 
 	var resp map[string]interface{}
@@ -94,8 +94,8 @@ func TestHandleAddWaitlist_Success(t *testing.T) {
 	if resp["status"] != "success" {
 		t.Errorf("expected status 'success', got %v", resp["status"])
 	}
-	if resp["code"] != "OK" {
-		t.Errorf("expected code 'OK', got %v", resp["code"])
+	if resp["code"] != "CREATED" {
+		t.Errorf("expected code 'CREATED', got %v", resp["code"])
 	}
 }
 
