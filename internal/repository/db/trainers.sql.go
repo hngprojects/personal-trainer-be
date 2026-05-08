@@ -24,7 +24,12 @@ INSERT INTO trainers (
   calendly_link,
   onboarding_status
 ) VALUES (
-  $1, $2, $3, $4, $5, $6,
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
   COALESCE($7::boolean, false),
   $8,
   COALESCE($9::text, 'pending')
@@ -53,9 +58,9 @@ type CreateTrainerParams struct {
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	Column7           bool
+	CalendlyConnected bool
 	CalendlyLink      sql.NullString
-	Column9           string
+	OnboardingStatus  string
 }
 
 func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (Trainer, error) {
@@ -66,9 +71,9 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		arg.YearsOfExperience,
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
-		arg.Column7,
+		arg.CalendlyConnected,
 		arg.CalendlyLink,
-		arg.Column9,
+		arg.OnboardingStatus,
 	)
 	var i Trainer
 	err := row.Scan(
@@ -237,16 +242,16 @@ func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer,
 const updateTrainer = `-- name: UpdateTrainer :one
 UPDATE trainers
 SET
-  specialization      = COALESCE($2, specialization),
-  bio                 = COALESCE($3, bio),
-  years_of_experience = COALESCE($4, years_of_experience),
-  intro_video_url     = COALESCE($5, intro_video_url),
-  display_picture     = COALESCE($6, display_picture),
-  calendly_connected  = COALESCE($7::boolean, calendly_connected),
-  calendly_link       = COALESCE($8, calendly_link),
-  onboarding_status   = COALESCE($9::text, onboarding_status),
+  specialization      = COALESCE($1, specialization),
+  bio                 = COALESCE($2, bio),
+  years_of_experience = COALESCE($3, years_of_experience),
+  intro_video_url     = COALESCE($4, intro_video_url),
+  display_picture     = COALESCE($5, display_picture),
+  calendly_connected  = COALESCE($6::boolean, calendly_connected),
+  calendly_link       = COALESCE($7, calendly_link),
+  onboarding_status   = COALESCE($8::text, onboarding_status),
   updated_at          = NOW()
-WHERE id = $1
+WHERE id = $9
 RETURNING
   id,
   user_id,
@@ -265,28 +270,28 @@ RETURNING
 `
 
 type UpdateTrainerParams struct {
-	ID                uuid.UUID
 	Specialization    sql.NullString
 	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	Column7           bool
+	CalendlyConnected bool
 	CalendlyLink      sql.NullString
-	Column9           string
+	OnboardingStatus  string
+	ID                uuid.UUID
 }
 
 func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (Trainer, error) {
 	row := q.db.QueryRowContext(ctx, updateTrainer,
-		arg.ID,
 		arg.Specialization,
 		arg.Bio,
 		arg.YearsOfExperience,
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
-		arg.Column7,
+		arg.CalendlyConnected,
 		arg.CalendlyLink,
-		arg.Column9,
+		arg.OnboardingStatus,
+		arg.ID,
 	)
 	var i Trainer
 	err := row.Scan(

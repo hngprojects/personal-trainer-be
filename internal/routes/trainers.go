@@ -145,9 +145,9 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		YearsOfExperience: nullInt32Ptr(body.YearsOfExperience),
 		IntroVideoUrl:     nullStringPtr(body.IntroVideoUrl),
 		DisplayPicture:    nullStringPtr(body.DisplayPicture),
-		Column7:           calendlyConnected,
+		CalendlyConnected: calendlyConnected,
 		CalendlyLink:      nullStringPtr(body.CalendlyLink),
-		Column9:           onboardingStatus,
+		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create trainer", api.CodeServerError))
@@ -166,7 +166,7 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID := uuid.UUID(body.TrainerId)
+	trainerID := uuid.UUID(id)
 
 	t, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
@@ -190,7 +190,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID := uuid.UUID(body.TrainerId)
+	trainerID := uuid.UUID(id)
 
 	var body api.UpdateTrainerRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -225,9 +225,9 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		YearsOfExperience: nullInt32Ptr(body.YearsOfExperience),
 		IntroVideoUrl:     nullStringPtr(body.IntroVideoUrl),
 		DisplayPicture:    nullStringPtr(body.DisplayPicture),
-		Column7:           calendlyConnected,
+		CalendlyConnected: calendlyConnected,
 		CalendlyLink:      nullStringPtr(body.CalendlyLink),
-		Column9:           onboardingStatus,
+		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -250,7 +250,7 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	trainerID := uuid.UUID(body.TrainerId)
+	trainerID := uuid.UUID(id)
 
 	deleted, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
 	if err != nil {

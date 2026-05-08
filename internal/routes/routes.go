@@ -117,7 +117,6 @@ func (s *Router) Routes() *gin.Engine {
 		opts := api.GinServerOptions{}
 		if q != nil {
 			adminOnly := middleware.TrainersAdminOnly(q)
-
 			opts.Middlewares = []api.MiddlewareFunc{adminOnly}
 		}
 

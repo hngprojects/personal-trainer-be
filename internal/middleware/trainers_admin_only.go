@@ -1,9 +1,7 @@
-// middleware/trainers_admin_only.go
 package middleware
 
 import (
 	"database/sql"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -18,34 +16,38 @@ import (
 
 // TrainersAdminOnly protects /api/v1/trainers* routes.
 // It does not affect other OpenAPI endpoints (auth, health, root).
-func TrainersAdminOnly(q *db.Queries) gin.HandlerFunc {
+func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 	return func(c *gin.Context) {
-		// FullPath() is best when available, but during some cases it can be empty.
+		// FullPath() is preferred, but can be empty depending on when middleware runs.
 		path := c.FullPath()
 		if path == "" {
 			path = c.Request.URL.Path
 		}
 
-		// Only guard trainer endpoints.
+		// Only guard trainers endpoints.
 		if !strings.HasPrefix(path, "/api/v1/trainers") {
 			c.Next()
 			return
 		}
 
-		// Validate bearer token (reuse internal/auth)
 		header := c.GetHeader("Authorization")
 		if header == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing token", api.CodeUnauthorized))
 			return
 		}
 
-		parts := strings.Split(header, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
+		const prefix = "Bearer "
+		if !strings.HasPrefix(header, prefix) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
+			return
+		}
+		tokenString := strings.TrimSpace(strings.TrimPrefix(header, prefix))
+		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
 		}
 
-		token, err := auth.ValidateToken(parts[1])
+		token, err := auth.ValidateToken(tokenString)
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
@@ -57,7 +59,12 @@ func TrainersAdminOnly(q *db.Queries) gin.HandlerFunc {
 			return
 		}
 
-		sub, _ := claims["sub"].(string)
+		sub, ok := claims["sub"].(string)
+		if !ok || sub == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing subject claim", api.CodeUnauthorized))
+			return
+		}
+
 		userID, err := uuid.Parse(sub)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid subject", api.CodeUnauthorized))
@@ -66,7 +73,7 @@ func TrainersAdminOnly(q *db.Queries) gin.HandlerFunc {
 
 		role, err := q.GetUserRoleByID(c.Request.Context(), userID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if err == sql.ErrNoRows {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; User not found", api.CodeUnauthorized))
 				return
 			}

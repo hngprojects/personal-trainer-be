@@ -10,9 +10,14 @@ INSERT INTO trainers (
   calendly_link,
   onboarding_status
 ) VALUES (
-  $1, $2, $3, $4, $5, $6,
+  sqlc.arg(user_id),
+  sqlc.arg(specialization),
+  sqlc.arg(bio),
+  sqlc.arg(years_of_experience),
+  sqlc.arg(intro_video_url),
+  sqlc.arg(display_picture),
   COALESCE(sqlc.arg(calendly_connected)::boolean, false),
-  $8,
+  sqlc.arg(calendly_link),
   COALESCE(sqlc.arg(onboarding_status)::text, 'pending')
 )
 RETURNING
@@ -74,16 +79,16 @@ ORDER BY created_at DESC;
 -- name: UpdateTrainer :one
 UPDATE trainers
 SET
-  specialization      = COALESCE($2, specialization),
-  bio                 = COALESCE($3, bio),
-  years_of_experience = COALESCE($4, years_of_experience),
-  intro_video_url     = COALESCE($5, intro_video_url),
-  display_picture     = COALESCE($6, display_picture),
-  calendly_connected  = COALESCE($7::boolean, calendly_connected),
-  calendly_link       = COALESCE($8, calendly_link),
-  onboarding_status   = COALESCE($9::text, onboarding_status),
+  specialization      = COALESCE(sqlc.arg(specialization), specialization),
+  bio                 = COALESCE(sqlc.arg(bio), bio),
+  years_of_experience = COALESCE(sqlc.arg(years_of_experience), years_of_experience),
+  intro_video_url     = COALESCE(sqlc.arg(intro_video_url), intro_video_url),
+  display_picture     = COALESCE(sqlc.arg(display_picture), display_picture),
+  calendly_connected  = COALESCE(sqlc.arg(calendly_connected)::boolean, calendly_connected),
+  calendly_link       = COALESCE(sqlc.arg(calendly_link), calendly_link),
+  onboarding_status   = COALESCE(sqlc.arg(onboarding_status)::text, onboarding_status),
   updated_at          = NOW()
-WHERE id = $1
+WHERE id = sqlc.arg(id)
 RETURNING
   id,
   user_id,
