@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -85,7 +87,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	isNewUser := false
 	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), userInfo.Email, "google")
 	if err != nil {
-		if err != ErrNotFound {
+		if !errors.Is(err, pkgerrors.ErrNotFound) {
 			h.log.Error("database error looking up user", "err", err, "email", userInfo.Email)
 			c.JSON(http.StatusInternalServerError, api.NewError("database error", api.CodeServerError))
 			return

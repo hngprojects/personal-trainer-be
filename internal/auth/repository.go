@@ -8,9 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
-
-var ErrNotFound = errors.New("not found")
 
 // UserRepository defines what the auth feature needs from the users table.
 type UserRepository interface {
@@ -39,7 +38,7 @@ func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, pr
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return nil, pkgerrors.ErrNotFound
 		}
 		return nil, err
 	}
