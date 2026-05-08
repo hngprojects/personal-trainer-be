@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS trainers (
     calendly_connected   BOOLEAN NOT NULL DEFAULT false,
     calendly_link        TEXT,
 
-    onboarding_status    TEXT NOT NULL DEFAULT 'pending', -- pending, approved, rejected, suspended
+    onboarding_status    TEXT NOT NULL DEFAULT 'pending' -- pending, approved, rejected, suspended
+        CHECK (onboarding_status IN ('pending', 'approved', 'rejected', 'suspended')),
 
     average_rating       NUMERIC,
     total_reviews        INT NOT NULL DEFAULT 0,
@@ -22,12 +23,10 @@ CREATE TABLE IF NOT EXISTS trainers (
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_trainers_user_id ON trainers(user_id);
 CREATE INDEX IF NOT EXISTS idx_trainers_specialization ON trainers(specialization);
 CREATE INDEX IF NOT EXISTS idx_trainers_onboarding_status ON trainers(onboarding_status);
 
 -- +goose Down
 DROP TABLE IF EXISTS trainers;
-DROP INDEX IF EXISTS idx_trainers_user_id;
 DROP INDEX IF EXISTS idx_trainers_specialization;
 DROP INDEX IF EXISTS idx_trainers_onboarding_status;

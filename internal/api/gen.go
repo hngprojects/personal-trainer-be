@@ -21,7 +21,7 @@ const (
 =======
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 const (
-	BearerAuthScopes = "bearerAuth.Scopes"
+	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
 // Defines values for AuthUserUserType.
@@ -71,16 +71,13 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for ErrorResponseStatus.
 const (
-	ErrorResponseStatusError   ErrorResponseStatus = "error"
-	ErrorResponseStatusSuccess ErrorResponseStatus = "success"
+	Error ErrorResponseStatus = "error"
 )
 
 // Valid indicates whether the value is a known member of the ErrorResponseStatus enum.
 func (e ErrorResponseStatus) Valid() bool {
 	switch e {
-	case ErrorResponseStatusError:
-		return true
-	case ErrorResponseStatusSuccess:
+	case Error:
 		return true
 	default:
 		return false
@@ -89,16 +86,13 @@ func (e ErrorResponseStatus) Valid() bool {
 
 // Defines values for SuccessResponseStatus.
 const (
-	SuccessResponseStatusError   SuccessResponseStatus = "error"
-	SuccessResponseStatusSuccess SuccessResponseStatus = "success"
+	Success SuccessResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the SuccessResponseStatus enum.
 func (e SuccessResponseStatus) Valid() bool {
 	switch e {
-	case SuccessResponseStatusError:
-		return true
-	case SuccessResponseStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -219,6 +213,9 @@ type UpdateTrainerRequest struct {
 type UpdateTrainerRequestOnboardingStatus string
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
+// bearerAuthContextKey is the context key for bearerAuth security scheme
+type bearerAuthContextKey string
+
 // HandleGoogleCallbackParams defines parameters for HandleGoogleCallback.
 type HandleGoogleCallbackParams struct {
 	Code  string `form:"code" json:"code"`
@@ -293,7 +290,7 @@ type ServerInterface interface {
 	// (GET /trainers/{id})
 	GetTrainerByID(c *gin.Context, id openapi_types.UUID)
 	// Update trainer (admin only)
-	// (PUT /trainers/{id})
+	// (PATCH /trainers/{id})
 	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 }
@@ -416,8 +413,9 @@ func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
 	var err error
+	_ = err
 
-	c.Set(BearerAuthScopes, []string{})
+	c.Set(string(BearerAuthScopes), []string{})
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetTrainersParams
@@ -451,8 +449,12 @@ func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
 // CreateTrainer operation middleware
 func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 
+<<<<<<< HEAD
 	c.Set(BearerAuthScopes, []string{})
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+=======
+	c.Set(string(BearerAuthScopes), []string{})
+>>>>>>> 8e8a3a0 (Refactored Test To Use Local Postgresql)
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -471,17 +473,18 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 
 	var err error
+	_ = err
 
 	// ------------- Path parameter "id" -------------
 	var id openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	c.Set(BearerAuthScopes, []string{})
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -497,17 +500,18 @@ func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) GetTrainerByID(c *gin.Context) {
 
 	var err error
+	_ = err
 
 	// ------------- Path parameter "id" -------------
 	var id openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	c.Set(BearerAuthScopes, []string{})
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -523,17 +527,18 @@ func (siw *ServerInterfaceWrapper) GetTrainerByID(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
 
 	var err error
+	_ = err
 
 	// ------------- Path parameter "id" -------------
 	var id openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
 
-	c.Set(BearerAuthScopes, []string{})
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -586,6 +591,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
+<<<<<<< HEAD
 	router.PUT(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+=======
+	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
+>>>>>>> 8e8a3a0 (Refactored Test To Use Local Postgresql)
 }

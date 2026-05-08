@@ -846,12 +846,8 @@ paths:
             type: string
             format: uuid
       responses:
-        "200":
+        "204":
           description: Trainer deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
         "404":
           description: Trainer not found
 >>>>>>> c0e53e7 (Completed Trainers Features)

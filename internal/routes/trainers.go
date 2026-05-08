@@ -79,7 +79,6 @@ func nullInt32Ptr(i *int) sql.NullInt32 {
 		return sql.NullInt32{Valid: false}
 	}
 	if *i > math.MaxInt32 || *i < math.MinInt32 {
-		// caller should validate before reaching here; return invalid to avoid silent truncation
 		return sql.NullInt32{Valid: false}
 	}
 	return sql.NullInt32{Int32: int32(*i), Valid: true}
@@ -252,7 +251,7 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	trainerID := uuid.UUID(id)
 
-	deleted, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
+	_, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
@@ -262,7 +261,5 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_DELETED", api.CodeOK, map[string]interface{}{
-		"trainer": trainerToMap(deleted),
-	}))
+	c.Status(http.StatusNoContent)
 }
