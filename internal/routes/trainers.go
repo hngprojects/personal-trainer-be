@@ -4,6 +4,7 @@ package routes
 import (
 	"database/sql"
 	"errors"
+	"math"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
