@@ -31,8 +31,8 @@ func New(redisURL string) (*Client, error) {
 	return &Client{rdb: rdb}, nil
 }
 
-func (c *Client) Set(ctx context.Context, key string, ttl time.Duration) error {
-	return c.rdb.Set(ctx, key, 1, ttl).Err()
+func (c *Client) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	return c.rdb.Set(ctx, key, value, ttl).Err()
 }
 
 func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
