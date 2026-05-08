@@ -77,6 +77,10 @@ func nullInt32Ptr(i *int) sql.NullInt32 {
 	if i == nil {
 		return sql.NullInt32{Valid: false}
 	}
+	if *i > math.MaxInt32 || *i < math.MinInt32 {
+		// caller should validate before reaching here; return invalid to avoid silent truncation
+		return sql.NullInt32{Valid: false}
+	}
 	return sql.NullInt32{Int32: int32(*i), Valid: true}
 }
 
