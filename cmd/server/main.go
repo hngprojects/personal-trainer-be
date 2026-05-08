@@ -22,10 +22,7 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("failed to load environment variables: %v", err)
-	}
+	_ = godotenv.Load() // dev convenience; env vars may be injected by the platform
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("failed to load configuration variable %v", err)
@@ -56,6 +53,14 @@ func main() {
 	}
 	redisClient := redis.NewClient(redisOpts)
 	defer redisClient.Close()
+
+	redisPingCtx, redisPingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer redisPingCancel()
+	if err := redisClient.Ping(redisPingCtx).Err(); err != nil {
+		log.Error("failed to connect to redis", "err", err)
+		os.Exit(1)
+	}
+	log.Info("redis connected")
 
 	srv := routes.New(cfg, log, db, redisClient)
 

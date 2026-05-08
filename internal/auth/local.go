@@ -73,30 +73,30 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 
-	if len(email) > 255 {
+	if len(emailAddr) > 255 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
 		return
 	}
 
-	if !common.IsValidEmail(email) {
+	if !common.IsValidEmail(emailAddr) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
 		return
 	}
 
-	if allowed, err := h.registerLimiter.Allow(c.Request.Context(), email); err != nil {
+	if allowed, err := h.registerLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("register rate limiter error — failing open", "err", err)
 	} else if !allowed {
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
 		return
 	}
 
-	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), email, providerLocal)
+	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		h.log.Error("failed to find user by email", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
@@ -104,7 +104,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	if errors.Is(err, ErrNotFound) {
-		if _, err = h.users.CreateEmailUser(c.Request.Context(), email); err != nil && !errors.Is(err, ErrEmailExists) {
+		if _, err = h.users.CreateEmailUser(c.Request.Context(), emailAddr); err != nil && !errors.Is(err, ErrEmailExists) {
 			h.log.Error("failed to create email user", "err", err)
 			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 			return
@@ -112,7 +112,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	// Clear any previous codes — abort if this fails to keep one-code-at-a-time semantics
-	if err := h.codes.DeleteByEmail(c.Request.Context(), email); err != nil {
+	if err := h.codes.DeleteByEmail(c.Request.Context(), emailAddr); err != nil {
 		h.log.Error("failed to delete previous verification codes", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
@@ -125,7 +125,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.codes.Create(c.Request.Context(), email, h.hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
+	if err := h.codes.Create(c.Request.Context(), emailAddr, h.hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
 		h.log.Error("failed to store verification code", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
@@ -133,13 +133,13 @@ func (h *LocalHandler) Register(c *gin.Context) {
 
 	subject := "Your verification code"
 	body := otpEmailHTML(code, int(codeExpiry.Minutes()))
-	if err := h.mailer.Send(email, subject, body); err != nil {
-		h.log.Error("failed to send verification email", "email", email, "err", err)
+	if err := h.mailer.Send(emailAddr, subject, body); err != nil {
+		h.log.Error("failed to send verification email", "email", emailAddr, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send verification email", api.CodeServerError))
 		return
 	}
 
-	if err := h.verifyLimiter.Reset(c.Request.Context(), email); err != nil {
+	if err := h.verifyLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("failed to reset verify limiter", "err", err)
 	}
 	c.JSON(http.StatusCreated, api.NewSuccess("Verification code sent to your email", api.CodeCreated, nil))
@@ -152,17 +152,17 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 	code := strings.TrimSpace(req.Code)
 
-	if len(email) > 255 {
+	if len(emailAddr) > 255 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
 		return
 	}
 
-	if !common.IsValidEmail(email) {
+	if !common.IsValidEmail(emailAddr) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -182,20 +182,20 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if allowed, err := h.verifyLimiter.Allow(c.Request.Context(), email); err != nil {
+	if allowed, err := h.verifyLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("verify rate limiter error — failing open", "err", err)
 	} else if !allowed {
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
 
-	user, err := h.localAuth.ConsumeAndMarkVerified(c.Request.Context(), email, h.hashOTP(code))
+	user, err := h.localAuth.ConsumeAndMarkVerified(c.Request.Context(), emailAddr, h.hashOTP(code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
 			return
 		}
-		h.log.Error("failed to consume and verify email", "email", email, "err", err)
+		h.log.Error("failed to consume and verify email", "email", emailAddr, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
@@ -221,10 +221,10 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if err := h.verifyLimiter.Reset(c.Request.Context(), email); err != nil {
+	if err := h.verifyLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("failed to reset verify limiter", "err", err)
 	}
-	if err := h.registerLimiter.Reset(c.Request.Context(), email); err != nil {
+	if err := h.registerLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("failed to reset register limiter", "err", err)
 	}
 	h.log.Info("user verified and logged in", "user_id", userIDStr)
