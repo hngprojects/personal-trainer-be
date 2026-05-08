@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrNotFound   = errors.New("not found")
+	ErrNotFound    = errors.New("not found")
 	ErrEmailExists = errors.New("email already registered")
 )
 
@@ -127,6 +127,63 @@ func (r *postgresSessionRepo) Create(ctx context.Context, userID uuid.UUID, toke
 		return nil, err
 	}
 	return &session, nil
+}
+
+// LocalAuthRepository combines OTP consumption and user verification in one atomic transaction.
+type LocalAuthRepository interface {
+	ConsumeAndMarkVerified(ctx context.Context, email, hashedCode string) (*db.User, error)
+}
+
+type postgresLocalAuthRepo struct {
+	db *sql.DB
+}
+
+func NewPostgresLocalAuthRepo(rawDB *sql.DB) LocalAuthRepository {
+	return &postgresLocalAuthRepo{db: rawDB}
+}
+
+func (r *postgresLocalAuthRepo) ConsumeAndMarkVerified(ctx context.Context, email, hashedCode string) (*db.User, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	q := db.New(tx)
+
+	_, err = q.ConsumeVerificationCode(ctx, email, hashedCode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	user, err := q.MarkUserVerified(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			existing, fetchErr := q.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
+				Email:        email,
+				AuthProvider: providerLocal,
+			})
+			if fetchErr != nil {
+				if errors.Is(fetchErr, sql.ErrNoRows) {
+					return nil, ErrNotFound
+				}
+				return nil, fetchErr
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, err
+			}
+			return &existing, nil
+		}
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 // postgresVerificationCodeRepo implements VerificationCodeRepository.

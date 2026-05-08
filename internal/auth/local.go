@@ -31,6 +31,7 @@ type LocalHandler struct {
 	users           UserRepository
 	sessions        SessionRepository
 	codes           VerificationCodeRepository
+	localAuth       LocalAuthRepository
 	mailer          email.Mailer
 	log             *slog.Logger
 	verifyLimiter   ratelimit.RateLimiter
@@ -42,6 +43,7 @@ func NewLocalHandler(
 	users UserRepository,
 	sessions SessionRepository,
 	codes VerificationCodeRepository,
+	localAuth LocalAuthRepository,
 	mailer email.Mailer,
 	log *slog.Logger,
 	otpSecret string,
@@ -55,6 +57,7 @@ func NewLocalHandler(
 		users:           users,
 		sessions:        sessions,
 		codes:           codes,
+		localAuth:       localAuth,
 		mailer:          mailer,
 		log:             log,
 		verifyLimiter:   verifyLimiter,
@@ -186,20 +189,13 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	_, err := h.codes.ConsumeByEmailAndCode(c.Request.Context(), email, h.hashOTP(code))
+	user, err := h.localAuth.ConsumeAndMarkVerified(c.Request.Context(), email, h.hashOTP(code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
 			return
 		}
-		h.log.Error("failed to consume verification code", "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-
-	user, err := h.users.MarkVerified(c.Request.Context(), email)
-	if err != nil {
-		h.log.Error("failed to mark user verified", "email", email, "err", err)
+		h.log.Error("failed to consume and verify email", "email", email, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}

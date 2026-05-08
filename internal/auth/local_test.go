@@ -91,6 +91,22 @@ func (f *fakeLocalSessionRepo) Create(_ context.Context, _ uuid.UUID, _ string, 
 	return &db.Session{ID: uuid.New()}, nil
 }
 
+// fakeLocalAuthRepo controls atomic consume+verify behaviour.
+type fakeLocalAuthRepo struct {
+	user *db.User
+	err  error
+}
+
+func (f *fakeLocalAuthRepo) ConsumeAndMarkVerified(_ context.Context, email, _ string) (*db.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.user != nil {
+		return f.user, nil
+	}
+	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
+}
+
 // fakeMailer captures sent emails.
 type fakeMailer struct {
 	err error
@@ -129,9 +145,9 @@ func (c *countingRateLimiter) Reset(_ context.Context, _ string) error {
 	return nil
 }
 
-func newLocalTestHandler(t *testing.T, users auth.UserRepository, sessions auth.SessionRepository, codes auth.VerificationCodeRepository, mailer *fakeMailer) *auth.LocalHandler {
+func newLocalTestHandler(t *testing.T, users auth.UserRepository, sessions auth.SessionRepository, codes auth.VerificationCodeRepository, localAuth auth.LocalAuthRepository, mailer *fakeMailer) *auth.LocalHandler {
 	t.Helper()
-	return auth.NewLocalHandler(users, sessions, codes, mailer, discardLog, "test-otp-secret",
+	return auth.NewLocalHandler(users, sessions, codes, localAuth, mailer, discardLog, "test-otp-secret",
 		&fakeRateLimiter{allowed: true},
 		&fakeRateLimiter{allowed: true},
 	)
@@ -161,7 +177,7 @@ func decodeBody(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 
 func TestRegister_Success(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -176,7 +192,7 @@ func TestRegister_Success(t *testing.T) {
 
 func TestRegister_NormalizesEmail(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	// Uppercase + whitespace should be accepted and normalised
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"  JOHN@EXAMPLE.COM  "}`, h.Register)
@@ -189,7 +205,7 @@ func TestRegister_NormalizesEmail(t *testing.T) {
 func TestVerifyEmail_NormalizesEmail(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"  JOHN@EXAMPLE.COM  ","code":"123456"}`, h.VerifyEmail)
@@ -202,7 +218,7 @@ func TestVerifyEmail_NormalizesEmail(t *testing.T) {
 func TestRegister_ExistingActiveUser_SendsNewCode(t *testing.T) {
 	// Active users can request a new OTP — this endpoint is signup AND login for email-only auth
 	users := &fakeLocalUserRepo{findUser: &db.User{ID: uuid.New(), IsActive: true}, findErr: nil}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -212,7 +228,7 @@ func TestRegister_ExistingActiveUser_SendsNewCode(t *testing.T) {
 }
 
 func TestRegister_InvalidEmail(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"notanemail"}`, h.Register)
 
@@ -222,7 +238,7 @@ func TestRegister_InvalidEmail(t *testing.T) {
 }
 
 func TestRegister_MissingEmail(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{}`, h.Register)
 
@@ -232,7 +248,7 @@ func TestRegister_MissingEmail(t *testing.T) {
 }
 
 func TestRegister_InvalidJSON(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `not json`, h.Register)
 
@@ -243,7 +259,7 @@ func TestRegister_InvalidJSON(t *testing.T) {
 
 func TestRegister_UnverifiedUserResendCode(t *testing.T) {
 	users := &fakeLocalUserRepo{findUser: &db.User{ID: uuid.New(), IsActive: false}, findErr: nil}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -254,7 +270,7 @@ func TestRegister_UnverifiedUserResendCode(t *testing.T) {
 
 func TestRegister_FindUserDBError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: errors.New("db connection error")}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -266,7 +282,7 @@ func TestRegister_FindUserDBError(t *testing.T) {
 func TestRegister_RateLimited(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
 	registerLimiter := &countingRateLimiter{maxAllowed: 3}
-	h := auth.NewLocalHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
+	h := auth.NewLocalHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
 		&fakeRateLimiter{allowed: true},
 		registerLimiter,
 	)
@@ -288,7 +304,7 @@ func TestRegister_RateLimited(t *testing.T) {
 
 func TestRegister_DBCreateUserError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound, createUserErr: errors.New("db error")}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -299,7 +315,7 @@ func TestRegister_DBCreateUserError(t *testing.T) {
 
 func TestRegister_MailerError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{err: errors.New("smtp error")})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{err: errors.New("smtp error")})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -311,7 +327,7 @@ func TestRegister_MailerError(t *testing.T) {
 func TestRegister_CodeCreateError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
 	codes := &fakeCodeRepo{createErr: errors.New("db error")}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -323,7 +339,7 @@ func TestRegister_CodeCreateError(t *testing.T) {
 func TestRegister_DeleteCodeError(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
 	codes := &fakeCodeRepo{deleteErr: errors.New("delete error")}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
 
@@ -338,7 +354,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 
 	users := &fakeLocalUserRepo{}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
@@ -362,9 +378,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 }
 
 func TestVerifyEmail_InvalidCode(t *testing.T) {
-	users := &fakeLocalUserRepo{}
-	codes := &fakeCodeRepo{consumeErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: auth.ErrNotFound}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"000000"}`, h.VerifyEmail)
@@ -375,7 +389,7 @@ func TestVerifyEmail_InvalidCode(t *testing.T) {
 }
 
 func TestVerifyEmail_MissingCode(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com"}`, h.VerifyEmail)
@@ -386,7 +400,7 @@ func TestVerifyEmail_MissingCode(t *testing.T) {
 }
 
 func TestVerifyEmail_CodeTooShort(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123"}`, h.VerifyEmail)
@@ -397,7 +411,7 @@ func TestVerifyEmail_CodeTooShort(t *testing.T) {
 }
 
 func TestVerifyEmail_CodeNotDigits(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"abc123"}`, h.VerifyEmail)
@@ -408,7 +422,7 @@ func TestVerifyEmail_CodeNotDigits(t *testing.T) {
 }
 
 func TestVerifyEmail_InvalidEmail(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"notanemail","code":"123456"}`, h.VerifyEmail)
@@ -419,7 +433,7 @@ func TestVerifyEmail_InvalidEmail(t *testing.T) {
 }
 
 func TestVerifyEmail_InvalidJSON(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email", `not json`, h.VerifyEmail)
 
@@ -429,8 +443,7 @@ func TestVerifyEmail_InvalidJSON(t *testing.T) {
 }
 
 func TestVerifyEmail_MarkVerifiedError(t *testing.T) {
-	users := &fakeLocalUserRepo{markVerifiedErr: errors.New("db error")}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: errors.New("db error")}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
@@ -443,9 +456,8 @@ func TestVerifyEmail_MarkVerifiedError(t *testing.T) {
 func TestVerifyEmail_SessionError(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 
-	users := &fakeLocalUserRepo{}
 	sessions := &fakeLocalSessionRepo{err: errors.New("session error")}
-	h := newLocalTestHandler(t, users, sessions, &fakeCodeRepo{}, &fakeMailer{})
+	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, sessions, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
 	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
@@ -456,9 +468,8 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 }
 
 func TestVerifyEmail_RateLimited(t *testing.T) {
-	codes := &fakeCodeRepo{consumeErr: auth.ErrNotFound}
 	verifyLimiter := &countingRateLimiter{maxAllowed: 5}
-	h := auth.NewLocalHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{}, discardLog, "test-otp-secret",
+	h := auth.NewLocalHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: auth.ErrNotFound}, &fakeMailer{}, discardLog, "test-otp-secret",
 		verifyLimiter,
 		&fakeRateLimiter{allowed: true},
 	)

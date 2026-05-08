@@ -25,7 +25,9 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 				slog.Error("failed to unmarshal response data", "err", err)
 			}
 		}
-		resp.Data = &d
+		if d != nil {
+			resp.Data = &d
+		}
 	}
 	if meta != nil {
 		var m map[string]interface{}
@@ -40,7 +42,9 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 				slog.Error("failed to unmarshal response meta", "err", err)
 			}
 		}
-		resp.Meta = &m
+		if m != nil {
+			resp.Meta = &m
+		}
 	}
 	return resp
 }

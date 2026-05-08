@@ -49,6 +49,7 @@ func (s *Router) Routes() *gin.Engine {
 	}
 
 	r := gin.New()
+	r.SetTrustedProxies(nil)
 
 	globalLimiter := ratelimit.New(s.redis, "rl:global", 100, time.Minute)
 
@@ -75,13 +76,14 @@ func (s *Router) Routes() *gin.Engine {
 		usersRepo := auth.NewPostgresUserRepo(queries)
 		sessionsRepo := auth.NewPostgresSessionRepo(queries)
 		codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
+		localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 		mailer := s.buildMailer()
 		verifyLimiter := ratelimit.New(s.redis, "rl:auth:verify", 5, 15*time.Minute)
 		registerLimiter := ratelimit.New(s.redis, "rl:auth:register", 3, 15*time.Minute)
 
 		impl := &routerImpl{
 			google: auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
-			local:  auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
+			local:  auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 		}
