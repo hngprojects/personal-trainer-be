@@ -389,6 +389,16 @@ paths:
                 status: error
                 message: Requested email is not on the waitlist
                 code: NOT_FOUND
+        "401":
+          description: Client is unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
         "500":
           description: Internal server error
           content:
