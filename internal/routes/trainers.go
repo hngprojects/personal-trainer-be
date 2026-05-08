@@ -85,6 +85,7 @@ func nullInt32Ptr(i *int) sql.NullInt32 {
 }
 
 // GET /trainers?category=...
+// 200 -> TrainersListResponse (data is []Trainer)
 func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -107,12 +108,11 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 		list = append(list, trainerToMap(t))
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINERS_FETCHED", api.CodeOK, map[string]interface{}{
-		"trainers": list,
-	}))
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINERS_FETCHED", api.CodeOK, list))
 }
 
 // POST /trainers
+// 201 -> TrainerResponse (data is Trainer)
 func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -153,12 +153,11 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, api.NewSuccess("TRAINER_CREATED", api.CodeCreated, map[string]interface{}{
-		"trainer": trainerToMap(created),
-	}))
+	c.JSON(http.StatusCreated, api.NewSuccess("TRAINER_CREATED", api.CodeCreated, trainerToMap(created)))
 }
 
 // GET /trainers/{id}
+// 200 -> TrainerResponse (data is Trainer)
 func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -177,12 +176,11 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, map[string]interface{}{
-		"trainer": trainerToMap(t),
-	}))
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, trainerToMap(t)))
 }
 
-// PUT /trainers/{id}
+// PATCH /trainers/{id}
+// 200 -> TrainerResponse (data is Trainer)
 func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -237,12 +235,11 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, map[string]interface{}{
-		"trainer": trainerToMap(updated),
-	}))
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, trainerToMap(updated)))
 }
 
 // DELETE /trainers/{id}
+// 204 -> no content
 func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
