@@ -23,4 +23,8 @@ SELECT role
     FROM users 
     WHERE id = $1 
     LIMIT 1;
+<<<<<<< HEAD
 >>>>>>> ab21b8d (Refactor SQL queries for better formatting)
+=======
+
+>>>>>>> 9fc594e (Add newline at the end of users.sql)
