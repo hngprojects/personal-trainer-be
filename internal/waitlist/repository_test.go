@@ -51,7 +51,6 @@ func TestPostgresWaitlistRepo_GetByEmail_Found(t *testing.T) {
 				return &db.Waitlist{
 					ID:        entryID,
 					Email:     "test@example.com",
-					Feedback:  "great",
 					CreatedAt: now,
 				}, nil
 			}
@@ -126,13 +125,11 @@ func TestWaitlistRepository_GetAll_Success(t *testing.T) {
 		{
 			ID:        uuid.New(),
 			Email:     "user1@example.com",
-			Feedback:  "feedback1",
 			CreatedAt: now,
 		},
 		{
 			ID:        uuid.New(),
 			Email:     "user2@example.com",
-			Feedback:  "feedback2",
 			CreatedAt: now,
 		},
 	}

@@ -35,7 +35,7 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
-	if err := h.repo.AddEmail(c.Request.Context(), email, req.Feedback); err != nil {
+	if err := h.repo.AddEmail(c.Request.Context(), email); err != nil {
 		h.log.Error("failed to add email to waitlist", "err", err, "email", email)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
@@ -66,7 +66,6 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 		data := map[string]interface{}{
 			"id":         result.ID,
 			"email":      result.Email,
-			"feedback":   result.Feedback,
 			"created_at": result.CreatedAt,
 		}
 
@@ -86,7 +85,6 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 		items = append(items, map[string]interface{}{
 			"id":         r.ID,
 			"email":      r.Email,
-			"feedback":   r.Feedback,
 			"created_at": r.CreatedAt,
 		})
 	}

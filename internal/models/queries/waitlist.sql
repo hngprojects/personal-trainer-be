@@ -1,6 +1,6 @@
 -- name: AddWaitlist :execresult
-INSERT INTO waitlist (email, feedback)
-VALUES ($1, $2)
+INSERT INTO waitlist (email)
+VALUES ($1)
 ON CONFLICT (email) DO NOTHING;
 
 -- name: GetWaitlist :many

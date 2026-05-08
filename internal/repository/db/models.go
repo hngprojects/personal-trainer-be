@@ -41,6 +41,5 @@ type VerificationCode struct {
 type Waitlist struct {
 	ID        uuid.UUID
 	Email     string
-	Feedback  string
 	CreatedAt time.Time
 }

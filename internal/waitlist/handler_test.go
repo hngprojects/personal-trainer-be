@@ -25,14 +25,14 @@ func init() {
 
 // mockWaitlistRepo implements waitlist.WaitlistRepository for testing
 type mockWaitlistRepo struct {
-	addEmailFn   func(ctx context.Context, email, feedback string) error
+	addEmailFn   func(ctx context.Context, email string) error
 	getAllFn     func(ctx context.Context) ([]db.Waitlist, error)
 	getByEmailFn func(ctx context.Context, email string) (*db.Waitlist, error)
 }
 
-func (m *mockWaitlistRepo) AddEmail(ctx context.Context, email, feedback string) error {
+func (m *mockWaitlistRepo) AddEmail(ctx context.Context, email string) error {
 	if m.addEmailFn != nil {
-		return m.addEmailFn(ctx, email, feedback)
+		return m.addEmailFn(ctx, email)
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func testHandler(repo waitlist.WaitlistRepository) *waitlist.WaitlistHandler {
 // TestHandleAddWaitlist_Success tests adding email successfully
 func TestHandleAddWaitlist_Success(t *testing.T) {
 	repo := &mockWaitlistRepo{
-		addEmailFn: func(ctx context.Context, email, feedback string) error {
+		addEmailFn: func(ctx context.Context, email string) error {
 			return nil
 		},
 	}
@@ -164,7 +164,7 @@ func TestHandleAddWaitlist_EmailNormalization(t *testing.T) {
 	var capturedEmail string
 
 	repo := &mockWaitlistRepo{
-		addEmailFn: func(ctx context.Context, email, feedback string) error {
+		addEmailFn: func(ctx context.Context, email string) error {
 			capturedEmail = email
 			return nil
 		},
@@ -193,7 +193,7 @@ func TestHandleAddWaitlist_EmailNormalization(t *testing.T) {
 // TestHandleAddWaitlist_RepositoryError tests handling repository errors
 func TestHandleAddWaitlist_RepositoryError(t *testing.T) {
 	repo := &mockWaitlistRepo{
-		addEmailFn: func(ctx context.Context, email, feedback string) error {
+		addEmailFn: func(ctx context.Context, email string) error {
 			return context.DeadlineExceeded
 		},
 	}
@@ -232,13 +232,11 @@ func TestHandleGetWaitlist_GetAll(t *testing.T) {
 		{
 			ID:        uuid.New(),
 			Email:     "user1@example.com",
-			Feedback:  "great",
 			CreatedAt: now,
 		},
 		{
 			ID:        uuid.New(),
 			Email:     "user2@example.com",
-			Feedback:  "awesome",
 			CreatedAt: now,
 		},
 	}
@@ -282,7 +280,6 @@ func TestHandleGetWaitlist_GetByEmail(t *testing.T) {
 	expectedEntry := &db.Waitlist{
 		ID:        uuid.New(),
 		Email:     "test@example.com",
-		Feedback:  "great",
 		CreatedAt: now,
 	}
 

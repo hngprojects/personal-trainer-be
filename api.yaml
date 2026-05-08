@@ -317,7 +317,7 @@ paths:
                   type: string
                   format: email
       responses:
-        "200":
+        "201":
           description: You have been added to the waitlist
           content:
             application/json:
@@ -335,7 +335,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
-                message: Email field is required
+                message: Invalid or missing email
                 code: BAD_REQUEST
         "500":
           description: Internal server error

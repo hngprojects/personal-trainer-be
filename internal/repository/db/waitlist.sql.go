@@ -11,39 +11,29 @@ import (
 )
 
 const addWaitlist = `-- name: AddWaitlist :execresult
-INSERT INTO waitlist (email, feedback)
-VALUES ($1, $2)
+INSERT INTO waitlist (email)
+VALUES ($1)
 ON CONFLICT (email) DO NOTHING
 `
 
-type AddWaitlistParams struct {
-	Email    string
-	Feedback string
-}
-
-func (q *Queries) AddWaitlist(ctx context.Context, arg AddWaitlistParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, addWaitlist, arg.Email, arg.Feedback)
+func (q *Queries) AddWaitlist(ctx context.Context, email string) (sql.Result, error) {
+	return q.db.ExecContext(ctx, addWaitlist, email)
 }
 
 const getSingleWaitlist = `-- name: GetSingleWaitlist :one
-SELECT id, email, feedback, created_at FROM waitlist
+SELECT id, email, created_at FROM waitlist
 WHERE email = $1
 `
 
 func (q *Queries) GetSingleWaitlist(ctx context.Context, email string) (Waitlist, error) {
 	row := q.db.QueryRowContext(ctx, getSingleWaitlist, email)
 	var i Waitlist
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Feedback,
-		&i.CreatedAt,
-	)
+	err := row.Scan(&i.ID, &i.Email, &i.CreatedAt)
 	return i, err
 }
 
 const getWaitlist = `-- name: GetWaitlist :many
-SELECT id, email, feedback, created_at FROM waitlist
+SELECT id, email, created_at FROM waitlist
 `
 
 func (q *Queries) GetWaitlist(ctx context.Context) ([]Waitlist, error) {
@@ -55,12 +45,7 @@ func (q *Queries) GetWaitlist(ctx context.Context) ([]Waitlist, error) {
 	var items []Waitlist
 	for rows.Next() {
 		var i Waitlist
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Feedback,
-			&i.CreatedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Email, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
