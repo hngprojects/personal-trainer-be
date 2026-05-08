@@ -14,6 +14,7 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
@@ -27,31 +28,34 @@ func main() {
 	}
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to laod configuration varialbe %v", err)
+		log.Fatalf("failed to load configuration variable %v", err)
 	}
 
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-	var db *sql.DB
-	if cfg.DatabaseURL != "" {
-		db, err = sql.Open("postgres", cfg.DatabaseURL)
-		if err != nil {
-			log.Error("failed to open database", "err", err)
-			os.Exit(1)
-		}
-		defer db.Close()
-
-		if err := db.Ping(); err != nil {
-			log.Error("failed to connect to database", "err", err)
-			os.Exit(1)
-		}
-		log.Info("database connected")
-	} else {
-		log.Warn("DATABASE_URL not set — starting without database connection")
+	db, err := sql.Open("postgres", cfg.DatabaseURL)
+	if err != nil {
+		log.Error("failed to open database", "err", err)
+		os.Exit(1)
 	}
+	defer db.Close()
 
-	srv := routes.New(cfg, log, db)
+	if err := db.Ping(); err != nil {
+		log.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	log.Info("database connected")
+
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		log.Error("failed to parse REDIS_URL", "err", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(redisOpts)
+	defer redisClient.Close()
+
+	srv := routes.New(cfg, log, db, redisClient)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -84,6 +88,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv.Close()
 	log.Info("server stopped")
 }

@@ -4,8 +4,11 @@ import (
 	"database/sql"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -14,6 +17,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -23,18 +27,11 @@ type Router struct {
 	cfg   *config.Config
 	log   *slog.Logger
 	db    *sql.DB
-	local *auth.LocalHandler
+	redis *redis.Client
 }
 
-// Close stops background goroutines started by the router (e.g. rate-limiter cleanup).
-func (s *Router) Close() {
-	if s.local != nil {
-		s.local.Close()
-	}
-}
-
-func New(cfg *config.Config, log *slog.Logger, db *sql.DB) *Router {
-	return &Router{cfg: cfg, log: log, db: db}
+func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Client) *Router {
+	return &Router{cfg: cfg, log: log, db: db, redis: redisClient}
 }
 
 type routerImpl struct {
@@ -52,12 +49,16 @@ func (s *Router) Routes() *gin.Engine {
 	}
 
 	r := gin.New()
+
+	globalLimiter := ratelimit.New(s.redis, "rl:global", 100, time.Minute)
+
 	r.Use(
 		common.RequestIDMiddleware(),
 		middleware.CORS(s.cfg.FrontendURL),
 		middleware.SecurityHeaders(),
 		middleware.Logger(s.log),
 		middleware.Recover(s.log),
+		middleware.RateLimit(globalLimiter, s.log),
 	)
 
 	spec, err := os.ReadFile("api.yaml")
@@ -70,30 +71,21 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		var google *auth.GoogleHandler
-		var local *auth.LocalHandler
-		if s.db != nil {
-			queries := db.New(s.db)
-			usersRepo := auth.NewPostgresUserRepo(queries)
-			sessionsRepo := auth.NewPostgresSessionRepo(queries)
-			codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
-			mailer := s.buildMailer()
-			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-			local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log, s.cfg.OTPSecret)
-			s.local = local
-		} else {
-			s.log.Warn("database not configured — auth endpoints unavailable")
-		}
+		queries := db.New(s.db)
+		usersRepo := auth.NewPostgresUserRepo(queries)
+		sessionsRepo := auth.NewPostgresSessionRepo(queries)
+		codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
+		mailer := s.buildMailer()
+		verifyLimiter := ratelimit.New(s.redis, "rl:auth:verify", 5, 15*time.Minute)
+		registerLimiter := ratelimit.New(s.redis, "rl:auth:register", 3, 15*time.Minute)
 
 		impl := &routerImpl{
-			google: google,
-			local:  local,
+			google: auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
+			local:  auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 		}
 		api.RegisterHandlers(v1, impl)
-		v1.POST("/auth/register", impl.HandleRegister)
-		v1.POST("/auth/verify-email", impl.HandleVerifyEmail)
 	}
 
 	return r

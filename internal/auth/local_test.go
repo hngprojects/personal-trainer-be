@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,11 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
+
+func TestMain(m *testing.M) {
+	gin.SetMode(gin.TestMode)
+	os.Exit(m.Run())
+}
 
 var discardLog = slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -94,11 +100,41 @@ func (m *fakeMailer) Send(_, _, _ string) error {
 	return m.err
 }
 
+// fakeRateLimiter always allows (or always blocks when allowed=false).
+type fakeRateLimiter struct {
+	allowed bool
+	err     error
+}
+
+func (f *fakeRateLimiter) Allow(_ context.Context, _ string) (bool, error) {
+	return f.allowed, f.err
+}
+
+func (f *fakeRateLimiter) Reset(_ context.Context, _ string) error {
+	return nil
+}
+
+// countingRateLimiter blocks once the number of Allow calls exceeds maxAllowed.
+type countingRateLimiter struct {
+	calls      int
+	maxAllowed int
+}
+
+func (c *countingRateLimiter) Allow(_ context.Context, _ string) (bool, error) {
+	c.calls++
+	return c.calls <= c.maxAllowed, nil
+}
+
+func (c *countingRateLimiter) Reset(_ context.Context, _ string) error {
+	return nil
+}
+
 func newLocalTestHandler(t *testing.T, users auth.UserRepository, sessions auth.SessionRepository, codes auth.VerificationCodeRepository, mailer *fakeMailer) *auth.LocalHandler {
 	t.Helper()
-	h := auth.NewLocalHandler(users, sessions, codes, mailer, discardLog, "test-otp-secret")
-	t.Cleanup(h.Close)
-	return h
+	return auth.NewLocalHandler(users, sessions, codes, mailer, discardLog, "test-otp-secret",
+		&fakeRateLimiter{allowed: true},
+		&fakeRateLimiter{allowed: true},
+	)
 }
 
 func doLocalRequest(t *testing.T, h *auth.LocalHandler, method, path, body string, handlerFn func(*gin.Context)) *httptest.ResponseRecorder {
@@ -216,9 +252,24 @@ func TestRegister_UnverifiedUserResendCode(t *testing.T) {
 	}
 }
 
+func TestRegister_FindUserDBError(t *testing.T) {
+	users := &fakeLocalUserRepo{findErr: errors.New("db connection error")}
+	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+
+	w := doLocalRequest(t, h, http.MethodPost, "/auth/register", `{"email":"john@example.com"}`, h.Register)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 on DB error, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestRegister_RateLimited(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{})
+	registerLimiter := &countingRateLimiter{maxAllowed: 3}
+	h := auth.NewLocalHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
+		&fakeRateLimiter{allowed: true},
+		registerLimiter,
+	)
 
 	// Exhaust the 3 allowed register attempts
 	for i := 0; i < 3; i++ {
@@ -300,11 +351,13 @@ func TestVerifyEmail_Success(t *testing.T) {
 	if !ok {
 		t.Fatal("expected data object in response")
 	}
-	if data["access_token"] == "" {
-		t.Error("expected non-empty access_token")
+	accessToken, ok := data["access_token"].(string)
+	if !ok || len(accessToken) == 0 {
+		t.Error("expected non-empty access_token string")
 	}
-	if data["refresh_token"] == "" {
-		t.Error("expected non-empty refresh_token")
+	refreshToken, ok := data["refresh_token"].(string)
+	if !ok || len(refreshToken) == 0 {
+		t.Error("expected non-empty refresh_token string")
 	}
 }
 
@@ -404,7 +457,11 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 
 func TestVerifyEmail_RateLimited(t *testing.T) {
 	codes := &fakeCodeRepo{consumeErr: auth.ErrNotFound}
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{})
+	verifyLimiter := &countingRateLimiter{maxAllowed: 5}
+	h := auth.NewLocalHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, codes, &fakeMailer{}, discardLog, "test-otp-secret",
+		verifyLimiter,
+		&fakeRateLimiter{allowed: true},
+	)
 
 	// Exhaust the 5 allowed attempts
 	for i := 0; i < 5; i++ {

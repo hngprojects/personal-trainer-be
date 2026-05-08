@@ -10,11 +10,14 @@ import (
 	"github.com/lib/pq"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
-	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
-var ErrNotFound = errors.New("not found")
-var ErrEmailExists = errors.New("email already registered")
+var (
+	ErrNotFound   = errors.New("not found")
+	ErrEmailExists = errors.New("email already registered")
+)
+
+const providerLocal = "local"
 
 // UserRepository defines what the auth feature needs from the users table.
 type UserRepository interface {
@@ -52,7 +55,7 @@ func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, pr
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkgerrors.ErrNotFound
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
@@ -90,7 +93,7 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 			// No rows updated means the user is already active — fetch and return current data.
 			existing, fetchErr := r.q.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
 				Email:        email,
-				AuthProvider: "local",
+				AuthProvider: providerLocal,
 			})
 			if fetchErr != nil {
 				if errors.Is(fetchErr, sql.ErrNoRows) {
