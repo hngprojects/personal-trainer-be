@@ -8,3 +8,6 @@ RETURNING *;
 
 -- name: GetUserByEmailAndProvider :one
 SELECT * FROM users WHERE email = $1 AND auth_provider = $2 LIMIT 1;
+
+-- name: GetUserByID :one
+SELECT * FROM users WHERE id = $1 LIMIT 1;
