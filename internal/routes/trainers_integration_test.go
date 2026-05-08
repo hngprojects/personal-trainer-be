@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime/debug"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
@@ -21,8 +23,6 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 )
 
-// setupTestDB connects to DATABASE_URL.
-// It will skip the test if DATABASE_URL is not set.
 func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 
@@ -38,11 +38,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 		return db.Ping() == nil
 	}, 10*time.Second, 200*time.Millisecond)
 
-	cleanup := func() {
-		_ = db.Close()
-	}
-
-	return db, cleanup
+	return db, func() { _ = db.Close() }
 }
 
 func mustExec(t *testing.T, db *sql.DB, q string) {
@@ -51,47 +47,14 @@ func mustExec(t *testing.T, db *sql.DB, q string) {
 	require.NoError(t, err)
 }
 
-func applySchema(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	// Minimal schema for these tests.
-	// NOTE: This assumes your DB user can create extensions/tables in the target database.
-	mustExec(t, db, `
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT UNIQUE NOT NULL,
-  name TEXT NOT NULL,
-  auth_provider TEXT NOT NULL DEFAULT 'local',
-  role TEXT NOT NULL DEFAULT 'client',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS trainers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  specialization TEXT,
-  bio TEXT,
-  years_of_experience INT,
-  intro_video_url TEXT,
-  display_picture TEXT,
-  calendly_connected BOOLEAN NOT NULL DEFAULT false,
-  calendly_link TEXT,
-  onboarding_status TEXT NOT NULL DEFAULT 'pending',
-  average_rating NUMERIC NOT NULL DEFAULT 0,
-  total_reviews INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-`)
-}
-
 func resetTables(t *testing.T, db *sql.DB) {
 	t.Helper()
-	// Ensure reruns don’t fail due to UNIQUE constraints / leftover rows.
+
+	// Requires the DB has already been migrated via goose.
+	// CASCADE handles FKs between users/trainers/sessions/etc.
 	mustExec(t, db, `TRUNCATE TABLE trainers RESTART IDENTITY CASCADE;`)
+	mustExec(t, db, `TRUNCATE TABLE sessions RESTART IDENTITY CASCADE;`)
+	mustExec(t, db, `TRUNCATE TABLE verification_codes RESTART IDENTITY CASCADE;`)
 	mustExec(t, db, `TRUNCATE TABLE users RESTART IDENTITY CASCADE;`)
 }
 
@@ -105,24 +68,18 @@ VALUES ($1, $2, 'local', $3)
 RETURNING id
 `, email, name, role).Scan(&id)
 	require.NoError(t, err)
-
 	return id
 }
 
 func tokenFor(t *testing.T, userID string) string {
 	t.Helper()
 
-	// IMPORTANT:
-	// Set whichever env var your auth package expects for signing/verifying JWTs.
-	// If your repo uses a different variable name than JWT_SECRET, update this.
 	if os.Getenv("JWT_SECRET") == "" {
 		_ = os.Setenv("JWT_SECRET", "test-secret")
 	}
 
 	tok, err := auth.GenerateJWTToken(userID, auth.AccessToken)
 	require.NoError(t, err)
-	require.NotEmpty(t, tok)
-
 	return tok
 }
 
@@ -133,9 +90,23 @@ func newServer(t *testing.T, db *sql.DB) *httptest.Server {
 		Env:         "test",
 		FrontendURL: "http://localhost:3000",
 	}
-	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	r := routes.New(cfg, log, db).Routes()
+
+	// Test-only: log any panic + stack trace.
+	r.Use(func(c *gin.Context) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				t.Logf("PANIC on %s %s: %v\n%s", c.Request.Method, c.Request.URL.Path, rec, string(debug.Stack()))
+				// re-panic so existing recovery behavior still applies (optional)
+				panic(rec)
+			}
+		}()
+		c.Next()
+	})
+
 	return httptest.NewServer(r)
 }
 
@@ -150,7 +121,7 @@ func TestTrainersEndpoints(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	t.Cleanup(cleanup)
 
-	applySchema(t, db)
+	// Do NOT create schema here; use goose migrations outside the test.
 	resetTables(t, db)
 
 	adminID := insertUser(t, db, "admin@example.com", "Admin", "admin")
@@ -179,6 +150,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
 		defer res.Body.Close()
+		
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	}
 
@@ -188,6 +160,8 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		res := doReq(t, httpClient, req)
 		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		t.Logf("status=%d body=%s", res.StatusCode, string(b))
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
@@ -214,22 +188,19 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusCreated, res.StatusCode)
+    	defer res.Body.Close()
+    	require.Equal(t, http.StatusCreated, res.StatusCode)
 
-		// This assumes your response shape is:
-		// { "data": { "trainer": { "id": "..." } } }
-		var createResp struct {
-			Data struct {
-				Trainer struct {
-					ID string `json:"id"`
-				} `json:"trainer"`
-			} `json:"data"`
-		}
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&createResp))
-		require.NotEmpty(t, createResp.Data.Trainer.ID)
+    	// New shape: { "data": { "id": "..." }, ... }
+    	var createResp struct {
+        	Data struct {
+            	ID string `json:"id"`
+        	} `json:"data"`
+    	}
+    	require.NoError(t, json.NewDecoder(res.Body).Decode(&createResp))
+    	require.NotEmpty(t, createResp.Data.ID)
 
-		trainerID = createResp.Data.Trainer.ID
+    	trainerID = createResp.Data.ID
 	}
 
 	// 5) Get by id
@@ -242,7 +213,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
-	// 6) Update
+	// 6) Update (use PATCH to match spec)
 	{
 		updateBody := map[string]any{
 			"onboarding_status":  "approved",
@@ -253,7 +224,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		b, err := json.Marshal(updateBody)
 		require.NoError(t, err)
 
-		req, _ := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/trainers/"+trainerID, bytes.NewReader(b))
+		req, _ := http.NewRequest(http.MethodPatch, srv.URL+"/api/v1/trainers/"+trainerID, bytes.NewReader(b))
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -262,7 +233,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
-	// 7) Delete (your handler returns 204)
+	// 7) Delete (204)
 	{
 		req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/v1/trainers/"+trainerID, nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)

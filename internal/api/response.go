@@ -9,14 +9,15 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 		Message: message,
 		Status:  "success",
 	}
+
 	if data != nil {
-		d := data.(map[string]interface{})
-		resp.Data = &d
+		// allow object OR array OR any JSON value
+		resp.Data = &data
 	}
 	if meta != nil {
-		m := meta.(map[string]interface{})
-		resp.Meta = &m
+		resp.Meta = &meta
 	}
+
 	return resp
 }
 

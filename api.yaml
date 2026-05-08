@@ -129,10 +129,14 @@ components:
           type: object
           additionalProperties: true
           nullable: true
+          description: Any JSON value (object/array/string/number/etc)
+          x-go-type: interface{}
         meta:
           type: object
           additionalProperties: true
           nullable: true
+          description: Any JSON value (usually object)
+          x-go-type: interface{}
 
 <<<<<<< HEAD
 >>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)

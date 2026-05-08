@@ -183,11 +183,15 @@ type GoogleAuthResponse struct {
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
-	Code    string                  `json:"code"`
-	Data    *map[string]interface{} `json:"data,omitempty"`
-	Message string                  `json:"message"`
-	Meta    *map[string]interface{} `json:"meta,omitempty"`
-	Status  SuccessResponseStatus   `json:"status"`
+	Code string `json:"code"`
+
+	// Data Any JSON value (object/array/string/number/etc)
+	Data    *interface{} `json:"data,omitempty"`
+	Message string       `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}          `json:"meta,omitempty"`
+	Status SuccessResponseStatus `json:"status"`
 }
 
 // SuccessResponseStatus defines model for SuccessResponse.Status.
