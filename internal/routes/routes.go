@@ -24,14 +24,21 @@ import (
 )
 
 type Router struct {
-	cfg   *config.Config
-	log   *slog.Logger
-	db    *sql.DB
-	redis *redis.Client
+	cfg           *config.Config
+	log           *slog.Logger
+	db            *sql.DB
+	redis         *redis.Client
+	globalLimiter ratelimit.RateLimiter
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Client) *Router {
-	return &Router{cfg: cfg, log: log, db: db, redis: redisClient}
+	return &Router{
+		cfg:           cfg,
+		log:           log,
+		db:            db,
+		redis:         redisClient,
+		globalLimiter: ratelimit.New(redisClient, "rl:global", 100, time.Minute),
+	}
 }
 
 type routerImpl struct {
@@ -51,15 +58,13 @@ func (s *Router) Routes() *gin.Engine {
 	r := gin.New()
 	r.SetTrustedProxies(nil)
 
-	globalLimiter := ratelimit.New(s.redis, "rl:global", 100, time.Minute)
-
 	r.Use(
 		common.RequestIDMiddleware(),
 		middleware.CORS(s.cfg.FrontendURL),
 		middleware.SecurityHeaders(),
 		middleware.Logger(s.log),
 		middleware.Recover(s.log),
-		middleware.RateLimit(globalLimiter, s.log),
+		middleware.RateLimit(s.globalLimiter, s.log),
 	)
 
 	spec, err := os.ReadFile("api.yaml")
