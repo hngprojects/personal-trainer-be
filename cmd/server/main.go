@@ -58,6 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("redis connected")
+	defer redisClient.Close()
 
 	srv := routes.New(cfg, log, db, redisClient)
 	httpSrv := &http.Server{
