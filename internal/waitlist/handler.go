@@ -1,6 +1,7 @@
 package waitlist
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -42,7 +43,7 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 		c.JSON(http.StatusOK, api.NewSuccessResponse("You're already on the waitlist", api.CodeOK, nil, nil))
 		return
 	}
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		// Unexpected error
 		h.log.Error("failed to check if email exists", "err", err, "email", email)
 		c.JSON(http.StatusInternalServerError, api.NewError("Internal server error", api.CodeServerError))
