@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
@@ -49,18 +50,13 @@ func (r *postgresWaitlistRepo) GetAll(ctx context.Context) ([]db.Waitlist, error
 }
 
 func (r *postgresWaitlistRepo) GetByEmail(ctx context.Context, email string) (*db.Waitlist, error) {
-	// Note: You may need to create a GetWaitlistByEmail query in waitlist.sql
-	// For now, this is a placeholder; implement based on your needs
-	waitlists, err := r.GetAll(ctx)
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	waitlist, err := r.q.GetSingleWaitlist(ctx, email)
 	if err != nil {
-		return nil, err
+		// optionally map sql.ErrNoRows → ErrNotFound if not already handled in sqlc config
+		return nil, ErrNotFound
 	}
 
-	for i := range waitlists {
-		if waitlists[i].Email == email {
-			return &waitlists[i], nil
-		}
-	}
-
-	return nil, ErrNotFound
+	return &waitlist, nil
 }

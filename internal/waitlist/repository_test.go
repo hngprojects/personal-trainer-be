@@ -119,55 +119,6 @@ func TestPostgresWaitlistRepo_GetByEmail_Error(t *testing.T) {
 	}
 }
 
-// TestPostgresWaitlistRepo_GetByEmail_MultipleEntries tests finding in multiple entries
-func TestPostgresWaitlistRepo_GetByEmail_MultipleEntries(t *testing.T) {
-	now := time.Now()
-
-	repo := &testWaitlistRepository{
-		getAllFn: func(ctx context.Context) ([]db.Waitlist, error) {
-			return []db.Waitlist{
-				{
-					ID:        uuid.New(),
-					Email:     "user1@example.com",
-					Feedback:  "feedback1",
-					CreatedAt: now,
-				},
-				{
-					ID:        uuid.New(),
-					Email:     "target@example.com",
-					Feedback:  "target feedback",
-					CreatedAt: now,
-				},
-				{
-					ID:        uuid.New(),
-					Email:     "user3@example.com",
-					Feedback:  "feedback3",
-					CreatedAt: now,
-				},
-			}, nil
-		},
-	}
-
-	ctx := context.Background()
-
-	result, err := repo.GetByEmail(ctx, "target@example.com")
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-
-	if result == nil {
-		t.Errorf("expected result, got nil")
-		return
-	}
-
-	if result.Email != "target@example.com" {
-		t.Errorf("expected email 'target@example.com', got '%s'", result.Email)
-	}
-	if result.Feedback != "target feedback" {
-		t.Errorf("expected feedback 'target feedback', got '%s'", result.Feedback)
-	}
-}
-
 // TestWaitlistRepository_GetAll_Success tests getting all entries
 func TestWaitlistRepository_GetAll_Success(t *testing.T) {
 	now := time.Now()
