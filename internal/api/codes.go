@@ -1,4 +1,3 @@
-// api/codes.go
 package api
 
 const (

@@ -1,4 +1,3 @@
-// routes/trainers.go
 package routes
 
 import (

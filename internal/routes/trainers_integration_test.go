@@ -1,4 +1,3 @@
-// routes/trainers_integration_test.go
 package routes_test
 
 import (

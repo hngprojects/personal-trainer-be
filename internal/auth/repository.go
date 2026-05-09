@@ -1,4 +1,3 @@
-// auth/repository.go
 package auth
 
 import (

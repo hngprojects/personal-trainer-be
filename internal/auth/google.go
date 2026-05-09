@@ -1,4 +1,3 @@
-// auth/google.go
 package auth
 
 import (

@@ -1,4 +1,3 @@
-// handlers/docs.go
 package handlers
 
 import (

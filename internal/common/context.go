@@ -1,4 +1,3 @@
-// common/context.go
 package common
 
 import (

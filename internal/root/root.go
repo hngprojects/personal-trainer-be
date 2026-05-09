@@ -1,4 +1,3 @@
-// root/root.go
 package root
 
 import (

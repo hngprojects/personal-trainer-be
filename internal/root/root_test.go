@@ -1,4 +1,3 @@
-// root/root_test.go
 package root
 
 import (

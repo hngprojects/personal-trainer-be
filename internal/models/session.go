@@ -1,4 +1,3 @@
-// models/session.go
 package models
 
 import "time"

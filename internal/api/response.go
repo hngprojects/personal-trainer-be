@@ -1,4 +1,3 @@
-// api/response.go
 package api
 
 import "fmt"

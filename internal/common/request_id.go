@@ -1,4 +1,3 @@
-// common/request_id.go
 package common
 
 import (
