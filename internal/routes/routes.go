@@ -42,6 +42,12 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Cl
 	}
 }
 
+// Close performs cleanup for the router.
+// Currently a no-op as Redis connection lifecycle is managed by the caller.
+func (s *Router) Close() {
+	// No cleanup needed - Redis connection is managed by cmd/server/main.go
+}
+
 type routerImpl struct {
 	google   *auth.GoogleHandler
 	local    *auth.LocalHandler
