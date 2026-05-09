@@ -11,7 +11,10 @@ type contextKey string
 const (
 	ContextKeyUserID    contextKey = "user_id"
 	ContextKeyRequestID contextKey = "request_id"
+	ContextKeyJTI       contextKey = "jti"
 )
+
+const RedisKeyBlocklist = "blocklist:"
 
 func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	val := ctx.Value(ContextKeyUserID)

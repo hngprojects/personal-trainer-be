@@ -23,8 +23,8 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleRedirectURL  string
 
-	RedisURL string
-
+	OTPSecret string
+	RedisURL  string
 	JwtSecret string
 }
 
@@ -48,8 +48,8 @@ func Load() (*Config, error) {
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
 
-		RedisURL: getenv("REDIS_URL", "redis://localhost:6379"),
-
+		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
+		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
 		JwtSecret: os.Getenv("JWT_SECRET"),
 	}
 

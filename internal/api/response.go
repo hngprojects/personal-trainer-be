@@ -6,7 +6,7 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 	resp := SuccessResponse{
 		Code:    code,
 		Message: message,
-		Status:  "success",
+		Status:  SuccessResponseStatusSuccess,
 	}
 
 	if data != nil {
@@ -28,7 +28,7 @@ func NewErrorResponse(message, code string, errors []FieldError) ErrorResponse {
 	return ErrorResponse{
 		Code:    code,
 		Message: message,
-		Status:  "error",
+		Status:  ErrorResponseStatusError,
 		Errors:  errs,
 	}
 }

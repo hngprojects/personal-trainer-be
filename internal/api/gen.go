@@ -98,6 +98,24 @@ func (e ErrorResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for GoogleAuthResponseStatus.
+const (
+	GoogleAuthResponseStatusError   GoogleAuthResponseStatus = "error"
+	GoogleAuthResponseStatusSuccess GoogleAuthResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GoogleAuthResponseStatus enum.
+func (e GoogleAuthResponseStatus) Valid() bool {
+	switch e {
+	case GoogleAuthResponseStatusError:
+		return true
+	case GoogleAuthResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SuccessResponseStatus.
 const (
 	SuccessResponseStatusError   SuccessResponseStatus = "error"
@@ -160,16 +178,16 @@ func (e TrainerResponseStatus) Valid() bool {
 
 // Defines values for TrainersListResponseStatus.
 const (
-	Error   TrainersListResponseStatus = "error"
-	Success TrainersListResponseStatus = "success"
+	TrainersListResponseStatusError   TrainersListResponseStatus = "error"
+	TrainersListResponseStatusSuccess TrainersListResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the TrainersListResponseStatus enum.
 func (e TrainersListResponseStatus) Valid() bool {
 	switch e {
-	case Error:
+	case TrainersListResponseStatusError:
 		return true
-	case Success:
+	case TrainersListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -194,6 +212,24 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	case Rejected:
 		return true
 	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
+const (
+	Error   HandleVerifyEmail200JSONResponseBodyStatus = "error"
+	Success HandleVerifyEmail200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
+func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case Error:
+		return true
+	case Success:
 		return true
 	default:
 		return false
@@ -260,17 +296,41 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
+// GoogleAuthData defines model for GoogleAuthData.
+type GoogleAuthData struct {
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	IsNewUser    bool     `json:"is_new_user"`
+	RefreshToken string   `json:"refresh_token"`
+	User         AuthUser `json:"user"`
+}
+
 // GoogleAuthResponse defines model for GoogleAuthResponse.
 type GoogleAuthResponse struct {
-	Data struct {
-		AccessToken  string   `json:"access_token"`
-		ExpiresIn    int      `json:"expires_in"`
-		IsNewUser    bool     `json:"is_new_user"`
-		RefreshToken string   `json:"refresh_token"`
-		User         AuthUser `json:"user"`
-	} `json:"data"`
-	Message string `json:"message"`
-	Status  string `json:"status"`
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string         `json:"code"`
+	Data    GoogleAuthData `json:"data"`
+	Message string         `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}             `json:"meta,omitempty"`
+	Status GoogleAuthResponseStatus `json:"status"`
+}
+
+// GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
+type GoogleAuthResponseStatus string
+
+// LocalAuthData defines model for LocalAuthData.
+type LocalAuthData struct {
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	RefreshToken string   `json:"refresh_token"`
+	User         AuthUser `json:"user"`
+}
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email openapi_types.Email `json:"email"`
 }
 
 // SuccessResponse defines model for SuccessResponse.
@@ -357,6 +417,12 @@ type UpdateTrainerRequest struct {
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
 type UpdateTrainerRequestOnboardingStatus string
 
+// VerifyEmailRequest defines model for VerifyEmailRequest.
+type VerifyEmailRequest struct {
+	Code  string              `json:"code"`
+	Email openapi_types.Email `json:"email"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -365,6 +431,20 @@ type HandleGoogleCallbackParams struct {
 	Code  string `form:"code" json:"code"`
 	State string `form:"state" json:"state"`
 }
+
+// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
+type HandleLocalAuthJSONBody struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
+// HandleLogoutJSONBody defines parameters for HandleLogout.
+type HandleLogoutJSONBody struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
+type HandleVerifyEmail200JSONResponseBodyStatus string
 
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
@@ -381,6 +461,18 @@ type HandleGetWaitlistParams struct {
 type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
+
+// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
+type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
+
+// HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
+type HandleLogoutJSONRequestBody HandleLogoutJSONBody
+
+// HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
+type HandleRegisterJSONRequestBody = RegisterRequest
+
+// HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
+type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
@@ -402,9 +494,18 @@ type ServerInterface interface {
 	// Handle Google OAuth callback and return JWT tokens
 	// (GET /auth/google/callback)
 	HandleGoogleCallback(c *gin.Context, params HandleGoogleCallbackParams)
-
+	// Login with email and password
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
+	// Logs out the authenticated user
+	// (POST /auth/logout)
+	HandleLogout(c *gin.Context)
+	// Register or request a new OTP — sends a 6-digit verification code to the email
+	// (POST /auth/register)
+	HandleRegister(c *gin.Context)
+	// Verify email with OTP — completes signup/login and returns JWT tokens
+	// (POST /auth/verify-email)
+	HandleVerifyEmail(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -512,6 +613,47 @@ func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
 	}
 
 	siw.Handler.HandleLocalAuth(c)
+}
+
+// HandleLogout operation middleware
+func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleLogout(c)
+}
+
+// HandleRegister operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegister(c)
+}
+
+// HandleVerifyEmail operation middleware
+func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleVerifyEmail(c)
 }
 
 // HealthCheck operation middleware
@@ -725,6 +867,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
+	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
+	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)

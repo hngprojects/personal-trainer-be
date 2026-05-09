@@ -8,6 +8,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type RedisClient interface {
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Exists(ctx context.Context, key string) (bool, error)
+}
+
 type Client struct {
 	rdb *redis.Client
 }
@@ -42,4 +47,9 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 
 func (c *Client) Close() error {
 	return c.rdb.Close()
+}
+
+// Raw returns the underlying *redis.Client from go-redis/v9.
+func (c *Client) Raw() *redis.Client {
+	return c.rdb
 }
