@@ -40,6 +40,24 @@ type VerificationCodeRepository interface {
 	DeleteByEmail(ctx context.Context, email string) error
 }
 
+// RoleRepository defines what the auth feature needs from the roles / user_roles tables.
+type RoleRepository interface {
+	UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error)
+}
+
+// postgresRoleRepo implements RoleRepository.
+type postgresRoleRepo struct {
+	q *db.Queries
+}
+
+func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
+	return &postgresRoleRepo{q: q}
+}
+
+func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
+	return r.q.UserHasRole(ctx, userID, roleName)
+}
+
 // postgresUserRepo implements UserRepository using sqlc-generated queries.
 type postgresUserRepo struct {
 	q *db.Queries

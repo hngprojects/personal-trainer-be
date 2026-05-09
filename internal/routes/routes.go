@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -16,15 +15,18 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
+	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
-
-	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
-	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
+// Router holds the wrapped Redis client (*appredis.Client) — its method set
+// matches the appredis.RedisClient interface that auth/middleware consumers
+// expect. Code paths that need the raw go-redis client (rate limiter, which
+// runs Lua scripts) call s.redis.Raw().
 type Router struct {
 	cfg           *config.Config
 	log           *slog.Logger
@@ -34,17 +36,16 @@ type Router struct {
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
-	var rawRedis *redis.Client
+	r := &Router{
+		cfg:   cfg,
+		log:   log,
+		db:    db,
+		redis: redisClient,
+	}
 	if redisClient != nil {
-		rawRedis = redisClient.Raw()
+		r.globalLimiter = ratelimit.New(redisClient.Raw(), "rl:global", 100, time.Minute)
 	}
-	return &Router{
-		cfg:           cfg,
-		log:           log,
-		db:            db,
-		redis:         redisClient,
-		globalLimiter: ratelimit.New(rawRedis, "rl:global", 100, time.Minute),
-	}
+	return r
 }
 
 // Close performs cleanup for the router.
@@ -54,13 +55,15 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	google   *auth.GoogleHandler
-	local    *auth.LocalHandler
-	root     *root.RootHandler
-	health   *health.HealthHandler
-	waitlist *waitlist.WaitlistHandler
-	logout   *auth.LogoutHandler
-	trainers *trainersStore
+	google        *auth.GoogleHandler
+	local         *auth.LocalHandler
+	login         *auth.LoginHandler
+	root          *root.RootHandler
+	health        *health.HealthHandler
+	waitlist      *waitlist.WaitlistHandler
+	logout        *auth.LogoutHandler
+	passwordReset *auth.PasswordResetHandler
+	trainers      *trainersStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -79,8 +82,12 @@ func (s *Router) Routes() *gin.Engine {
 		middleware.SecurityHeaders(),
 		middleware.Logger(s.log),
 		middleware.Recover(s.log),
-		middleware.RateLimit(s.globalLimiter, s.log),
 	)
+	if s.globalLimiter != nil {
+		r.Use(middleware.RateLimit(s.globalLimiter, s.log))
+	} else {
+		s.log.Warn("global rate limiter disabled — redis is not configured")
+	}
 
 	spec, err := os.ReadFile("api.yaml")
 	if err != nil {
@@ -92,47 +99,55 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		var (
-			q               *db.Queries
-			googleHandler   *auth.GoogleHandler
-			localHandler    *auth.LocalHandler
-			waitlistHandler *waitlist.WaitlistHandler
-			logout          *auth.LogoutHandler
-		)
-
-		var rawRedis *redis.Client
-		if s.redis != nil {
-			rawRedis = s.redis.Raw()
-			logout = auth.NewLogoutHandler(s.redis, s.log)
+		impl := &routerImpl{
+			root:   root.NewRootHandler(s.log),
+			health: health.NewHealthHandler(s.log),
 		}
+
+		var q *db.Queries
+
+		if s.redis != nil {
+			impl.logout = auth.NewLogoutHandler(s.redis, s.log)
+		}
+
 		if s.db != nil {
 			q = db.New(s.db)
-
 			usersRepo := auth.NewPostgresUserRepo(q)
-			googleHandler = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-
-			sessionsRepo := auth.NewPostgresSessionRepo(q)
-			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
-			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
-			mailer := s.buildMailer()
-			verifyLimiter := ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
-			registerLimiter := ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
-			localHandler = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
-
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
-			waitlistHandler = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+			sessionsRepo := auth.NewPostgresSessionRepo(q)
+			rolesRepo := auth.NewPostgresRoleRepo(q)
+
+			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+			impl.login = auth.NewLoginHandler(usersRepo, sessionsRepo, rolesRepo, s.log)
+			impl.trainers = newTrainersStore(q)
+
+			// All remaining handlers depend on Redis-backed rate limiters.
+			// If Redis is unavailable, ratelimit.New would hand back limiters
+			// holding a nil *redis.Client and any Allow() call would panic.
+			// Skip those handlers entirely when Redis isn't configured —
+			// downstream forwarders return 503 from the routerImpl methods.
+			if s.redis != nil {
+				codesRepo := auth.NewPostgresVerificationCodeRepo(q)
+				localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
+				passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
+
+				mailer := s.buildMailer()
+				rawRedis := s.redis.Raw()
+				verifyLimiter := ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
+				registerLimiter := ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
+				forgotLimiter := ratelimit.New(rawRedis, "rl:auth:forgot-password", 3, 15*time.Minute)
+				forgotIPLimiter := ratelimit.New(rawRedis, "rl:auth:forgot-password:ip", 10, 15*time.Minute)
+				resetLimiter := ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
+				resetIPLimiter := ratelimit.New(rawRedis, "rl:auth:reset-password:ip", 20, 15*time.Minute)
+
+				impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
+				impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
+			} else {
+				s.log.Warn("redis is not configured — rate-limited auth handlers (local register/verify, password reset) will return 503")
+			}
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
-		}
-
-		impl := &routerImpl{
-			google:   googleHandler,
-			local:    localHandler,
-			root:     root.NewRootHandler(s.log),
-			health:   health.NewHealthHandler(s.log),
-			waitlist: waitlistHandler,
-			logout:   logout,
-			trainers: newTrainersStore(q),
 		}
 
 		authMw := middleware.AuthMiddleware(s.redis)

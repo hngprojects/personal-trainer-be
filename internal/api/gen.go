@@ -296,6 +296,11 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
+// ForgotPasswordRequest defines model for ForgotPasswordRequest.
+type ForgotPasswordRequest struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 // GoogleAuthData defines model for GoogleAuthData.
 type GoogleAuthData struct {
 	AccessToken  string   `json:"access_token"`
@@ -331,6 +336,13 @@ type LocalAuthData struct {
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email openapi_types.Email `json:"email"`
+}
+
+// ResetPasswordRequest defines model for ResetPasswordRequest.
+type ResetPasswordRequest struct {
+	Code        string              `json:"code"`
+	Email       openapi_types.Email `json:"email"`
+	NewPassword string              `json:"new_password"`
 }
 
 // SuccessResponse defines model for SuccessResponse.
@@ -461,6 +473,9 @@ type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
+type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
+
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
@@ -469,6 +484,9 @@ type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
+
+// HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
+type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
@@ -487,6 +505,9 @@ type ServerInterface interface {
 	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
+	// Request a password reset code
+	// (POST /auth/forgot-password)
+	HandleForgotPassword(c *gin.Context)
 	// Initiate Google OAuth — redirects browser to Google consent screen
 	// (GET /auth/google)
 	HandleGoogleLogin(c *gin.Context)
@@ -502,6 +523,9 @@ type ServerInterface interface {
 	// Register or request a new OTP — sends a 6-digit verification code to the email
 	// (POST /auth/register)
 	HandleRegister(c *gin.Context)
+	// Reset password using a previously emailed code
+	// (POST /auth/reset-password)
+	HandleResetPassword(c *gin.Context)
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
@@ -551,6 +575,19 @@ func (siw *ServerInterfaceWrapper) Root(c *gin.Context) {
 	}
 
 	siw.Handler.Root(c)
+}
+
+// HandleForgotPassword operation middleware
+func (siw *ServerInterfaceWrapper) HandleForgotPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleForgotPassword(c)
 }
 
 // HandleGoogleLogin operation middleware
@@ -640,6 +677,19 @@ func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
 	}
 
 	siw.Handler.HandleRegister(c)
+}
+
+// HandleResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleResetPassword(c)
 }
 
 // HandleVerifyEmail operation middleware
@@ -863,11 +913,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
+	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
+	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
