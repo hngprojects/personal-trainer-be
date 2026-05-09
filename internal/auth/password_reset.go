@@ -28,7 +28,13 @@ const (
 	passwordResetCodeExpiry = 10 * time.Minute
 	bcryptCost              = 12
 	minPasswordLen          = 8
-	maxPasswordLen          = 128
+	// bcrypt.GenerateFromPassword silently truncates inputs above 72 bytes (and
+	// in newer versions returns ErrPasswordTooLong). validatePassword measures
+	// byte length (Go's len() on a string returns bytes), so capping here at 72
+	// guarantees a clean 400 validation error instead of letting a 60-character
+	// multi-byte UTF-8 password (>72 bytes) sneak through and crash bcrypt with
+	// a 500 at hash time.
+	maxPasswordLen = 72
 	adminRoleName           = "admin"
 	forgotAsyncTimeout      = 30 * time.Second
 )
@@ -365,7 +371,10 @@ func validatePassword(p string) (string, bool) {
 		return fmt.Sprintf("password must be at least %d characters", minPasswordLen), false
 	}
 	if len(p) > maxPasswordLen {
-		return fmt.Sprintf("password must not exceed %d characters", maxPasswordLen), false
+		// len() is byte-based and so is the bcrypt 72-byte limit we're enforcing,
+		// so phrase the error in bytes to be honest about why a 60-character
+		// emoji-heavy password might be rejected.
+		return fmt.Sprintf("password must not exceed %d bytes", maxPasswordLen), false
 	}
 	var hasUpper, hasLower, hasDigit bool
 	for _, r := range p {

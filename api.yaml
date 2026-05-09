@@ -315,7 +315,8 @@ components:
           type: string
           format: password
           minLength: 8
-          maxLength: 128
+          # Capped at bcrypt's 72-byte hard limit (server enforces byte length).
+          maxLength: 72
           example: "Str0ngPassw0rd"
 
     WaitlistRequest:
