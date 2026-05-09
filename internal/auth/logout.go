@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
@@ -55,7 +56,9 @@ func (h *LogoutHandler) HandleLogout(c *gin.Context) {
 		return
 	}
 
-	if err := h.redis.Set(c.Request.Context(), "blocklist:"+jti, 1, 7*24*time.Hour); err != nil {
+	exp, _ := claims["exp"].(float64)
+	remainingTTL := time.Until(time.Unix(int64(exp), 0))
+	if err := h.redis.Set(c.Request.Context(), common.RedisKeyBlocklist+jti, 1, remainingTTL); err != nil {
 		h.log.Error("failed to blocklist token", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return

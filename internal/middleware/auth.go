@@ -41,11 +41,17 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 			return
 		}
 
+		tokenType, _ := claims["type"].(string)
+		if tokenType != string(auth.AccessToken) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
+			return
+		}
+
 		jti, _ := claims["jti"].(string)
 		userID, _ := claims["sub"].(string)
 
-		if jti != "" {
-			blocked, err := redis.Exists(c.Request.Context(), "blocklist:"+jti)
+		if redis != nil && jti != "" {
+			blocked, err := redis.Exists(c.Request.Context(), common.RedisKeyBlocklist+jti)
 			if err != nil {
 				log.Println("redis check err: ", err)
 				c.AbortWithStatusJSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
@@ -64,7 +70,7 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		}
 
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
-		c.Set("jti", jti)
+		c.Set(string(common.ContextKeyJTI), jti)
 		c.Next()
 	}
 }
