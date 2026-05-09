@@ -131,9 +131,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 		return
 	}
 
-	subject := "Your verification code"
-	body := otpEmailHTML(code, int(codeExpiry.Minutes()))
-	if err := h.mailer.Send(emailAddr, subject, body); err != nil {
+	if err := h.mailer.SendVerificationCode(emailAddr, code, int(codeExpiry.Minutes())); err != nil {
 		h.log.Error("failed to send verification email", "email", emailAddr, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send verification email", api.CodeServerError))
 		return
@@ -265,34 +263,4 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac := hmac.New(sha256.New, []byte(h.otpSecret))
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func otpEmailHTML(code string, expiryMinutes int) string {
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Your Verification Code</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Use the code below to verify your email address.</p>
-        </td></tr>
-        <tr><td align="center" style="padding:24px 0;">
-          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111827;background:#f4f4f5;padding:16px 32px;border-radius:8px;">%s</span>
-        </td></tr>
-        <tr><td align="center" style="padding-top:16px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">Expires in %d minutes. Do not share this code with anyone.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`, code, expiryMinutes)
 }
