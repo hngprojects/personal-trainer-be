@@ -132,6 +132,64 @@ Response:
 }
 ```
 
+### Authentication — Password Recovery (admin-only)
+
+- `POST /api/v1/auth/forgot-password` — request a 6-digit reset code by email
+- `POST /api/v1/auth/reset-password` — set a new password using the emailed code
+
+Both endpoints are gated server-side to users that hold the `admin` role.
+Failures (unknown email, non-admin, deactivated, wrong code) return a generic
+response so the existence of an account or its role cannot be probed.
+
+**Request a reset code**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com"}'
+```
+
+Response (always the same, regardless of whether the email exists):
+
+```json
+{
+  "status": "success",
+  "message": "if the email is registered, a reset code has been sent",
+  "code": "OK",
+  "data": null
+}
+```
+
+In development the code is printed to the server log instead of being emailed
+(see [Email Delivery](#email-delivery) below).
+
+**Reset the password**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","code":"123456","new_password":"Str0ngPassw0rd"}'
+```
+
+On success the code is consumed (single-use) and all existing refresh sessions
+for the user are revoked. The new password must be 8–128 characters and contain
+upper case, lower case, and a digit.
+
+### Email Delivery
+
+Outbound email is sent through one of three mailers, picked at startup in this
+order:
+
+1. **Resend** — if both `RESEND_API_KEY` and `RESEND_FROM` are set.
+2. **SMTP** — if `SMTP_HOST` is set.
+3. **LogMailer** — silent default in development; in any other environment a
+   warning is logged and emails are not delivered.
+
+Resend takes precedence over SMTP whenever it is configured, including in
+development — useful for end-to-end testing of the live email pipeline. To
+fall back to console-only delivery in development, leave the Resend env vars
+empty.
+
 ## Development
 
 ### Available Make Commands
@@ -257,6 +315,19 @@ All configuration is loaded from environment variables at startup:
 - `LOG_LEVEL`: Logging level (`debug`, `info`, `warn`, `error`)
 - `LOG_FORMAT`: Log format (`json`, `text`)
 - `DATABASE_URL`: PostgreSQL connection string
+
+### Email (Resend)
+
+Set both to enable Resend — leave empty to fall back to SMTP / LogMailer:
+
+- `RESEND_API_KEY`: API key from the Resend dashboard
+- `RESEND_FROM`: verified sender address (e.g. `fitcal@hng14.com`)
+
+### Email (SMTP — fallback)
+
+Used only when Resend is not configured:
+
+- `SMTP_HOST`, `SMTP_PORT` (default `587`), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
 
 Missing required variables will cause the server to exit with a descriptive error.
 
