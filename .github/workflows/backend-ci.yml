@@ -52,4 +52,4 @@ jobs:
                 CGO_ENABLED: 1
             
             - name: Build application
-              run: make build
+              run: make buili
