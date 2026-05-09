@@ -26,7 +26,7 @@ components:
 
     SuccessResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -40,14 +40,14 @@ components:
 
     ErrorResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             errors:
               type: array
               nullable: true
               items:
-                $ref: '#/components/schemas/FieldError'
+                $ref: "#/components/schemas/FieldError"
 
     FieldError:
       type: object
@@ -106,7 +106,7 @@ components:
       required: [user, access_token, refresh_token, is_new_user, expires_in]
       properties:
         user:
-          $ref: '#/components/schemas/AuthUser'
+          $ref: "#/components/schemas/AuthUser"
         access_token:
           type: string
         refresh_token:
@@ -155,6 +155,14 @@ components:
           pattern: '^\d{6}$'
           example: "873690"
 
+    WaitlistRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
 security:
   - bearerAuth: []
 
@@ -170,7 +178,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Personal Trainer API is running
@@ -188,7 +196,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Service is healthy
@@ -221,7 +229,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Login successful
@@ -233,15 +241,15 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   expires_in: 600
         "400":
           description: Validation error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Validation error
@@ -254,7 +262,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Invalid email or password
@@ -291,7 +299,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Google authentication successful
@@ -303,8 +311,8 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: false
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   is_new_user: true
                   expires_in: 600
         "400":
@@ -312,7 +320,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Invalid or missing state parameter
@@ -322,7 +330,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Failed to authenticate with Google
@@ -332,7 +340,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Internal server error
@@ -429,8 +437,8 @@ paths:
                     name: "John Doe"
                     user_type: client
                     profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   expires_in: 600
         "400":
           description: Invalid or expired code, or validation error
@@ -458,6 +466,116 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /waitlist:
+    post:
+      security: []
+      operationId: HandleAddWaitlist
+      summary: Handle adding an email address to the waitlist table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: You are already on the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: You're already on the waitlist
+                code: OK
+        "201":
+          description: You have been added to the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Successfully added to the waitlist
+                code: OK
+        "400":
+          description: Invalid or missing email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing email
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+    get:
+      security:
+        - bearerAuth: []
+      operationId: HandleGetWaitlist
+      summary: Handle getting emails or filtered emails in waitlist
+      parameters:
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Waitlists retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Success
+                code: OK
+        "404":
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Requested email is not on the waitlist
+                code: NOT_FOUND
+        "401":
+          description: Client is unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Internal server error

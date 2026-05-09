@@ -14,11 +14,11 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
+	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
 func main() {
@@ -46,17 +46,8 @@ func main() {
 	}
 	log.Info("database connected")
 
-	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	redisClient, err := appredis.New(cfg.RedisURL)
 	if err != nil {
-		log.Error("failed to parse REDIS_URL", "err", err)
-		os.Exit(1)
-	}
-	redisClient := redis.NewClient(redisOpts)
-	defer redisClient.Close()
-
-	redisPingCtx, redisPingCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer redisPingCancel()
-	if err := redisClient.Ping(redisPingCtx).Err(); err != nil {
 		log.Error("failed to connect to redis", "err", err)
 		os.Exit(1)
 	}
@@ -95,5 +86,6 @@ func main() {
 		os.Exit(1)
 	}
 
+	srv.Close()
 	log.Info("server stopped")
 }

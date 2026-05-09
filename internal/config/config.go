@@ -24,8 +24,8 @@ type Config struct {
 	GoogleRedirectURL  string
 
 	OTPSecret string
-
-	RedisURL string
+	RedisURL  string
+	JwtSecret string
 }
 
 func Load() (*Config, error) {
@@ -49,12 +49,15 @@ func Load() (*Config, error) {
 		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
 
 		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
-
-		RedisURL: getenv("REDIS_URL", "redis://localhost:6379"),
+		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
+		JwtSecret: os.Getenv("JWT_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, errors.New("DATABASE_URL is required")
+	}
+	if cfg.JwtSecret == "" {
+		return nil, errors.New("JWT_SECRET is required")
 	}
 
 	return cfg, nil

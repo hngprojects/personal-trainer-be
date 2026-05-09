@@ -17,6 +17,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -42,10 +43,11 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Cl
 }
 
 type routerImpl struct {
-	google *auth.GoogleHandler
-	local  *auth.LocalHandler
-	root   *root.RootHandler
-	health *health.HealthHandler
+	google   *auth.GoogleHandler
+	local    *auth.LocalHandler
+	root     *root.RootHandler
+	health   *health.HealthHandler
+	waitlist *waitlist.WaitlistHandler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -86,11 +88,15 @@ func (s *Router) Routes() *gin.Engine {
 		verifyLimiter := ratelimit.New(s.redis, "rl:auth:verify", 5, 15*time.Minute)
 		registerLimiter := ratelimit.New(s.redis, "rl:auth:register", 3, 15*time.Minute)
 
+		waitlistRepo := waitlist.NewPostgresWaitlistRepo(db.New(s.db))
+		waitlistHandler := waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+
 		impl := &routerImpl{
-			google: auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
-			local:  auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
-			root:   root.NewRootHandler(s.log),
-			health: health.NewHealthHandler(s.log),
+			google:   auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
+			local:    auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
+			root:     root.NewRootHandler(s.log),
+			health:   health.NewHealthHandler(s.log),
+			waitlist: waitlistHandler,
 		}
 		api.RegisterHandlers(v1, impl)
 	}

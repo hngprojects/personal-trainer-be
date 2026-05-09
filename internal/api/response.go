@@ -62,7 +62,7 @@ func NewErrorResponse(message, code string, errors []FieldError) ErrorResponse {
 	}
 }
 
-func NewSuccess(message string, code string, data interface{}) SuccessResponse {
+func NewSuccess(message string, code string, data any) SuccessResponse {
 	return NewSuccessResponse(message, code, data, nil)
 }
 

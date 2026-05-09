@@ -33,6 +33,10 @@ func (e AuthUserUserType) Valid() bool {
 	}
 }
 
+const (
+	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
+)
+
 // Defines values for BaseResponseStatus.
 const (
 	BaseResponseStatusError   BaseResponseStatus = "error"
@@ -203,6 +207,16 @@ type HandleLocalAuthJSONBody struct {
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
+// HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
+type HandleGetWaitlistParams struct {
+	Email *string `form:"email,omitempty" json:"email,omitempty"`
+}
+
+// HandleAddWaitlistJSONBody defines parameters for HandleAddWaitlist.
+type HandleAddWaitlistJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
@@ -211,6 +225,9 @@ type HandleRegisterJSONRequestBody = RegisterRequest
 
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
+
+// HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
+type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -235,6 +252,12 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// Handle getting emails or filtered emails in waitlist
+	// (GET /waitlist)
+	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
+	// Handle adding an email address to the waitlist table
+	// (POST /waitlist)
+	HandleAddWaitlist(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -359,6 +382,48 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	siw.Handler.HealthCheck(c)
 }
 
+// HandleGetWaitlist operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleGetWaitlistParams
+
+	// ------------- Optional query parameter "email" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "email", c.Request.URL.Query(), &params.Email, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter email: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetWaitlist(c, params)
+}
+
+// HandleAddWaitlist operation middleware
+func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAddWaitlist(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -393,4 +458,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
+	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }
