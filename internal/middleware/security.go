@@ -1,4 +1,4 @@
-// middleware/security.go	
+// middleware/security.go
 package middleware
 
 import (

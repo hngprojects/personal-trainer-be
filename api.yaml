@@ -221,32 +221,30 @@ components:
         profile_complete:
           type: boolean
 
-    GoogleAuthResponse:
+    GoogleAuthData:
       type: object
-      required: [status, message, data]
+      required: [user, access_token, refresh_token, is_new_user, expires_in]
       properties:
-        status:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        access_token:
           type: string
-          example: success
-        message:
+        refresh_token:
           type: string
-          example: GOOGLE_AUTH_SUCCESSFUL
-        data:
-          type: object
-          required: [user, access_token, refresh_token, is_new_user, expires_in]
-          properties:
-            user:
-              $ref: "#/components/schemas/AuthUser"
-            access_token:
-              type: string
-            refresh_token:
-              type: string
-            is_new_user:
-              type: boolean
-            expires_in:
-              type: integer
-              example: 600
+        is_new_user:
+          type: boolean
+        expires_in:
+          type: integer
+          example: 600
 
+    GoogleAuthResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/GoogleAuthData"
 security:
   - bearerAuth: []
 

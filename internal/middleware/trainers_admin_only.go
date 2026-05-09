@@ -31,8 +31,8 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		if os.Getenv("ENABLE_MOCK_AUTH") == "1" {
-    		mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
+		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
+			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
 			if mockID != "" {
 				if _, err := uuid.Parse(mockID); err != nil {
@@ -40,14 +40,14 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 					return
 				}
 			}
-    		if mockRole != "" {
-        		if mockRole != "admin" {
-            		c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
-            		return
-        		}
-        		c.Next()
-        		return
-    		}
+			if mockRole != "" {
+				if mockRole != "admin" {
+					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
+					return
+				}
+				c.Next()
+				return
+			}
 		}
 
 		header := c.GetHeader("Authorization")

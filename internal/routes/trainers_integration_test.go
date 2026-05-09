@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
-	"net/url"
-    "strings"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,7 +153,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
 		defer res.Body.Close()
-		
+
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	}
 
@@ -189,19 +189,19 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		res := doReq(t, httpClient, req)
-    	defer res.Body.Close()
-    	require.Equal(t, http.StatusCreated, res.StatusCode)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusCreated, res.StatusCode)
 
-    	// New shape: { "data": { "id": "..." }, ... }
-    	var createResp struct {
-        	Data struct {
-            	ID string `json:"id"`
-        	} `json:"data"`
-    	}
-    	require.NoError(t, json.NewDecoder(res.Body).Decode(&createResp))
-    	require.NotEmpty(t, createResp.Data.ID)
+		// New shape: { "data": { "id": "..." }, ... }
+		var createResp struct {
+			Data struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&createResp))
+		require.NotEmpty(t, createResp.Data.ID)
 
-    	trainerID = createResp.Data.ID
+		trainerID = createResp.Data.ID
 	}
 
 	// 5) Get by id

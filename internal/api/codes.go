@@ -1,4 +1,4 @@
-// api/codes.go 
+// api/codes.go
 package api
 
 const (
