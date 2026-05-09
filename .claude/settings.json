@@ -13,7 +13,9 @@
       "Bash(go mod *)",
       "Bash(git stash *)",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git reset *)"
     ],
     "additionalDirectories": [
       "\\tmp"
