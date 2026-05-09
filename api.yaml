@@ -30,13 +30,13 @@ components:
         - type: object
           properties:
             data:
-              type: object
               nullable: true
-              description: Response payload (omitted when null)
+              description: Any JSON value (object/array/string/number/etc)
+              x-go-type: interface{}
             meta:
-              type: object
               nullable: true
-              description: Pagination or additional metadata (omitted when null)
+              description: Any JSON value (usually object)
+              x-go-type: interface{}
 
     ErrorResponse:
       allOf:
@@ -117,6 +117,181 @@ components:
           type: integer
           example: 600
 
+    GoogleAuthResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/GoogleAuthData"
+
+    Trainer:
+      type: object
+      required:
+        - id
+        - user_id
+        - calendly_connected
+        - onboarding_status
+        - average_rating
+        - total_reviews
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        years_of_experience:
+          type: integer
+          nullable: true
+        intro_video_url:
+          type: string
+          nullable: true
+        display_picture:
+          type: string
+          nullable: true
+        calendly_connected:
+          type: boolean
+        calendly_link:
+          type: string
+          nullable: true
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+        average_rating:
+          type: number
+          nullable: true
+          format: float
+          description: Average rating from client reviews. Null if no reviews yet.
+        total_reviews:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TrainerResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Trainer"
+
+    TrainersListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              maxItems: 1000
+              items:
+                $ref: "#/components/schemas/Trainer"
+
+    CreateTrainerRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+        bio:
+          type: string
+        years_of_experience:
+          type: integer
+        intro_video_url:
+          type: string
+        display_picture:
+          type: string
+        calendly_connected:
+          type: boolean
+        calendly_link:
+          type: string
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+
+    UpdateTrainerRequest:
+      type: object
+      properties:
+        specialization:
+          type: string
+        bio:
+          type: string
+        years_of_experience:
+          type: integer
+        intro_video_url:
+          type: string
+        display_picture:
+          type: string
+        calendly_connected:
+          type: boolean
+        calendly_link:
+          type: string
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+
+    LocalAuthData:
+      type: object
+      required: [user, access_token, refresh_token, expires_in]
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          example: 600
+
+    RegisterRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    VerifyEmailRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^\d{6}$'
+          example: "873690"
+
+    WaitlistRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
 security:
   - bearerAuth: []
 
@@ -195,8 +370,8 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   expires_in: 600
         "400":
           description: Validation error
@@ -221,6 +396,64 @@ paths:
                 status: error
                 message: Invalid email or password
                 code: UNAUTHORIZED
+
+  /auth/logout:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleLogout
+      summary: Logs out the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Logout successful
+                code: OK
+        "400":
+          description: Missing or invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: refresh token is required
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: unauthorized
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: internal server error
+                code: SERVER_ERROR
 
   /auth/google:
     get:
@@ -253,7 +486,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/GoogleAuthResponse"
               example:
                 status: success
                 message: Google authentication successful
@@ -265,8 +498,8 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: false
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   is_new_user: true
                   expires_in: 600
         "400":
@@ -299,6 +532,344 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /auth/register:
+    post:
+      security: []
+      operationId: HandleRegister
+      summary: Register or request a new OTP — sends a 6-digit verification code to the email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Verification code sent to your email
+                code: CREATED
+                data: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: invalid email format
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: too many requests, please try again later
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /auth/verify-email:
+    post:
+      security: []
+      operationId: HandleVerifyEmail
+      summary: Verify email with OTP — completes signup/login and returns JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified — tokens issued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalAuthData"
+              example:
+                status: success
+                message: Email verified successfully
+                code: OK
+                data:
+                  user:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "john@example.com"
+                    name: "John Doe"
+                    user_type: client
+                    profile_complete: true
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
+        "400":
+          description: Invalid or expired code, or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid or expired verification code
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: too many attempts, please request a new code
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /trainers:
+    get:
+      operationId: GetTrainers
+      summary: Get trainers (admin only)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by category (maps to trainers.specialization)
+      responses:
+        "200":
+          description: Trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainersListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: CreateTrainer
+      summary: Add trainer (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrainerRequest"
+      responses:
+        "201":
+          description: Trainer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}:
+    get:
+      operationId: GetTrainerByID
+      summary: Get trainer by ID (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trainer fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: UpdateTrainer
+      summary: Update trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTrainerRequest"
+      responses:
+        "200":
+          description: Trainer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: DeleteTrainer
+      summary: Delete trainer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Trainer deleted
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /waitlist:
     post:
