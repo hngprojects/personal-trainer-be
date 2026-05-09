@@ -126,17 +126,17 @@ func (s *Router) Routes() *gin.Engine {
 			mailer := s.buildMailer()
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
-			// in NoopLimiter (always-allow) so the auth endpoints stay up
+			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
 			// instead of returning 503 across the board. Real Redis-Allow errors
 			// at request time already fail open; this matches that behaviour for
 			// the "no backend at all" startup case.
 			var (
-				verifyLimiter   ratelimit.RateLimiter = ratelimit.NoopLimiter{}
-				registerLimiter ratelimit.RateLimiter = ratelimit.NoopLimiter{}
-				forgotLimiter   ratelimit.RateLimiter = ratelimit.NoopLimiter{}
-				forgotIPLimiter ratelimit.RateLimiter = ratelimit.NoopLimiter{}
-				resetLimiter    ratelimit.RateLimiter = ratelimit.NoopLimiter{}
-				resetIPLimiter  ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				verifyLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				registerLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				forgotLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				forgotIPLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				resetLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				resetIPLimiter  ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 			)
 			if s.redis != nil {
 				rawRedis := s.redis.Raw()
