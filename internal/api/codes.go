@@ -10,6 +10,7 @@ const (
 	CodeUnauthorized = "UNAUTHORIZED"
 	CodeForbidden    = "FORBIDDEN"
 	CodeNotFound     = "NOT_FOUND"
+	CodeConflict     = "CONFLICT"
 
 	// Server Error
 	CodeServerError    = "SERVER_ERROR"

@@ -26,7 +26,7 @@ components:
 
     SuccessResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -40,14 +40,14 @@ components:
 
     ErrorResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             errors:
               type: array
               nullable: true
               items:
-                $ref: '#/components/schemas/FieldError'
+                $ref: "#/components/schemas/FieldError"
 
     FieldError:
       type: object
@@ -106,7 +106,7 @@ components:
       required: [user, access_token, refresh_token, is_new_user, expires_in]
       properties:
         user:
-          $ref: '#/components/schemas/AuthUser'
+          $ref: "#/components/schemas/AuthUser"
         access_token:
           type: string
         refresh_token:
@@ -132,7 +132,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Personal Trainer API is running
@@ -150,7 +150,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Service is healthy
@@ -183,7 +183,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Login successful
@@ -203,7 +203,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Validation error
@@ -216,7 +216,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Invalid email or password
@@ -253,7 +253,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Google authentication successful
@@ -274,7 +274,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Invalid or missing state parameter
@@ -284,7 +284,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Failed to authenticate with Google
@@ -294,8 +294,83 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /admin/invites:
+    post:
+      operationId: CreateAdminInvite
+      summary: Send an admin invite (super_admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string, minLength: 1 }
+      responses:
+        "201": { description: Invite sent }
+        "403": { description: Not a super admin }
+        "409": { description: Email already a user or has a pending invite }
+
+  /admin/invites/{token}:
+    get:
+      operationId: GetAdminInvite
+      summary: Validate an invite token (used by the frontend accept page)
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Invite is valid
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [email, name]
+                        properties:
+                          email: { type: string }
+                          name: { type: string }
+        "404": { description: Invalid or expired }
+
+  /admin/invites/{token}/accept:
+    post:
+      operationId: AcceptAdminInvite
+      summary: Accept the invite — creates the admin account and returns the generated password
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: |
+            Account created. The `password` field is the generated password
+            and is returned ONLY in this response. Display it to the user once;
+            there is no API to retrieve it again.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [user, password, access_token, refresh_token]
+                        properties:
+                          user: { $ref: "#/components/schemas/AuthUser" }
+                          password: { type: string }
+                          access_token: { type: string }
+                          refresh_token: { type: string }
+        "404": { description: Invalid or expired }

@@ -13,8 +13,13 @@ import (
 
 // UserRepository defines what the auth feature needs from the users table.
 type UserRepository interface {
-	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
-	Create(ctx context.Context, email, name, provider string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
+	Create(ctx context.Context, email, name string) (*db.User, error)
+	CreateLocal(ctx context.Context, email, name, passwordHash string) (*db.User, error)
+	UpdateLastLogin(ctx context.Context, id uuid.UUID) error
+	ListRoleNames(ctx context.Context, userID uuid.UUID) ([]string, error)
+	AssignRole(ctx context.Context, userID uuid.UUID, roleName string) error
+	WithTx(tx *sql.Tx) UserRepository
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -31,11 +36,8 @@ func NewPostgresUserRepo(q *db.Queries) UserRepository {
 	return &postgresUserRepo{q: q}
 }
 
-func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error) {
-	user, err := r.q.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
-		Email:        email,
-		AuthProvider: provider,
-	})
+func (r *postgresUserRepo) FindByEmail(ctx context.Context, email string) (*db.User, error) {
+	user, err := r.q.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, pkgerrors.ErrNotFound
@@ -45,14 +47,45 @@ func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, pr
 	return &user, nil
 }
 
-func (r *postgresUserRepo) Create(ctx context.Context, email, name, provider string) (*db.User, error) {
+func (r *postgresUserRepo) Create(ctx context.Context, email, name string) (*db.User, error) {
 	user, err := r.q.CreateUser(ctx, db.CreateUserParams{
 		Email:        email,
 		Name:         name,
-		AuthProvider: provider,
+		PasswordHash: sql.NullString{Valid: false},
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *postgresUserRepo) CreateLocal(ctx context.Context, email, name, passwordHash string) (*db.User, error) {
+	user, err := r.q.CreateUser(ctx, db.CreateUserParams{
+		Email:        email,
+		Name:         name,
+		PasswordHash: sql.NullString{String: passwordHash, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
+	return r.q.UpdateLastLogin(ctx, id)
+}
+
+func (r *postgresUserRepo) ListRoleNames(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	return r.q.ListUserRoleNames(ctx, userID)
+}
+
+func (r *postgresUserRepo) AssignRole(ctx context.Context, userID uuid.UUID, roleName string) error {
+	return r.q.AssignRoleToUser(ctx, db.AssignRoleToUserParams{
+		UserID: userID,
+		Name:   roleName,
+	})
+}
+
+func (r *postgresUserRepo) WithTx(tx *sql.Tx) UserRepository {
+	return &postgresUserRepo{q: r.q.WithTx(tx)}
 }
