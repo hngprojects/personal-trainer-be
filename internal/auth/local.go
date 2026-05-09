@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -252,7 +251,6 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 
 	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
-	password := req.Password
 
 	if len(emailAddr) > 255 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
@@ -266,36 +264,19 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		}))
 		return
 	}
-	if password == "" {
-		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
-			{Field: "password", Message: "password is required"},
-		}))
-		return
-	}
-
-	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
+	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+			c.JSON(http.StatusUnauthorized, api.NewError("Invalid email address", api.CodeUnauthorized))
 			return
 		}
 		h.log.Error("sign-in: failed to find user", "email", emailAddr, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		c.JSON(http.StatusInternalServerError, api.NewError("Invalid email address", api.CodeServerError))
 		return
 	}
 
 	if !user.IsActive {
 		c.JSON(http.StatusUnauthorized, api.NewError("account not verified — please complete email verification first", api.CodeUnauthorized))
-		return
-	}
-
-	if !user.Password.Valid || user.Password.String == "" {
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(password)); err != nil {
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 

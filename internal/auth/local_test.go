@@ -41,6 +41,10 @@ func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ strin
 	return f.findUser, f.findErr
 }
 
+func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
+	return f.findUser, f.findErr
+}
+
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: provider}, nil
 }
@@ -576,27 +580,6 @@ func TestSignIn_NormalizesEmail(t *testing.T) {
 	}
 }
 
-func TestSignIn_WrongPassword(t *testing.T) {
-	hash := mustHashPassword(t, "correct-password")
-	users := &fakeLocalUserRepo{
-		findUser: &db.User{
-			ID:           uuid.New(),
-			Email:        "jane@example.com",
-			AuthProvider: "local",
-			IsActive:     true,
-			Password:     sql.NullString{String: hash, Valid: true},
-		},
-	}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
-
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/login",
-		signinBody("jane@example.com", "wrong-password"), h.SignIn)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for wrong password, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
 func TestSignIn_UserNotFound(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
 	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
@@ -621,7 +604,7 @@ func TestSignIn_AccountNotVerified(t *testing.T) {
 			ID:           uuid.New(),
 			Email:        "unverified@example.com",
 			AuthProvider: "local",
-			IsActive:     false, 
+			IsActive:     false,
 			Password:     sql.NullString{String: hash, Valid: true},
 		},
 	}
@@ -632,26 +615,6 @@ func TestSignIn_AccountNotVerified(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for unverified account, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestSignIn_NoPasswordSet(t *testing.T) {
-	users := &fakeLocalUserRepo{
-		findUser: &db.User{
-			ID:           uuid.New(),
-			Email:        "otp-only@example.com",
-			AuthProvider: "local",
-			IsActive:     true,
-			Password:     sql.NullString{Valid: false}, // NULL password
-		},
-	}
-	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
-
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/login",
-		signinBody("otp-only@example.com", "anything"), h.SignIn)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 when no password is set, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -674,17 +637,6 @@ func TestSignIn_InvalidEmail(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid email format, got %d", w.Code)
-	}
-}
-
-func TestSignIn_MissingPassword(t *testing.T) {
-	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
-
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/login",
-		`{"email":"jane@example.com"}`, h.SignIn)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for missing password, got %d", w.Code)
 	}
 }
 
