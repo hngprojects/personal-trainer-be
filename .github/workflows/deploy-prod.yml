@@ -1,0 +1,29 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - prod 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            cd personal-trainer-be
+
+            git pull origin prod
+            
+            docker compose up -d redis
+            
+            go build -o bin/server ./cmd/server
+
+            
