@@ -204,6 +204,10 @@ type HandleLocalAuthJSONBody struct {
 	Password string              `json:"password"`
 }
 
+// HandleLogoutJSONBody defines parameters for HandleLogout.
+type HandleLogoutJSONBody struct {
+	RefreshToken string `json:"refresh_token"`
+}
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
@@ -220,6 +224,8 @@ type HandleAddWaitlistJSONBody struct {
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
+// HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
+type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
 
@@ -243,6 +249,9 @@ type ServerInterface interface {
 	// Login with email and password
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
+	// Logs out the authenticated user
+	// (POST /auth/logout)
+	HandleLogout(c *gin.Context)
 	// Register or request a new OTP — sends a 6-digit verification code to the email
 	// (POST /auth/register)
 	HandleRegister(c *gin.Context)
@@ -343,6 +352,10 @@ func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
 	siw.Handler.HandleLocalAuth(c)
 }
 
+// HandleLogout operation middleware
+func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
 // HandleRegister operation middleware
 func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
 
@@ -366,6 +379,7 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 		}
 	}
 
+	siw.Handler.HandleLogout(c)
 	siw.Handler.HandleVerifyEmail(c)
 }
 
@@ -455,6 +469,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)

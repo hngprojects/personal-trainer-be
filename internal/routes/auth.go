@@ -27,6 +27,12 @@ func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, api.NewError("not implemented", api.CodeNotImplemented))
 }
 
+func (s *routerImpl) HandleLogout(c *gin.Context) {
+	if s.logout == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.logout.HandleLogout(c)
 func (s *routerImpl) HandleRegister(c *gin.Context) {
 	if s.local == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
