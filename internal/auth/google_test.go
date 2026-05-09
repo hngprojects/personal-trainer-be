@@ -41,6 +41,14 @@ func (f *fakeUserRepo) Create(_ context.Context, email, name, provider string) (
 	}, nil
 }
 
+func (f *fakeUserRepo) CreateEmailUser(_ context.Context, email string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local"}, nil
+}
+
+func (f *fakeUserRepo) MarkVerified(_ context.Context, email string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
+}
+
 func testHandler(repo auth.UserRepository) *auth.GoogleHandler {
 	cfg := &config.Config{
 		GoogleClientID:     "test-client-id",

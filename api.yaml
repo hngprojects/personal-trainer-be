@@ -117,6 +117,52 @@ components:
           type: integer
           example: 600
 
+    LocalAuthData:
+      type: object
+      required: [user, access_token, refresh_token, expires_in]
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          example: 600
+
+    RegisterRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    VerifyEmailRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^\d{6}$'
+          example: "873690"
+
+    WaitlistRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
 security:
   - bearerAuth: []
 
@@ -195,8 +241,8 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   expires_in: 600
         "400":
           description: Validation error
@@ -265,8 +311,8 @@ paths:
                     name: "Jane Doe"
                     user_type: client
                     profile_complete: false
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
                   is_new_user: true
                   expires_in: 600
         "400":
@@ -295,6 +341,131 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /auth/register:
+    post:
+      security: []
+      operationId: HandleRegister
+      summary: Register or request a new OTP — sends a 6-digit verification code to the email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        "201":
+          description: Verification code sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: Verification code sent to your email
+                code: CREATED
+                data: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: invalid email format
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: too many requests, please try again later
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /auth/verify-email:
+    post:
+      security: []
+      operationId: HandleVerifyEmail
+      summary: Verify email with OTP — completes signup/login and returns JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        "200":
+          description: Email verified — tokens issued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LocalAuthData'
+              example:
+                status: success
+                message: Email verified successfully
+                code: OK
+                data:
+                  user:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    email: "john@example.com"
+                    name: "John Doe"
+                    user_type: client
+                    profile_complete: true
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
+        "400":
+          description: Invalid or expired code, or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: invalid or expired verification code
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: too many attempts, please request a new code
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
               example:
                 status: error
                 message: Internal server error
