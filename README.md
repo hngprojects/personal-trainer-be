@@ -160,8 +160,9 @@ Response (always the same, regardless of whether the email exists):
 }
 ```
 
-In development the code is printed to the server log instead of being emailed
-(see [Email Delivery](#email-delivery) below).
+In development the email is dispatched through the LogMailer. The reset code
+itself is **not** written to logs — see [Email Delivery](#email-delivery)
+below for why and how to capture it for local E2E testing.
 
 **Reset the password**
 
@@ -182,8 +183,21 @@ order:
 
 1. **Resend** — if both `RESEND_API_KEY` and `RESEND_FROM` are set.
 2. **SMTP** — if `SMTP_HOST` is set.
-3. **LogMailer** — silent default in development; in any other environment a
-   warning is logged and emails are not delivered.
+3. **LogMailer** — default in development when neither of the above is set.
+   In any other environment a warning is logged and emails are not delivered.
+
+**LogMailer behaviour by email type (development only)**
+
+| Email type | What is logged |
+| --- | --- |
+| Email verification code (signup / login OTP) | Recipient, subject, **and the rendered body containing the code** |
+| Password reset code | Recipient, subject, expiry — **the code itself is redacted** |
+
+Verification codes are written to the log so the local signup/login OTP flow
+works end-to-end without an inbox. Password reset codes are deliberately *not*
+logged: a leaked log file is enough to take over an admin account. If you need
+the live reset code in a local test, use a test-only mailer stub that captures
+it directly, not the LogMailer.
 
 Resend takes precedence over SMTP whenever it is configured, including in
 development — useful for end-to-end testing of the live email pipeline. To

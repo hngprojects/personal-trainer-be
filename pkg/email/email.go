@@ -198,11 +198,16 @@ func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) e
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
+// SendPasswordResetCode logs only metadata — never the rendered body, which
+// contains the live reset code. If the LogMailer is ever enabled outside an
+// isolated local workflow, anyone with log access could otherwise reset
+// accounts. Local E2E flows that need the actual code should use a test stub
+// (e.g. a fake mailer that captures the args), not the LogMailer.
 func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
-	body, err := passwordResetHTML(code, expiryMinutes)
-	if err != nil {
-		return err
-	}
-	slog.Info("email", "to", to, "subject", passwordResetSubject, "body", body)
+	slog.Info("email (password reset code redacted)",
+		"to", to,
+		"subject", passwordResetSubject,
+		"expires_in_minutes", expiryMinutes,
+	)
 	return nil
 }

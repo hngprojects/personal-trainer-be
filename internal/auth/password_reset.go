@@ -339,14 +339,15 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 		return
 	}
 
+	// Reset only per-email buckets on success. The per-IP bucket is left to age
+	// out — clearing it would let an attacker with one valid admin reset code
+	// refresh the shared IP budget and keep guessing other accounts' codes from
+	// the same source.
 	if err := h.resetLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("failed to reset reset-password limiter", "err", err)
 	}
 	if err := h.forgotLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("failed to reset forgot-password limiter", "err", err)
-	}
-	if err := h.resetIPLimiter.Reset(c.Request.Context(), c.ClientIP()); err != nil {
-		h.log.Warn("failed to reset reset-password IP limiter", "err", err)
 	}
 
 	h.log.Info("password reset successful", "user_id", updated.ID.String())

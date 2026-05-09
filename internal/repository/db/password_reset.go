@@ -65,9 +65,22 @@ func (q *Queries) DeletePasswordResetCodes(ctx context.Context, email string) er
 // bcrypt.CompareHashAndPassword on a NULL/empty hash short-circuits.
 var ErrEmptyPassword = errors.New("password must not be empty")
 
+// updateUserPassword updates an admin's password atomically. The EXISTS
+// subquery re-checks the admin role inside the same statement (and inside the
+// surrounding transaction), so a role revoked between the handler-level role
+// check and this UPDATE will cause the row to be filtered out — the caller
+// then sees sql.ErrNoRows and surfaces the same generic "invalid or expired
+// reset code" response.
 const updateUserPassword = `
 UPDATE users SET password = $2, updated_at = NOW()
-WHERE email = $1 AND auth_provider = 'local' AND is_active = true
+WHERE email = $1
+  AND auth_provider = 'local'
+  AND is_active = true
+  AND EXISTS (
+      SELECT 1 FROM user_roles ur
+      INNER JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = users.id AND r.name = 'admin'
+  )
 RETURNING id, email, COALESCE(name, ''), password, auth_provider, is_active, created_at, updated_at
 `
 

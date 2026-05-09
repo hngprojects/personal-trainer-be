@@ -115,35 +115,43 @@ func (s *Router) Routes() *gin.Engine {
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
 			rolesRepo := auth.NewPostgresRoleRepo(q)
+			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
+			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
+			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
 			impl.trainers = newTrainersStore(q)
 
-			// All remaining handlers depend on Redis-backed rate limiters.
-			// If Redis is unavailable, ratelimit.New would hand back limiters
-			// holding a nil *redis.Client and any Allow() call would panic.
-			// Skip those handlers entirely when Redis isn't configured —
-			// downstream forwarders return 503 from the routerImpl methods.
+			mailer := s.buildMailer()
+
+			// Rate limiters are Redis-backed. When Redis is unavailable we wire
+			// in NoopLimiter (always-allow) so the auth endpoints stay up
+			// instead of returning 503 across the board. Real Redis-Allow errors
+			// at request time already fail open; this matches that behaviour for
+			// the "no backend at all" startup case.
+			var (
+				verifyLimiter   ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				registerLimiter ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				forgotLimiter   ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				forgotIPLimiter ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				resetLimiter    ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+				resetIPLimiter  ratelimit.RateLimiter = ratelimit.NoopLimiter{}
+			)
 			if s.redis != nil {
-				codesRepo := auth.NewPostgresVerificationCodeRepo(q)
-				localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
-				passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
-
-				mailer := s.buildMailer()
 				rawRedis := s.redis.Raw()
-				verifyLimiter := ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
-				registerLimiter := ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
-				forgotLimiter := ratelimit.New(rawRedis, "rl:auth:forgot-password", 3, 15*time.Minute)
-				forgotIPLimiter := ratelimit.New(rawRedis, "rl:auth:forgot-password:ip", 10, 15*time.Minute)
-				resetLimiter := ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
-				resetIPLimiter := ratelimit.New(rawRedis, "rl:auth:reset-password:ip", 20, 15*time.Minute)
-
-				impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
-				impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
+				verifyLimiter = ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
+				registerLimiter = ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
+				forgotLimiter = ratelimit.New(rawRedis, "rl:auth:forgot-password", 3, 15*time.Minute)
+				forgotIPLimiter = ratelimit.New(rawRedis, "rl:auth:forgot-password:ip", 10, 15*time.Minute)
+				resetLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
+				resetIPLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password:ip", 20, 15*time.Minute)
 			} else {
-				s.log.Warn("redis is not configured — rate-limited auth handlers (local register/verify, password reset) will return 503")
+				s.log.Warn("redis is not configured — auth rate limits disabled (using no-op limiters)")
 			}
+
+			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
+			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
