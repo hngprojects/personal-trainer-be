@@ -24,7 +24,7 @@ func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger) *WaitlistHand
 
 func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	var req struct {
-		Email string `json:"email" binding:"required,email"`
+		Email string `json:"email" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -34,6 +34,13 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	// Validate email format after normalization
+	if !isValidEmail(email) {
+		h.log.Warn("invalid email format", "email", email)
+		c.JSON(http.StatusBadRequest, api.NewErrorResponse("Invalid or missing email", api.CodeBadRequest, nil))
+		return
+	}
 
 	// Check if email already exists
 	_, err := h.repo.GetByEmail(c.Request.Context(), email)
@@ -110,4 +117,26 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Success", api.CodeOK, data))
+}
+
+// isValidEmail is a simple email validation function.
+// It checks for basic email format: something@something.something
+func isValidEmail(email string) bool {
+	if len(email) == 0 {
+		return false
+	}
+	// Reject if there are any spaces
+	if strings.Contains(email, " ") {
+		return false
+	}
+	// Must contain @ and at least one dot after @
+	atIdx := strings.Index(email, "@")
+	if atIdx < 1 {
+		return false
+	}
+	dotIdx := strings.Index(email[atIdx:], ".")
+	if dotIdx < 2 {
+		return false
+	}
+	return true
 }
