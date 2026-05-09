@@ -292,7 +292,8 @@ type SuccessResponseStatus string
 
 // Trainer defines model for Trainer.
 type Trainer struct {
-	AverageRating     float32                 `json:"average_rating"`
+	// AverageRating Average rating from client reviews. Null if no reviews yet.
+	AverageRating     *float32                `json:"average_rating"`
 	Bio               *string                 `json:"bio,omitempty"`
 	CalendlyConnected bool                    `json:"calendly_connected"`
 	CalendlyLink      *string                 `json:"calendly_link,omitempty"`

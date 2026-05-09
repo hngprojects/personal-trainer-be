@@ -127,6 +127,9 @@ components:
           enum: [pending, approved, rejected, suspended]
         average_rating:
           type: number
+          nullable: true
+          format: float
+          description: Average rating from client reviews. Null if no reviews yet.
         total_reviews:
           type: integer
         created_at:

@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"net/url"
+    "strings"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,9 +25,26 @@ import (
 func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 
+	// Hard opt-in: this suite is destructive (TRUNCATE ... CASCADE).
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "1" {
+		t.Skip("integration tests disabled; set RUN_INTEGRATION_TESTS=1 to enable (destructive TRUNCATE)")
+	}
+
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		t.Skip("DATABASE_URL not set; skipping trainers integration test")
+	}
+
+	// Safety check: refuse to run against a DB that doesn't look like an isolated test database.
+	u, err := url.Parse(dsn)
+	require.NoError(t, err)
+
+	dbName := strings.TrimPrefix(u.Path, "/")
+	require.NotEmpty(t, dbName, "DATABASE_URL must include a database name")
+
+	lower := strings.ToLower(dbName)
+	if !strings.Contains(lower, "test") && !strings.Contains(lower, "_it") && !strings.Contains(lower, "integration") {
+		t.Fatalf("refusing to run destructive integration test against database %q (DATABASE_URL); use a dedicated test DB (name should contain 'test'/'_it'/'integration')", dbName)
 	}
 
 	db, err := sql.Open("pgx", dsn)

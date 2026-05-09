@@ -3,6 +3,7 @@ package middleware
 import (
 	"database/sql"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,25 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 		if !strings.HasPrefix(path, "/api/v1/trainers") {
 			c.Next()
 			return
+		}
+
+		if os.Getenv("ENABLE_MOCK_AUTH") == "1" {
+    		mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
+			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
+			if mockID != "" {
+				if _, err := uuid.Parse(mockID); err != nil {
+					c.AbortWithStatusJSON(http.StatusBadRequest, api.NewError("Invalid X-Mock-User-ID header; must be a valid UUID", api.CodeBadRequest))
+					return
+				}
+			}
+    		if mockRole != "" {
+        		if mockRole != "admin" {
+            		c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
+            		return
+        		}
+        		c.Next()
+        		return
+    		}
 		}
 
 		header := c.GetHeader("Authorization")
