@@ -57,7 +57,6 @@ func (s *Router) Close() {
 type routerImpl struct {
 	google        *auth.GoogleHandler
 	local         *auth.LocalHandler
-	login         *auth.LoginHandler
 	root          *root.RootHandler
 	health        *health.HealthHandler
 	waitlist      *waitlist.WaitlistHandler
@@ -119,7 +118,6 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
-			impl.login = auth.NewLoginHandler(usersRepo, sessionsRepo, rolesRepo, s.log)
 			impl.trainers = newTrainersStore(q)
 
 			// All remaining handlers depend on Redis-backed rate limiters.
@@ -176,19 +174,30 @@ func (s *Router) Routes() *gin.Engine {
 	return r
 }
 
+// buildMailer picks a mailer in this order:
+//  1. Resend, if both RESEND_API_KEY and RESEND_FROM are set (works in any env).
+//  2. SMTP, if SMTP_HOST is set.
+//  3. LogMailer — silent in development (expected), warns in any other env.
+//
+// Setting a real mailer explicitly takes precedence over the development
+// default, so devs can opt into live email delivery for end-to-end testing.
 func (s *Router) buildMailer() email.Mailer {
-	if s.cfg.Env == "development" {
-		return email.NewLogMailer()
+	if s.cfg.ResendAPIKey != "" && s.cfg.ResendFrom != "" {
+		s.log.Info("using Resend mailer", "from", s.cfg.ResendFrom)
+		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom)
 	}
-	if s.cfg.SMTPHost == "" {
-		s.log.Warn("SMTP not configured — falling back to log mailer; verification emails will NOT be delivered")
-		return email.NewLogMailer()
+	if s.cfg.SMTPHost != "" {
+		s.log.Info("using SMTP mailer", "host", s.cfg.SMTPHost, "from", s.cfg.SMTPFrom)
+		return email.NewSMTPMailer(
+			s.cfg.SMTPHost,
+			s.cfg.SMTPPort,
+			s.cfg.SMTPUser,
+			s.cfg.SMTPPassword,
+			s.cfg.SMTPFrom,
+		)
 	}
-	return email.NewSMTPMailer(
-		s.cfg.SMTPHost,
-		s.cfg.SMTPPort,
-		s.cfg.SMTPUser,
-		s.cfg.SMTPPassword,
-		s.cfg.SMTPFrom,
-	)
+	if s.cfg.Env != "development" {
+		s.log.Warn("no mailer configured (Resend or SMTP) — falling back to log mailer; verification emails will NOT be delivered")
+	}
+	return email.NewLogMailer()
 }

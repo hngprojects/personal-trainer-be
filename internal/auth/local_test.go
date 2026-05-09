@@ -126,6 +126,19 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
 
+// fakeLocalRoleRepo controls UserHasRole behaviour for local-auth tests.
+type fakeLocalRoleRepo struct {
+	hasRole map[string]bool
+	err     error
+}
+
+func (f *fakeLocalRoleRepo) UserHasRole(_ context.Context, _ uuid.UUID, roleName string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.hasRole[roleName], nil
+}
+
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
 	allowed bool
@@ -157,7 +170,9 @@ func (c *countingRateLimiter) Reset(_ context.Context, _ string) error {
 
 func newLocalTestHandler(t *testing.T, users auth.UserRepository, sessions auth.SessionRepository, codes auth.VerificationCodeRepository, localAuth auth.LocalAuthRepository, mailer *fakeMailer) *auth.LocalHandler {
 	t.Helper()
-	return auth.NewLocalHandler(users, sessions, codes, localAuth, mailer, discardLog, "test-otp-secret",
+	return auth.NewLocalHandler(users, sessions, codes, localAuth, &fakeLocalRoleRepo{}, mailer, discardLog, "test-otp-secret",
+		&fakeRateLimiter{allowed: true},
+		&fakeRateLimiter{allowed: true},
 		&fakeRateLimiter{allowed: true},
 		&fakeRateLimiter{allowed: true},
 	)
@@ -302,9 +317,11 @@ func TestRegister_FindUserDBError(t *testing.T) {
 func TestRegister_RateLimited(t *testing.T) {
 	users := &fakeLocalUserRepo{findErr: auth.ErrNotFound}
 	registerLimiter := &countingRateLimiter{maxAllowed: 3}
-	h := auth.NewLocalHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
+	h := auth.NewLocalHandler(users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeLocalRoleRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
 		&fakeRateLimiter{allowed: true},
 		registerLimiter,
+		&fakeRateLimiter{allowed: true},
+		&fakeRateLimiter{allowed: true},
 	)
 
 	// Exhaust the 3 allowed register attempts
@@ -489,8 +506,10 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 
 func TestVerifyEmail_RateLimited(t *testing.T) {
 	verifyLimiter := &countingRateLimiter{maxAllowed: 5}
-	h := auth.NewLocalHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: auth.ErrNotFound}, &fakeMailer{}, discardLog, "test-otp-secret",
+	h := auth.NewLocalHandler(&fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: auth.ErrNotFound}, &fakeLocalRoleRepo{}, &fakeMailer{}, discardLog, "test-otp-secret",
 		verifyLimiter,
+		&fakeRateLimiter{allowed: true},
+		&fakeRateLimiter{allowed: true},
 		&fakeRateLimiter{allowed: true},
 	)
 
