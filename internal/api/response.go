@@ -1,10 +1,6 @@
 package api
 
-import (
-	"encoding/json"
-	"fmt"
-	"log/slog"
-)
+import "fmt"
 
 func NewSuccessResponse(message, code string, data interface{}, meta interface{}) SuccessResponse {
 	resp := SuccessResponse{
@@ -12,40 +8,15 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 		Message: message,
 		Status:  SuccessResponseStatusSuccess,
 	}
+
 	if data != nil {
-		var d map[string]interface{}
-		switch v := data.(type) {
-		case map[string]interface{}:
-			d = v
-		default:
-			b, err := json.Marshal(v)
-			if err != nil {
-				slog.Error("failed to marshal response data", "err", err)
-			} else if err := json.Unmarshal(b, &d); err != nil {
-				slog.Error("failed to unmarshal response data", "err", err)
-			}
-		}
-		if d != nil {
-			resp.Data = &d
-		}
+		// allow object OR array OR any JSON value
+		resp.Data = &data
 	}
 	if meta != nil {
-		var m map[string]interface{}
-		switch v := meta.(type) {
-		case map[string]interface{}:
-			m = v
-		default:
-			b, err := json.Marshal(v)
-			if err != nil {
-				slog.Error("failed to marshal response meta", "err", err)
-			} else if err := json.Unmarshal(b, &m); err != nil {
-				slog.Error("failed to unmarshal response meta", "err", err)
-			}
-		}
-		if m != nil {
-			resp.Meta = &m
-		}
+		resp.Meta = &meta
 	}
+
 	return resp
 }
 

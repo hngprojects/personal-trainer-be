@@ -112,7 +112,7 @@ type fakeMailer struct {
 	err error
 }
 
-func (m *fakeMailer) Send(_, _, _ string) error {
+func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error {
 	return m.err
 }
 

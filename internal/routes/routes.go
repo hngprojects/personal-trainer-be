@@ -19,6 +19,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
+	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -28,17 +29,21 @@ type Router struct {
 	cfg           *config.Config
 	log           *slog.Logger
 	db            *sql.DB
-	redis         *redis.Client
+	redis         *appredis.Client
 	globalLimiter ratelimit.RateLimiter
 }
 
-func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Client) *Router {
+func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
+	var rawRedis *redis.Client
+	if redisClient != nil {
+		rawRedis = redisClient.Raw()
+	}
 	return &Router{
 		cfg:           cfg,
 		log:           log,
 		db:            db,
 		redis:         redisClient,
-		globalLimiter: ratelimit.New(redisClient, "rl:global", 100, time.Minute),
+		globalLimiter: ratelimit.New(rawRedis, "rl:global", 100, time.Minute),
 	}
 }
 
@@ -55,6 +60,7 @@ type routerImpl struct {
 	health   *health.HealthHandler
 	waitlist *waitlist.WaitlistHandler
 	logout   *auth.LogoutHandler
+	trainers *trainersStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -86,45 +92,66 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		var google *auth.GoogleHandler
-		var waitlistHandler *waitlist.WaitlistHandler
-		var logout *auth.LogoutHandler
+		var (
+			q               *db.Queries
+			googleHandler   *auth.GoogleHandler
+			localHandler    *auth.LocalHandler
+			waitlistHandler *waitlist.WaitlistHandler
+			logout          *auth.LogoutHandler
+		)
 
+		var rawRedis *redis.Client
 		if s.redis != nil {
+			rawRedis = s.redis.Raw()
 			logout = auth.NewLogoutHandler(s.redis, s.log)
 		}
 		if s.db != nil {
-			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
-			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-		queries := db.New(s.db)
-		usersRepo := auth.NewPostgresUserRepo(queries)
-		sessionsRepo := auth.NewPostgresSessionRepo(queries)
-		codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
-		localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
-		mailer := s.buildMailer()
-		verifyLimiter := ratelimit.New(s.redis, "rl:auth:verify", 5, 15*time.Minute)
-		registerLimiter := ratelimit.New(s.redis, "rl:auth:register", 3, 15*time.Minute)
+			q = db.New(s.db)
 
-		waitlistRepo := waitlist.NewPostgresWaitlistRepo(db.New(s.db))
-		waitlistHandler := waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+			usersRepo := auth.NewPostgresUserRepo(q)
+			googleHandler = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+
+			sessionsRepo := auth.NewPostgresSessionRepo(q)
+			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
+			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
+			mailer := s.buildMailer()
+			verifyLimiter := ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
+			registerLimiter := ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
+			localHandler = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
+
+			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
+			waitlistHandler = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+		} else {
+			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
+		}
 
 		impl := &routerImpl{
-			google:   google,
-			logout:   logout,
-			google:   auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
-			local:    auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),
+			google:   googleHandler,
+			local:    localHandler,
 			root:     root.NewRootHandler(s.log),
 			health:   health.NewHealthHandler(s.log),
 			waitlist: waitlistHandler,
+			logout:   logout,
+			trainers: newTrainersStore(q),
 		}
 
 		authMw := middleware.AuthMiddleware(s.redis)
+		var adminOnly api.MiddlewareFunc
+		if q != nil {
+			adminOnly = middleware.TrainersAdminOnly(q)
+		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
 				func(c *gin.Context) {
 					if _, requiresAuth := c.Get(string(api.BearerAuthScopes)); requiresAuth {
 						authMw(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					if adminOnly != nil {
+						adminOnly(c)
 					}
 				},
 			},
