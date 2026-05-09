@@ -48,3 +48,8 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 func (c *Client) Close() error {
 	return c.rdb.Close()
 }
+
+// Raw returns the underlying *redis.Client from go-redis/v9.
+func (c *Client) Raw() *redis.Client {
+	return c.rdb
+}

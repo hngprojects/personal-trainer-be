@@ -33,4 +33,18 @@ func (s *routerImpl) HandleLogout(c *gin.Context) {
 		return
 	}
 	s.logout.HandleLogout(c)
+func (s *routerImpl) HandleRegister(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.Register(c)
+}
+
+func (s *routerImpl) HandleVerifyEmail(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.VerifyEmail(c)
 }

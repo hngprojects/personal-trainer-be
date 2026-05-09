@@ -7,7 +7,8 @@ import (
 )
 
 type Mailer interface {
-	Send(to, subject, body string) error
+	// Send sends an email. body must be a valid HTML string.
+	Send(to, subject, htmlBody string) error
 }
 
 type SMTPMailer struct {
@@ -24,7 +25,10 @@ func NewSMTPMailer(host, port, username, password, from string) *SMTPMailer {
 
 func (m *SMTPMailer) Send(to, subject, body string) error {
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", m.from, to, subject, body)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		m.from, to, subject, body,
+	)
 	return smtp.SendMail(m.host+":"+m.port, auth, m.from, []string{to}, []byte(msg))
 }
 

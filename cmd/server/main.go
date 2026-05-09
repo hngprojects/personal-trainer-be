@@ -22,35 +22,29 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("failed to load environment variables: %v", err)
-	}
+	_ = godotenv.Load() // dev convenience; env vars may be injected by the platform
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to laod configuration varialbe %v", err)
+		log.Fatalf("failed to load configuration variable %v", err)
 	}
 
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
-	var db *sql.DB
-	if cfg.DatabaseURL != "" {
-		db, err = sql.Open("postgres", cfg.DatabaseURL)
-		if err != nil {
-			log.Error("failed to open database", "err", err)
-			os.Exit(1)
-		}
-		defer db.Close()
-
-		if err := db.Ping(); err != nil {
-			log.Error("failed to connect to database", "err", err)
-			os.Exit(1)
-		}
-		log.Info("database connected")
-	} else {
-		log.Warn("DATABASE_URL not set — starting without database connection")
+	db, err := sql.Open("postgres", cfg.DatabaseURL)
+	if err != nil {
+		log.Error("failed to open database", "err", err)
+		os.Exit(1)
 	}
+	defer db.Close()
+
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		log.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	log.Info("database connected")
 
 	redisClient, err := appredis.New(cfg.RedisURL)
 	if err != nil {
@@ -60,7 +54,8 @@ func main() {
 	log.Info("redis connected")
 	defer redisClient.Close()
 
-	srv := routes.New(cfg, log, db, redisClient)
+	srv := routes.New(cfg, log, db, redisClient.Raw())
+
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),
@@ -92,5 +87,6 @@ func main() {
 		os.Exit(1)
 	}
 
+	srv.Close()
 	log.Info("server stopped")
 }
