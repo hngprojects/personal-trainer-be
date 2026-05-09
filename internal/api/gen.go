@@ -134,6 +134,11 @@ type HandleLocalAuthJSONBody struct {
 	Password string              `json:"password"`
 }
 
+// HandleLogoutJSONBody defines parameters for HandleLogout.
+type HandleLogoutJSONBody struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -146,6 +151,9 @@ type HandleAddWaitlistJSONBody struct {
 
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
+
+// HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
+type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
@@ -164,6 +172,9 @@ type ServerInterface interface {
 	// Login with email and password
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
+	// Logs out the authenticated user
+	// (POST /auth/logout)
+	HandleLogout(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -258,6 +269,21 @@ func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
 	siw.Handler.HandleLocalAuth(c)
 }
 
+// HandleLogout operation middleware
+func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleLogout(c)
+}
+
 // HealthCheck operation middleware
 func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 
@@ -344,6 +370,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)

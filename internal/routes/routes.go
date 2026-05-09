@@ -36,6 +36,7 @@ type routerImpl struct {
 	root     *root.RootHandler
 	health   *health.HealthHandler
 	waitlist *waitlist.WaitlistHandler
+	logout   *auth.LogoutHandler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -66,7 +67,11 @@ func (s *Router) Routes() *gin.Engine {
 	{
 		var google *auth.GoogleHandler
 		var waitlistHandler *waitlist.WaitlistHandler
+		var logout *auth.LogoutHandler
 
+		if s.redis != nil {
+			logout = auth.NewLogoutHandler(s.redis, s.log)
+		}
 		if s.db != nil {
 			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
 			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
@@ -79,11 +84,23 @@ func (s *Router) Routes() *gin.Engine {
 
 		impl := &routerImpl{
 			google:   google,
+			logout:   logout,
 			root:     root.NewRootHandler(s.log),
 			health:   health.NewHealthHandler(s.log),
 			waitlist: waitlistHandler,
 		}
-		api.RegisterHandlers(v1, impl)
+
+		authMw := middleware.AuthMiddleware(s.redis)
+
+		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
+			Middlewares: []api.MiddlewareFunc{
+				func(c *gin.Context) {
+					if _, requiresAuth := c.Get(string(api.BearerAuthScopes)); requiresAuth {
+						authMw(c)
+					}
+				},
+			},
+		})
 	}
 
 	return r

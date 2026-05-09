@@ -8,6 +8,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type RedisClient interface {
+	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Exists(ctx context.Context, key string) (bool, error)
+}
+
 type Client struct {
 	rdb *redis.Client
 }
