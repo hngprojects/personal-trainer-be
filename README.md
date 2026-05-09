@@ -134,6 +134,23 @@ Response:
 
 ## Development
 
+## Branch Protection
+
+This repository enforces the following branch protection rules on `prod` and `staging`:
+
+- **Pull Requests are required** before any code can be merged
+- **At least 2 approvals** are required on every PR
+- **Direct pushes are disabled** on both branches
+- All changes to `staging` and `prod` must go through a reviewed PR
+
+### Branch Strategy
+
+| Branch | Environment | Purpose |
+|--------|-------------|---------|
+| `dev` | Development | Active development work |
+| `staging` | Pre-production | Testing before release |
+| `prod` | Production | Live production code |
+
 ### Available Make Commands
 
 ```bash
