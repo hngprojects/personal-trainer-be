@@ -54,7 +54,7 @@ func main() {
 	log.Info("redis connected")
 	defer redisClient.Close()
 
-	srv := routes.New(cfg, log, db, redisClient.Raw())
+	srv := routes.New(cfg, log, db, redisClient)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,

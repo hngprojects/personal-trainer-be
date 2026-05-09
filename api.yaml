@@ -166,6 +166,10 @@ components:
 security:
   - bearerAuth: []
 
+servers:
+  - url: /api/v1
+    description: API v1
+
 paths:
   /:
     get:

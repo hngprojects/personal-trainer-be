@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -19,6 +18,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
+	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -28,17 +28,17 @@ type Router struct {
 	cfg           *config.Config
 	log           *slog.Logger
 	db            *sql.DB
-	redis         *redis.Client
+	redis         *appredis.Client
 	globalLimiter ratelimit.RateLimiter
 }
 
-func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *redis.Client) *Router {
+func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
 	return &Router{
 		cfg:           cfg,
 		log:           log,
 		db:            db,
 		redis:         redisClient,
-		globalLimiter: ratelimit.New(redisClient, "rl:global", 100, time.Minute),
+		globalLimiter: ratelimit.New(redisClient.Raw(), "rl:global", 100, time.Minute),
 	}
 }
 
@@ -86,30 +86,25 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		var google *auth.GoogleHandler
-		var waitlistHandler *waitlist.WaitlistHandler
 		var logout *auth.LogoutHandler
 
 		if s.redis != nil {
 			logout = auth.NewLogoutHandler(s.redis, s.log)
 		}
-		if s.db != nil {
-			usersRepo := auth.NewPostgresUserRepo(db.New(s.db))
-			google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+
 		queries := db.New(s.db)
 		usersRepo := auth.NewPostgresUserRepo(queries)
 		sessionsRepo := auth.NewPostgresSessionRepo(queries)
 		codesRepo := auth.NewPostgresVerificationCodeRepo(queries)
 		localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 		mailer := s.buildMailer()
-		verifyLimiter := ratelimit.New(s.redis, "rl:auth:verify", 5, 15*time.Minute)
-		registerLimiter := ratelimit.New(s.redis, "rl:auth:register", 3, 15*time.Minute)
+		verifyLimiter := ratelimit.New(s.redis.Raw(), "rl:auth:verify", 5, 15*time.Minute)
+		registerLimiter := ratelimit.New(s.redis.Raw(), "rl:auth:register", 3, 15*time.Minute)
 
 		waitlistRepo := waitlist.NewPostgresWaitlistRepo(db.New(s.db))
 		waitlistHandler := waitlist.NewWaitlistHandler(waitlistRepo, s.log)
 
 		impl := &routerImpl{
-			google:   google,
 			logout:   logout,
 			google:   auth.NewGoogleHandler(s.cfg, usersRepo, s.log),
 			local:    auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter),

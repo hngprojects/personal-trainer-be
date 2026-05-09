@@ -12,6 +12,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+const (
+	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
+)
+
 // Defines values for AuthUserUserType.
 const (
 	Admin   AuthUserUserType = "admin"
@@ -32,10 +36,6 @@ func (e AuthUserUserType) Valid() bool {
 		return false
 	}
 }
-
-const (
-	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
-)
 
 // Defines values for BaseResponseStatus.
 const (
@@ -208,6 +208,7 @@ type HandleLocalAuthJSONBody struct {
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
+
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
@@ -226,6 +227,7 @@ type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
+
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
 
@@ -356,6 +358,17 @@ func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
 func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleLogout(c)
+}
+
 // HandleRegister operation middleware
 func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
 
@@ -379,7 +392,6 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.HandleLogout(c)
 	siw.Handler.HandleVerifyEmail(c)
 }
 
