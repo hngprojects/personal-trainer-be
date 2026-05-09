@@ -43,9 +43,10 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role 
-    FROM users 
-    WHERE email = $1 AND auth_provider = $2 LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+FROM users
+WHERE email = $1 AND auth_provider = $2
+LIMIT 1
 `
 
 type GetUserByEmailAndProviderParams struct {
@@ -70,9 +71,11 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 	return i, err
 }
 
-<<<<<<< HEAD
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at FROM users WHERE id = $1 LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+FROM users
+WHERE id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -87,14 +90,16 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Role,
 	)
 	return i, err
-=======
+}
+
 const getUserRoleByID = `-- name: GetUserRoleByID :one
 SELECT role
-    FROM users 
-    WHERE id = $1 
-    LIMIT 1
+FROM users
+WHERE id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, error) {
@@ -102,5 +107,4 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	var role string
 	err := row.Scan(&role)
 	return role, err
->>>>>>> c0e53e7 (Completed Trainers Features)
 }

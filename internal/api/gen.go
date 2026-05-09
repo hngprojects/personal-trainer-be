@@ -6,39 +6,50 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-<<<<<<< HEAD
-const (
-	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
-)
-
-// Defines values for BaseResponseStatus.
-=======
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 const (
 	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
 )
 
 // Defines values for AuthUserUserType.
 const (
-	Admin   AuthUserUserType = "admin"
-	Client  AuthUserUserType = "client"
-	Trainer AuthUserUserType = "trainer"
+	AuthUserUserTypeAdmin   AuthUserUserType = "admin"
+	AuthUserUserTypeClient  AuthUserUserType = "client"
+	AuthUserUserTypeTrainer AuthUserUserType = "trainer"
 )
 
 // Valid indicates whether the value is a known member of the AuthUserUserType enum.
 func (e AuthUserUserType) Valid() bool {
 	switch e {
-	case Admin:
+	case AuthUserUserTypeAdmin:
 		return true
-	case Client:
+	case AuthUserUserTypeClient:
 		return true
-	case Trainer:
+	case AuthUserUserTypeTrainer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BaseResponseStatus.
+const (
+	BaseResponseStatusError   BaseResponseStatus = "error"
+	BaseResponseStatusSuccess BaseResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the BaseResponseStatus enum.
+func (e BaseResponseStatus) Valid() bool {
+	switch e {
+	case BaseResponseStatusError:
+		return true
+	case BaseResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -71,13 +82,16 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for ErrorResponseStatus.
 const (
-	Error ErrorResponseStatus = "error"
+	ErrorResponseStatusError   ErrorResponseStatus = "error"
+	ErrorResponseStatusSuccess ErrorResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the ErrorResponseStatus enum.
 func (e ErrorResponseStatus) Valid() bool {
 	switch e {
-	case Error:
+	case ErrorResponseStatusError:
+		return true
+	case ErrorResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -86,12 +100,75 @@ func (e ErrorResponseStatus) Valid() bool {
 
 // Defines values for SuccessResponseStatus.
 const (
-	Success SuccessResponseStatus = "success"
+	SuccessResponseStatusError   SuccessResponseStatus = "error"
+	SuccessResponseStatusSuccess SuccessResponseStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the SuccessResponseStatus enum.
 func (e SuccessResponseStatus) Valid() bool {
 	switch e {
+	case SuccessResponseStatusError:
+		return true
+	case SuccessResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerOnboardingStatus.
+const (
+	TrainerOnboardingStatusApproved  TrainerOnboardingStatus = "approved"
+	TrainerOnboardingStatusPending   TrainerOnboardingStatus = "pending"
+	TrainerOnboardingStatusRejected  TrainerOnboardingStatus = "rejected"
+	TrainerOnboardingStatusSuspended TrainerOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the TrainerOnboardingStatus enum.
+func (e TrainerOnboardingStatus) Valid() bool {
+	switch e {
+	case TrainerOnboardingStatusApproved:
+		return true
+	case TrainerOnboardingStatusPending:
+		return true
+	case TrainerOnboardingStatusRejected:
+		return true
+	case TrainerOnboardingStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerResponseStatus.
+const (
+	TrainerResponseStatusError   TrainerResponseStatus = "error"
+	TrainerResponseStatusSuccess TrainerResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainerResponseStatus enum.
+func (e TrainerResponseStatus) Valid() bool {
+	switch e {
+	case TrainerResponseStatusError:
+		return true
+	case TrainerResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainersListResponseStatus.
+const (
+	Error   TrainersListResponseStatus = "error"
+	Success TrainersListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainersListResponseStatus enum.
+func (e TrainersListResponseStatus) Valid() bool {
+	switch e {
+	case Error:
+		return true
 	case Success:
 		return true
 	default:
@@ -101,22 +178,22 @@ func (e SuccessResponseStatus) Valid() bool {
 
 // Defines values for UpdateTrainerRequestOnboardingStatus.
 const (
-	UpdateTrainerRequestOnboardingStatusApproved  UpdateTrainerRequestOnboardingStatus = "approved"
-	UpdateTrainerRequestOnboardingStatusPending   UpdateTrainerRequestOnboardingStatus = "pending"
-	UpdateTrainerRequestOnboardingStatusRejected  UpdateTrainerRequestOnboardingStatus = "rejected"
-	UpdateTrainerRequestOnboardingStatusSuspended UpdateTrainerRequestOnboardingStatus = "suspended"
+	Approved  UpdateTrainerRequestOnboardingStatus = "approved"
+	Pending   UpdateTrainerRequestOnboardingStatus = "pending"
+	Rejected  UpdateTrainerRequestOnboardingStatus = "rejected"
+	Suspended UpdateTrainerRequestOnboardingStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the UpdateTrainerRequestOnboardingStatus enum.
 func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	switch e {
-	case UpdateTrainerRequestOnboardingStatusApproved:
+	case Approved:
 		return true
-	case UpdateTrainerRequestOnboardingStatusPending:
+	case Pending:
 		return true
-	case UpdateTrainerRequestOnboardingStatusRejected:
+	case Rejected:
 		return true
-	case UpdateTrainerRequestOnboardingStatusSuspended:
+	case Suspended:
 		return true
 	default:
 		return false
@@ -134,6 +211,17 @@ type AuthUser struct {
 
 // AuthUserUserType defines model for AuthUser.UserType.
 type AuthUserUserType string
+
+// BaseResponse defines model for BaseResponse.
+type BaseResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Message string             `json:"message"`
+	Status  BaseResponseStatus `json:"status"`
+}
+
+// BaseResponseStatus defines model for BaseResponse.Status.
+type BaseResponseStatus string
 
 // CreateTrainerRequest defines model for CreateTrainerRequest.
 type CreateTrainerRequest struct {
@@ -153,6 +241,7 @@ type CreateTrainerRequestOnboardingStatus string
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 	Code    string              `json:"code"`
 	Errors  *[]FieldError       `json:"errors,omitempty"`
 	Message string              `json:"message"`
@@ -164,7 +253,10 @@ type ErrorResponseStatus string
 
 // FieldError defines model for FieldError.
 type FieldError struct {
-	Field   string `json:"field"`
+	// Field The field that failed validation
+	Field string `json:"field"`
+
+	// Message Human-readable error message for this field
 	Message string `json:"message"`
 }
 
@@ -183,6 +275,7 @@ type GoogleAuthResponse struct {
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 	Code string `json:"code"`
 
 	// Data Any JSON value (object/array/string/number/etc)
@@ -197,10 +290,57 @@ type SuccessResponse struct {
 // SuccessResponseStatus defines model for SuccessResponse.Status.
 type SuccessResponseStatus string
 
-<<<<<<< HEAD
-// bearerAuthContextKey is the context key for bearerAuth security scheme
-type bearerAuthContextKey string
-=======
+// Trainer defines model for Trainer.
+type Trainer struct {
+	AverageRating     float32                 `json:"average_rating"`
+	Bio               *string                 `json:"bio,omitempty"`
+	CalendlyConnected bool                    `json:"calendly_connected"`
+	CalendlyLink      *string                 `json:"calendly_link,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	DisplayPicture    *string                 `json:"display_picture,omitempty"`
+	Id                openapi_types.UUID      `json:"id"`
+	IntroVideoUrl     *string                 `json:"intro_video_url,omitempty"`
+	OnboardingStatus  TrainerOnboardingStatus `json:"onboarding_status"`
+	Specialization    *string                 `json:"specialization,omitempty"`
+	TotalReviews      int                     `json:"total_reviews"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	UserId            openapi_types.UUID      `json:"user_id"`
+	YearsOfExperience *int                    `json:"years_of_experience,omitempty"`
+}
+
+// TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
+type TrainerOnboardingStatus string
+
+// TrainerResponse defines model for TrainerResponse.
+type TrainerResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string   `json:"code"`
+	Data    *Trainer `json:"data,omitempty"`
+	Message string   `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}          `json:"meta,omitempty"`
+	Status TrainerResponseStatus `json:"status"`
+}
+
+// TrainerResponseStatus defines model for TrainerResponse.Status.
+type TrainerResponseStatus string
+
+// TrainersListResponse defines model for TrainersListResponse.
+type TrainersListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string     `json:"code"`
+	Data    *[]Trainer `json:"data,omitempty"`
+	Message string     `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}               `json:"meta,omitempty"`
+	Status TrainersListResponseStatus `json:"status"`
+}
+
+// TrainersListResponseStatus defines model for TrainersListResponse.Status.
+type TrainersListResponseStatus string
+
 // UpdateTrainerRequest defines model for UpdateTrainerRequest.
 type UpdateTrainerRequest struct {
 	Bio               *string                               `json:"bio,omitempty"`
@@ -215,7 +355,6 @@ type UpdateTrainerRequest struct {
 
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
 type UpdateTrainerRequestOnboardingStatus string
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
@@ -232,7 +371,6 @@ type GetTrainersParams struct {
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
 }
 
-<<<<<<< HEAD
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -243,22 +381,18 @@ type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
-// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
-type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
-=======
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-
+	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
 	// Initiate Google OAuth — redirects browser to Google consent screen
@@ -270,17 +404,9 @@ type ServerInterface interface {
 
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
-
+	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
-<<<<<<< HEAD
-	// Handle getting emails or filtered emails in waitlist
-	// (GET /waitlist)
-	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
-	// Handle adding an email address to the waitlist table
-	// (POST /waitlist)
-	HandleAddWaitlist(c *gin.Context)
-=======
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -296,7 +422,12 @@ type ServerInterface interface {
 	// Update trainer (admin only)
 	// (PATCH /trainers/{id})
 	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+	// Handle getting emails or filtered emails in waitlist
+	// (GET /waitlist)
+	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
+	// Handle adding an email address to the waitlist table
+	// (POST /waitlist)
+	HandleAddWaitlist(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -395,24 +526,6 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	siw.Handler.HealthCheck(c)
 }
 
-<<<<<<< HEAD
-// HandleGetWaitlist operation middleware
-func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params HandleGetWaitlistParams
-
-	// ------------- Optional query parameter "email" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "email", c.Request.URL.Query(), &params.Email, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter email: %w", err), http.StatusBadRequest)
-=======
 // GetTrainers operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
@@ -429,7 +542,6 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 		return
 	}
 
@@ -440,25 +552,13 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 		}
 	}
 
-<<<<<<< HEAD
-	siw.Handler.HandleGetWaitlist(c, params)
-}
-
-// HandleAddWaitlist operation middleware
-func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
-=======
 	siw.Handler.GetTrainers(c, params)
 }
 
 // CreateTrainer operation middleware
 func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 
-<<<<<<< HEAD
-	c.Set(BearerAuthScopes, []string{})
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
-=======
 	c.Set(string(BearerAuthScopes), []string{})
->>>>>>> 8e8a3a0 (Refactored Test To Use Local Postgresql)
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -467,9 +567,6 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 		}
 	}
 
-<<<<<<< HEAD
-	siw.Handler.HandleAddWaitlist(c)
-=======
 	siw.Handler.CreateTrainer(c)
 }
 
@@ -552,7 +649,48 @@ func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateTrainer(c, id)
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+}
+
+// HandleGetWaitlist operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleGetWaitlistParams
+
+	// ------------- Optional query parameter "email" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "email", c.Request.URL.Query(), &params.Email, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter email: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetWaitlist(c, params)
+}
+
+// HandleAddWaitlist operation middleware
+func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAddWaitlist(c)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -587,18 +725,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
-<<<<<<< HEAD
-	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
-	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
-=======
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
-<<<<<<< HEAD
-	router.PUT(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
-=======
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
->>>>>>> 8e8a3a0 (Refactored Test To Use Local Postgresql)
+	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
+	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }

@@ -9,9 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     auth_provider TEXT        NOT NULL DEFAULT 'local',
     is_active     BOOLEAN     NOT NULL DEFAULT true,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT users_email_auth_provider_key UNIQUE (email, auth_provider)
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- +goose Down

@@ -205,9 +205,19 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
+	specialization := existing.Specialization
+	if body.Specialization != nil {
+		specialization = sql.NullString{String: *body.Specialization, Valid: true}
+	}
+
+	years := existing.YearsOfExperience
+	if body.YearsOfExperience != nil {
+		years = sql.NullInt32{Int32: int32(*body.YearsOfExperience), Valid: true}
+	}
+
 	calendlyConnected := existing.CalendlyConnected
 	if body.CalendlyConnected != nil {
-		calendlyConnected = *body.CalendlyConnected
+		calendlyConnected = bool(*body.CalendlyConnected)
 	}
 
 	onboardingStatus := existing.OnboardingStatus
@@ -215,15 +225,35 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		onboardingStatus = string(*body.OnboardingStatus)
 	}
 
+	bio := existing.Bio
+	if body.Bio != nil {
+		bio = sql.NullString{String: *body.Bio, Valid: true}
+	}
+
+	introVideoUrl := existing.IntroVideoUrl
+	if body.IntroVideoUrl != nil {
+		introVideoUrl = sql.NullString{String: *body.IntroVideoUrl, Valid: true}
+	}
+
+	displayPicture := existing.DisplayPicture
+	if body.DisplayPicture != nil {
+		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
+	}
+
+	calendlyLink := existing.CalendlyLink
+	if body.CalendlyLink != nil {
+		calendlyLink = sql.NullString{String: *body.CalendlyLink, Valid: true}
+	}
+
 	updated, err := s.trainers.q.UpdateTrainer(c.Request.Context(), db.UpdateTrainerParams{
 		ID:                trainerID,
-		Specialization:    nullStringPtr(body.Specialization),
-		Bio:               nullStringPtr(body.Bio),
-		YearsOfExperience: nullInt32Ptr(body.YearsOfExperience),
-		IntroVideoUrl:     nullStringPtr(body.IntroVideoUrl),
-		DisplayPicture:    nullStringPtr(body.DisplayPicture),
+		Specialization:    specialization,
+		Bio:               bio,
+		YearsOfExperience: years,
+		IntroVideoUrl:     introVideoUrl,
+		DisplayPicture:    displayPicture,
 		CalendlyConnected: calendlyConnected,
-		CalendlyLink:      nullStringPtr(body.CalendlyLink),
+		CalendlyLink:      calendlyLink,
 		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {

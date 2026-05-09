@@ -5,16 +5,13 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"runtime/debug"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
@@ -92,20 +89,7 @@ func newServer(t *testing.T, db *sql.DB) *httptest.Server {
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	r := routes.New(cfg, log, db).Routes()
-
-	// Test-only: log any panic + stack trace.
-	r.Use(func(c *gin.Context) {
-		defer func() {
-			if rec := recover(); rec != nil {
-				t.Logf("PANIC on %s %s: %v\n%s", c.Request.Method, c.Request.URL.Path, rec, string(debug.Stack()))
-				// re-panic so existing recovery behavior still applies (optional)
-				panic(rec)
-			}
-		}()
-		c.Next()
-	})
+	r := routes.New(cfg, log, db, nil).Routes()
 
 	return httptest.NewServer(r)
 }
@@ -160,8 +144,6 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		res := doReq(t, httpClient, req)
 		defer res.Body.Close()
-		b, _ := io.ReadAll(res.Body)
-		t.Logf("status=%d body=%s", res.StatusCode, string(b))
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 

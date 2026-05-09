@@ -11,10 +11,6 @@ components:
       bearerFormat: JWT
 
   schemas:
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
     BaseResponse:
       type: object
       required: [status, message, code]
@@ -28,20 +24,16 @@ components:
           type: string
           description: Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 
-<<<<<<< HEAD
-    SuccessResponse:
-      allOf:
-        - $ref: "#/components/schemas/BaseResponse"
-        - type: object
-          properties:
-            data:
-              type: object
-              nullable: true
-              description: Response payload (omitted when null)
-            meta:
-              type: object
-              nullable: true
-              description: Pagination or additional metadata (omitted when null)
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: The field that failed validation
+        message:
+          type: string
+          description: Human-readable error message for this field
 
     ErrorResponse:
       allOf:
@@ -54,19 +46,19 @@ components:
               items:
                 $ref: "#/components/schemas/FieldError"
 
-=======
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
-    FieldError:
-      type: object
-      required: [field, message]
-      properties:
-        field:
-          type: string
-<<<<<<< HEAD
-          description: The field that failed validation
-        message:
-          type: string
-          description: Human-readable error message for this field
+    SuccessResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              nullable: true
+              description: Any JSON value (object/array/string/number/etc)
+              x-go-type: interface{}
+            meta:
+              nullable: true
+              description: Any JSON value (usually object)
+              x-go-type: interface{}
 
     PaginationMeta:
       type: object
@@ -91,124 +83,6 @@ components:
         prev:
           type: string
           nullable: true
-
-=======
->>>>>>> c0e53e7 (Completed Trainers Features)
-=======
-        message:
-          type: string
-
-    ErrorResponse:
-      type: object
-      required: [status, message, code]
-      properties:
-        status:
-          type: string
-          enum: [error]
-        message:
-          type: string
-        code:
-          type: string
-        errors:
-          type: array
-          items:
-            $ref: "#/components/schemas/FieldError"
-
-    SuccessResponse:
-      type: object
-      required: [status, message, code]
-      properties:
-        status:
-          type: string
-          enum: [success]
-        message:
-          type: string
-        code:
-          type: string
-        data:
-          type: object
-          additionalProperties: true
-          nullable: true
-          description: Any JSON value (object/array/string/number/etc)
-          x-go-type: interface{}
-        meta:
-          type: object
-          additionalProperties: true
-          nullable: true
-          description: Any JSON value (usually object)
-          x-go-type: interface{}
-
-<<<<<<< HEAD
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
-=======
-    TrainerResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              $ref: "#/components/schemas/Trainer"
-
-    TrainersListResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: array
-              maxItems: 1000
-              items:
-                $ref: "#/components/schemas/Trainer"
-
->>>>>>> dfcaa1d (Add TrainerResponse and TrainersListResponse schemas)
-    AuthUser:
-      type: object
-      required: [id, email, name, user_type, profile_complete]
-      properties:
-        id:
-          type: string
-          format: uuid
-        email:
-          type: string
-        name:
-          type: string
-        user_type:
-          type: string
-          enum: [client, trainer, admin]
-        profile_complete:
-          type: boolean
-
-    GoogleAuthResponse:
-      type: object
-      required: [status, message, data]
-      properties:
-<<<<<<< HEAD
-        user:
-          $ref: "#/components/schemas/AuthUser"
-        access_token:
-=======
-        status:
->>>>>>> c0e53e7 (Completed Trainers Features)
-          type: string
-          example: success
-        message:
-          type: string
-          example: GOOGLE_AUTH_SUCCESSFUL
-        data:
-          type: object
-          required: [user, access_token, refresh_token, is_new_user, expires_in]
-          properties:
-            user:
-              $ref: "#/components/schemas/AuthUser"
-            access_token:
-              type: string
-            refresh_token:
-              type: string
-            is_new_user:
-              type: boolean
-            expires_in:
-              type: integer
-              example: 600
 
     Trainer:
       type: object
@@ -262,6 +136,25 @@ components:
           type: string
           format: date-time
 
+    TrainerResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Trainer"
+
+    TrainersListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              maxItems: 1000
+              items:
+                $ref: "#/components/schemas/Trainer"
+
     CreateTrainerRequest:
       type: object
       required: [user_id]
@@ -308,11 +201,53 @@ components:
           type: string
           enum: [pending, approved, rejected, suspended]
 
+    AuthUser:
+      type: object
+      required: [id, email, name, user_type, profile_complete]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        user_type:
+          type: string
+          enum: [client, trainer, admin]
+        profile_complete:
+          type: boolean
+
+    GoogleAuthResponse:
+      type: object
+      required: [status, message, data]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: GOOGLE_AUTH_SUCCESSFUL
+        data:
+          type: object
+          required: [user, access_token, refresh_token, is_new_user, expires_in]
+          properties:
+            user:
+              $ref: "#/components/schemas/AuthUser"
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            is_new_user:
+              type: boolean
+            expires_in:
+              type: integer
+              example: 600
+
 security:
   - bearerAuth: []
 
 paths:
-<<<<<<< HEAD
   /:
     get:
       operationId: Root
@@ -325,11 +260,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Personal Trainer API is running
-                code: OK
-                data: {}
 
   /health:
     get:
@@ -343,15 +273,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Service is healthy
-                code: OK
-                data:
-                  timestamp: "2026-05-07T10:00:00Z"
 
-=======
->>>>>>> c0e53e7 (Completed Trainers Features)
   /auth/login:
     post:
       security: []
@@ -362,77 +284,19 @@ paths:
           content:
             application/json:
               schema:
-<<<<<<< HEAD
-<<<<<<< HEAD
                 $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Login successful
-                code: OK
-                data:
-                  user:
-                    id: "550e8400-e29b-41d4-a716-446655440000"
-                    email: "jane@example.com"
-                    name: "Jane Doe"
-                    user_type: client
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
         "400":
           description: Validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: Email is required
         "401":
           description: Invalid credentials
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid email or password
-                code: UNAUTHORIZED
-=======
-                type: object
-                required:
-                  - status
-                  - message
-                  - code
-                  - data
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Login successful
-                  code:
-                    type: string
-                    example: AUTH_LOGIN_SUCCESS
-                  data:
-                    type: object
-                    required:
-                      - access_token
-                      - refresh_token
-                    properties:
-                      access_token:
-                        type: string
-                      refresh_token:
-                        type: string
->>>>>>> c0e53e7 (Completed Trainers Features)
-=======
-                $ref: "#/components/schemas/SuccessResponse"
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
   /auth/google:
     get:
@@ -465,107 +329,25 @@ paths:
           content:
             application/json:
               schema:
-<<<<<<< HEAD
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Google authentication successful
-                code: OK
-                data:
-                  user:
-                    id: "550e8400-e29b-41d4-a716-446655440000"
-                    email: "jane@example.com"
-                    name: "Jane Doe"
-                    user_type: client
-                    profile_complete: false
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  is_new_user: true
-                  expires_in: 600
-=======
                 $ref: "#/components/schemas/GoogleAuthResponse"
->>>>>>> c0e53e7 (Completed Trainers Features)
         "400":
           description: Invalid or missing state
           content:
             application/json:
               schema:
-<<<<<<< HEAD
-<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid or missing state parameter
-                code: BAD_REQUEST
         "401":
           description: OAuth exchange failed
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Failed to authenticate with Google
-                code: UNAUTHORIZED
-=======
-                type: object
-                properties:
-                  error:
-                    type: string
->>>>>>> c0e53e7 (Completed Trainers Features)
-=======
-                $ref: "#/components/schemas/ErrorResponse"
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
         "500":
           description: Failed to exchange code or fetch user info
           content:
             application/json:
               schema:
-<<<<<<< HEAD
-<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
-  /waitlist:
-    post:
-      security: []
-      operationId: HandleAddWaitlist
-      summary: Handle adding an email address to the waitlist table
-=======
-                type: object
-                properties:
-                  error:
-                    type: string
-=======
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /health:
-    get:
-      security: []
-      operationId: HealthCheck
-      responses:
-        "200":
-          description: Health OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-
-  /:
-    get:
-      security: []
-      operationId: Root
-      responses:
-        "200":
-          description: Root OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
 
   /trainers:
     get:
@@ -584,7 +366,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/TrainersListResponse"
         "401":
           description: Unauthorized
           content:
@@ -606,48 +388,12 @@ paths:
 
     post:
       operationId: CreateTrainer
-<<<<<<< HEAD
-      summary: Add trainer (admin-only)
->>>>>>> c0e53e7 (Completed Trainers Features)
-=======
       summary: Add trainer (admin only)
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-<<<<<<< HEAD
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        "200":
-          description: You are already on the waitlist
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: You're already on the waitlist
-                code: OK
-        "201":
-          description: You have been added to the waitlist
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Successfully added to the waitlist
-                code: OK
-        "400":
-          description: Invalid or missing email
-=======
               $ref: "#/components/schemas/CreateTrainerRequest"
       responses:
         "201":
@@ -655,59 +401,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/TrainerResponse"
         "400":
           description: Bad request
->>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-<<<<<<< HEAD
-              example:
-                status: error
-                message: Invalid or missing email
-                code: BAD_REQUEST
-        "500":
-          description: Internal server error
-=======
         "401":
           description: Unauthorized
->>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-<<<<<<< HEAD
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-    get:
-      security:
-        - bearerAuth: []
-      operationId: HandleGetWaitlist
-      summary: Handle getting emails or filtered emails in waitlist
-      parameters:
-        - name: email
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Waitlists retrieved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Success
-                code: OK
-        "404":
-          description: Email not found
-=======
         "403":
           description: Forbidden
           content:
@@ -738,7 +444,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/TrainerResponse"
         "404":
           description: Trainer not found
           content:
@@ -786,46 +492,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/TrainerResponse"
         "400":
           description: Bad request
->>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-<<<<<<< HEAD
-<<<<<<< HEAD
-              example:
-                status: error
-                message: Requested email is not on the waitlist
-                code: NOT_FOUND
-        "401":
-          description: Client is unauthorized
-=======
-=======
         "404":
           description: Trainer not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
         "401":
           description: Unauthorized
->>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-<<<<<<< HEAD
-              example:
-                status: error
-                message: Unauthorized access
-                code: UNAUTHORIZED
-        "500":
-          description: Internal server error
-=======
         "403":
           description: Forbidden
           content:
@@ -854,20 +539,10 @@ paths:
           description: Trainer deleted
         "404":
           description: Trainer not found
->>>>>>> c0e53e7 (Completed Trainers Features)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-<<<<<<< HEAD
-<<<<<<< HEAD
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-=======
->>>>>>> c0e53e7 (Completed Trainers Features)
-=======
         "401":
           description: Unauthorized
           content:
@@ -886,4 +561,112 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
->>>>>>> 7c0dede (Refactored Trainer Management logic based on PR comments)
+  /waitlist:
+    post:
+      security: []
+      operationId: HandleAddWaitlist
+      summary: Handle adding an email address to the waitlist table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: You are already on the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: You're already on the waitlist
+                code: OK
+        "201":
+          description: You have been added to the waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Successfully added to the waitlist
+                code: OK
+        "400":
+          description: Invalid or missing email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing email
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+    get:
+      security:
+        - bearerAuth: []
+      operationId: HandleGetWaitlist
+      summary: Handle getting emails or filtered emails in waitlist
+      parameters:
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Waitlists retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Success
+                code: OK
+        "404":
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Requested email is not on the waitlist
+                code: NOT_FOUND
+        "401":
+          description: Client is unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
