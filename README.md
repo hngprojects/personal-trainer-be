@@ -304,6 +304,23 @@ LOG_FORMAT=json
 DATABASE_URL=postgres://user:password@prod-db:5432/trainer_db?sslmode=require
 ```
 
+## Branch Protection
+
+This repository enforces the following branch protection rules on `prod` and `staging`:
+
+- **Pull Requests are required** before any code can be merged
+- **At least 2 approvals** is required on every PR
+- **Direct pushes are disabled** on both branches
+- All changes to `staging` and `prod` must go through a reviewed PR
+
+### Branch Strategy
+
+| Branch | Environment | Purpose |
+|--------|-------------|---------|
+| `dev` | Development | Active development work |
+| `staging` | Pre-production | Testing before release |
+| `prod` | Production | Live production code |
+
 ## Contributing
 
 1. Follow the code standards defined in `ARCHITECTURE.md`
