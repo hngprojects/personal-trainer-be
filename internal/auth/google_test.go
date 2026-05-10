@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +27,7 @@ type fakeUserRepo struct {
 	err  error
 }
 
-func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
+func (f *fakeUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
 	return f.user, f.err
 }
 
@@ -38,10 +37,11 @@ func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error
 
 func (f *fakeUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{
-		ID:       uuid.New(),
-		Email:    email,
-		Name:     name,
-		IsActive: true,
+		ID:           uuid.New(),
+		Email:        email,
+		Name:         name,
+		AuthProvider: provider,
+		IsActive:     true,
 	}, nil
 }
 

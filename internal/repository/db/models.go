@@ -11,24 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type AdminInvite struct {
-	ID         uuid.UUID
-	Email      string
-	Name       string
-	TokenHash  string
-	InvitedBy  uuid.UUID
-	ExpiresAt  time.Time
-	AcceptedAt sql.NullTime
-	RevokedAt  sql.NullTime
-	CreatedAt  time.Time
-}
-
-type Role struct {
-	ID       uuid.UUID
-	Name     string
-	CratedAt time.Time
-}
-
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -58,7 +40,8 @@ type User struct {
 	ID           uuid.UUID
 	Email        string
 	Name         string
-	PasswordHash sql.NullString
+	Password     sql.NullString
+	AuthProvider string
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

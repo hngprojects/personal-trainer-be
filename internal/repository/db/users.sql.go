@@ -11,24 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
-const assignRoleToUser = `-- name: AssignRoleToUser :exec
-INSERT INTO user_roles (user_id, role_id)
-SELECT $1, id FROM roles WHERE name = $2
-ON CONFLICT DO NOTHING
-`
-
-type AssignRoleToUserParams struct {
-	UserID uuid.UUID
-	Name   string
-}
-
-func (q *Queries) AssignRoleToUser(ctx context.Context, arg AssignRoleToUserParams) error {
-	_, err := q.db.ExecContext(ctx, assignRoleToUser, arg.UserID, arg.Name)
-	return err
-}
-
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash)
+INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
 ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
@@ -38,17 +22,18 @@ RETURNING id, email, name, password, auth_provider, is_active, created_at, updat
 type CreateUserParams struct {
 	Email        string
 	Name         string
-	PasswordHash sql.NullString
+	AuthProvider string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.PasswordHash)
+	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.AuthProvider)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.PasswordHash,
+		&i.Password,
+		&i.AuthProvider,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -88,14 +73,20 @@ WHERE email = $1 AND auth_provider = $2
 LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+type GetUserByEmailAndProviderParams struct {
+	Email        string
+	AuthProvider string
+}
+
+func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEmailAndProviderParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailAndProvider, arg.Email, arg.AuthProvider)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.PasswordHash,
+		&i.Password,
+		&i.AuthProvider,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,

@@ -74,28 +74,3 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-func RequireRole(users auth.UserRepository, role string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		uid, ok := c.Get("user_id")
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized,
-				api.NewError("unauthorized", api.CodeUnauthorized))
-			return
-		}
-		roles, err := users.ListRoleNames(c.Request.Context(), uid.(uuid.UUID))
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError,
-				api.NewError("failed to load roles", api.CodeServerError))
-			return
-		}
-		for _, r := range roles {
-			if r == role {
-				c.Next()
-				return
-			}
-		}
-		c.AbortWithStatusJSON(http.StatusForbidden,
-			api.NewError("forbidden", api.CodeForbidden))
-	}
-}

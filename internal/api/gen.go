@@ -461,9 +461,6 @@ type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
-// CreateAdminInviteJSONRequestBody defines body for CreateAdminInvite for application/json ContentType.
-type CreateAdminInviteJSONRequestBody CreateAdminInviteJSONBody
-
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
@@ -490,15 +487,6 @@ type ServerInterface interface {
 	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
-	// Send an admin invite (super_admin only)
-	// (POST /admin/invites)
-	CreateAdminInvite(c *gin.Context)
-	// Validate an invite token (used by the frontend accept page)
-	// (GET /admin/invites/{token})
-	GetAdminInvite(c *gin.Context, token string)
-	// Accept the invite — creates the admin account and returns the generated password
-	// (POST /admin/invites/{token}/accept)
-	AcceptAdminInvite(c *gin.Context, token string)
 	// Initiate Google OAuth — redirects browser to Google consent screen
 	// (GET /auth/google)
 	HandleGoogleLogin(c *gin.Context)
@@ -563,71 +551,6 @@ func (siw *ServerInterfaceWrapper) Root(c *gin.Context) {
 	}
 
 	siw.Handler.Root(c)
-}
-
-// CreateAdminInvite operation middleware
-func (siw *ServerInterfaceWrapper) CreateAdminInvite(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateAdminInvite(c)
-}
-
-// GetAdminInvite operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminInvite(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "token" -------------
-	var token string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAdminInvite(c, token)
-}
-
-// AcceptAdminInvite operation middleware
-func (siw *ServerInterfaceWrapper) AcceptAdminInvite(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "token" -------------
-	var token string
-
-	err = runtime.BindStyledParameterWithOptions("simple", "token", c.Param("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.AcceptAdminInvite(c, token)
 }
 
 // HandleGoogleLogin operation middleware
@@ -940,9 +863,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
-	router.POST(options.BaseURL+"/admin/invites", wrapper.CreateAdminInvite)
-	router.GET(options.BaseURL+"/admin/invites/:token", wrapper.GetAdminInvite)
-	router.POST(options.BaseURL+"/admin/invites/:token/accept", wrapper.AcceptAdminInvite)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
