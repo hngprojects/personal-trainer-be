@@ -31,33 +31,7 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		// GET: any authenticated user (valid JWT) can access trainers endpoints.
-		// No admin role check for GET.
-		if c.Request.Method == http.MethodGet {
-			header := strings.TrimSpace(c.GetHeader("Authorization"))
-			const prefix = "Bearer "
-
-			if !strings.HasPrefix(header, prefix) {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized", api.CodeUnauthorized))
-				return
-			}
-
-			tokenString := strings.TrimSpace(strings.TrimPrefix(header, prefix))
-			if tokenString == "" {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized", api.CodeUnauthorized))
-				return
-			}
-
-			token, err := auth.ValidateToken(tokenString)
-			if err != nil || token == nil || !token.Valid {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized", api.CodeUnauthorized))
-				return
-			}
-
-			c.Next()
-			return
-		}
-
+		
 		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
 			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
@@ -76,13 +50,13 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				return
 			}
 		}
-
+		
 		header := c.GetHeader("Authorization")
 		if header == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing token", api.CodeUnauthorized))
 			return
 		}
-
+		
 		const prefix = "Bearer "
 		if !strings.HasPrefix(header, prefix) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
@@ -93,19 +67,26 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
 		}
-
+		
 		token, err := auth.ValidateToken(tokenString)
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
 		}
 
+		// GET: any authenticated user (valid JWT) can access trainers endpoints.
+		// No admin role check for GET.
+		if c.Request.Method == http.MethodGet {
+			c.Next()
+			return
+		}
+		
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token claims", api.CodeUnauthorized))
 			return
 		}
-
+		
 		sub, ok := claims["sub"].(string)
 		if !ok || sub == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing subject claim", api.CodeUnauthorized))
