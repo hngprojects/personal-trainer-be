@@ -1,16 +1,13 @@
-// Package admin implements the super_admin-only endpoints for managing
-// admin accounts: creating new admins (POST /admin/add) and updating the
-// role of an existing admin/super_admin (PUT /admin/{id}/role).
+// Package admin implements the super_admin-only endpoint for creating
+// new admin accounts (POST /admin/add).
 package admin
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -22,14 +19,6 @@ import (
 // admins. 16 chars from the friendly password charset is comfortably above
 // any practical brute-force threshold against bcrypt.
 const generatedPasswordLen = 16
-
-// validRoles is the closed set of role values AdminUpdateRole will accept.
-// Promotion to/from these roles is the only operation /admin/{id}/role
-// supports — clients/trainers are not in scope here.
-var validRoles = map[string]struct{}{
-	"admin":       {},
-	"super_admin": {},
-}
 
 type Handler struct {
 	users  auth.UserRepository
@@ -109,60 +98,5 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		"email": user.Email,
 		"name":  user.Name,
 		"role":  user.Role,
-	}))
-}
-
-// AdminUpdateRole handles PUT /admin/{id}/role. Only valid for users who are
-// already admin or super_admin — promoting clients/trainers via this endpoint
-// is intentionally not supported.
-func (h *Handler) AdminUpdateRole(c *gin.Context, id uuid.UUID) {
-	var req api.AdminUpdateRoleJSONRequestBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
-		return
-	}
-
-	role := strings.TrimSpace(string(req.Role))
-	if _, ok := validRoles[role]; !ok {
-		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
-			{Field: "role", Message: "role must be 'admin' or 'super_admin'"},
-		}))
-		return
-	}
-
-	target, err := h.users.GetByID(c.Request.Context(), id)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			c.JSON(http.StatusNotFound, api.NewError("user not found", api.CodeNotFound))
-			return
-		}
-		h.log.Error("admin update role: lookup failed", "err", err, "user_id", id)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-
-	if _, ok := validRoles[target.Role]; !ok {
-		c.JSON(http.StatusForbidden, api.NewError("target user is not an admin or super_admin", api.CodeForbidden))
-		return
-	}
-
-	updated, err := h.users.UpdateRole(c.Request.Context(), id, role)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			c.JSON(http.StatusNotFound, api.NewError("user not found", api.CodeNotFound))
-			return
-		}
-		h.log.Error("admin update role: update failed", "err", err, "user_id", id)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-
-	h.log.Info("admin role updated", "user_id", updated.ID, "new_role", updated.Role)
-
-	c.JSON(http.StatusOK, api.NewSuccess("role updated", api.CodeOK, map[string]interface{}{
-		"id":    updated.ID,
-		"email": updated.Email,
-		"name":  updated.Name,
-		"role":  updated.Role,
 	}))
 }

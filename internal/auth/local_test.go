@@ -67,14 +67,6 @@ func (f *fakeLocalUserRepo) UpsertAdmin(_ context.Context, email, name, _ string
 	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: "local", Role: "admin", IsActive: true}, nil
 }
 
-func (f *fakeLocalUserRepo) UpdateRole(_ context.Context, id uuid.UUID, role string) (*db.User, error) {
-	return &db.User{ID: id, Role: role}, nil
-}
-
-func (f *fakeLocalUserRepo) GetByID(_ context.Context, id uuid.UUID) (*db.User, error) {
-	return &db.User{ID: id}, nil
-}
-
 // fakeCodeRepo controls verification code behaviour.
 type fakeCodeRepo struct {
 	consumeErr error

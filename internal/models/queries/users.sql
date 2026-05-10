@@ -39,10 +39,3 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        is_active  = true,
        updated_at = NOW()
 RETURNING *;
-
--- name: UpdateUserRole :one
-UPDATE users
-   SET role       = $2,
-       updated_at = NOW()
- WHERE id = $1
-RETURNING *;
