@@ -21,6 +21,7 @@ const providerLocal = "local"
 
 // UserRepository defines what the auth feature needs from the users table.
 type UserRepository interface {
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
 	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
@@ -53,6 +54,17 @@ func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, pr
 		Email:        email,
 		AuthProvider: provider,
 	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) FindByEmail(ctx context.Context, email string) (*db.User, error) {
+	user, err := r.q.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

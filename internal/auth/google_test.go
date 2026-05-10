@@ -31,6 +31,10 @@ func (f *fakeUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*
 	return f.user, f.err
 }
 
+func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
+	return f.user, f.err
+}
+
 func (f *fakeUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{
 		ID:           uuid.New(),

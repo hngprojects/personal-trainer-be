@@ -242,6 +242,82 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, api.NewSuccess("Email verified successfully", api.CodeOK, data))
 }
 
+// SignIn handles POST /auth/login.
+func (h *LocalHandler) SignIn(c *gin.Context) {
+	var req api.HandleLocalAuthJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+
+	if len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "email must not exceed 255 characters"},
+		}))
+		return
+	}
+	if !common.IsValidEmail(emailAddr) {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "invalid email format"},
+		}))
+		return
+	}
+	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusUnauthorized, api.NewError("Invalid email address", api.CodeUnauthorized))
+			return
+		}
+		h.log.Error("sign-in: failed to find user", "email", emailAddr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("Invalid email address", api.CodeServerError))
+		return
+	}
+
+	if !user.IsActive {
+		c.JSON(http.StatusUnauthorized, api.NewError("account not verified — please complete email verification first", api.CodeUnauthorized))
+		return
+	}
+
+	userIDStr := user.ID.String()
+	accessToken, err := GenerateJWTToken(userIDStr, AccessToken)
+	if err != nil {
+		h.log.Error("sign-in: failed to generate access token", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	refreshToken, err := GenerateJWTToken(userIDStr, RefreshToken)
+	if err != nil {
+		h.log.Error("sign-in: failed to generate refresh token", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry))
+	if err != nil {
+		h.log.Error("sign-in: failed to create session", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	h.log.Info("user signed in", "user_id", userIDStr)
+
+	data := api.LocalAuthData{
+		User: api.AuthUser{
+			Id:              user.ID,
+			Email:           user.Email,
+			Name:            user.Name,
+			UserType:        api.AuthUserUserTypeClient,
+			ProfileComplete: user.Name != "",
+		},
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int(accessTokenTTL / time.Second),
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("Login successful", api.CodeOK, data))
+}
+
 func generateVerificationCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {

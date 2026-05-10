@@ -251,7 +251,7 @@ components:
       required: [user, access_token, refresh_token, expires_in]
       properties:
         user:
-          $ref: '#/components/schemas/AuthUser'
+          $ref: "#/components/schemas/AuthUser"
         access_token:
           type: string
         refresh_token:
@@ -337,21 +337,18 @@ paths:
     post:
       security: []
       operationId: HandleLocalAuth
-      summary: Login with email and password
+      summary: Login with email
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email, password]
+              required: [email]
               properties:
                 email:
                   type: string
                   format: email
-                password:
-                  type: string
-                  format: password
       responses:
         "200":
           description: Login successful
@@ -394,7 +391,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
-                message: Invalid email or password
+                message: Invalid email
                 code: UNAUTHORIZED
 
   /auth/logout:
@@ -419,7 +416,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Logout successful
@@ -429,7 +426,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: refresh token is required
@@ -439,7 +436,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: unauthorized
@@ -449,12 +446,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: internal server error
                 code: SERVER_ERROR
-      
+
   /auth/google:
     get:
       security: []
@@ -543,14 +540,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
         "201":
           description: Verification code sent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                $ref: "#/components/schemas/SuccessResponse"
               example:
                 status: success
                 message: Verification code sent to your email
@@ -561,7 +558,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Validation error
@@ -574,7 +571,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: too many requests, please try again later
@@ -584,7 +581,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Internal server error
@@ -600,7 +597,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyEmailRequest'
+              $ref: "#/components/schemas/VerifyEmailRequest"
       responses:
         "200":
           description: Email verified — tokens issued
@@ -608,11 +605,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: "#/components/schemas/SuccessResponse"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/LocalAuthData'
+                        $ref: "#/components/schemas/LocalAuthData"
               example:
                 status: success
                 message: Email verified successfully
@@ -632,7 +629,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: invalid or expired verification code
@@ -642,7 +639,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: too many attempts, please request a new code
@@ -652,7 +649,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
                 message: Internal server error
