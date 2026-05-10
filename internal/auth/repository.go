@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 var (
@@ -172,6 +173,9 @@ func (r *postgresSessionRepo) Create(ctx context.Context, userID uuid.UUID, toke
 		ExpiresAt: expiresAt,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, pkgerrors.ErrNotFound
+		}
 		return nil, err
 	}
 	return &session, nil
