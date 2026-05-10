@@ -32,7 +32,11 @@ func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error
 	return f.user, f.err
 }
 
-func (f *fakeUserRepo) Create(_ context.Context, email, name string) (*db.User, error) {
+func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
+	return f.user, f.err
+}
+
+func (f *fakeUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{
 		ID:       uuid.New(),
 		Email:    email,
@@ -41,24 +45,12 @@ func (f *fakeUserRepo) Create(_ context.Context, email, name string) (*db.User, 
 	}, nil
 }
 
-func (f *fakeUserRepo) UpdateLastLogin(_ context.Context, _ uuid.UUID) error {
-	return nil
+func (f *fakeUserRepo) CreateEmailUser(_ context.Context, email string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local"}, nil
 }
 
-func (f *fakeUserRepo) ListRoleNames(_ context.Context, _ uuid.UUID) ([]string, error) {
-	return nil, nil
-}
-
-func (f *fakeUserRepo) CreateLocal(_ context.Context, email, name, _ string) (*db.User, error) {
-	return &db.User{ID: uuid.New(), Email: email, Name: name, IsActive: true}, nil
-}
-
-func (f *fakeUserRepo) AssignRole(_ context.Context, _ uuid.UUID, _ string) error {
-	return nil
-}
-
-func (f *fakeUserRepo) WithTx(_ *sql.Tx) auth.UserRepository {
-	return f
+func (f *fakeUserRepo) MarkVerified(_ context.Context, email string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
 func testHandler(repo auth.UserRepository) *auth.GoogleHandler {

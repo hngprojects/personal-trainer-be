@@ -2,175 +2,166 @@ package middleware_test
 
 import (
 	"context"
-	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-
-	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
-	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
-// fakeAuthUsers stubs out auth.UserRepository — only ListRoleNames matters for
-// these tests; the rest are no-ops to satisfy the interface.
-type fakeAuthUsers struct {
-	roles []string
-	err   error
+func init() {
+	gin.SetMode(gin.TestMode)
+	if err := os.Setenv("JWT_SECRET", "test-secret"); err != nil {
+		panic(err)
+	}
 }
 
-func (f *fakeAuthUsers) FindByEmail(_ context.Context, _ string) (*db.User, error) {
-	return nil, nil
-}
-func (f *fakeAuthUsers) Create(_ context.Context, _, _ string) (*db.User, error) {
-	return nil, nil
-}
-func (f *fakeAuthUsers) CreateLocal(_ context.Context, _, _, _ string) (*db.User, error) {
-	return nil, nil
-}
-func (f *fakeAuthUsers) UpdateLastLogin(_ context.Context, _ uuid.UUID) error {
-	return nil
-}
-func (f *fakeAuthUsers) ListRoleNames(_ context.Context, _ uuid.UUID) ([]string, error) {
-	return f.roles, f.err
-}
-func (f *fakeAuthUsers) AssignRole(_ context.Context, _ uuid.UUID, _ string) error {
-	return nil
-}
-func (f *fakeAuthUsers) WithTx(_ *sql.Tx) auth.UserRepository {
-	return f
+type fakeRedis struct {
+	blocked map[string]bool
+	err     error
 }
 
-// --- AuthMiddleware -------------------------------------------------------
+func (f *fakeRedis) Set(_ context.Context, _ string, _ interface{}, _ time.Duration) error {
+	return f.err
+}
 
-func TestAuthMiddleware_ValidToken_SetsUserID(t *testing.T) {
-	t.Setenv("JWT_SECRET", "test-secret")
-	uid := uuid.New()
-	tok, err := auth.GenerateJWTToken(uid.String(), auth.AccessToken)
+func (f *fakeRedis) Exists(_ context.Context, key string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.blocked[key], nil
+}
+
+func makeToken(t *testing.T, userID, jti, tokenType, secret string) string {
+	t.Helper()
+	claims := jwt.MapClaims{
+		"sub":  userID,
+		"exp":  time.Now().Add(10 * time.Minute).Unix(),
+		"iat":  time.Now().Unix(),
+		"iss":  "api.fitcall",
+		"type": tokenType,
+		"jti":  jti,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(secret))
 	if err != nil {
-		t.Fatalf("token: %v", err)
+		t.Fatalf("failed to sign token: %v", err)
 	}
+	return signed
+}
 
-	var got uuid.UUID
+func setupRouter(redis appredis.RedisClient) (*gin.Engine, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
-	r.GET("/x", middleware.AuthMiddleware(), func(c *gin.Context) {
-		got = c.MustGet("user_id").(uuid.UUID)
-		c.Status(http.StatusOK)
+	r.Use(middleware.AuthMiddleware(redis))
+	r.GET("/protected", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	return r, w
+}
+
+func TestAuthMiddleware_MissingToken(t *testing.T) {
+	r, w := setupRouter(&fakeRedis{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
+	r, w := setupRouter(&fakeRedis{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "InvalidFormat")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAuthMiddleware_InvalidSignature(t *testing.T) {
+	jti := uuid.NewString()
+	userID := uuid.NewString()
+	token := makeToken(t, userID, jti, "access", "wrong-secret")
+
+	r, w := setupRouter(&fakeRedis{})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAuthMiddleware_BlocklistedToken(t *testing.T) {
+	jti := uuid.NewString()
+	userID := uuid.NewString()
+	token := makeToken(t, userID, jti, "access", "test-secret")
+
+	r, w := setupRouter(&fakeRedis{blocked: map[string]bool{"blocklist:" + jti: true}})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for blocklisted token, got %d", w.Code)
+	}
+}
+
+func TestAuthMiddleware_ValidToken_SetsContext(t *testing.T) {
+	jti := uuid.NewString()
+	userID := uuid.New()
+	token := makeToken(t, userID.String(), jti, "access", "test-secret")
+
+	var gotUserID uuid.UUID
+	var gotJTI string
+
+	w := httptest.NewRecorder()
+	_, r := gin.CreateTestContext(w)
+	r.Use(middleware.AuthMiddleware(&fakeRedis{}))
+	r.GET("/protected", func(c *gin.Context) {
+		gotUserID, _ = c.MustGet("user_id").(uuid.UUID)
+		gotJTI, _ = c.MustGet(string(common.ContextKeyJTI)).(string)
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if got != uid {
-		t.Errorf("user_id = %v, want %v", got, uid)
-	}
-}
-
-func TestAuthMiddleware_NoHeader_401(t *testing.T) {
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", middleware.AuthMiddleware(), func(_ *gin.Context) {})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestAuthMiddleware_BadFormat_401(t *testing.T) {
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", middleware.AuthMiddleware(), func(_ *gin.Context) {})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
-	req.Header.Set("Authorization", "NotBearer abc.def.ghi")
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestAuthMiddleware_InvalidToken_401(t *testing.T) {
-	t.Setenv("JWT_SECRET", "test-secret")
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", middleware.AuthMiddleware(), func(_ *gin.Context) {})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
-	req.Header.Set("Authorization", "Bearer not-a-real-jwt")
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-// --- RequireRole ----------------------------------------------------------
-
-func TestRequireRole_AllowsMatchingRole(t *testing.T) {
-	users := &fakeAuthUsers{roles: []string{"client", "super_admin"}}
-
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", func(c *gin.Context) {
-		c.Set("user_id", uuid.New())
-		middleware.RequireRole(users, "super_admin")(c)
-		if !c.IsAborted() {
-			c.Status(http.StatusOK)
-		}
-	})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-}
-
-func TestRequireRole_DeniesMissingRole(t *testing.T) {
-	users := &fakeAuthUsers{roles: []string{"client"}}
-
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", func(c *gin.Context) {
-		c.Set("user_id", uuid.New())
-		middleware.RequireRole(users, "super_admin")(c)
-	})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
-	r.ServeHTTP(w, req)
-
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if gotUserID != userID {
+		t.Errorf("expected userID %s, got %s", userID, gotUserID)
+	}
+	if gotJTI != jti {
+		t.Errorf("expected jti %s, got %s", jti, gotJTI)
 	}
 }
 
-func TestRequireRole_DeniesUnauthenticated(t *testing.T) {
-	users := &fakeAuthUsers{}
+func TestAuthMiddleware_RedisError(t *testing.T) {
+	jti := uuid.NewString()
+	userID := uuid.NewString()
+	token := makeToken(t, userID, jti, "access", "test-secret")
 
-	w := httptest.NewRecorder()
-	_, r := gin.CreateTestContext(w)
-	r.GET("/x", func(c *gin.Context) {
-		// No user_id set → simulate unauthenticated request.
-		middleware.RequireRole(users, "admin")(c)
-	})
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/x", nil)
+	r, w := setupRouter(&fakeRedis{err: fmt.Errorf("redis down")})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 on redis error, got %d", w.Code)
 	}
 }

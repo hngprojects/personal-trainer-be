@@ -26,42 +26,33 @@ func (s *routerImpl) HandleGoogleCallback(c *gin.Context, params api.HandleGoogl
 }
 
 func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
-	if s.users == nil {
+	if s.local == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
+	s.local.SignIn(c)
+}
 
-	var req struct {
-		Email    string `json:"email"    binding:"required,email"`
-		Password string `json:"password" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid input", api.CodeBadRequest))
+func (s *routerImpl) HandleLogout(c *gin.Context) {
+	if s.logout == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
+	s.logout.HandleLogout(c)
+}
 
-	user, err := s.users.FindByEmail(c.Request.Context(), req.Email)
-	if err != nil || !user.PasswordHash.Valid {
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+func (s *routerImpl) HandleRegister(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	if err := auth.CheckPassword(user.PasswordHash.String, req.Password); err != nil {
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+	s.local.Register(c)
+}
+
+func (s *routerImpl) HandleVerifyEmail(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-
-	_ = s.users.UpdateLastLogin(c.Request.Context(), user.ID)
-	access, _ := auth.GenerateJWTToken(user.ID.String(), auth.AccessToken)
-	refresh, _ := auth.GenerateJWTToken(user.ID.String(), auth.RefreshToken)
-
-	c.JSON(http.StatusOK, api.NewSuccessResponse("login successful", api.CodeOK, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":    user.ID,
-			"email": user.Email,
-			"name":  user.Name,
-		},
-		"access_token":  access,
-		"refresh_token": refresh,
-		"expires_in":    int(10 * time.Minute / time.Second),
-	}, nil))
+	s.local.VerifyEmail(c)
 }

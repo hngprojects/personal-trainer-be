@@ -8,14 +8,15 @@ func NewSuccessResponse(message, code string, data interface{}, meta interface{}
 		Message: message,
 		Status:  SuccessResponseStatusSuccess,
 	}
+
 	if data != nil {
-		d := data.(map[string]interface{})
-		resp.Data = &d
+		// allow object OR array OR any JSON value
+		resp.Data = &data
 	}
 	if meta != nil {
-		m := meta.(map[string]interface{})
-		resp.Meta = &m
+		resp.Meta = &meta
 	}
+
 	return resp
 }
 
@@ -32,7 +33,7 @@ func NewErrorResponse(message, code string, errors []FieldError) ErrorResponse {
 	}
 }
 
-func NewSuccess(message string, code string, data interface{}) SuccessResponse {
+func NewSuccess(message string, code string, data any) SuccessResponse {
 	return NewSuccessResponse(message, code, data, nil)
 }
 

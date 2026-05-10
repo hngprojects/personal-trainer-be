@@ -37,6 +37,23 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Trainer struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Specialization    sql.NullString
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	CalendlyConnected bool
+	CalendlyLink      sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullString
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string
@@ -45,16 +62,7 @@ type User struct {
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
-	IsVerified   bool
-	Timezone     string
-	LastLogin    sql.NullTime
-	DeletedAt    sql.NullTime
-}
-
-type UserRole struct {
-	UserID    uuid.UUID
-	RoleID    uuid.UUID
-	CreatedAt time.Time
+	Role         string
 }
 
 type VerificationCode struct {
@@ -63,4 +71,10 @@ type VerificationCode struct {
 	Code      string
 	CreatedAt time.Time
 	ExpiresAt time.Time
+}
+
+type Waitlist struct {
+	ID        uuid.UUID
+	Email     string
+	CreatedAt time.Time
 }

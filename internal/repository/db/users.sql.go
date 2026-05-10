@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -31,7 +30,9 @@ func (q *Queries) AssignRoleToUser(ctx context.Context, arg AssignRoleToUserPara
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, password_hash)
 VALUES ($1, $2, $3)
-RETURNING id, email, name, password_hash, is_active, created_at, updated_at, is_verified, timezone, last_login, deleted_at
+ON CONFLICT (email, auth_provider) DO UPDATE
+    SET updated_at = NOW()
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role
 `
 
 type CreateUserParams struct {
@@ -51,16 +52,40 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsVerified,
-		&i.Timezone,
-		&i.LastLogin,
-		&i.DeletedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, is_active, created_at, updated_at, is_verified, timezone, last_login, deleted_at FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+FROM users
+WHERE email = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+	)
+	return i, err
+}
+
+const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+FROM users
+WHERE email = $1 AND auth_provider = $2
+LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -74,16 +99,16 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsVerified,
-		&i.Timezone,
-		&i.LastLogin,
-		&i.DeletedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, is_active, created_at, updated_at, is_verified, timezone, last_login, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL LIMIT 1
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+FROM users
+WHERE id = $1
+LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -93,52 +118,26 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.ID,
 		&i.Email,
 		&i.Name,
-		&i.PasswordHash,
+		&i.Password,
+		&i.AuthProvider,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.IsVerified,
-		&i.Timezone,
-		&i.LastLogin,
-		&i.DeletedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
-const listUserRoleNames = `-- name: ListUserRoleNames :many
-SELECT r.name FROM roles r
-JOIN user_roles ur ON ur.role_id = r.id
-WHERE ur.user_id = $1
+const getUserRoleByID = `-- name: GetUserRoleByID :one
+SELECT role
+FROM users
+WHERE id = $1
+LIMIT 1
 `
 
-func (q *Queries) ListUserRoleNames(ctx context.Context, userID uuid.UUID) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listUserRoleNames, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		items = append(items, name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateLastLogin = `-- name: UpdateLastLogin :exec
-UPDATE users SET last_login = NOW() WHERE id = $1
-`
-
-func (q *Queries) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, updateLastLogin, id)
-	return err
+func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserRoleByID, id)
+	var role string
+	err := row.Scan(&role)
+	return role, err
 }
