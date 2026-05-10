@@ -119,6 +119,35 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
+const getUserRole = `-- name: GetUserRole :one
+SELECT users.id, users.email,
+    user_roles.id,
+    roles.name
+FROM users
+JOIN user_roles ON user_roles.user_id=users.id
+JOIN roles ON roles.id=user_roles.role_id
+WHERE email=$1 LIMIT 1
+`
+
+type GetUserRoleRow struct {
+	ID    uuid.UUID
+	Email string
+	ID_2  uuid.UUID
+	Name  string
+}
+
+func (q *Queries) GetUserRole(ctx context.Context, email string) (GetUserRoleRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserRole, email)
+	var i GetUserRoleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.ID_2,
+		&i.Name,
+	)
+	return i, err
+}
+
 const getUserRoleByID = `-- name: GetUserRoleByID :one
 SELECT role
 FROM users

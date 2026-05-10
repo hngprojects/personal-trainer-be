@@ -28,3 +28,13 @@ SELECT *
 FROM users
 WHERE email = $1
 LIMIT 1;
+SELECT * FROM users WHERE id = $1 LIMIT 1;
+
+-- name: GetUserRole :one
+SELECT users.id, users.email,
+    user_roles.id,
+    roles.name
+FROM users
+JOIN user_roles ON user_roles.user_id=users.id
+JOIN roles ON roles.id=user_roles.role_id
+WHERE email=$1 LIMIT 1;

@@ -35,6 +35,8 @@ type fakeLocalUserRepo struct {
 	findErr         error
 	createUserErr   error
 	markVerifiedErr error
+	findUserRole    *db.GetUserRoleRow
+	findUserRoleErr error
 }
 
 func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
@@ -43,6 +45,10 @@ func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ strin
 
 func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
 	return f.findUser, f.findErr
+}
+
+func (f *fakeLocalUserRepo) GetUserRole(_ context.Context, _ string) (*db.GetUserRoleRow, error) {
+	return f.findUserRole, f.findUserRoleErr
 }
 
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {

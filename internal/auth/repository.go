@@ -26,6 +26,7 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
+	GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -90,6 +91,17 @@ func (r *postgresUserRepo) FindByEmail(ctx context.Context, email string) (*db.U
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *postgresUserRepo) GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error) {
+	userRole, err := r.q.GetUserRole(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &userRole, nil
 }
 
 func (r *postgresUserRepo) Create(ctx context.Context, email, name, provider string) (*db.User, error) {
