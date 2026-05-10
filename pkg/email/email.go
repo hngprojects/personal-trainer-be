@@ -12,6 +12,7 @@ import (
 
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
+	SendPasswordResetCode(to, code string, expiryMinutes int) error
 }
 
 type SMTPMailer struct {
@@ -129,4 +130,84 @@ func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 		return "", err
 	}
 	return body.String(), nil
+}
+
+const passwordResetSubject = "Your password reset code"
+
+var passwordResetTemplate = template.Must(template.New("password-reset-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Reset your password</h2>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">Use the code below to reset your password. If you did not request this, ignore this email.</p>
+        </td></tr>
+        <tr><td align="center" style="padding:24px 0;">
+          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111827;background:#f4f4f5;padding:16px 32px;border-radius:8px;">{{ .Code }}</span>
+        </td></tr>
+        <tr><td align="center" style="padding-top:16px;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">Expires in {{ .ExpiryMinutes }} minutes. Do not share this code with anyone.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func passwordResetHTML(code string, expiryMinutes int) (string, error) {
+	var body bytes.Buffer
+	if err := passwordResetTemplate.Execute(&body, struct {
+		Code          string
+		ExpiryMinutes int
+	}{
+		Code:          code,
+		ExpiryMinutes: expiryMinutes,
+	}); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := passwordResetHTML(code, expiryMinutes)
+	if err != nil {
+		return fmt.Errorf("build password reset email body: %w", err)
+	}
+
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, passwordResetSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+// SendPasswordResetCode logs only metadata — never the rendered body, which
+// contains the live reset code. If the LogMailer is ever enabled outside an
+// isolated local workflow, anyone with log access could otherwise reset
+// accounts. Local E2E flows that need the actual code should use a test stub
+// (e.g. a fake mailer that captures the args), not the LogMailer.
+func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
+	slog.Info("email (password reset code redacted)",
+		"to", to,
+		"subject", passwordResetSubject,
+		"expires_in_minutes", expiryMinutes,
+	)
+	return nil
 }
