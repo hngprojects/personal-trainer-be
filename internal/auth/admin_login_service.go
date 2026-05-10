@@ -52,7 +52,6 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		r.log.Error("error generating refresh token", "err", err)
 		return nil, err
 	}
-	var successResponse api.SuccessResponse
 	tokenData := map[string]interface{}{
 		"user": map[string]interface{}{
 			"id":               user.ID.String(),
@@ -65,6 +64,6 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		"refresh_token": refreshToken,
 		"expires_in":    int(AccessTokenTTL / time.Second),
 	}
-	successResponse = api.NewSuccessResponse("admin user logged in successfully", api.CodeOK, tokenData, nil)
+	successResponse := api.NewSuccessResponse("admin user logged in successfully", api.CodeOK, tokenData, nil)
 	return &successResponse, nil
 }
