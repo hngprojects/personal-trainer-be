@@ -44,3 +44,14 @@ SELECT role
 FROM users
 WHERE id = $1
 LIMIT 1;
+
+
+-- name: CreateRole :one
+INSERT INTO roles (name)
+VALUES ($1)
+RETURNING *;
+
+-- name: CreateUserRole :one
+INSERT INTO user_roles (user_id, role_id)
+VALUES ($1, $2)
+RETURNING *;

@@ -16,6 +16,7 @@ const (
 	RefreshToken    TokenType = "refresh"
 	AccessTokenTTL            = 10 * time.Minute
 	RefreshTokenTTL           = 7 * 24 * time.Hour
+	BcryptSaltRound           = 12
 )
 
 func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
