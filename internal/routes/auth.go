@@ -54,3 +54,19 @@ func (s *routerImpl) HandleVerifyEmail(c *gin.Context) {
 	}
 	s.local.VerifyEmail(c)
 }
+
+func (s *routerImpl) HandleForgotPassword(c *gin.Context) {
+	if s.passwordReset == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.passwordReset.HandleForgotPassword(c)
+}
+
+func (s *routerImpl) HandleResetPassword(c *gin.Context) {
+	if s.passwordReset == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.passwordReset.HandleResetPassword(c)
+}

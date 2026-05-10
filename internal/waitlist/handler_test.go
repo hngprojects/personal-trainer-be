@@ -92,7 +92,7 @@ func TestHandleAddWaitlist_Success(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "success" {
 		t.Errorf("expected status 'success', got %v", resp["status"])
@@ -153,7 +153,7 @@ func TestHandleAddWaitlist_InvalidEmail(t *testing.T) {
 			}
 
 			var resp map[string]interface{}
-			json.Unmarshal(w.Body.Bytes(), &resp)
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 			if resp["status"] != "error" {
 				t.Errorf("expected status 'error', got %v", resp["status"])
@@ -200,7 +200,7 @@ func TestHandleAddWaitlist_EmailAlreadyExists(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "success" {
 		t.Errorf("expected status 'success', got %v", resp["status"])
@@ -275,7 +275,7 @@ func TestHandleAddWaitlist_RepositoryError(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "error" {
 		t.Errorf("expected status 'error', got %v", resp["status"])
@@ -318,7 +318,7 @@ func TestHandleGetWaitlist_GetAll(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "success" {
 		t.Errorf("expected status 'success', got %v", resp["status"])
@@ -364,7 +364,7 @@ func TestHandleGetWaitlist_GetByEmail(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "success" {
 		t.Errorf("expected status 'success', got %v", resp["status"])
@@ -394,7 +394,7 @@ func TestHandleGetWaitlist_GetByEmail_NotFound(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "error" {
 		t.Errorf("expected status 'error', got %v", resp["status"])
@@ -449,7 +449,7 @@ func TestHandleGetWaitlist_RepositoryError(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp["status"] != "error" {
 		t.Errorf("expected status 'error', got %v", resp["status"])
