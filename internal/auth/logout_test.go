@@ -22,7 +22,7 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
-	os.Setenv("JWT_SECRET", "test-secret")
+	_ = os.Setenv("JWT_SECRET", "test-secret") // init() context — t.Setenv unavailable
 }
 
 type fakeRedis struct {
