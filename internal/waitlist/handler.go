@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 )
 
 type WaitlistHandler struct {
@@ -24,7 +25,7 @@ func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger) *WaitlistHand
 
 func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	var req struct {
-		Email string `json:"email" binding:"required,email"`
+		Email string `json:"email" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -34,6 +35,12 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	if !common.IsValidEmail(email) {
+		h.log.Info("invalid email", "email", email)
+		c.JSON(http.StatusBadRequest, api.NewError("Invalid email", api.CodeBadRequest))
+		return
+	}
 
 	// Check if email already exists
 	_, err := h.repo.GetByEmail(c.Request.Context(), email)
