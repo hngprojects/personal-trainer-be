@@ -11,6 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type AdminInvite struct {
+	ID         uuid.UUID
+	Email      string
+	Name       string
+	TokenHash  string
+	InvitedBy  uuid.UUID
+	ExpiresAt  time.Time
+	AcceptedAt sql.NullTime
+	RevokedAt  sql.NullTime
+	CreatedAt  time.Time
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID

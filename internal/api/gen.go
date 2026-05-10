@@ -218,6 +218,24 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminUpdateRoleJSONBodyRole.
+const (
+	AdminUpdateRoleJSONBodyRoleAdmin      AdminUpdateRoleJSONBodyRole = "admin"
+	AdminUpdateRoleJSONBodyRoleSuperAdmin AdminUpdateRoleJSONBodyRole = "super_admin"
+)
+
+// Valid indicates whether the value is a known member of the AdminUpdateRoleJSONBodyRole enum.
+func (e AdminUpdateRoleJSONBodyRole) Valid() bool {
+	switch e {
+	case AdminUpdateRoleJSONBodyRoleAdmin:
+		return true
+	case AdminUpdateRoleJSONBodyRoleSuperAdmin:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
 const (
 	Error   HandleVerifyEmail200JSONResponseBodyStatus = "error"
@@ -426,6 +444,20 @@ type VerifyEmailRequest struct {
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// AdminAddJSONBody defines parameters for AdminAdd.
+type AdminAddJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+	Name  string              `json:"name"`
+}
+
+// AdminUpdateRoleJSONBody defines parameters for AdminUpdateRole.
+type AdminUpdateRoleJSONBody struct {
+	Role AdminUpdateRoleJSONBodyRole `json:"role"`
+}
+
+// AdminUpdateRoleJSONBodyRole defines parameters for AdminUpdateRole.
+type AdminUpdateRoleJSONBodyRole string
+
 // HandleGoogleCallbackParams defines parameters for HandleGoogleCallback.
 type HandleGoogleCallbackParams struct {
 	Code  string `form:"code" json:"code"`
@@ -461,6 +493,12 @@ type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
+type AdminAddJSONRequestBody AdminAddJSONBody
+
+// AdminUpdateRoleJSONRequestBody defines body for AdminUpdateRole for application/json ContentType.
+type AdminUpdateRoleJSONRequestBody AdminUpdateRoleJSONBody
+
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
@@ -487,6 +525,12 @@ type ServerInterface interface {
 	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
+	// Create an admin account (super_admin only)
+	// (POST /admin/add)
+	AdminAdd(c *gin.Context)
+	// Change the role of an admin or super_admin (super_admin only)
+	// (PUT /admin/{id}/role)
+	AdminUpdateRole(c *gin.Context, id openapi_types.UUID)
 	// Initiate Google OAuth — redirects browser to Google consent screen
 	// (GET /auth/google)
 	HandleGoogleLogin(c *gin.Context)
@@ -551,6 +595,48 @@ func (siw *ServerInterfaceWrapper) Root(c *gin.Context) {
 	}
 
 	siw.Handler.Root(c)
+}
+
+// AdminAdd operation middleware
+func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminAdd(c)
+}
+
+// AdminUpdateRole operation middleware
+func (siw *ServerInterfaceWrapper) AdminUpdateRole(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminUpdateRole(c, id)
 }
 
 // HandleGoogleLogin operation middleware
@@ -863,6 +949,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
+	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.PUT(options.BaseURL+"/admin/:id/role", wrapper.AdminUpdateRole)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)

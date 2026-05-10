@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -61,6 +62,7 @@ type routerImpl struct {
 	waitlist *waitlist.WaitlistHandler
 	logout   *auth.LogoutHandler
 	trainers *trainersStore
+	admin    *admin.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -98,6 +100,7 @@ func (s *Router) Routes() *gin.Engine {
 			localHandler    *auth.LocalHandler
 			waitlistHandler *waitlist.WaitlistHandler
 			logout          *auth.LogoutHandler
+			adminHandler    *admin.Handler
 		)
 
 		var rawRedis *redis.Client
@@ -121,6 +124,8 @@ func (s *Router) Routes() *gin.Engine {
 
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			waitlistHandler = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+
+			adminHandler = admin.NewHandler(usersRepo, mailer, s.log)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
@@ -133,12 +138,15 @@ func (s *Router) Routes() *gin.Engine {
 			waitlist: waitlistHandler,
 			logout:   logout,
 			trainers: newTrainersStore(q),
+			admin:    adminHandler,
 		}
 
 		authMw := middleware.AuthMiddleware(s.redis)
-		var adminOnly api.MiddlewareFunc
+		var trainersAdminOnly api.MiddlewareFunc
+		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
-			adminOnly = middleware.TrainersAdminOnly(q)
+			trainersAdminOnly = middleware.TrainersAdminOnly(q)
+			superAdminOnly = middleware.SuperAdminOnly(q)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
@@ -150,8 +158,14 @@ func (s *Router) Routes() *gin.Engine {
 							return
 						}
 					}
-					if adminOnly != nil {
-						adminOnly(c)
+					if trainersAdminOnly != nil {
+						trainersAdminOnly(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					if superAdminOnly != nil {
+						superAdminOnly(c)
 					}
 				},
 			},

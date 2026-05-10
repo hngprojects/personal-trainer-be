@@ -28,3 +28,21 @@ SELECT *
 FROM users
 WHERE email = $1
 LIMIT 1;
+
+-- name: UpsertAdminUser :one
+INSERT INTO users (email, name, password, auth_provider, role, is_active)
+VALUES ($1, $2, $3, 'local', 'admin', true)
+ON CONFLICT (email, auth_provider) DO UPDATE
+   SET password   = EXCLUDED.password,
+       name       = EXCLUDED.name,
+       role       = 'admin',
+       is_active  = true,
+       updated_at = NOW()
+RETURNING *;
+
+-- name: UpdateUserRole :one
+UPDATE users
+   SET role       = $2,
+       updated_at = NOW()
+ WHERE id = $1
+RETURNING *;
