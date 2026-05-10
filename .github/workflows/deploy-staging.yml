@@ -3,7 +3,7 @@ name: Deploy to Staging
 on:
   push:
     branches:
-      - staging 
+      - staging
 
 jobs:
   deploy:
@@ -18,12 +18,16 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            cd personal-trainer-be
+            set -e
+            cd ~/personal-trainer-be
 
             git pull origin staging
 
             docker compose up -d redis
-            
+
             go build -o bin/server ./cmd/server
 
-            
+            export $(cat .env | grep -v '^#' | xargs)
+            make migrate-up
+
+            sudo systemctl restart personal-trainer-staging
