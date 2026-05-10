@@ -80,7 +80,7 @@ jobs:
       #   - Dockerfile / docker-compose misconfigurations
       #   - Hardcoded secrets
       - name: Trivy filesystem scan (SARIF for Security tab)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -102,7 +102,7 @@ jobs:
       # MEDIUM findings still appear in the Security tab via the SARIF upload
       # above so we can triage them without blocking merges.
       - name: Trivy filesystem scan (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
