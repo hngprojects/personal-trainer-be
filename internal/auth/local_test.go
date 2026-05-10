@@ -63,6 +63,18 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
+func (f *fakeLocalUserRepo) UpsertAdmin(_ context.Context, email, name, _ string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: "local", Role: "admin", IsActive: true}, nil
+}
+
+func (f *fakeLocalUserRepo) UpdateRole(_ context.Context, id uuid.UUID, role string) (*db.User, error) {
+	return &db.User{ID: id, Role: role}, nil
+}
+
+func (f *fakeLocalUserRepo) GetByID(_ context.Context, id uuid.UUID) (*db.User, error) {
+	return &db.User{ID: id}, nil
+}
+
 // fakeCodeRepo controls verification code behaviour.
 type fakeCodeRepo struct {
 	consumeErr error
@@ -119,6 +131,10 @@ type fakeMailer struct {
 }
 
 func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error {
+	return m.err
+}
+
+func (m *fakeMailer) SendAdminCredentials(_, _ string) error {
 	return m.err
 }
 

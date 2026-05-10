@@ -53,6 +53,21 @@ func (f *fakeUserRepo) MarkVerified(_ context.Context, email string) (*db.User, 
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
+func (f *fakeUserRepo) UpsertAdmin(_ context.Context, email, name, _ string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: "local", Role: "admin", IsActive: true}, nil
+}
+
+func (f *fakeUserRepo) UpdateRole(_ context.Context, id uuid.UUID, role string) (*db.User, error) {
+	return &db.User{ID: id, Role: role}, nil
+}
+
+func (f *fakeUserRepo) GetByID(_ context.Context, id uuid.UUID) (*db.User, error) {
+	if f.user != nil {
+		return f.user, nil
+	}
+	return &db.User{ID: id}, nil
+}
+
 func testHandler(repo auth.UserRepository) *auth.GoogleHandler {
 	cfg := &config.Config{
 		GoogleClientID:     "test-client-id",
