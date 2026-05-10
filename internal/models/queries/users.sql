@@ -1,12 +1,8 @@
--- name: GetUserByEmail :one
-SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1;
-
--- name: GetUserByID :one
-SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL LIMIT 1;
-
 -- name: CreateUser :one
-INSERT INTO users (email, name, password_hash)
+INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
+ON CONFLICT (email, auth_provider) DO UPDATE
+    SET updated_at = NOW()
 RETURNING *;
 
 -- name: GetUserByEmailAndProvider :one

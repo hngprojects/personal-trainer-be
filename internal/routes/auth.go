@@ -2,11 +2,9 @@ package routes
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
-	"github.com/hngprojects/personal-trainer-be/internal/auth"
 )
 
 func (s *routerImpl) HandleGoogleLogin(c *gin.Context) {

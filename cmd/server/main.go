@@ -15,6 +15,7 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
+	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
@@ -30,6 +31,8 @@ func main() {
 
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
+
+	auth.Configure(cfg.JwtSecret)
 
 	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {

@@ -85,14 +85,14 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	}
 
 	isNewUser := false
-	user, err := h.users.FindByEmail(c.Request.Context(), userInfo.Email)
+	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), userInfo.Email, "google")
 	if err != nil {
 		if !errors.Is(err, pkgerrors.ErrNotFound) {
 			h.log.Error("database error looking up user", "err", err, "email", userInfo.Email)
 			c.JSON(http.StatusInternalServerError, api.NewError("database error", api.CodeServerError))
 			return
 		}
-		user, err = h.users.Create(c.Request.Context(), userInfo.Email, userInfo.Name)
+		user, err = h.users.Create(c.Request.Context(), userInfo.Email, userInfo.Name, "google")
 		if err != nil {
 			h.log.Error("failed to create user", "err", err, "email", userInfo.Email)
 			c.JSON(http.StatusInternalServerError, api.NewError("failed to create user", api.CodeServerError))
@@ -123,7 +123,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 			"email":            user.Email,
 			"name":             user.Name,
 			"user_type":        "client",
-			"profile_complete": isNewUser,
+			"profile_complete": !isNewUser,
 		},
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,

@@ -53,6 +53,25 @@ type LogMailer struct{}
 
 func NewLogMailer() *LogMailer { return &LogMailer{} }
 
+func (m *SMTPMailer) Send(to, subject, body string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", fromAddr, toAddr, subject, body)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *LogMailer) Send(to, subject, body string) error {
+	slog.Info("email", "to", to, "subject", subject, "body", body)
+	return nil
+}
+
 func (m *LogMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
 	body, err := verificationCodeHTML(code, expiryMinutes)
 	if err != nil {
