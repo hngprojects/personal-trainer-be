@@ -134,36 +134,6 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
-const updateUserRole = `-- name: UpdateUserRole :one
-UPDATE users
-   SET role       = $2,
-       updated_at = NOW()
- WHERE id = $1
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role
-`
-
-type UpdateUserRoleParams struct {
-	ID   uuid.UUID
-	Role string
-}
-
-func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUserRole, arg.ID, arg.Role)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.Password,
-		&i.AuthProvider,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Role,
-	)
-	return i, err
-}
-
 const upsertAdminUser = `-- name: UpsertAdminUser :one
 INSERT INTO users (email, name, password, auth_provider, role, is_active)
 VALUES ($1, $2, $3, 'local', 'admin', true)
