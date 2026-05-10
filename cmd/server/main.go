@@ -39,7 +39,7 @@ func main() {
 		log.Error("failed to open database", "err", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pingCancel()
@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 	log.Info("redis connected")
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	srv := routes.New(cfg, log, db, redisClient)
 

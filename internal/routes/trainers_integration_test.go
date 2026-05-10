@@ -142,7 +142,7 @@ func TestTrainersEndpoints(t *testing.T) {
 	{
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers", nil)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	}
 
@@ -151,7 +151,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	}
@@ -161,7 +161,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers", nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
@@ -188,7 +188,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// New shape: { "data": { "id": "..." }, ... }
@@ -209,7 +209,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
@@ -229,7 +229,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
@@ -239,7 +239,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusNoContent, res.StatusCode)
 	}
 }

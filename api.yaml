@@ -3,6 +3,10 @@ info:
   title: Personal-Trainer-API
   version: 1.0.0
 
+servers:
+  - url: /api/v1
+    description: Local development
+
 components:
   securitySchemes:
     bearerAuth:
@@ -283,6 +287,37 @@ components:
           maxLength: 6
           pattern: '^\d{6}$'
           example: "873690"
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@example.com
+
+    ResetPasswordRequest:
+      type: object
+      required: [email, code, new_password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@example.com
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^\d{6}$'
+          example: "873690"
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          # Capped at bcrypt's 72-byte hard limit (server enforces byte length).
+          maxLength: 72
+          example: "Str0ngPassw0rd"
 
     WaitlistRequest:
       type: object
@@ -867,6 +902,135 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      security: []
+      operationId: HandleForgotPassword
+      summary: Request a password reset code
+      description: >-
+        Sends a 6-digit reset code to the email address if it belongs to a
+        registered local user that holds the `admin` role. The endpoint
+        always returns the same generic success response regardless of
+        whether the email exists or whether the user is an admin — this
+        is intentional, to prevent account / role enumeration. The role
+        gate is enforced server-side; this is unauthenticated by design
+        because the caller has no token to present when they have lost
+        their password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        "200":
+          description: Generic acknowledgement (delivered whether or not the email exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: if the email is registered, a reset code has been sent
+                code: OK
+                data: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: invalid email format
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: too many requests, please try again later
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  /auth/reset-password:
+    post:
+      security: []
+      operationId: HandleResetPassword
+      summary: Reset password using a previously emailed code
+      description: >-
+        Validates the 6-digit code and sets a new password. The endpoint is
+        gated server-side to users that currently hold the `admin` role —
+        any other caller (non-admin, inactive, unknown email, wrong code)
+        receives the same generic 400 response so the role check cannot be
+        probed. On success the code is consumed (single-use) and all
+        existing refresh sessions for the user are revoked. Unauthenticated
+        by design, since the caller has no token when resetting a forgotten
+        password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                status: success
+                message: password reset successful
+                code: OK
+                data: null
+        "400":
+          description: Validation error or invalid/expired code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: invalid or expired reset code
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: too many attempts, please request a new code
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
 
   /waitlist:
     post:

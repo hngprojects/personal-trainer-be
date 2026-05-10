@@ -19,6 +19,9 @@ type Config struct {
 	SMTPPassword string
 	SMTPFrom     string
 
+	ResendAPIKey string
+	ResendFrom   string
+
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
@@ -43,6 +46,9 @@ func Load() (*Config, error) {
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:     os.Getenv("SMTP_FROM"),
+
+		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
+		ResendFrom:   os.Getenv("RESEND_FROM"),
 
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),

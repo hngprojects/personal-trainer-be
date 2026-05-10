@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# Cancel previous runs of the same workflow on the same ref when a new one starts.
+# Saves Actions minutes when devs push rapidly to a PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25.3"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # `make lint` runs `go vet`; we also run golangci-lint per CONTRIBUTING.md.
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Integration tests in internal/routes/trainers_integration_test.go are
+      # opt-in via RUN_INTEGRATION_TESTS=1 (they TRUNCATE tables). They are
+      # intentionally NOT enabled here — bring up a Postgres service container
+      # and set the env var when we want them.
+      - name: Run tests
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security:
+    name: Trivy security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required to upload SARIF to GitHub Security tab
+    steps:
+      - uses: actions/checkout@v4
+
+      # Filesystem scan covers:
+      #   - Go module vulnerabilities (go.mod / go.sum)
+      #   - Dockerfile / docker-compose misconfigurations
+      #   - Hardcoded secrets
+      - name: Trivy filesystem scan (SARIF for Security tab)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH,MEDIUM
+          # SARIF upload below handles surfacing — don't fail the upload step.
+          exit-code: "0"
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-fs
+
+      # Fail the job (and therefore the PR check) on HIGH/CRITICAL only.
+      # MEDIUM findings still appear in the Security tab via the SARIF upload
+      # above so we can triage them without blocking merges.
+      - name: Trivy filesystem scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+  # Aggregator status check — the branch-protection rule on `dev`/`main` requires
+  # a status check named exactly "ci". This job exists solely so that one shows
+  # up. It only goes green when every dependency above also went green.
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    needs: [lint, test, security]
+    if: always()
+    steps:
+      - name: Aggregate job results
+        run: |
+          echo "lint:     ${{ needs.lint.result }}"
+          echo "test:     ${{ needs.test.result }}"
+          echo "security: ${{ needs.security.result }}"
+          if [[ "${{ needs.lint.result }}" != "success" \
+             || "${{ needs.test.result }}" != "success" \
+             || "${{ needs.security.result }}" != "success" ]]; then
+            echo "::error::One or more required CI jobs failed"
+            exit 1
+          fi
+          echo "All required CI jobs passed."
