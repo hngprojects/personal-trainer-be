@@ -30,7 +30,7 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		return nil, errors.New("invalid email or password")
 	}
 	userRole, err := r.user.GetUserRole(ctx, email)
-	if err != nil || userRole.Name != "admin" {
+	if err != nil || userRole.RoleName != "admin" {
 		r.log.Error("error getting user role", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
@@ -58,7 +58,7 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 			"id":               user.ID.String(),
 			"email":            user.Email,
 			"name":             user.Name,
-			"user_type":        userRole.Name,
+			"user_type":        userRole.RoleName,
 			"profile_complete": true,
 		},
 		"access_token":  accessToken,

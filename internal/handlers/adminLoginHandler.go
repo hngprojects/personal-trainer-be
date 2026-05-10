@@ -39,13 +39,12 @@ func (h *AdminLoginHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
 	}
-	// validate user
 	result, err := h.service.Login(c.Request.Context(), email, password)
 	if err != nil {
 		h.log.Error("error during admin user login", "err", err)
-		c.JSON(http.StatusBadRequest, api.ErrorResponse{Code: api.CodeUnauthorized, Message: "invalid email or password", Status: "error"})
+		c.JSON(http.StatusUnauthorized, api.ErrorResponse{Code: api.CodeUnauthorized, Message: "invalid email or password", Status: "error"})
 		return
 	}
-	h.log.Info("user successfully logged in:", "email", email)
+	h.log.Info("user successfully logged in", "email", request.Email)
 	c.JSON(http.StatusOK, result)
 }
