@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -367,13 +368,14 @@ func (h *PasswordResetHandler) hashCode(code string) string {
 }
 
 func validatePassword(p string) (string, bool) {
-	if len(p) < minPasswordLen {
+	// Minimum is in characters (runes) so the error message matches user
+	// intuition — len() would let a 5-char multi-byte UTF-8 password (15+ bytes)
+	// satisfy a "must be at least 8 characters" check.
+	if utf8.RuneCountInString(p) < minPasswordLen {
 		return fmt.Sprintf("password must be at least %d characters", minPasswordLen), false
 	}
+	// Maximum is in bytes because bcrypt's 72-byte limit is a byte limit.
 	if len(p) > maxPasswordLen {
-		// len() is byte-based and so is the bcrypt 72-byte limit we're enforcing,
-		// so phrase the error in bytes to be honest about why a 60-character
-		// emoji-heavy password might be rejected.
 		return fmt.Sprintf("password must not exceed %d bytes", maxPasswordLen), false
 	}
 	var hasUpper, hasLower, hasDigit bool
