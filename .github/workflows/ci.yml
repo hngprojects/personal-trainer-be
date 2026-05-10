@@ -110,3 +110,25 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL,HIGH
           exit-code: "1"
+
+  # Aggregator status check — the branch-protection rule on `dev`/`main` requires
+  # a status check named exactly "ci". This job exists solely so that one shows
+  # up. It only goes green when every dependency above also went green.
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    needs: [lint, test, security]
+    if: always()
+    steps:
+      - name: Aggregate job results
+        run: |
+          echo "lint:     ${{ needs.lint.result }}"
+          echo "test:     ${{ needs.test.result }}"
+          echo "security: ${{ needs.security.result }}"
+          if [[ "${{ needs.lint.result }}" != "success" \
+             || "${{ needs.test.result }}" != "success" \
+             || "${{ needs.security.result }}" != "success" ]]; then
+            echo "::error::One or more required CI jobs failed"
+            exit 1
+          fi
+          echo "All required CI jobs passed."
