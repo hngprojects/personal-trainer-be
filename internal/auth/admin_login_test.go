@@ -12,11 +12,13 @@ import (
 )
 
 type fakeAdminUserRepo struct {
-	user    *db.User
-	role    *db.GetUserRoleRow
-	userErr error
-	roleErr error
-	err     error
+	user              *db.User
+	role              *db.GetUserRoleRow
+	userErr           error
+	roleErr           error
+	createUserErr     error
+	createRoleErr     error
+	createUserRoleErr error
 }
 
 func init() {
@@ -32,8 +34,8 @@ func (f *fakeAdminUserRepo) GetUserByEmail(_ context.Context, email string) (*db
 }
 
 func (f *fakeAdminUserRepo) Create(_ context.Context, email string, name string, password string) (*db.User, error) {
-	if f.err != nil {
-		return nil, f.err
+	if f.createUserErr != nil {
+		return nil, f.createUserErr
 	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), auth.BcryptSaltRound)
 	if err != nil {
@@ -51,9 +53,15 @@ func (f *fakeAdminUserRepo) Create(_ context.Context, email string, name string,
 }
 
 func (f *fakeAdminUserRepo) CreateRole(_ context.Context, roleName string) (*db.Role, error) {
-	return &db.Role{Name: roleName}, nil
+	if f.createRoleErr != nil {
+		return nil, f.createRoleErr
+	}
+	return &db.Role{ID: uuid.New(), Name: roleName}, nil
 }
 
 func (f *fakeAdminUserRepo) CreateRoleForUser(_ context.Context, userID uuid.UUID, roleID uuid.UUID) (*db.UserRole, error) {
-	return &db.UserRole{UserID: userID, RoleID: roleID}, nil
+	if f.createUserRoleErr != nil {
+		return nil, f.createUserRoleErr
+	}
+	return &db.UserRole{ID: uuid.New(), UserID: userID, RoleID: roleID}, nil
 }
