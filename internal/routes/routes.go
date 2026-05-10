@@ -73,7 +73,7 @@ func (s *Router) Routes() *gin.Engine {
 	}
 
 	r := gin.New()
-	r.SetTrustedProxies(nil)
+	_ = r.SetTrustedProxies(nil) // nil cannot fail; explicit discard for errcheck
 
 	r.Use(
 		common.RequestIDMiddleware(),

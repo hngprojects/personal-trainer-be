@@ -177,7 +177,7 @@ func (r *postgresLocalAuthRepo) ConsumeAndMarkVerified(ctx context.Context, emai
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	q := db.New(tx)
 

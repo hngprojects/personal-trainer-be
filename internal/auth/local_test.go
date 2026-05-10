@@ -126,19 +126,6 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
 
-// fakeLocalRoleRepo controls UserHasRole behaviour for local-auth tests.
-type fakeLocalRoleRepo struct {
-	hasRole map[string]bool
-	err     error
-}
-
-func (f *fakeLocalRoleRepo) UserHasRole(_ context.Context, _ uuid.UUID, roleName string) (bool, error) {
-	if f.err != nil {
-		return false, f.err
-	}
-	return f.hasRole[roleName], nil
-}
-
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
 	allowed bool
