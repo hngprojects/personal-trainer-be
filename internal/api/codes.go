@@ -6,10 +6,10 @@ const (
 	CodeCreated = "CREATED"
 
 	// Client Errors
-	CodeBadRequest   = "BAD_REQUEST"
-	CodeUnauthorized = "UNAUTHORIZED"
-	CodeForbidden    = "FORBIDDEN"
-	CodeNotFound     = "NOT_FOUND"
+	CodeBadRequest      = "BAD_REQUEST"
+	CodeUnauthorized    = "UNAUTHORIZED"
+	CodeForbidden       = "FORBIDDEN"
+	CodeNotFound        = "NOT_FOUND"
 	CodeConflict        = "CONFLICT"
 	CodeTooManyRequests = "TOO_MANY_REQUESTS"
 
