@@ -23,8 +23,9 @@ func init() {
 
 // fakeUserRepo satisfies auth.UserRepository without a real database.
 type fakeUserRepo struct {
-	user *db.User
-	err  error
+	user     *db.User
+	err      error
+	userRole *db.GetUserRoleRow
 }
 
 func (f *fakeUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
@@ -33,6 +34,10 @@ func (f *fakeUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*
 
 func (f *fakeUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
 	return f.user, f.err
+}
+
+func (f *fakeUserRepo) GetUserRole(_ context.Context, _ string) (*db.GetUserRoleRow, error) {
+	return f.userRole, f.err
 }
 
 func (f *fakeUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
