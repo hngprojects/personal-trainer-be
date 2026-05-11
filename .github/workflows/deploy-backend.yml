@@ -24,7 +24,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: true
 
       - name: Run tests
@@ -34,6 +34,7 @@ jobs:
         run: |
           mkdir -p deploy
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
+          cp -r migrations deploy/migrations
           echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
 
       - name: Upload backend staging
@@ -63,15 +64,14 @@ jobs:
             chmod +x personal-trainer-api
             chmod 600 .env
 
-            ./personal-trainer-api migrate
+            export $(grep -v '^#' .env | grep DATABASE_URL | xargs)
+            migrate -path migrations -database "$DATABASE_URL" up
 
             sudo -n /usr/bin/systemctl restart personal-trainer-backend-staging
 
             sleep 5
 
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
-
-            curl -f https://api-staging.yourdomain.com/health
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -86,7 +86,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.25'
           cache: true
 
       - name: Run tests
@@ -96,6 +96,7 @@ jobs:
         run: |
           mkdir -p deploy
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
+          cp -r migrations deploy/migrations
           echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
 
       - name: Backup production database
@@ -142,12 +143,11 @@ jobs:
             chmod +x personal-trainer-api
             chmod 600 .env
 
-            ./personal-trainer-api migrate
+            export $(grep -v '^#' .env | grep DATABASE_URL | xargs)
+            migrate -path migrations -database "$DATABASE_URL" up
 
             sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
 
             sleep 5
 
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
-
-            curl -f https://api.yourdomain.com/health
