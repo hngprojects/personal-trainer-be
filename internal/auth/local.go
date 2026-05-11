@@ -133,7 +133,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 
 	if err := h.mailer.SendVerificationCode(emailAddr, code, int(codeExpiry.Minutes())); err != nil {
 		h.log.Error("failed to send verification email", "email", emailAddr, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to send verification email", api.CodeServerError))
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
