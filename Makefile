@@ -14,7 +14,7 @@ DB_URL     ?= $(DATABASE_URL)
 
 GOOSE := goose -dir $(MIGRATIONS) postgres "$(DB_URL)"
 
-export CGO_ENABLED ?= 1
+export CGO_ENABLED ?= 0
 
 # ----------------------------------------------------------------------
 # Help
