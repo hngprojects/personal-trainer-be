@@ -99,12 +99,12 @@ type LogMailer struct{}
 
 func NewLogMailer() *LogMailer { return &LogMailer{} }
 
-func (m *LogMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
-	body, err := verificationCodeHTML(code, expiryMinutes)
-	if err != nil {
-		return err
-	}
-	slog.Info("email", "to", to, "subject", verificationCodeSubject, "body", body)
+func (m *LogMailer) SendVerificationCode(to, _ string, expiryMinutes int) error {
+	slog.Info("email (verification code redacted)",
+		"to", to,
+		"subject", verificationCodeSubject,
+		"expires_in_minutes", expiryMinutes,
+	)
 	return nil
 }
 
