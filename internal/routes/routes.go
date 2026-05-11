@@ -113,10 +113,10 @@ func (s *Router) Routes() *gin.Engine {
 		if s.db != nil {
 			q = db.New(s.db)
 			usersRepo := auth.NewPostgresUserRepo(q)
-			adminLoginService := auth.NewAdminLoginService(usersRepo, s.log)
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
 			rolesRepo := auth.NewPostgresRoleRepo(q)
+			adminLoginService := auth.NewAdminLoginService(usersRepo, rolesRepo, s.log)
 			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)

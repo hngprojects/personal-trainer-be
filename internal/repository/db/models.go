@@ -11,6 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type PasswordResetCode struct {
+	ID        uuid.UUID
+	Email     string
+	Code      string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 type Role struct {
 	ID        uuid.UUID
 	Name      string
@@ -55,7 +63,6 @@ type User struct {
 }
 
 type UserRole struct {
-	ID        uuid.UUID
 	UserID    uuid.UUID
 	RoleID    uuid.UUID
 	CreatedAt time.Time

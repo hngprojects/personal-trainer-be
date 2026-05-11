@@ -35,9 +35,9 @@ const (
 	// guarantees a clean 400 validation error instead of letting a 60-character
 	// multi-byte UTF-8 password (>72 bytes) sneak through and crash bcrypt with
 	// a 500 at hash time.
-	maxPasswordLen = 72
-	adminRoleName           = "admin"
-	forgotAsyncTimeout      = 30 * time.Second
+	maxPasswordLen     = 72
+	adminRoleName      = "admin"
+	forgotAsyncTimeout = 30 * time.Second
 )
 
 // PasswordResetRepository encapsulates the persistence side of the password
@@ -79,14 +79,14 @@ func (r *postgresPasswordResetRepo) ConsumeCodeAndUpdatePassword(ctx context.Con
 
 	q := db.New(tx)
 
-	if _, err := q.ConsumePasswordResetCode(ctx, email, hashedCode); err != nil {
+	if _, err := q.ConsumePasswordResetCode(ctx, db.ConsumePasswordResetCodeParams{Email: email, Code: hashedCode}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 
-	user, err := q.UpdateUserPassword(ctx, email, hashedPassword)
+	user, err := q.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{Email: email, Password: sql.NullString{Valid: true, String: hashedPassword}})
 	if err != nil {
 		// UpdateUserPassword's WHERE clause requires is_active = true. If the
 		// account was deactivated between role check and update, this returns
@@ -394,4 +394,3 @@ func validatePassword(p string) (string, bool) {
 	}
 	return "", true
 }
-

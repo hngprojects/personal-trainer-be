@@ -12,17 +12,14 @@ import (
 type TokenType string
 
 const (
-	AccessToken     TokenType = "access"
-	RefreshToken    TokenType = "refresh"
-	AccessTokenTTL            = 10 * time.Minute
-	RefreshTokenTTL           = 7 * 24 * time.Hour
-	BcryptSaltRound           = 12
+	AccessToken  TokenType = "access"
+	RefreshToken TokenType = "refresh"
 )
 
 func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
-	ttl := AccessTokenTTL
+	ttl := 10 * time.Minute
 	if tokenType == RefreshToken {
-		ttl = RefreshTokenTTL
+		ttl = 7 * 24 * time.Hour
 	}
 
 	claims := jwt.MapClaims{

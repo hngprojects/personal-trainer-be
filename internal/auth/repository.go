@@ -24,7 +24,6 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
 	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
-	GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
 }
@@ -56,7 +55,8 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	return r.q.UserHasRole(ctx, userID, roleName)
+	// return r.q.UserHasRole(ctx, userID, roleName)
+	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
 // postgresUserRepo implements UserRepository using sqlc-generated queries.
@@ -91,17 +91,6 @@ func (r *postgresUserRepo) FindByEmail(ctx context.Context, email string) (*db.U
 		return nil, err
 	}
 	return &user, nil
-}
-
-func (r *postgresUserRepo) GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error) {
-	userRole, err := r.q.GetUserRole(ctx, email)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	return &userRole, nil
 }
 
 func (r *postgresUserRepo) Create(ctx context.Context, email, name, provider string) (*db.User, error) {
