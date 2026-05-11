@@ -49,6 +49,14 @@ func (m *ResendMailer) SendVerificationCode(to, code string, expiryMinutes int) 
 	return m.send(to, verificationCodeSubject, body)
 }
 
+func (m *ResendMailer) SendAdminCredentials(to, password string) error {
+	body, err := adminCredentialsHTML(to, password)
+	if err != nil {
+		return fmt.Errorf("resend: build admin credentials email body: %w", err)
+	}
+	return m.send(to, adminCredentialsSubject, body)
+}
+
 func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
 	body, err := passwordResetHTML(code, expiryMinutes)
 	if err != nil {
@@ -57,12 +65,12 @@ func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int)
 	return m.send(to, passwordResetSubject, body)
 }
 
-func (m *ResendMailer) SendAdminCredentials(to, password string) error {
-	body, err := adminCredentialsHTML(to, password)
+func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
+	body, err := waitlistConfirmationHTML()
 	if err != nil {
-		return fmt.Errorf("resend: build admin credentials email body: %w", err)
+		return fmt.Errorf("resend: build waitlist confirmation email body: %w", err)
 	}
-	return m.send(to, adminCredentialsSubject, body)
+	return m.send(to, waitlistConfirmationSubject, body)
 }
 
 func (m *ResendMailer) send(to, subject, htmlBody string) error {

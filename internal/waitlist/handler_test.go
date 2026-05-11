@@ -17,6 +17,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 func init() {
@@ -55,8 +56,16 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+type fakeMailer struct{}
+
+func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error  { return nil }
+func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error         { return nil }
+
+var _ email.Mailer = (*fakeMailer)(nil)
+
 func testHandler(repo waitlist.WaitlistRepository) *waitlist.WaitlistHandler {
-	return waitlist.NewWaitlistHandler(repo, testLogger())
+	return waitlist.NewWaitlistHandler(repo, testLogger(), &fakeMailer{})
 }
 
 // TestHandleAddWaitlist_Success tests adding email successfully

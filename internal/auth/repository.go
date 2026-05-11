@@ -26,7 +26,6 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
-	UpsertAdmin(ctx context.Context, email, name, passwordHash string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -56,7 +55,7 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	return r.q.UserHasRole(ctx, userID, roleName)
+	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
 // postgresUserRepo implements UserRepository using sqlc-generated queries.
@@ -134,18 +133,6 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 			}
 			return &existing, nil
 		}
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (r *postgresUserRepo) UpsertAdmin(ctx context.Context, email, name, passwordHash string) (*db.User, error) {
-	user, err := r.q.UpsertAdminUser(ctx, db.UpsertAdminUserParams{
-		Email:    email,
-		Name:     name,
-		Password: sql.NullString{String: passwordHash, Valid: true},
-	})
-	if err != nil {
 		return nil, err
 	}
 	return &user, nil
