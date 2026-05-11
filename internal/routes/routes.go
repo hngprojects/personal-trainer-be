@@ -16,6 +16,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -64,6 +65,7 @@ type routerImpl struct {
 	logout        *auth.LogoutHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainersStore
+	reviews       *reviewsvc.Service
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -125,6 +127,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
 			impl.trainers = newTrainersStore(q)
+			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			mailer := s.buildMailer()
 
