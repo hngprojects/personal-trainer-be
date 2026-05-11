@@ -70,3 +70,11 @@ func (s *routerImpl) HandleResetPassword(c *gin.Context) {
 	}
 	s.passwordReset.HandleResetPassword(c)
 }
+
+func (s *routerImpl) HandleAdminLogin(c *gin.Context) {
+	if s.adminLogin == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.adminLogin.Login(c)
+}

@@ -58,6 +58,7 @@ type routerImpl struct {
 	google        *auth.GoogleHandler
 	local         *auth.LocalHandler
 	root          *root.RootHandler
+	adminLogin    *handlers.AdminLoginHandler
 	health        *health.HealthHandler
 	waitlist      *waitlist.WaitlistHandler
 	logout        *auth.LogoutHandler
@@ -115,10 +116,12 @@ func (s *Router) Routes() *gin.Engine {
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
 			rolesRepo := auth.NewPostgresRoleRepo(q)
+			adminLoginService := auth.NewAdminLoginService(usersRepo, rolesRepo, s.log)
 			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
+			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
 			impl.trainers = newTrainersStore(q)
