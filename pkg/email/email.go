@@ -13,6 +13,7 @@ import (
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
+	SendWaitlistConfirmation(to string) error
 }
 
 type SMTPMailer struct {
@@ -54,12 +55,17 @@ type LogMailer struct{}
 
 func NewLogMailer() *LogMailer { return &LogMailer{} }
 
-func (m *LogMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
-	body, err := verificationCodeHTML(code, expiryMinutes)
-	if err != nil {
-		return err
-	}
-	slog.Info("email", "to", to, "subject", verificationCodeSubject, "body", body)
+func (m *LogMailer) SendVerificationCode(to, _ string, expiryMinutes int) error {
+	slog.Info("email (verification code redacted)",
+		"to", to,
+		"subject", verificationCodeSubject,
+		"expires_in_minutes", expiryMinutes,
+	)
+	return nil
+}
+
+func (m *LogMailer) SendWaitlistConfirmation(to string) error {
+	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
 	return nil
 }
 
@@ -198,6 +204,27 @@ func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) e
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
+func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := waitlistConfirmationHTML()
+	if err != nil {
+		return fmt.Errorf("build waitlist confirmation email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, waitlistConfirmationSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
 // SendPasswordResetCode logs only metadata — never the rendered body, which
 // contains the live reset code. If the LogMailer is ever enabled outside an
 // isolated local workflow, anyone with log access could otherwise reset
@@ -210,4 +237,36 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 		"expires_in_minutes", expiryMinutes,
 	)
 	return nil
+}
+
+const waitlistConfirmationSubject = "You're on the waitlist!"
+
+var waitlistConfirmationTemplate = template.Must(template.New("waitlist-confirmation-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">You're on the waitlist!</h2>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">Thanks for joining! We'll notify you as soon as you have access.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func waitlistConfirmationHTML() (string, error) {
+	var body bytes.Buffer
+	if err := waitlistConfirmationTemplate.Execute(&body, nil); err != nil {
+		return "", err
+	}
+	return body.String(), nil
 }

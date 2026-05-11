@@ -57,6 +57,14 @@ func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int)
 	return m.send(to, passwordResetSubject, body)
 }
 
+func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
+	body, err := waitlistConfirmationHTML()
+	if err != nil {
+		return fmt.Errorf("resend: build waitlist confirmation email body: %w", err)
+	}
+	return m.send(to, waitlistConfirmationSubject, body)
+}
+
 func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	payload, err := json.Marshal(resendRequest{
 		From:    m.from,

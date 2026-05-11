@@ -123,13 +123,13 @@ func (s *Router) Routes() *gin.Engine {
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
+			mailer := s.buildMailer()
+
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
+			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
-
-			mailer := s.buildMailer()
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
