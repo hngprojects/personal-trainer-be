@@ -75,7 +75,7 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		return
 	}
 
-	user, err := h.users.UpsertAdmin(c.Request.Context(), emailAddr, name, hash)
+	user, err := h.users.UpsertAdminUser(c.Request.Context(), emailAddr, name, hash)
 	if err != nil {
 		h.log.Error("admin add: upsert admin failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
