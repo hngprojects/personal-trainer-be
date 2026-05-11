@@ -55,10 +55,7 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-<<<<<<< HEAD
-=======
 	// return r.q.UserHasRole(ctx, userID, roleName)
->>>>>>> 5bb51ec (fix(makefile): changed CGO_ENABLED to default)
 	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
