@@ -28,6 +28,11 @@ type UserRepository interface {
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
 }
 
+// AdminUserRepository defines admin-specific user operations.
+type AdminUserRepository interface {
+	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
+}
+
 // SessionRepository defines what the auth feature needs from the sessions table.
 type SessionRepository interface {
 	Create(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) (*db.Session, error)
@@ -134,6 +139,18 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 			}
 			return &existing, nil
 		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error) {
+	user, err := r.q.UpsertAdminUser(ctx, db.UpsertAdminUserParams{
+		Email:    email,
+		Name:     name,
+		Password: sql.NullString{String: password, Valid: true},
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &user, nil
