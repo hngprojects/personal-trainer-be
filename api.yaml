@@ -327,6 +327,88 @@ components:
           type: string
           format: email
 
+    CursorPaginationMeta:
+      type: object
+      required: [has_more]
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor to request the next page.
+          example: "eyJpZCI6IjE0NCJ9"
+        has_more:
+          type: boolean
+          example: true
+
+    CreateReviewRequest:
+      type: object
+      required: [booking_id, rating]
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        review:
+          type: string
+          nullable: true
+          example: "Great session and clear communication."
+
+    Review:
+      type: object
+      required: [id, booking_id, trainer_id, client_user_id, rating, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        client_user_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        review:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ReviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Review"
+
+    ReviewsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data, meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Review"
+            meta:
+              $ref: "#/components/schemas/CursorPaginationMeta"
+
 security:
   - bearerAuth: []
 
@@ -902,6 +984,177 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/reviews:
+    get:
+      security: []
+      operationId: GetTrainerReviews
+      summary: Get public paginated reviews for a trainer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Opaque cursor from the previous response.
+      responses:
+        "200":
+          description: Trainer reviews fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewsListResponse"
+              example:
+                status: success
+                message: Trainer reviews fetched
+                code: OK
+                data:
+                  - id: "11111111-1111-1111-1111-111111111111"
+                    booking_id: "22222222-2222-2222-2222-222222222222"
+                    trainer_id: "33333333-3333-3333-3333-333333333333"
+                    client_user_id: "44444444-4444-4444-4444-444444444444"
+                    rating: 5
+                    review: "Great session and clear communication."
+                    created_at: "2026-05-07T10:00:00Z"
+                    updated_at: "2026-05-07T10:00:00Z"
+                meta:
+                  next_cursor: "eyJpZCI6IjE0NCJ9"
+                  has_more: true
+        "422":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid pagination parameters
+                code: INVALID_INPUT
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: trainer not found
+                code: NOT_FOUND
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: INTERNAL_ERROR
+
+  /reviews:
+    post:
+      operationId: CreateReview
+      summary: Submit a review for a completed booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewRequest"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
+              example:
+                status: success
+                message: Review created
+                code: CREATED
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  booking_id: "22222222-2222-2222-2222-222222222222"
+                  trainer_id: "33333333-3333-3333-3333-333333333333"
+                  client_user_id: "44444444-4444-4444-4444-444444444444"
+                  rating: 5
+                  review: "Great session and clear communication."
+                  created_at: "2026-05-07T10:00:00Z"
+                  updated_at: "2026-05-07T10:00:00Z"
+        "401":
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Missing or invalid access token
+                code: UNAUTHORIZED
+        "403":
+          description: Token valid but the caller cannot review this booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Token valid but insufficient permission for this booking
+                code: FORBIDDEN
+        "404":
+          description: Booking or trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking not found
+                code: NOT_FOUND
+        "409":
+          description: Review already exists for this booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Review already exists for this booking
+                code: CONFLICT
+        "422":
+          description: Validation failed for rating, booking state, or request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Booking is not completed
+                code: INVALID_INPUT
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: INTERNAL_ERROR
 
   /auth/forgot-password:
     post:
