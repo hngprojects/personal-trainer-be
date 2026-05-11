@@ -34,7 +34,10 @@ type fakeLocalUserRepo struct {
 	findErr         error
 	createUserErr   error
 	markVerifiedErr error
+<<<<<<< HEAD
 	findUserRole    *db.UserRole
+=======
+>>>>>>> 5bb51ec (fix(makefile): changed CGO_ENABLED to default)
 	findUserRoleErr error
 }
 
@@ -46,10 +49,13 @@ func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, 
 	return f.findUser, f.findErr
 }
 
+<<<<<<< HEAD
 func (f *fakeLocalUserRepo) GetUserRole(_ context.Context, _ string) (*db.UserRole, error) {
 	return f.findUserRole, f.findUserRoleErr
 }
 
+=======
+>>>>>>> 5bb51ec (fix(makefile): changed CGO_ENABLED to default)
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: provider}, nil
 }

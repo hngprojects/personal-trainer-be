@@ -11,19 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const createRole = `-- name: CreateRole :one
-INSERT INTO roles (name)
-VALUES ($1)
-RETURNING id, name, created_at
-`
-
-func (q *Queries) CreateRole(ctx context.Context, name string) (Role, error) {
-	row := q.db.QueryRowContext(ctx, createRole, name)
-	var i Role
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
-	return i, err
-}
-
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
@@ -51,29 +38,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
-	)
-	return i, err
-}
-
-const createUserRole = `-- name: CreateUserRole :one
-INSERT INTO user_roles (user_id, role_id)
-VALUES ($1, $2)
-RETURNING id, user_id, role_id, created_at
-`
-
-type CreateUserRoleParams struct {
-	UserID uuid.UUID
-	RoleID uuid.UUID
-}
-
-func (q *Queries) CreateUserRole(ctx context.Context, arg CreateUserRoleParams) (UserRole, error) {
-	row := q.db.QueryRowContext(ctx, createUserRole, arg.UserID, arg.RoleID)
-	var i UserRole
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.RoleID,
-		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -156,6 +120,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 const getUserRole = `-- name: GetUserRole :one
 SELECT users.id AS user_id,
@@ -181,6 +146,8 @@ func (q *Queries) GetUserRole(ctx context.Context, email string) (GetUserRoleRow
 }
 
 >>>>>>> ea4204b (refactor(admin_login): Fixed bugs and conversations)
+=======
+>>>>>>> 5bb51ec (fix(makefile): changed CGO_ENABLED to default)
 const getUserRoleByID = `-- name: GetUserRoleByID :one
 SELECT role
 FROM users
