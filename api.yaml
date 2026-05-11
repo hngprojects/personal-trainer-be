@@ -420,7 +420,11 @@ paths:
       security: []
       operationId: HandleLocalAuth
       tags:
+<<<<<<< HEAD
         - Auth — Local
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Login with email
       requestBody:
         required: true
@@ -484,7 +488,11 @@ paths:
         - bearerAuth: []
       operationId: HandleLogout
       tags:
+<<<<<<< HEAD
         - Auth — Session
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Logs out the authenticated user
       requestBody:
         required: true
@@ -543,7 +551,11 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
+<<<<<<< HEAD
         - Auth — OAuth
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
         "302":
@@ -554,7 +566,11 @@ paths:
       security: []
       operationId: HandleGoogleCallback
       tags:
+<<<<<<< HEAD
         - Auth — OAuth
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
         - name: code
@@ -689,7 +705,11 @@ paths:
       security: []
       operationId: HandleRegister
       tags:
+<<<<<<< HEAD
         - Auth — Local
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
         required: true
@@ -748,7 +768,11 @@ paths:
       security: []
       operationId: HandleVerifyEmail
       tags:
+<<<<<<< HEAD
         - Auth — Local
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
         required: true
@@ -817,7 +841,11 @@ paths:
       security: []
       operationId: HandleForgotPassword
       tags:
+<<<<<<< HEAD
         - Auth — Local
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a
@@ -884,7 +912,11 @@ paths:
       security: []
       operationId: HandleResetPassword
       tags:
+<<<<<<< HEAD
         - Auth — Local
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Reset password using a previously emailed code
       description: >-
         Validates the 6-digit code and sets a new password. The endpoint is
@@ -938,6 +970,7 @@ paths:
           content:
             application/json:
               schema:
+<<<<<<< HEAD
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
@@ -991,6 +1024,8 @@ paths:
           content:
             application/json:
               schema:
+=======
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
                 $ref: "#/components/schemas/ErrorResponse"
 
   /auth/admin/log-in:
@@ -998,7 +1033,11 @@ paths:
       security: []
       operationId: HandleAdminLogin
       tags:
+<<<<<<< HEAD
         - Admin
+=======
+        - Authentication
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       summary: Log Administrators into the application with email and password
       requestBody:
         required: true
@@ -1303,7 +1342,16 @@ paths:
         content:
           application/json:
             schema:
+<<<<<<< HEAD
               $ref: "#/components/schemas/WaitlistRequest"
+=======
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+>>>>>>> 02dc59f (fix(docs): arranged docs properly)
       responses:
         "200":
           description: You are already on the waitlist
