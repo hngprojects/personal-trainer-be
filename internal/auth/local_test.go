@@ -61,7 +61,7 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
-func (f *fakeLocalUserRepo) UpsertAdmin(_ context.Context, email, name, _ string) (*db.User, error) {
+func (f *fakeLocalUserRepo) UpsertAdminUser(_ context.Context, email, name, _ string) (*db.User, error) {
 	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: "local", Role: "admin", IsActive: true}, nil
 }
 
