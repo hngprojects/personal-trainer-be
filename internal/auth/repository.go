@@ -26,6 +26,10 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
+}
+
+// AdminUserRepository defines admin-specific user operations.
+type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
 }
 

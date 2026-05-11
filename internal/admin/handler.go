@@ -21,12 +21,12 @@ import (
 const generatedPasswordLen = 16
 
 type Handler struct {
-	users  auth.UserRepository
+	users  auth.AdminUserRepository
 	mailer email.Mailer
 	log    *slog.Logger
 }
 
-func NewHandler(users auth.UserRepository, mailer email.Mailer, log *slog.Logger) *Handler {
+func NewHandler(users auth.AdminUserRepository, mailer email.Mailer, log *slog.Logger) *Handler {
 	return &Handler{users: users, mailer: mailer, log: log}
 }
 
