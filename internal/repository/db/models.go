@@ -11,12 +11,33 @@ import (
 	"github.com/google/uuid"
 )
 
+type Booking struct {
+	ID           uuid.UUID
+	TrainerID    uuid.UUID
+	ClientUserID uuid.UUID
+	Status       string
+	CompletedAt  sql.NullTime
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type PasswordResetCode struct {
 	ID        uuid.UUID
 	Email     string
 	Code      string
 	CreatedAt time.Time
 	ExpiresAt time.Time
+}
+
+type Review struct {
+	ID           uuid.UUID
+	BookingID    uuid.UUID
+	TrainerID    uuid.UUID
+	ClientUserID uuid.UUID
+	Rating       int32
+	Review       sql.NullString
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Role struct {
