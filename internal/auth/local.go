@@ -133,7 +133,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 
 	if err := h.mailer.SendVerificationCode(emailAddr, code, int(codeExpiry.Minutes())); err != nil {
 		h.log.Error("failed to send verification email", "email", emailAddr, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to send verification email", api.CodeServerError))
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
@@ -317,7 +317,6 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Login successful", api.CodeOK, data))
 }
-
 func generateVerificationCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {
@@ -340,3 +339,4 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
