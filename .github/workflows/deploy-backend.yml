@@ -33,7 +33,7 @@ jobs:
       - name: Build backend binary
         run: |
           mkdir -p deploy
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/api
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
           echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
 
       - name: Upload backend staging
@@ -95,7 +95,7 @@ jobs:
       - name: Build backend binary
         run: |
           mkdir -p deploy
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/api
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
           echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
 
       - name: Backup production database
