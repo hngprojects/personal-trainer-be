@@ -934,6 +934,54 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /admin/add:
+    post:
+      operationId: AdminAdd
+      summary: Create an admin account (super_admin only)
+      description: |
+        Creates a user with role=admin and a server-generated password,
+        which is emailed to the supplied address. Idempotent for the same
+        (email, local) pair: if the user already exists, the password is
+        rotated and the role is set to admin.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name]
+              properties:
+                email: { type: string, format: email }
+                name:  { type: string, minLength: 1 }
+      responses:
+        "201":
+          description: Admin created and credentials emailed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/admin/log-in:
     post:
       security: []

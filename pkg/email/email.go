@@ -12,6 +12,7 @@ import (
 
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
+	SendAdminCredentials(to, password string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
 }
@@ -50,6 +51,49 @@ func (m *SMTPMailer) SendVerificationCode(to, code string, expiryMinutes int) er
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
+func (m *SMTPMailer) SendAdminCredentials(to, password string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := adminCredentialsHTML(toAddr, password)
+	if err != nil {
+		return fmt.Errorf("build admin credentials email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, adminCredentialsSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := passwordResetHTML(code, expiryMinutes)
+	if err != nil {
+		return fmt.Errorf("build password reset email body: %w", err)
+	}
+
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, passwordResetSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
 // LogMailer logs emails instead of sending them — useful in development.
 type LogMailer struct{}
 
@@ -59,6 +103,29 @@ func (m *LogMailer) SendVerificationCode(to, _ string, expiryMinutes int) error 
 	slog.Info("email (verification code redacted)",
 		"to", to,
 		"subject", verificationCodeSubject,
+		"expires_in_minutes", expiryMinutes,
+	)
+	return nil
+}
+
+func (m *LogMailer) SendAdminCredentials(to, password string) error {
+	body, err := adminCredentialsHTML(to, password)
+	if err != nil {
+		return err
+	}
+	slog.Info("email", "to", to, "subject", adminCredentialsSubject, "body", body)
+	return nil
+}
+
+// SendPasswordResetCode logs only metadata — never the rendered body, which
+// contains the live reset code. If the LogMailer is ever enabled outside an
+// isolated local workflow, anyone with log access could otherwise reset
+// accounts. Local E2E flows that need the actual code should use a test stub
+// (e.g. a fake mailer that captures the args), not the LogMailer.
+func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
+	slog.Info("email (password reset code redacted)",
+		"to", to,
+		"subject", passwordResetSubject,
 		"expires_in_minutes", expiryMinutes,
 	)
 	return nil
@@ -138,6 +205,55 @@ func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 	return body.String(), nil
 }
 
+const adminCredentialsSubject = "Your admin account is ready"
+
+var adminCredentialsTemplate = template.Must(template.New("admin-credentials-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Your admin account is ready</h2>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">An admin account was created for you. Use the credentials below to sign in.</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Email:</strong> {{ .Email }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0 24px;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Temporary password:</strong>
+            <span style="font-family:monospace;background:#f4f4f5;padding:4px 8px;border-radius:4px;">{{ .Password }}</span>
+          </p>
+        </td></tr>
+        <tr><td align="center" style="padding-top:16px;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">Please change this password after your first sign-in. Do not share this email with anyone.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func adminCredentialsHTML(emailAddr, password string) (string, error) {
+	var body bytes.Buffer
+	if err := adminCredentialsTemplate.Execute(&body, struct {
+		Email    string
+		Password string
+	}{
+		Email:    emailAddr,
+		Password: password,
+	}); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
 const passwordResetSubject = "Your password reset code"
 
 var passwordResetTemplate = template.Must(template.New("password-reset-email").Parse(`<!DOCTYPE html>
@@ -182,28 +298,6 @@ func passwordResetHTML(code string, expiryMinutes int) (string, error) {
 	return body.String(), nil
 }
 
-func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
-	fromAddr, err := sanitizeAddress(m.from)
-	if err != nil {
-		return fmt.Errorf("invalid from address: %w", err)
-	}
-	toAddr, err := sanitizeAddress(to)
-	if err != nil {
-		return fmt.Errorf("invalid recipient address: %w", err)
-	}
-	body, err := passwordResetHTML(code, expiryMinutes)
-	if err != nil {
-		return fmt.Errorf("build password reset email body: %w", err)
-	}
-
-	auth := smtp.PlainAuth("", m.username, m.password, m.host)
-	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, passwordResetSubject, body,
-	)
-	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
-}
-
 func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
 	fromAddr, err := sanitizeAddress(m.from)
 	if err != nil {
@@ -223,20 +317,6 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
 		fromAddr, waitlistConfirmationSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
-}
-
-// SendPasswordResetCode logs only metadata — never the rendered body, which
-// contains the live reset code. If the LogMailer is ever enabled outside an
-// isolated local workflow, anyone with log access could otherwise reset
-// accounts. Local E2E flows that need the actual code should use a test stub
-// (e.g. a fake mailer that captures the args), not the LogMailer.
-func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
-	slog.Info("email (password reset code redacted)",
-		"to", to,
-		"subject", passwordResetSubject,
-		"expires_in_minutes", expiryMinutes,
-	)
-	return nil
 }
 
 const waitlistConfirmationSubject = "You're on the waitlist!"

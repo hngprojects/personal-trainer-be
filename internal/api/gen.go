@@ -529,6 +529,12 @@ type VerifyEmailRequest struct {
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// AdminAddJSONBody defines parameters for AdminAdd.
+type AdminAddJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+	Name  string              `json:"name"`
+}
+
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -578,6 +584,9 @@ type HandleAddWaitlistJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
+type AdminAddJSONRequestBody AdminAddJSONBody
+
 // HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
 type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 
@@ -616,6 +625,9 @@ type ServerInterface interface {
 	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
+	// Create an admin account (super_admin only)
+	// (POST /admin/add)
+	AdminAdd(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -695,6 +707,21 @@ func (siw *ServerInterfaceWrapper) Root(c *gin.Context) {
 	}
 
 	siw.Handler.Root(c)
+}
+
+// AdminAdd operation middleware
+func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminAdd(c)
 }
 
 // HandleAdminLogin operation middleware
@@ -1105,6 +1132,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
+	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
