@@ -7,6 +7,22 @@ servers:
   - url: /api/v1
     description: Local development
 
+tags:
+  - name: Root
+    description: Base URL endpoints.
+  - name: Health
+    description: Health endpoints to verify application health status.
+  - name: Authentication
+    description: Authentication endpoint for clients, trainers and admin.
+  - name: Waitlist
+    description: Endpoints to handle waitlist data.
+  # - name: Client
+  #   description: Client endpoints to manage all clients activities.
+  - name: Trainer
+    description: Trainer endpoints to manage all trainers activities.
+  # - name: Admin
+  #   description: Administrator endpoints to manage all trainers activities.
+
 components:
   securitySchemes:
     bearerAuth:
@@ -416,6 +432,8 @@ paths:
   /:
     get:
       operationId: Root
+      tags:
+        - Root
       summary: Root endpoint
       security: []
       responses:
@@ -434,6 +452,8 @@ paths:
   /health:
     get:
       operationId: HealthCheck
+      tags:
+        - Health
       summary: Health check endpoint
       security: []
       responses:
@@ -454,6 +474,8 @@ paths:
     post:
       security: []
       operationId: HandleLocalAuth
+      tags:
+        - Authentication
       summary: Login with email
       requestBody:
         required: true
@@ -516,6 +538,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: HandleLogout
+      tags:
+        - Authentication
       summary: Logs out the authenticated user
       requestBody:
         required: true
@@ -573,7 +597,9 @@ paths:
     get:
       security: []
       operationId: HandleGoogleLogin
-      summary: Initiate Google OAuth — redirects browser to Google consent screen
+      tags:
+        - Authentication
+      summary: Initiate Google OAuth - redirects browser to Google consent screen
       responses:
         "302":
           description: Redirect to Google login
@@ -582,6 +608,8 @@ paths:
     get:
       security: []
       operationId: HandleGoogleCallback
+      tags:
+        - Authentication
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
         - name: code
@@ -651,7 +679,9 @@ paths:
     post:
       security: []
       operationId: HandleRegister
-      summary: Register or request a new OTP — sends a 6-digit verification code to the email
+      tags:
+        - Authentication
+      summary: Register or request a new OTP - sends a 6-digit verification code to the email
       requestBody:
         required: true
         content:
@@ -708,7 +738,9 @@ paths:
     post:
       security: []
       operationId: HandleVerifyEmail
-      summary: Verify email with OTP — completes signup/login and returns JWT tokens
+      tags:
+        - Authentication
+      summary: Verify email with OTP - completes signup/login and returns JWT tokens
       requestBody:
         required: true
         content:
@@ -717,7 +749,7 @@ paths:
               $ref: "#/components/schemas/VerifyEmailRequest"
       responses:
         "200":
-          description: Email verified — tokens issued
+          description: Email verified - tokens issued
           content:
             application/json:
               schema:
@@ -771,10 +803,217 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
-
+  /auth/forgot-password:
+    post:
+      security: []
+      operationId: HandleForgotPassword
+      tags:
+        - Authentication
+      summary: Request a password reset code
+      description: >-
+        Sends a 6-digit reset code to the email address if it belongs to a
+        registered local user that holds the `admin` role. The endpoint
+        always returns the same generic success response regardless of
+        whether the email exists or whether the user is an admin - this
+        is intentional, to prevent account / role enumeration. The role
+        gate is enforced server-side; this is unauthenticated by design
+        because the caller has no token to present when they have lost
+        their password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Generic acknowledgement (delivered whether or not the email exists)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: if the email is registered, a reset code has been sent
+                code: OK
+                data: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: invalid email format
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: too many requests, please try again later
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /auth/reset-password:
+    post:
+      security: []
+      operationId: HandleResetPassword
+      tags:
+        - Authentication
+      summary: Reset password using a previously emailed code
+      description: >-
+        Validates the 6-digit code and sets a new password. The endpoint is
+        gated server-side to users that currently hold the `admin` role -
+        any other caller (non-admin, inactive, unknown email, wrong code)
+        receives the same generic 400 response so the role check cannot be
+        probed. On success the code is consumed (single-use) and all
+        existing refresh sessions for the user are revoked. Unauthenticated
+        by design, since the caller has no token when resetting a forgotten
+        password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: password reset successful
+                code: OK
+                data: null
+        "400":
+          description: Validation error or invalid/expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid or expired reset code
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: too many attempts, please request a new code
+                code: TOO_MANY_REQUESTS
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /auth/admin/log-in:
+    post:
+      security: []
+      operationId: HandleAdminLogin
+      tags:
+        - Authentication
+      summary: Log Administrators into the application with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Email authentication successful
+                code: OK
+                data:
+                  user:
+                    id: "4b52f888-427c-418e-9f8f-15f268329ec3"
+                    email: "oluwatobiloba@gmail.com"
+                    name: "oluwatobiloba rose"
+                    user_type: admin
+                    profile_complete: true
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                  - field: email
+                    message: Email is required
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid email or password
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
   /trainers:
     get:
       operationId: GetTrainers
+      tags:
+        - Trainer
       summary: Get trainers (admin only)
       parameters:
         - name: category
@@ -811,6 +1050,8 @@ paths:
 
     post:
       operationId: CreateTrainer
+      tags:
+        - Trainer
       summary: Add trainer (admin only)
       requestBody:
         required: true
@@ -853,6 +1094,8 @@ paths:
   /trainers/{id}:
     get:
       operationId: GetTrainerByID
+      tags:
+        - Trainer
       summary: Get trainer by ID (admin only)
       parameters:
         - name: id
@@ -895,6 +1138,8 @@ paths:
 
     patch:
       operationId: UpdateTrainer
+      tags:
+        - Trainer
       summary: Update trainer (admin only)
       parameters:
         - name: id
@@ -949,6 +1194,8 @@ paths:
 
     delete:
       operationId: DeleteTrainer
+      tags:
+        - Trainer
       summary: Delete trainer (admin only)
       parameters:
         - name: id
@@ -1156,139 +1403,12 @@ paths:
                 message: Internal server error
                 code: INTERNAL_ERROR
 
-  /auth/forgot-password:
-    post:
-      security: []
-      operationId: HandleForgotPassword
-      summary: Request a password reset code
-      description: >-
-        Sends a 6-digit reset code to the email address if it belongs to a
-        registered local user that holds the `admin` role. The endpoint
-        always returns the same generic success response regardless of
-        whether the email exists or whether the user is an admin — this
-        is intentional, to prevent account / role enumeration. The role
-        gate is enforced server-side; this is unauthenticated by design
-        because the caller has no token to present when they have lost
-        their password.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ForgotPasswordRequest'
-      responses:
-        "200":
-          description: Generic acknowledgement (delivered whether or not the email exists)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-              example:
-                status: success
-                message: if the email is registered, a reset code has been sent
-                code: OK
-                data: null
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: invalid email format
-        "429":
-          description: Too many requests
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: too many requests, please try again later
-                code: TOO_MANY_REQUESTS
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
-  /auth/reset-password:
-    post:
-      security: []
-      operationId: HandleResetPassword
-      summary: Reset password using a previously emailed code
-      description: >-
-        Validates the 6-digit code and sets a new password. The endpoint is
-        gated server-side to users that currently hold the `admin` role —
-        any other caller (non-admin, inactive, unknown email, wrong code)
-        receives the same generic 400 response so the role check cannot be
-        probed. On success the code is consumed (single-use) and all
-        existing refresh sessions for the user are revoked. Unauthenticated
-        by design, since the caller has no token when resetting a forgotten
-        password.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResetPasswordRequest'
-      responses:
-        "200":
-          description: Password reset successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
-              example:
-                status: success
-                message: password reset successful
-                code: OK
-                data: null
-        "400":
-          description: Validation error or invalid/expired code
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: invalid or expired reset code
-                code: BAD_REQUEST
-        "429":
-          description: Too many attempts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: too many attempts, please request a new code
-                code: TOO_MANY_REQUESTS
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
   /waitlist:
     post:
       security: []
       operationId: HandleAddWaitlist
+      tags:
+        - Waitlist
       summary: Handle adding an email address to the waitlist table
       requestBody:
         required: true
@@ -1346,6 +1466,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: HandleGetWaitlist
+      tags:
+        - Waitlist
       summary: Handle getting emails or filtered emails in waitlist
       parameters:
         - name: email
@@ -1394,76 +1516,4 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
-  /auth/admin/log-in:
-    post:
-      security: []
-      operationId: HandleAdminLogin
-      summary: Log Administrators into the application with email and password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
-      responses:
-        "200":
-          description: Authentication successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Email authentication successful
-                code: OK
-                data:
-                  user:
-                    id: "4b52f888-427c-418e-9f8f-15f268329ec3"
-                    email: "oluwatobiloba@gmail.com"
-                    name: "oluwatobiloba rose"
-                    user_type: admin
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: Email is required
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid email or password
-                code: UNAUTHORIZED
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
+
