@@ -13,8 +13,10 @@ import (
 type TokenType string
 
 const (
-	AccessToken  TokenType = "access"
-	RefreshToken TokenType = "refresh"
+	AccessToken     TokenType = "access"
+	RefreshToken    TokenType = "refresh"
+	AccessTokenTTL            = 10 * time.Minute
+	RefreshTokenTTL           = 7 * 24 * time.Hour
 )
 
 // jwtSecret is set once at process startup via Configure. Production callers
@@ -42,9 +44,9 @@ func resolveSecret() []byte {
 }
 
 func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
-	ttl := 10 * time.Minute
+	ttl := AccessTokenTTL
 	if tokenType == RefreshToken {
-		ttl = 7 * 24 * time.Hour
+		ttl = RefreshTokenTTL
 	}
 
 	claims := jwt.MapClaims{
