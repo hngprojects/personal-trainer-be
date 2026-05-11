@@ -9,17 +9,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 type WaitlistHandler struct {
-	repo WaitlistRepository
-	log  *slog.Logger
+	repo   WaitlistRepository
+	log    *slog.Logger
+	mailer email.Mailer
 }
 
-func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger) *WaitlistHandler {
+func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger, mailer email.Mailer) *WaitlistHandler {
 	return &WaitlistHandler{
-		repo: repo,
-		log:  log,
+		repo:   repo,
+		log:    log,
+		mailer: mailer,
 	}
 }
 
@@ -65,6 +68,9 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	h.log.Info("email added to waitlist", "email", email)
+	if err := h.mailer.SendWaitlistConfirmation(email); err != nil {
+		h.log.Error("failed to send waitlist confirmation email", "email", email, "err", err)
+	}
 	c.JSON(http.StatusCreated, api.NewSuccessResponse("Successfully added to the waitlist", api.CodeCreated, nil, nil))
 }
 

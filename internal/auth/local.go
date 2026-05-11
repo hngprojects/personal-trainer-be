@@ -317,7 +317,6 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Login successful", api.CodeOK, data))
 }
-
 func generateVerificationCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {
@@ -340,3 +339,4 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
