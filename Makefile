@@ -1,5 +1,5 @@
 .PHONY: help run build test test-cover lint fmt tidy clean \
-        install-tools sqlc \
+        install-tools sqlc codegen \
         migrate-up migrate-down migrate-create \
         migrate-version migrate-force migrate-drop
 
@@ -11,9 +11,8 @@ PKG        := ./...
 MIGRATIONS := migrations
 DB_URL     ?= $(DATABASE_URL)
 
-MIGRATE_VERSION := v4.17.1
 
-MIGRATE ?= $(shell command -v migrate 2>/dev/null || echo $(shell go env GOPATH 2>/dev/null)/bin/migrate)
+GOOSE := goose -dir $(MIGRATIONS) postgres "$(DB_URL)"
 
 export CGO_ENABLED ?= 0
 
@@ -64,10 +63,21 @@ sqlc: ## Regenerate sqlc DB layer from SQL files
 	sqlc generate
 
 # ----------------------------------------------------------------------
+# Docker
+# ----------------------------------------------------------------------
+docker-up: ## Start Redis container
+	docker compose up -d
+
+docker-down: ## Stop Redis container
+	docker compose down
+
+# ----------------------------------------------------------------------
 # Tooling
 # ----------------------------------------------------------------------
 install-tools: ## Install golang-migrate CLI
-	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+	go install github.com/pressly/goose/v3/cmd/goose@latest
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 # ----------------------------------------------------------------------
 # Database migrations (golang-migrate)
@@ -78,28 +88,22 @@ _check-migrate:
 	  exit 1; \
 	fi
 
-_check-db: _check-migrate
+_check-db:
 	@if [ -z "$(DB_URL)" ]; then \
-	  echo "ERROR: DATABASE_URL is not set. Copy .env.example to .env and export it."; \
+	  echo "ERROR: DATABASE_URL not set"; \
 	  exit 1; \
 	fi
-
-migrate-up: _check-db ## Apply all pending migrations
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" up
-
-migrate-down: _check-db ## Rollback the most recent migration
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" down 1
-
-migrate-create: _check-migrate ## Create new migration files: make migrate-create NAME=add_trainers
+migrate-up: _check-db
+	$(GOOSE) up
+migrate-down: _check-db
+	$(GOOSE) down
+migrate-create:
 	@if [ -z "$(NAME)" ]; then \
-	  echo "ERROR: NAME is required, e.g. make migrate-create NAME=add_trainers"; \
-	  exit 1; \
+	  echo "ERROR: NAME required"; exit 1; \
 	fi
-	$(MIGRATE) create -ext sql -dir $(MIGRATIONS) -seq $(NAME)
-
-migrate-version: _check-db ## Print current migration version
-	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" version
-
+	goose -dir $(MIGRATIONS) create $(NAME) sql
+migrate-version: _check-db
+	$(GOOSE) status
 migrate-force: _check-db ## Force a version to fix a dirty state: make migrate-force VERSION=1
 	@if [ -z "$(VERSION)" ]; then \
 	  echo "ERROR: VERSION is required, e.g. make migrate-force VERSION=1"; \
@@ -109,3 +113,6 @@ migrate-force: _check-db ## Force a version to fix a dirty state: make migrate-f
 
 migrate-drop: _check-db ## Drop EVERYTHING in the database (destructive!)
 	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" drop -f
+
+codegen:
+	oapi-codegen -config oapi-codegen.yaml api.yaml
