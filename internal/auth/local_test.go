@@ -17,7 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
@@ -44,7 +43,6 @@ func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ strin
 func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
 	return f.findUser, f.findErr
 }
-
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
 	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: provider}, nil
 }
@@ -125,6 +123,7 @@ func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error {
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error { return m.err }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
@@ -192,7 +191,6 @@ func mustHashPassword(t *testing.T, plain string) string {
 	}
 	return string(hash)
 }
-
 // ── Register tests ──────────────────────────────────────────────────────────
 
 func TestRegister_Success(t *testing.T) {
