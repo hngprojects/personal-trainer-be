@@ -3,7 +3,7 @@ name: Deploy Backend
 on:
   push:
     branches:
-      - develop
+      - staging
       - main
 
 concurrency:
