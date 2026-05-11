@@ -28,7 +28,10 @@ func NewWaitlistHandler(repo WaitlistRepository, log *slog.Logger, mailer email.
 
 func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	var req struct {
-		Email string `json:"email" binding:"required"`
+		Email       string `json:"email" binding:"required"`
+		PhoneNumber string `json:"phone_number"`
+		Location    string `json:"location"`
+		Name        string `json:"name"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -38,6 +41,9 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
+	phoneNumber := strings.TrimSpace(req.PhoneNumber)
+	location := strings.TrimSpace(req.Location)
+	name := strings.TrimSpace(req.Name)
 
 	if !common.IsValidEmail(email) {
 		h.log.Info("invalid email", "email", email)
@@ -61,13 +67,13 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	}
 
 	// Email doesn't exist, add it
-	if err := h.repo.AddEmail(c.Request.Context(), email); err != nil {
+	if err := h.repo.AddEmail(c.Request.Context(), email, phoneNumber, location, name); err != nil {
 		h.log.Error("failed to add email to waitlist", "err", err, "email", email)
 		c.JSON(http.StatusInternalServerError, api.NewError("Internal server error", api.CodeServerError))
 		return
 	}
 
-	h.log.Info("email added to waitlist", "email", email)
+	h.log.Info("email added to waitlist", "email", email, "phone_number", phoneNumber, "location", location, "name", name)
 	if err := h.mailer.SendWaitlistConfirmation(email); err != nil {
 		h.log.Error("failed to send waitlist confirmation email", "email", email, "err", err)
 	}

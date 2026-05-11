@@ -435,6 +435,20 @@ type VerifyEmailRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// WaitlistRequest defines model for WaitlistRequest.
+type WaitlistRequest struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Location Optional location
+	Location *string `json:"location,omitempty"`
+
+	// Name Optional user name
+	Name *string `json:"name,omitempty"`
+
+	// PhoneNumber Optional phone number
+	PhoneNumber *string `json:"phone_number,omitempty"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -480,11 +494,6 @@ type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
 }
 
-// HandleAddWaitlistJSONBody defines parameters for HandleAddWaitlist.
-type HandleAddWaitlistJSONBody struct {
-	Email openapi_types.Email `json:"email"`
-}
-
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
@@ -516,7 +525,7 @@ type CreateTrainerJSONRequestBody = CreateTrainerRequest
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
-type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
+type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
