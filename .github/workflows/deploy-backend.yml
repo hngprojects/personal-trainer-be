@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   deploy-staging:
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/staging'
     name: Deploy Backend Staging
     runs-on: ubuntu-latest
     environment: staging
