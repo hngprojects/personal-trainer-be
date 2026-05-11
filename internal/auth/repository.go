@@ -10,7 +10,6 @@ import (
 	"github.com/lib/pq"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
-	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 var (
@@ -25,6 +24,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
 	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
+	GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
 }
@@ -155,9 +155,6 @@ func (r *postgresSessionRepo) Create(ctx context.Context, userID uuid.UUID, toke
 		ExpiresAt: expiresAt,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkgerrors.ErrNotFound
-		}
 		return nil, err
 	}
 	return &session, nil
