@@ -402,7 +402,16 @@ components:
 
     Review:
       type: object
-      required: [id, booking_id, trainer_id, client_user_id, rating, created_at, updated_at]
+      required:
+        [
+          id,
+          booking_id,
+          trainer_id,
+          client_user_id,
+          rating,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -903,6 +912,8 @@ paths:
   /trainers:
     get:
       operationId: GetTrainers
+      tags:
+        - Trainer
       summary: Get trainers (admin only)
       parameters:
         - name: category
@@ -939,6 +950,8 @@ paths:
 
     post:
       operationId: CreateTrainer
+      tags:
+        - Trainer
       summary: Add trainer (admin only)
       requestBody:
         required: true
@@ -981,6 +994,8 @@ paths:
   /trainers/{id}:
     get:
       operationId: GetTrainerByID
+      tags:
+        - Trainer
       summary: Get trainer by ID (admin only)
       parameters:
         - name: id
@@ -1023,6 +1038,8 @@ paths:
 
     patch:
       operationId: UpdateTrainer
+      tags:
+        - Trainer
       summary: Update trainer (admin only)
       parameters:
         - name: id
@@ -1077,6 +1094,8 @@ paths:
 
     delete:
       operationId: DeleteTrainer
+      tags:
+        - Trainer
       summary: Delete trainer (admin only)
       parameters:
         - name: id
@@ -1117,6 +1136,8 @@ paths:
     get:
       security: []
       operationId: GetTrainerReviews
+      tags:
+        - Trainer
       summary: Get public paginated reviews for a trainer
       parameters:
         - name: id
@@ -1196,6 +1217,8 @@ paths:
   /reviews:
     post:
       operationId: CreateReview
+      tags:
+        - Trainer
       summary: Submit a review for a completed booking
       requestBody:
         required: true
