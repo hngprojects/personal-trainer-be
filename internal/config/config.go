@@ -22,9 +22,11 @@ type Config struct {
 	ResendAPIKey string
 	ResendFrom   string
 
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
+	GoogleClientID        string
+	GoogleClientSecret    string
+	GoogleRedirectURL     string
+	GoogleAndroidClientID string
+	GoogleIOSClientID     string
 
 	OTPSecret string
 	RedisURL  string
@@ -50,9 +52,11 @@ func Load() (*Config, error) {
 		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
 		ResendFrom:   os.Getenv("RESEND_FROM"),
 
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		GoogleClientID:        os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:    os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURL:     getenv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		GoogleAndroidClientID: os.Getenv("GOOGLE_ANDROID_CLIENT_ID"),
+		GoogleIOSClientID:     os.Getenv("GOOGLE_IOS_CLIENT_ID"),
 
 		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
 		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),

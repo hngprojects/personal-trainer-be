@@ -11,9 +11,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Run the full CI suite (lint + test + Trivy security scan) before any deploy
+  # job runs. Implemented as a reusable workflow call so the deploy jobs can
+  # express the dependency with a normal `needs:` clause.
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write   # CI's Trivy job uploads SARIF
+
   deploy-staging:
     if: github.ref == 'refs/heads/staging'
     name: Deploy Backend Staging
+    needs: ci
     runs-on: ubuntu-latest
     environment: staging
 
@@ -26,9 +37,6 @@ jobs:
         with:
           go-version: '1.25'
           cache: true
-
-      - name: Run tests
-        run: go test ./...
 
       - name: Build backend binary
         run: |
@@ -77,6 +85,7 @@ jobs:
   deploy-production:
     if: github.ref == 'refs/heads/main'
     name: Deploy Backend Production
+    needs: ci
     runs-on: ubuntu-latest
     environment: production
 
@@ -89,9 +98,6 @@ jobs:
         with:
           go-version: '1.25'
           cache: true
-
-      - name: Run tests
-        run: go test ./...
 
       - name: Build backend binary
         run: |

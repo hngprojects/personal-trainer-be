@@ -325,6 +325,12 @@ type GoogleAuthResponse struct {
 // GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
 type GoogleAuthResponseStatus string
 
+// GoogleMobileSignInRequest defines model for GoogleMobileSignInRequest.
+type GoogleMobileSignInRequest struct {
+	// IdToken Google-signed ID token (JWT) obtained client-side via the platform Google Sign-In SDK on Android or iOS. The server verifies the signature against Google's public keys and checks that the `aud` claim matches one of the configured client IDs.
+	IdToken string `json:"id_token"`
+}
+
 // LocalAuthData defines model for LocalAuthData.
 type LocalAuthData struct {
 	AccessToken  string   `json:"access_token"`
@@ -435,8 +441,34 @@ type VerifyEmailRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// WaitlistRequest defines model for WaitlistRequest.
+type WaitlistRequest struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Location Optional location
+	Location *string `json:"location,omitempty"`
+
+	// Name Optional user name
+	Name *string `json:"name,omitempty"`
+
+	// PhoneNumber Optional phone number
+	PhoneNumber *string `json:"phone_number,omitempty"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
+
+// AdminAddJSONBody defines parameters for AdminAdd.
+type AdminAddJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+	Name  string              `json:"name"`
+}
+
+// HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
+type HandleAdminLoginJSONBody struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
 
 // HandleGoogleCallbackParams defines parameters for HandleGoogleCallback.
 type HandleGoogleCallbackParams struct {
@@ -468,13 +500,17 @@ type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
 }
 
-// HandleAddWaitlistJSONBody defines parameters for HandleAddWaitlist.
-type HandleAddWaitlistJSONBody struct {
-	Email openapi_types.Email `json:"email"`
-}
+// AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
+type AdminAddJSONRequestBody AdminAddJSONBody
+
+// HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
+type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 
 // HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
 type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
+
+// HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
+type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
@@ -498,13 +534,19 @@ type CreateTrainerJSONRequestBody = CreateTrainerRequest
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
-type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
+type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Root endpoint
 	// (GET /)
 	Root(c *gin.Context)
+	// Create an admin account (super_admin only)
+	// (POST /admin/add)
+	AdminAdd(c *gin.Context)
+	// Log Administrators into the application with email and password
+	// (POST /auth/admin/log-in)
+	HandleAdminLogin(c *gin.Context)
 	// Request a password reset code
 	// (POST /auth/forgot-password)
 	HandleForgotPassword(c *gin.Context)
@@ -514,6 +556,9 @@ type ServerInterface interface {
 	// Handle Google OAuth callback and return JWT tokens
 	// (GET /auth/google/callback)
 	HandleGoogleCallback(c *gin.Context, params HandleGoogleCallbackParams)
+	// Sign in via Google ID token (mobile clients)
+	// (POST /auth/google/mobile)
+	HandleGoogleMobileSignIn(c *gin.Context)
 	// Login with email
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
@@ -577,6 +622,34 @@ func (siw *ServerInterfaceWrapper) Root(c *gin.Context) {
 	siw.Handler.Root(c)
 }
 
+// AdminAdd operation middleware
+func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminAdd(c)
+}
+
+// HandleAdminLogin operation middleware
+func (siw *ServerInterfaceWrapper) HandleAdminLogin(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAdminLogin(c)
+}
+
 // HandleForgotPassword operation middleware
 func (siw *ServerInterfaceWrapper) HandleForgotPassword(c *gin.Context) {
 
@@ -636,6 +709,19 @@ func (siw *ServerInterfaceWrapper) HandleGoogleCallback(c *gin.Context) {
 	}
 
 	siw.Handler.HandleGoogleCallback(c, params)
+}
+
+// HandleGoogleMobileSignIn operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
 // HandleLocalAuth operation middleware
@@ -913,9 +999,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
+	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
+	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)

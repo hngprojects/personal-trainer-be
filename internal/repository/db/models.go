@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type PasswordResetCode struct {
+	ID        uuid.UUID
+	Email     string
+	Code      string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+type Role struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -48,6 +62,12 @@ type User struct {
 	Role         string
 }
 
+type UserRole struct {
+	UserID    uuid.UUID
+	RoleID    uuid.UUID
+	CreatedAt time.Time
+}
+
 type VerificationCode struct {
 	ID        uuid.UUID
 	Email     string
@@ -57,7 +77,10 @@ type VerificationCode struct {
 }
 
 type Waitlist struct {
-	ID        uuid.UUID
-	Email     string
-	CreatedAt time.Time
+	ID          uuid.UUID
+	Email       string
+	CreatedAt   time.Time
+	PhoneNumber sql.NullString
+	Location    sql.NullString
+	Name        sql.NullString
 }
