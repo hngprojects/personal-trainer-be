@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -128,8 +129,7 @@ func (s *Service) CreateReview(ctx context.Context, input CreateReviewInput) (db
 		Review:       nullStringPtr(input.Review),
 	})
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		if isUniqueViolation(err) {
 			s.log.Warn("review submission failed", "trainer_id", booking.TrainerID.String(), "booking_id", booking.ID.String(), "error_code", "CONFLICT")
 			return db.Review{}, ErrReviewAlreadyExists
 		}
@@ -246,4 +246,14 @@ func nullStringPtr(s *string) sql.NullString {
 		return sql.NullString{Valid: false}
 	}
 	return sql.NullString{String: *s, Valid: true}
+}
+
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		return true
+	}
+
+	var pgxErr *pgconn.PgError
+	return errors.As(err, &pgxErr) && pgxErr.Code == "23505"
 }
