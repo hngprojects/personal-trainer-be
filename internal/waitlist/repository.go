@@ -13,7 +13,7 @@ var ErrNotFound = errors.New("not found")
 
 // WaitlistRepository defines what the waitlist feature needs from the waitlist table.
 type WaitlistRepository interface {
-	AddEmail(ctx context.Context, email string) error
+	AddEmail(ctx context.Context, email, phoneNumber, location, name string) error
 	GetAll(ctx context.Context) ([]db.Waitlist, error)
 	GetByEmail(ctx context.Context, email string) (*db.Waitlist, error)
 }
@@ -27,8 +27,13 @@ func NewPostgresWaitlistRepo(q *db.Queries) WaitlistRepository {
 	return &postgresWaitlistRepo{q: q}
 }
 
-func (r *postgresWaitlistRepo) AddEmail(ctx context.Context, email string) error {
-	_, err := r.q.AddWaitlist(ctx, email)
+func (r *postgresWaitlistRepo) AddEmail(ctx context.Context, email, phoneNumber, location, name string) error {
+	_, err := r.q.AddWaitlist(ctx, db.AddWaitlistParams{
+		Email:       email,
+		PhoneNumber: sql.NullString{String: phoneNumber, Valid: phoneNumber != ""},
+		Location:    sql.NullString{String: location, Valid: location != ""},
+		Name:        sql.NullString{String: name, Valid: name != ""},
+	})
 	if err != nil {
 		return err
 	}
