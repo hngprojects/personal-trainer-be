@@ -116,6 +116,42 @@ func (e GoogleAuthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for ReviewResponseStatus.
+const (
+	ReviewResponseStatusError   ReviewResponseStatus = "error"
+	ReviewResponseStatusSuccess ReviewResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ReviewResponseStatus enum.
+func (e ReviewResponseStatus) Valid() bool {
+	switch e {
+	case ReviewResponseStatusError:
+		return true
+	case ReviewResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewsListResponseStatus.
+const (
+	ReviewsListResponseStatusError   ReviewsListResponseStatus = "error"
+	ReviewsListResponseStatusSuccess ReviewsListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ReviewsListResponseStatus enum.
+func (e ReviewsListResponseStatus) Valid() bool {
+	switch e {
+	case ReviewsListResponseStatusError:
+		return true
+	case ReviewsListResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SuccessResponseStatus.
 const (
 	SuccessResponseStatusError   SuccessResponseStatus = "error"
@@ -259,6 +295,13 @@ type BaseResponse struct {
 // BaseResponseStatus defines model for BaseResponse.Status.
 type BaseResponseStatus string
 
+// CreateReviewRequest defines model for CreateReviewRequest.
+type CreateReviewRequest struct {
+	BookingId openapi_types.UUID `json:"booking_id"`
+	Rating    int                `json:"rating"`
+	Review    *string            `json:"review,omitempty"`
+}
+
 // CreateTrainerRequest defines model for CreateTrainerRequest.
 type CreateTrainerRequest struct {
 	Bio               *string                               `json:"bio,omitempty"`
@@ -274,6 +317,14 @@ type CreateTrainerRequest struct {
 
 // CreateTrainerRequestOnboardingStatus defines model for CreateTrainerRequest.OnboardingStatus.
 type CreateTrainerRequestOnboardingStatus string
+
+// CursorPaginationMeta defines model for CursorPaginationMeta.
+type CursorPaginationMeta struct {
+	HasMore bool `json:"has_more"`
+
+	// NextCursor Opaque cursor to request the next page.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
@@ -325,6 +376,12 @@ type GoogleAuthResponse struct {
 // GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
 type GoogleAuthResponseStatus string
 
+// GoogleMobileSignInRequest defines model for GoogleMobileSignInRequest.
+type GoogleMobileSignInRequest struct {
+	// IdToken Google-signed ID token (JWT) obtained client-side via the platform Google Sign-In SDK on Android or iOS. The server verifies the signature against Google's public keys and checks that the `aud` claim matches one of the configured client IDs.
+	IdToken string `json:"id_token"`
+}
+
 // LocalAuthData defines model for LocalAuthData.
 type LocalAuthData struct {
 	AccessToken  string   `json:"access_token"`
@@ -344,6 +401,46 @@ type ResetPasswordRequest struct {
 	Email       openapi_types.Email `json:"email"`
 	NewPassword string              `json:"new_password"`
 }
+
+// Review defines model for Review.
+type Review struct {
+	BookingId    openapi_types.UUID `json:"booking_id"`
+	ClientUserId openapi_types.UUID `json:"client_user_id"`
+	CreatedAt    time.Time          `json:"created_at"`
+	Id           openapi_types.UUID `json:"id"`
+	Rating       int                `json:"rating"`
+	Review       *string            `json:"review,omitempty"`
+	TrainerId    openapi_types.UUID `json:"trainer_id"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+// ReviewResponse defines model for ReviewResponse.
+type ReviewResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string `json:"code"`
+	Data    Review `json:"data"`
+	Message string `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}         `json:"meta,omitempty"`
+	Status ReviewResponseStatus `json:"status"`
+}
+
+// ReviewResponseStatus defines model for ReviewResponse.Status.
+type ReviewResponseStatus string
+
+// ReviewsListResponse defines model for ReviewsListResponse.
+type ReviewsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string                    `json:"code"`
+	Data    []Review                  `json:"data"`
+	Message string                    `json:"message"`
+	Meta    CursorPaginationMeta      `json:"meta"`
+	Status  ReviewsListResponseStatus `json:"status"`
+}
+
+// ReviewsListResponseStatus defines model for ReviewsListResponse.Status.
+type ReviewsListResponseStatus string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -435,6 +532,20 @@ type VerifyEmailRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// WaitlistRequest defines model for WaitlistRequest.
+type WaitlistRequest struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Location Optional location
+	Location *string `json:"location,omitempty"`
+
+	// Name Optional user name
+	Name *string `json:"name,omitempty"`
+
+	// PhoneNumber Optional phone number
+	PhoneNumber *string `json:"phone_number,omitempty"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -469,10 +580,26 @@ type HandleLogoutJSONBody struct {
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
+// HandleContactUsJSONBody defines parameters for HandleContactUs.
+type HandleContactUsJSONBody struct {
+	Email   openapi_types.Email `json:"email"`
+	Message string              `json:"message"`
+	Name    string              `json:"name"`
+	Subject string              `json:"subject"`
+}
+
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
+}
+
+// GetTrainerReviewsParams defines parameters for GetTrainerReviews.
+type GetTrainerReviewsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from the previous response.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
@@ -480,10 +607,8 @@ type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
 }
 
-// HandleAddWaitlistJSONBody defines parameters for HandleAddWaitlist.
-type HandleAddWaitlistJSONBody struct {
-	Email openapi_types.Email `json:"email"`
-}
+// AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
+type AdminAddJSONRequestBody AdminAddJSONBody
 
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
@@ -493,6 +618,9 @@ type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 
 // HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
 type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
+
+// HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
+type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
@@ -509,6 +637,12 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
+// HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
+type HandleContactUsJSONRequestBody HandleContactUsJSONBody
+
+// CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
+type CreateReviewJSONRequestBody = CreateReviewRequest
+
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
@@ -516,7 +650,7 @@ type CreateTrainerJSONRequestBody = CreateTrainerRequest
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
-type HandleAddWaitlistJSONRequestBody HandleAddWaitlistJSONBody
+type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -538,6 +672,9 @@ type ServerInterface interface {
 	// Handle Google OAuth callback and return JWT tokens
 	// (GET /auth/google/callback)
 	HandleGoogleCallback(c *gin.Context, params HandleGoogleCallbackParams)
+	// Sign in via Google ID token (mobile clients)
+	// (POST /auth/google/mobile)
+	HandleGoogleMobileSignIn(c *gin.Context)
 	// Login with email
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
@@ -553,9 +690,15 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// Handle taking user feedback
+	// (POST /contact-us)
+	HandleContactUs(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// Submit a review for a completed booking
+	// (POST /reviews)
+	CreateReview(c *gin.Context)
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -571,6 +714,9 @@ type ServerInterface interface {
 	// Update trainer (admin only)
 	// (PATCH /trainers/{id})
 	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get public paginated reviews for a trainer
+	// (GET /trainers/{id}/reviews)
+	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -690,6 +836,19 @@ func (siw *ServerInterfaceWrapper) HandleGoogleCallback(c *gin.Context) {
 	siw.Handler.HandleGoogleCallback(c, params)
 }
 
+// HandleGoogleMobileSignIn operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleMobileSignIn(c)
+}
+
 // HandleLocalAuth operation middleware
 func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
 
@@ -757,6 +916,19 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	siw.Handler.HandleVerifyEmail(c)
 }
 
+// HandleContactUs operation middleware
+func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleContactUs(c)
+}
+
 // HealthCheck operation middleware
 func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 
@@ -768,6 +940,21 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	}
 
 	siw.Handler.HealthCheck(c)
+}
+
+// CreateReview operation middleware
+func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateReview(c)
 }
 
 // GetTrainers operation middleware
@@ -895,6 +1082,50 @@ func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
 	siw.Handler.UpdateTrainer(c, id)
 }
 
+// GetTrainerReviews operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainerReviewsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainerReviews(c, id, params)
+}
+
 // HandleGetWaitlist operation middleware
 func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
 
@@ -970,17 +1201,21 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
+	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
+	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }

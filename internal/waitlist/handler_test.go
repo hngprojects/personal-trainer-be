@@ -26,14 +26,14 @@ func init() {
 
 // mockWaitlistRepo implements waitlist.WaitlistRepository for testing
 type mockWaitlistRepo struct {
-	addEmailFn   func(ctx context.Context, email string) error
+	addEmailFn   func(ctx context.Context, email, phoneNumber, location, name string) error
 	getAllFn     func(ctx context.Context) ([]db.Waitlist, error)
 	getByEmailFn func(ctx context.Context, email string) (*db.Waitlist, error)
 }
 
-func (m *mockWaitlistRepo) AddEmail(ctx context.Context, email string) error {
+func (m *mockWaitlistRepo) AddEmail(ctx context.Context, email, phoneNumber, location, name string) error {
 	if m.addEmailFn != nil {
-		return m.addEmailFn(ctx, email)
+		return m.addEmailFn(ctx, email, phoneNumber, location, name)
 	}
 	return nil
 }
@@ -60,8 +60,9 @@ type fakeMailer struct{}
 
 func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error  { return nil }
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
-func (m *fakeMailer) SendWaitlistConfirmation(_ string) error         { return nil }
-func (m *fakeMailer) SendAdminCredentials(_, _ string) error          { return nil }
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error        { return nil }
+func (m *fakeMailer) SendAdminCredentials(_, _ string) error         { return nil }
+func (m *fakeMailer) SendContactConfirmation(_, _ string) error      { return nil }
 
 var _ email.Mailer = (*fakeMailer)(nil)
 
@@ -75,7 +76,7 @@ func TestHandleAddWaitlist_Success(t *testing.T) {
 		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
 			return nil, waitlist.ErrNotFound
 		},
-		addEmailFn: func(ctx context.Context, email string) error {
+		addEmailFn: func(ctx context.Context, email, phoneNumber, location, name string) error {
 			return nil
 		},
 	}
@@ -228,7 +229,7 @@ func TestHandleAddWaitlist_EmailNormalization(t *testing.T) {
 		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
 			return nil, waitlist.ErrNotFound
 		},
-		addEmailFn: func(ctx context.Context, email string) error {
+		addEmailFn: func(ctx context.Context, email, phoneNumber, location, name string) error {
 			capturedEmail = email
 			return nil
 		},
@@ -260,7 +261,7 @@ func TestHandleAddWaitlist_RepositoryError(t *testing.T) {
 		getByEmailFn: func(ctx context.Context, email string) (*db.Waitlist, error) {
 			return nil, waitlist.ErrNotFound
 		},
-		addEmailFn: func(ctx context.Context, email string) error {
+		addEmailFn: func(ctx context.Context, email, phoneNumber, location, name string) error {
 			return context.DeadlineExceeded
 		},
 	}
