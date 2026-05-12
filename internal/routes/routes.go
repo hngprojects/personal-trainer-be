@@ -57,6 +57,7 @@ func (s *Router) Close() {
 
 type routerImpl struct {
 	google        *auth.GoogleHandler
+	googleMobile  *auth.MobileGoogleHandler
 	local         *auth.LocalHandler
 	root          *root.RootHandler
 	adminLogin    *handlers.AdminLoginHandler
@@ -127,6 +128,7 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 
