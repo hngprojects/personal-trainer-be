@@ -580,6 +580,14 @@ type HandleLogoutJSONBody struct {
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
+// HandleContactUsJSONBody defines parameters for HandleContactUs.
+type HandleContactUsJSONBody struct {
+	Email   openapi_types.Email `json:"email"`
+	Message string              `json:"message"`
+	Name    string              `json:"name"`
+	Subject string              `json:"subject"`
+}
+
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
@@ -625,6 +633,9 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
+
+// HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
+type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
@@ -676,6 +687,9 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// Handle taking user feedback
+	// (POST /contact-us)
+	HandleContactUs(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -897,6 +911,19 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	}
 
 	siw.Handler.HandleVerifyEmail(c)
+}
+
+// HandleContactUs operation middleware
+func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleContactUs(c)
 }
 
 // HealthCheck operation middleware
@@ -1177,6 +1204,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)

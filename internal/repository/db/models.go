@@ -27,6 +27,15 @@ type Booking struct {
 	CancelledAt        sql.NullTime
 }
 
+type ContactMessage struct {
+	ID        uuid.UUID
+	Email     string
+	Subject   string
+	Message   string
+	Name      string
+	CreatedAt time.Time
+}
+
 type PasswordResetCode struct {
 	ID        uuid.UUID
 	Email     string
