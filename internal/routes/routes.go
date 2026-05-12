@@ -167,7 +167,11 @@ func (s *Router) Routes() *gin.Engine {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
 
-		authMw := middleware.AuthMiddleware(s.redis)
+		var authRedis appredis.RedisClient
+		if s.redis != nil {
+			authRedis = s.redis
+		}
+		authMw := middleware.AuthMiddleware(authRedis)
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
