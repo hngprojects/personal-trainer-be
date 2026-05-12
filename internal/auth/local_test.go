@@ -135,7 +135,7 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
 
-func (m *fakeMailer) SendWaitlistConfirmation(_ string) error  { return m.err }
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error   { return m.err }
 func (m *fakeMailer) SendContactConfirmation(_, _ string) error { return m.err }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
