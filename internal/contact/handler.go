@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -51,6 +52,10 @@ func (h *Handler) HandleContactUs(c *gin.Context) {
 		Subject: subject,
 		Message: message,
 	}); err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			c.JSON(http.StatusOK, api.NewSuccess("Your feedback has been received", api.CodeOK, nil))
+			return
+		}
 		h.log.Error("failed to save contact message", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("Internal server error", api.CodeServerError))
 		return

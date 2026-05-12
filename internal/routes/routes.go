@@ -13,13 +13,13 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
-	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
@@ -70,7 +70,7 @@ type routerImpl struct {
 	trainers      *trainersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
-	contact        *contact.Handler
+	contact       *contact.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
