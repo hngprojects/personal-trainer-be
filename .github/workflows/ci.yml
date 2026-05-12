@@ -2,9 +2,15 @@ name: CI
 
 on:
   pull_request:
-    branches: [dev, main]
+    branches: [dev, staging, main]
+  # Push runs only on dev — for staging/main, CI is invoked from the deploy
+  # workflow as a reusable workflow (see workflow_call below) so that deploy
+  # is gated by the same checks without running them twice.
   push:
-    branches: [dev, main]
+    branches: [dev]
+  # Allow other workflows (deploy-backend.yml) to call this one as a job
+  # dependency. This is what implements "deploy depends on CI passing".
+  workflow_call:
 
 # Cancel previous runs of the same workflow on the same ref when a new one starts.
 # Saves Actions minutes when devs push rapidly to a PR.

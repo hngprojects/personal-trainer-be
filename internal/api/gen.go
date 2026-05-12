@@ -325,6 +325,12 @@ type GoogleAuthResponse struct {
 // GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
 type GoogleAuthResponseStatus string
 
+// GoogleMobileSignInRequest defines model for GoogleMobileSignInRequest.
+type GoogleMobileSignInRequest struct {
+	// IdToken Google-signed ID token (JWT) obtained client-side via the platform Google Sign-In SDK on Android or iOS. The server verifies the signature against Google's public keys and checks that the `aud` claim matches one of the configured client IDs.
+	IdToken string `json:"id_token"`
+}
+
 // LocalAuthData defines model for LocalAuthData.
 type LocalAuthData struct {
 	AccessToken  string   `json:"access_token"`
@@ -503,6 +509,9 @@ type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 // HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
 type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 
+// HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
+type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
+
 // HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
 type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
@@ -547,6 +556,9 @@ type ServerInterface interface {
 	// Handle Google OAuth callback and return JWT tokens
 	// (GET /auth/google/callback)
 	HandleGoogleCallback(c *gin.Context, params HandleGoogleCallbackParams)
+	// Sign in via Google ID token (mobile clients)
+	// (POST /auth/google/mobile)
+	HandleGoogleMobileSignIn(c *gin.Context)
 	// Login with email
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
@@ -697,6 +709,19 @@ func (siw *ServerInterfaceWrapper) HandleGoogleCallback(c *gin.Context) {
 	}
 
 	siw.Handler.HandleGoogleCallback(c, params)
+}
+
+// HandleGoogleMobileSignIn operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
 // HandleLocalAuth operation middleware
@@ -979,6 +1004,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
+	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)

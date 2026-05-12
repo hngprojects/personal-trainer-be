@@ -12,16 +12,18 @@ tags:
     description: Base URL endpoints.
   - name: Health
     description: Health endpoints to verify application health status.
-  - name: Authentication
-    description: Authentication endpoint for clients, trainers and admin.
+  - name: Auth — Local
+    description: Email/password sign-up, login, OTP verification, and password recovery.
+  - name: Auth — OAuth
+    description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
+  - name: Auth — Session
+    description: Session lifecycle endpoints (logout / token revocation).
+  - name: Admin
+    description: Admin-only operations including admin login and user invitation.
+  - name: Trainer
+    description: Trainer endpoints to manage all trainer activities.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
-  # - name: Client
-  #   description: Client endpoints to manage all clients activities.
-  - name: Trainer
-    description: Trainer endpoints to manage all trainers activities.
-  # - name: Admin
-  #   description: Administrator endpoints to manage all trainers activities.
 
 components:
   securitySchemes:
@@ -145,6 +147,19 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/GoogleAuthData"
+
+    GoogleMobileSignInRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: >-
+            Google-signed ID token (JWT) obtained client-side via the platform
+            Google Sign-In SDK on Android or iOS. The server verifies the
+            signature against Google's public keys and checks that the `aud`
+            claim matches one of the configured client IDs.
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ij..."
 
     Trainer:
       type: object
@@ -405,7 +420,7 @@ paths:
       security: []
       operationId: HandleLocalAuth
       tags:
-        - Authentication
+        - Auth — Local
       summary: Login with email
       requestBody:
         required: true
@@ -469,7 +484,7 @@ paths:
         - bearerAuth: []
       operationId: HandleLogout
       tags:
-        - Authentication
+        - Auth — Session
       summary: Logs out the authenticated user
       requestBody:
         required: true
@@ -528,7 +543,7 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Authentication
+        - Auth — OAuth
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
         "302":
@@ -539,7 +554,7 @@ paths:
       security: []
       operationId: HandleGoogleCallback
       tags:
-        - Authentication
+        - Auth — OAuth
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
         - name: code
@@ -605,12 +620,76 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
+  /auth/google/mobile:
+    post:
+      security: []
+      operationId: HandleGoogleMobileSignIn
+      tags:
+        - Auth — OAuth
+      summary: Sign in via Google ID token (mobile clients)
+      description: >-
+        Accepts a Google-signed ID token from a native Android/iOS client and
+        returns the same JWT pair as the web Google flow. The mobile app
+        obtains the ID token via the platform Google Sign-In SDK; the server
+        verifies it against Google's JWKS and the configured Android/iOS/web
+        client IDs (`GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`,
+        `GOOGLE_CLIENT_ID`). On first sign-in a new user record is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleMobileSignInRequest"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAuthResponse"
+        "400":
+          description: Missing or malformed request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid request body
+                code: BAD_REQUEST
+        "401":
+          description: ID token failed verification (invalid signature, wrong audience, expired, or unverified email)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid google id token
+                code: UNAUTHORIZED
+        "503":
+          description: Server has no Google client IDs configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: google sign-in is not configured on this server
+                code: SERVER_ERROR
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/register:
     post:
       security: []
       operationId: HandleRegister
       tags:
-        - Authentication
+        - Auth — Local
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
         required: true
@@ -669,7 +748,7 @@ paths:
       security: []
       operationId: HandleVerifyEmail
       tags:
-        - Authentication
+        - Auth — Local
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
         required: true
@@ -738,7 +817,7 @@ paths:
       security: []
       operationId: HandleForgotPassword
       tags:
-        - Authentication
+        - Auth — Local
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a
@@ -805,7 +884,7 @@ paths:
       security: []
       operationId: HandleResetPassword
       tags:
-        - Authentication
+        - Auth — Local
       summary: Reset password using a previously emailed code
       description: >-
         Validates the 6-digit code and sets a new password. The endpoint is
@@ -868,6 +947,8 @@ paths:
   /admin/add:
     post:
       operationId: AdminAdd
+      tags:
+        - Admin
       summary: Create an admin account (super_admin only)
       description: |
         Creates a user with role=admin and a server-generated password,
@@ -917,7 +998,7 @@ paths:
       security: []
       operationId: HandleAdminLogin
       tags:
-        - Authentication
+        - Admin
       summary: Log Administrators into the application with email and password
       requestBody:
         required: true
