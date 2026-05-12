@@ -11,12 +11,39 @@ import (
 	"github.com/google/uuid"
 )
 
+type Booking struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+}
+
 type PasswordResetCode struct {
 	ID        uuid.UUID
 	Email     string
 	Code      string
 	CreatedAt time.Time
 	ExpiresAt time.Time
+}
+
+type Review struct {
+	ID           uuid.UUID
+	BookingID    uuid.UUID
+	TrainerID    uuid.UUID
+	ClientUserID uuid.UUID
+	Rating       int32
+	Review       sql.NullString
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Role struct {
