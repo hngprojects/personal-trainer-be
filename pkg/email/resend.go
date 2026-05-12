@@ -57,6 +57,15 @@ func (m *ResendMailer) SendAdminCredentials(to, password string) error {
 	return m.send(to, adminCredentialsSubject, body)
 }
 
+func (m *ResendMailer) SendTrainerCredentials(to, password string) error {
+	// Fastest: reuse the admin HTML template but with a trainer-ish subject.
+	body, err := adminCredentialsHTML(to, password)
+	if err != nil {
+		return err
+	}
+	return m.send(to, "Your trainer account is ready", body)
+}
+
 func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
 	body, err := passwordResetHTML(code, expiryMinutes)
 	if err != nil {

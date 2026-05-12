@@ -123,3 +123,23 @@ RETURNING
   total_reviews,
   created_at,
   updated_at;
+
+-- name: GetTrainerByUserID :one
+SELECT
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,
+  calendly_link,
+  onboarding_status,
+  average_rating,
+  total_reviews,
+  created_at,
+  updated_at
+FROM trainers
+WHERE user_id = $1
+LIMIT 1;

@@ -69,6 +69,14 @@ type routerImpl struct {
 	admin         *admin.Handler
 }
 
+func (r *routerImpl) AdminCreateTrainer(c *gin.Context) {
+	if r.admin != nil {
+		r.admin.AdminCreateTrainer(c)
+	} else {
+		c.JSON(500, gin.H{"error": "admin handler not configured"})
+	}
+}
+
 func (s *Router) Routes() *gin.Engine {
 	if s.cfg.Env == "development" {
 		gin.SetMode(gin.DebugMode)
@@ -159,7 +167,7 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
-			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
+			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), q, mailer, s.log)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}

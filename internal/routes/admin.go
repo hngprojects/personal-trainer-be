@@ -15,3 +15,11 @@ func (s *routerImpl) AdminAdd(c *gin.Context) {
 	}
 	s.admin.AdminAdd(c)
 }
+
+func (s *routerImpl) CreateTrainer(c *gin.Context) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.admin.AdminCreateTrainer(c)
+}

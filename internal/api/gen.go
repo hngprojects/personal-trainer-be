@@ -194,30 +194,6 @@ func (e TrainersListResponseStatus) Valid() bool {
 	}
 }
 
-// Defines values for UpdateTrainerRequestOnboardingStatus.
-const (
-	Approved  UpdateTrainerRequestOnboardingStatus = "approved"
-	Pending   UpdateTrainerRequestOnboardingStatus = "pending"
-	Rejected  UpdateTrainerRequestOnboardingStatus = "rejected"
-	Suspended UpdateTrainerRequestOnboardingStatus = "suspended"
-)
-
-// Valid indicates whether the value is a known member of the UpdateTrainerRequestOnboardingStatus enum.
-func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
-	switch e {
-	case Approved:
-		return true
-	case Pending:
-		return true
-	case Rejected:
-		return true
-	case Suspended:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
 const (
 	Error   HandleVerifyEmail200JSONResponseBodyStatus = "error"
@@ -420,21 +396,6 @@ type TrainersListResponse struct {
 // TrainersListResponseStatus defines model for TrainersListResponse.Status.
 type TrainersListResponseStatus string
 
-// UpdateTrainerRequest defines model for UpdateTrainerRequest.
-type UpdateTrainerRequest struct {
-	Bio               *string                               `json:"bio,omitempty"`
-	CalendlyConnected *bool                                 `json:"calendly_connected,omitempty"`
-	CalendlyLink      *string                               `json:"calendly_link,omitempty"`
-	DisplayPicture    *string                               `json:"display_picture,omitempty"`
-	IntroVideoUrl     *string                               `json:"intro_video_url,omitempty"`
-	OnboardingStatus  *UpdateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
-	Specialization    *string                               `json:"specialization,omitempty"`
-	YearsOfExperience *int                                  `json:"years_of_experience,omitempty"`
-}
-
-// UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
-type UpdateTrainerRequestOnboardingStatus string
-
 // VerifyEmailRequest defines model for VerifyEmailRequest.
 type VerifyEmailRequest struct {
 	Code  string              `json:"code"`
@@ -495,6 +456,18 @@ type GetTrainersParams struct {
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
 }
 
+// TrainerLoginJSONBody defines parameters for TrainerLogin.
+type TrainerLoginJSONBody struct {
+	Password string             `json:"password"`
+	UserId   openapi_types.UUID `json:"user_id"`
+}
+
+// TrainerSetupPasswordJSONBody defines parameters for TrainerSetupPassword.
+type TrainerSetupPasswordJSONBody struct {
+	Password string `json:"password"`
+	Token    string `json:"token"`
+}
+
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -502,6 +475,9 @@ type HandleGetWaitlistParams struct {
 
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
+
+// AdminCreateTrainerJSONRequestBody defines body for AdminCreateTrainer for application/json ContentType.
+type AdminCreateTrainerJSONRequestBody = CreateTrainerRequest
 
 // HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
 type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
@@ -527,11 +503,11 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
-// CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
-type CreateTrainerJSONRequestBody = CreateTrainerRequest
+// TrainerLoginJSONRequestBody defines body for TrainerLogin for application/json ContentType.
+type TrainerLoginJSONRequestBody TrainerLoginJSONBody
 
-// UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
-type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
+// TrainerSetupPasswordJSONRequestBody defines body for TrainerSetupPassword for application/json ContentType.
+type TrainerSetupPasswordJSONRequestBody TrainerSetupPasswordJSONBody
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
@@ -544,6 +520,9 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
+	// Create trainer profile (admin only)
+	// (POST /admin/trainers)
+	AdminCreateTrainer(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -577,21 +556,18 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
-	// Get trainers (admin only)
+	// Get trainers (authenticated users)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
-	// Add trainer (admin only)
-	// (POST /trainers)
-	CreateTrainer(c *gin.Context)
-	// Delete trainer (admin only)
-	// (DELETE /trainers/{id})
-	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
-	// Get trainer by ID (admin only)
+	// Trainer login with user ID and password
+	// (POST /trainers/login)
+	TrainerLogin(c *gin.Context)
+	// Set trainer password using an invite token
+	// (POST /trainers/setup-password)
+	TrainerSetupPassword(c *gin.Context)
+	// Get trainer by ID (authenticated users)
 	// (GET /trainers/{id})
 	GetTrainerByID(c *gin.Context, id openapi_types.UUID)
-	// Update trainer (admin only)
-	// (PATCH /trainers/{id})
-	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -635,6 +611,21 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	}
 
 	siw.Handler.AdminAdd(c)
+}
+
+// AdminCreateTrainer operation middleware
+func (siw *ServerInterfaceWrapper) AdminCreateTrainer(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminCreateTrainer(c)
 }
 
 // HandleAdminLogin operation middleware
@@ -833,10 +824,8 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	siw.Handler.GetTrainers(c, params)
 }
 
-// CreateTrainer operation middleware
-func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
+// TrainerLogin operation middleware
+func (siw *ServerInterfaceWrapper) TrainerLogin(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -845,25 +834,11 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CreateTrainer(c)
+	siw.Handler.TrainerLogin(c)
 }
 
-// DeleteTrainer operation middleware
-func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
+// TrainerSetupPassword operation middleware
+func (siw *ServerInterfaceWrapper) TrainerSetupPassword(c *gin.Context) {
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -872,7 +847,7 @@ func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DeleteTrainer(c, id)
+	siw.Handler.TrainerSetupPassword(c)
 }
 
 // GetTrainerByID operation middleware
@@ -900,33 +875,6 @@ func (siw *ServerInterfaceWrapper) GetTrainerByID(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainerByID(c, id)
-}
-
-// UpdateTrainer operation middleware
-func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateTrainer(c, id)
 }
 
 // HandleGetWaitlist operation middleware
@@ -1000,6 +948,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.POST(options.BaseURL+"/admin/trainers", wrapper.AdminCreateTrainer)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
@@ -1012,10 +961,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
-	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
-	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
+	router.POST(options.BaseURL+"/trainers/login", wrapper.TrainerLogin)
+	router.POST(options.BaseURL+"/trainers/setup-password", wrapper.TrainerSetupPassword)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
-	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }

@@ -339,4 +339,3 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
-

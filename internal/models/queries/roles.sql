@@ -17,3 +17,9 @@ SELECT r.id, r.name, r.created_at
 FROM roles r
 INNER JOIN user_roles ur ON ur.role_id = r.id
 WHERE ur.user_id = $1;
+
+-- name: EnsureRole :one
+INSERT INTO roles (name)
+VALUES ($1)
+ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+RETURNING id;

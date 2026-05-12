@@ -39,3 +39,9 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        is_active  = true,
        updated_at = NOW()
 RETURNING *;
+
+-- name: UpdateUserPasswordByID :exec
+UPDATE users
+SET password = $2, is_active = true, updated_at = NOW()
+WHERE id = $1;
+

@@ -134,6 +134,22 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
+const updateUserPasswordByID = `-- name: UpdateUserPasswordByID :exec
+UPDATE users
+SET password = $2, is_active = true, updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateUserPasswordByIDParams struct {
+	ID       uuid.UUID
+	Password sql.NullString
+}
+
+func (q *Queries) UpdateUserPasswordByID(ctx context.Context, arg UpdateUserPasswordByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPasswordByID, arg.ID, arg.Password)
+	return err
+}
+
 const upsertAdminUser = `-- name: UpsertAdminUser :one
 INSERT INTO users (email, name, password, auth_provider, role, is_active)
 VALUES ($1, $2, $3, 'local', 'admin', true)

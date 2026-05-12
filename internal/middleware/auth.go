@@ -3,6 +3,7 @@ package middleware
 import (
 	"log"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -50,7 +51,7 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		jti, _ := claims["jti"].(string)
 		userID, _ := claims["sub"].(string)
 
-		if redis != nil && jti != "" {
+		if !isNilInterface(redis) && jti != "" {
 			blocked, err := redis.Exists(c.Request.Context(), common.RedisKeyBlocklist+jti)
 			if err != nil {
 				log.Println("redis check err: ", err)
@@ -72,5 +73,18 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
 		c.Set(string(common.ContextKeyJTI), jti)
 		c.Next()
+	}
+}
+
+func isNilInterface(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Func, reflect.Chan:
+		return rv.IsNil()
+	default:
+		return false
 	}
 }

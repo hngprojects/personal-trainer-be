@@ -1,37 +1,42 @@
 package middleware
 
 import (
-	"database/sql"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
-	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 // TrainersAdminOnly protects /api/v1/trainers* routes.
-// It does not affect other OpenAPI endpoints (auth, health, root).
+// - Public: /api/v1/trainers/login, /api/v1/trainers/setup-password
+// - GET: any authenticated user
+// - Non-GET: admin only
 func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 	return func(c *gin.Context) {
-		// FullPath() is preferred, but can be empty depending on when middleware runs.
 		path := c.FullPath()
 		if path == "" {
 			path = c.Request.URL.Path
 		}
 
-		// Only guard trainers endpoints.
 		if !strings.HasPrefix(path, "/api/v1/trainers") {
 			c.Next()
 			return
 		}
 
-		
+		// Public trainer endpoints (no JWT)
+		switch path {
+		case "/api/v1/trainers/login", "/api/v1/trainers/setup-password":
+			c.Next()
+			return
+		}
+
+		// Mock auth support (unchanged behavior)
 		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
 			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
@@ -42,7 +47,7 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				}
 			}
 			if mockRole != "" {
-				if mockRole != "admin" {
+				if c.Request.Method != http.MethodGet && mockRole != "admin" {
 					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 					return
 				}
@@ -50,66 +55,36 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				return
 			}
 		}
-		
-		header := c.GetHeader("Authorization")
-		if header == "" {
+
+		// At this point, the router's AuthMiddleware should already have run for secured endpoints
+		// and stored the user ID in context.
+		v, ok := c.Get(string(common.ContextKeyUserID))
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing token", api.CodeUnauthorized))
 			return
 		}
-		
-		const prefix = "Bearer "
-		if !strings.HasPrefix(header, prefix) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
-			return
-		}
-		tokenString := strings.TrimSpace(strings.TrimPrefix(header, prefix))
-		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
-			return
-		}
-		
-		token, err := auth.ValidateToken(tokenString)
-		if err != nil || !token.Valid {
+		userID, ok := v.(uuid.UUID)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
 		}
 
-		// GET: any authenticated user (valid JWT) can access trainers endpoints.
-		// No admin role check for GET.
+		// GET: allow any authenticated user
 		if c.Request.Method == http.MethodGet {
 			c.Next()
 			return
 		}
-		
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token claims", api.CodeUnauthorized))
-			return
-		}
-		
-		sub, ok := claims["sub"].(string)
-		if !ok || sub == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing subject claim", api.CodeUnauthorized))
-			return
-		}
 
-		userID, err := uuid.Parse(sub)
+		// Non-GET: must be admin
+		hasAdmin, err := q.UserHasRole(c.Request.Context(), db.UserHasRoleParams{
+			UserID: userID,
+			Name:   "admin",
+		})
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid subject", api.CodeUnauthorized))
-			return
-		}
-
-		role, err := q.GetUserRoleByID(c.Request.Context(), userID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; User not found", api.CodeUnauthorized))
-				return
-			}
 			c.AbortWithStatusJSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 			return
 		}
-
-		if role != "admin" {
+		if !hasAdmin {
 			c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 			return
 		}

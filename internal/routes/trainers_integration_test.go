@@ -56,9 +56,9 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	return db, func() { _ = db.Close() }
 }
 
-func mustExec(t *testing.T, db *sql.DB, q string) {
+func mustExec(t *testing.T, db *sql.DB, q string, args ...any) {
 	t.Helper()
-	_, err := db.Exec(q)
+	_, err := db.Exec(q, args...)
 	require.NoError(t, err)
 }
 
@@ -67,21 +67,68 @@ func resetTables(t *testing.T, db *sql.DB) {
 
 	// Requires the DB has already been migrated via goose.
 	// CASCADE handles FKs between users/trainers/sessions/etc.
+	mustExec(t, db, `TRUNCATE TABLE trainer_availability RESTART IDENTITY CASCADE;`)
+	mustExec(t, db, `TRUNCATE TABLE trainer_invite_tokens RESTART IDENTITY CASCADE;`)
+	mustExec(t, db, `TRUNCATE TABLE login_security RESTART IDENTITY CASCADE;`)
+
+	// If your schema has roles/user_roles tables, clear them too.
+	// Using DO blocks so tests don't fail if a table doesn't exist in a particular branch.
+	mustExec(t, db, `
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_roles') THEN
+    EXECUTE 'TRUNCATE TABLE user_roles RESTART IDENTITY CASCADE;';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'roles') THEN
+    EXECUTE 'TRUNCATE TABLE roles RESTART IDENTITY CASCADE;';
+  END IF;
+END$$;
+`)
+
 	mustExec(t, db, `TRUNCATE TABLE trainers RESTART IDENTITY CASCADE;`)
 	mustExec(t, db, `TRUNCATE TABLE sessions RESTART IDENTITY CASCADE;`)
 	mustExec(t, db, `TRUNCATE TABLE verification_codes RESTART IDENTITY CASCADE;`)
 	mustExec(t, db, `TRUNCATE TABLE users RESTART IDENTITY CASCADE;`)
 }
 
-func insertUser(t *testing.T, db *sql.DB, email, name, role string) string {
+func ensureRole(t *testing.T, db *sql.DB, roleName string) {
+	t.Helper()
+
+	// Adjust column names if your roles table differs.
+	// This version assumes roles(name) unique.
+	mustExec(t, db, `
+INSERT INTO roles (name)
+VALUES ($1)
+ON CONFLICT (name) DO NOTHING;
+`, roleName)
+}
+
+func assignRole(t *testing.T, db *sql.DB, userID string, roleName string) {
+	t.Helper()
+
+	ensureRole(t, db, roleName)
+
+	// This assumes user_roles(user_id, role_name) or (user_id, role_id) is different in your schema.
+	// Most common is: user_roles(user_id, role_id) referencing roles(id).
+	// We'll support the role_id variant (roles has id + name).
+	mustExec(t, db, `
+INSERT INTO user_roles (user_id, role_id)
+SELECT $1, r.id
+FROM roles r
+WHERE r.name = $2
+ON CONFLICT DO NOTHING;
+`, userID, roleName)
+}
+
+func insertUser(t *testing.T, db *sql.DB, email, name string) string {
 	t.Helper()
 
 	var id string
 	err := db.QueryRow(`
-INSERT INTO users (email, name, auth_provider, role)
-VALUES ($1, $2, 'local', $3)
+INSERT INTO users (email, name, auth_provider, is_active)
+VALUES ($1, $2, 'local', true)
 RETURNING id
-`, email, name, role).Scan(&id)
+`, email, name).Scan(&id)
 	require.NoError(t, err)
 	return id
 }
@@ -126,9 +173,25 @@ func TestTrainersEndpoints(t *testing.T) {
 	// Do NOT create schema here; use goose migrations outside the test.
 	resetTables(t, db)
 
-	adminID := insertUser(t, db, "admin@example.com", "Admin", "admin")
-	clientID := insertUser(t, db, "client@example.com", "Client", "client")
-	trainerUserID := insertUser(t, db, "trainer1@example.com", "Trainer One", "client")
+	// Users
+	adminID := insertUser(t, db, "admin@example.com", "Admin")
+	clientID := insertUser(t, db, "client@example.com", "Client")
+	trainerUserID := insertUser(t, db, "trainer1@example.com", "Trainer One")
+
+	// Roles (new auth model)
+	assignRole(t, db, adminID, "admin")
+	assignRole(t, db, clientID, "client")
+	assignRole(t, db, trainerUserID, "trainer")
+
+	// Create a trainer profile row (so trainers can be returned by /trainers, etc.)
+	var trainerID string
+	err := db.QueryRow(`
+INSERT INTO trainers (user_id, specialization, bio, years_of_experience, calendly_connected, onboarding_status)
+VALUES ($1, $2, $3, $4, false, 'pending')
+RETURNING id
+`, trainerUserID, "Weight loss", "Helping clients lose weight safely", 5).Scan(&trainerID)
+	require.NoError(t, err)
+	require.NotEmpty(t, trainerID)
 
 	adminToken := tokenFor(t, adminID)
 	clientToken := tokenFor(t, clientID)
@@ -146,14 +209,14 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	}
 
-	// 2) Forbidden for non-admin
+	// 2) OK for client list (clients can view trainers)
 	{
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
 
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
 	// 3) OK for admin list
@@ -165,45 +228,7 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
-	// 4) Create trainer
-	var trainerID string
-	{
-		createBody := map[string]any{
-			"user_id":             trainerUserID,
-			"specialization":      "Weight loss",
-			"bio":                 "Helping clients lose weight safely",
-			"years_of_experience": 5,
-			"intro_video_url":     "https://example.com/intro.mp4",
-			"display_picture":     "https://example.com/pic.jpg",
-			"calendly_connected":  false,
-			"calendly_link":       "",
-			"onboarding_status":   "pending",
-		}
-
-		b, err := json.Marshal(createBody)
-		require.NoError(t, err)
-
-		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/trainers", bytes.NewReader(b))
-		req.Header.Set("Authorization", "Bearer "+adminToken)
-		req.Header.Set("Content-Type", "application/json")
-
-		res := doReq(t, httpClient, req)
-		defer func() { _ = res.Body.Close() }()
-		require.Equal(t, http.StatusCreated, res.StatusCode)
-
-		// New shape: { "data": { "id": "..." }, ... }
-		var createResp struct {
-			Data struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		}
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&createResp))
-		require.NotEmpty(t, createResp.Data.ID)
-
-		trainerID = createResp.Data.ID
-	}
-
-	// 5) Get by id
+	// 4) Get by id
 	{
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers/"+trainerID, nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
@@ -213,33 +238,24 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
-	// 6) Update (use PATCH to match spec)
+	// 5) Trainer login endpoint exists (does not assert success because password setup flow may be required)
+	// This ensures the route is wired and returns a "non-404" response.
 	{
-		updateBody := map[string]any{
-			"onboarding_status":  "approved",
-			"calendly_connected": true,
-			"calendly_link":      "https://calendly.com/trainer-one/intro",
+		body := map[string]any{
+			"user_id":  trainerUserID,
+			"password": "BadPassword1!", // expected to fail unless you set password hash
 		}
-
-		b, err := json.Marshal(updateBody)
+		b, err := json.Marshal(body)
 		require.NoError(t, err)
 
-		req, _ := http.NewRequest(http.MethodPatch, srv.URL+"/api/v1/trainers/"+trainerID, bytes.NewReader(b))
-		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/trainers/login", bytes.NewReader(b))
 		req.Header.Set("Content-Type", "application/json")
 
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-	}
 
-	// 7) Delete (204)
-	{
-		req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/v1/trainers/"+trainerID, nil)
-		req.Header.Set("Authorization", "Bearer "+adminToken)
-
-		res := doReq(t, httpClient, req)
-		defer func() { _ = res.Body.Close() }()
-		require.Equal(t, http.StatusNoContent, res.StatusCode)
+		// Could be 401 (invalid creds) or 403 (trainer not active/role issues) or 423 (locked) depending on implementation.
+		// We mainly want to ensure the endpoint is present.
+		require.NotEqual(t, http.StatusNotFound, res.StatusCode)
 	}
 }

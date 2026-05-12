@@ -11,6 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type LoginSecurity struct {
+	UserID         uuid.UUID
+	FailedAttempts int32
+	LockedUntil    sql.NullTime
+	LastFailedAt   sql.NullTime
+	UpdatedAt      time.Time
+	CreatedAt      time.Time
+}
+
 type PasswordResetCode struct {
 	ID        uuid.UUID
 	Email     string
@@ -48,6 +57,26 @@ type Trainer struct {
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+type TrainerAvailability struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	DayOfWeek int32
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type TrainerInviteToken struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Token     string
+	ExpiresAt time.Time
+	UsedAt    sql.NullTime
+	CreatedAt time.Time
 }
 
 type User struct {

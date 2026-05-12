@@ -4,26 +4,26 @@ info:
   version: 1.0.0
 
 servers:
-  - url: /api/v1
-    description: Local development
+- url: /api/v1
+  description: Local development
 
 tags:
-  - name: Root
-    description: Base URL endpoints.
-  - name: Health
-    description: Health endpoints to verify application health status.
-  - name: Auth — Local
-    description: Email/password sign-up, login, OTP verification, and password recovery.
-  - name: Auth — OAuth
-    description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
-  - name: Auth — Session
-    description: Session lifecycle endpoints (logout / token revocation).
-  - name: Admin
-    description: Admin-only operations including admin login and user invitation.
-  - name: Trainer
-    description: Trainer endpoints to manage all trainer activities.
-  - name: Waitlist
-    description: Endpoints to handle waitlist data.
+- name: Root
+  description: Base URL endpoints.
+- name: Health
+  description: Health endpoints to verify application health status.
+- name: Auth — Local
+  description: Email/password sign-up, login, OTP verification, and password recovery.
+- name: Auth — OAuth
+  description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
+- name: Auth — Session
+  description: Session lifecycle endpoints (logout / token revocation).
+- name: Admin
+  description: Admin-only operations including admin login and user invitation.
+- name: Trainer
+  description: Trainer endpoints to manage all trainer activities.
+- name: Waitlist
+  description: Endpoints to handle waitlist data.
 
 components:
   securitySchemes:
@@ -35,11 +35,11 @@ components:
   schemas:
     BaseResponse:
       type: object
-      required: [status, message, code]
+      required: [ status, message, code ]
       properties:
         status:
           type: string
-          enum: [success, error]
+          enum: [ success, error ]
         message:
           type: string
         code:
@@ -48,32 +48,32 @@ components:
 
     SuccessResponse:
       allOf:
-        - $ref: "#/components/schemas/BaseResponse"
-        - type: object
-          properties:
-            data:
-              nullable: true
-              description: Any JSON value (object/array/string/number/etc)
-              x-go-type: interface{}
-            meta:
-              nullable: true
-              description: Any JSON value (usually object)
-              x-go-type: interface{}
+      - $ref: "#/components/schemas/BaseResponse"
+      - type: object
+        properties:
+          data:
+            nullable: true
+            description: Any JSON value (object/array/string/number/etc)
+            x-go-type: interface{}
+          meta:
+            nullable: true
+            description: Any JSON value (usually object)
+            x-go-type: interface{}
 
     ErrorResponse:
       allOf:
-        - $ref: "#/components/schemas/BaseResponse"
-        - type: object
-          properties:
-            errors:
-              type: array
-              nullable: true
-              items:
-                $ref: "#/components/schemas/FieldError"
+      - $ref: "#/components/schemas/BaseResponse"
+      - type: object
+        properties:
+          errors:
+            type: array
+            nullable: true
+            items:
+              $ref: "#/components/schemas/FieldError"
 
     FieldError:
       type: object
-      required: [field, message]
+      required: [ field, message ]
       properties:
         field:
           type: string
@@ -84,7 +84,7 @@ components:
 
     PaginationMeta:
       type: object
-      required: [page, per_page, total_pages, total_count]
+      required: [ page, per_page, total_pages, total_count ]
       properties:
         page:
           type: integer
@@ -108,7 +108,7 @@ components:
 
     AuthUser:
       type: object
-      required: [id, email, name, user_type, profile_complete]
+      required: [ id, email, name, user_type, profile_complete ]
       properties:
         id:
           type: string
@@ -119,13 +119,13 @@ components:
           type: string
         user_type:
           type: string
-          enum: [client, trainer, admin]
+          enum: [ client, trainer, admin ]
         profile_complete:
           type: boolean
 
     GoogleAuthData:
       type: object
-      required: [user, access_token, refresh_token, is_new_user, expires_in]
+      required: [ user, access_token, refresh_token, is_new_user, expires_in ]
       properties:
         user:
           $ref: "#/components/schemas/AuthUser"
@@ -141,37 +141,34 @@ components:
 
     GoogleAuthResponse:
       allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          required: [data]
-          properties:
-            data:
-              $ref: "#/components/schemas/GoogleAuthData"
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        required: [ data ]
+        properties:
+          data:
+            $ref: "#/components/schemas/GoogleAuthData"
 
     GoogleMobileSignInRequest:
       type: object
-      required: [id_token]
+      required: [ id_token ]
       properties:
         id_token:
           type: string
           description: >-
-            Google-signed ID token (JWT) obtained client-side via the platform
-            Google Sign-In SDK on Android or iOS. The server verifies the
-            signature against Google's public keys and checks that the `aud`
-            claim matches one of the configured client IDs.
+            Google-signed ID token (JWT) obtained client-side via the platform Google Sign-In SDK on Android or iOS. The server verifies the signature against Google's public keys and checks that the `aud` claim matches one of the configured client IDs.
           example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ij..."
 
     Trainer:
       type: object
       required:
-        - id
-        - user_id
-        - calendly_connected
-        - onboarding_status
-        - average_rating
-        - total_reviews
-        - created_at
-        - updated_at
+      - id
+      - user_id
+      - calendly_connected
+      - onboarding_status
+      - average_rating
+      - total_reviews
+      - created_at
+      - updated_at
       properties:
         id:
           type: string
@@ -201,7 +198,7 @@ components:
           nullable: true
         onboarding_status:
           type: string
-          enum: [pending, approved, rejected, suspended]
+          enum: [ pending, approved, rejected, suspended ]
         average_rating:
           type: number
           nullable: true
@@ -218,26 +215,73 @@ components:
 
     TrainerResponse:
       allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              $ref: "#/components/schemas/Trainer"
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/Trainer"
 
     TrainersListResponse:
       allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: array
-              maxItems: 1000
-              items:
-                $ref: "#/components/schemas/Trainer"
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: array
+            maxItems: 1000
+            items:
+              $ref: "#/components/schemas/Trainer"
+
+    LocalAuthData:
+      type: object
+      required: [ user, access_token, refresh_token, expires_in ]
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          example: 600
+
+    RegisterRequest:
+      type: object
+      required: [ email ]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+
+    VerifyEmailRequest:
+      type: object
+      required: [ email, code ]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: '^\d{6}$'
+          example: "873690"
+
+    ForgotPasswordRequest:
+      type: object
+      required: [ email ]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@example.com
 
     CreateTrainerRequest:
       type: object
-      required: [user_id]
+      required: [ user_id ]
       properties:
         user_id:
           type: string
@@ -258,79 +302,11 @@ components:
           type: string
         onboarding_status:
           type: string
-          enum: [pending, approved, rejected, suspended]
-
-    UpdateTrainerRequest:
-      type: object
-      properties:
-        specialization:
-          type: string
-        bio:
-          type: string
-        years_of_experience:
-          type: integer
-        intro_video_url:
-          type: string
-        display_picture:
-          type: string
-        calendly_connected:
-          type: boolean
-        calendly_link:
-          type: string
-        onboarding_status:
-          type: string
-          enum: [pending, approved, rejected, suspended]
-
-    LocalAuthData:
-      type: object
-      required: [user, access_token, refresh_token, expires_in]
-      properties:
-        user:
-          $ref: "#/components/schemas/AuthUser"
-        access_token:
-          type: string
-        refresh_token:
-          type: string
-        expires_in:
-          type: integer
-          example: 600
-
-    RegisterRequest:
-      type: object
-      required: [email]
-      properties:
-        email:
-          type: string
-          format: email
-          example: john@example.com
-
-    VerifyEmailRequest:
-      type: object
-      required: [email, code]
-      properties:
-        email:
-          type: string
-          format: email
-          example: john@example.com
-        code:
-          type: string
-          minLength: 6
-          maxLength: 6
-          pattern: '^\d{6}$'
-          example: "873690"
-
-    ForgotPasswordRequest:
-      type: object
-      required: [email]
-      properties:
-        email:
-          type: string
-          format: email
-          example: admin@example.com
+          enum: [ pending, approved, rejected, suspended ]
 
     ResetPasswordRequest:
       type: object
-      required: [email, code, new_password]
+      required: [ email, code, new_password ]
       properties:
         email:
           type: string
@@ -346,13 +322,12 @@ components:
           type: string
           format: password
           minLength: 8
-          # Capped at bcrypt's 72-byte hard limit (server enforces byte length).
           maxLength: 72
           example: "Str0ngPassw0rd"
 
     WaitlistRequest:
       type: object
-      required: [email]
+      required: [ email ]
       properties:
         email:
           type: string
@@ -371,14 +346,14 @@ components:
           example: "John Doe"
 
 security:
-  - bearerAuth: []
+- bearerAuth: []
 
 paths:
   /:
     get:
       operationId: Root
       tags:
-        - Root
+      - Root
       summary: Root endpoint
       security: []
       responses:
@@ -398,7 +373,7 @@ paths:
     get:
       operationId: HealthCheck
       tags:
-        - Health
+      - Health
       summary: Health check endpoint
       security: []
       responses:
@@ -420,7 +395,7 @@ paths:
       security: []
       operationId: HandleLocalAuth
       tags:
-        - Auth — Local
+      - Auth — Local
       summary: Login with email
       requestBody:
         required: true
@@ -428,7 +403,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [ email ]
               properties:
                 email:
                   type: string
@@ -465,8 +440,8 @@ paths:
                 message: Validation error
                 code: BAD_REQUEST
                 errors:
-                  - field: email
-                    message: Email is required
+                - field: email
+                  message: Email is required
         "401":
           description: Invalid credentials
           content:
@@ -481,10 +456,10 @@ paths:
   /auth/logout:
     post:
       security:
-        - bearerAuth: []
+      - bearerAuth: []
       operationId: HandleLogout
       tags:
-        - Auth — Session
+      - Auth — Session
       summary: Logs out the authenticated user
       requestBody:
         required: true
@@ -492,7 +467,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [refresh_token]
+              required: [ refresh_token ]
               properties:
                 refresh_token:
                   type: string
@@ -543,7 +518,7 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth — OAuth
+      - Auth — OAuth
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
         "302":
@@ -554,19 +529,19 @@ paths:
       security: []
       operationId: HandleGoogleCallback
       tags:
-        - Auth — OAuth
+      - Auth — OAuth
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
-        - name: code
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: true
-          schema:
-            type: string
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           description: Authentication successful
@@ -625,15 +600,10 @@ paths:
       security: []
       operationId: HandleGoogleMobileSignIn
       tags:
-        - Auth — OAuth
+      - Auth — OAuth
       summary: Sign in via Google ID token (mobile clients)
       description: >-
-        Accepts a Google-signed ID token from a native Android/iOS client and
-        returns the same JWT pair as the web Google flow. The mobile app
-        obtains the ID token via the platform Google Sign-In SDK; the server
-        verifies it against Google's JWKS and the configured Android/iOS/web
-        client IDs (`GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`,
-        `GOOGLE_CLIENT_ID`). On first sign-in a new user record is created.
+        Accepts a Google-signed ID token from a native Android/iOS client and returns the same JWT pair as the web Google flow. The mobile app obtains the ID token via the platform Google Sign-In SDK; the server verifies it against Google's JWKS and the configured Android/iOS/web client IDs (`GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_CLIENT_ID`). On first sign-in a new user record is created.
       requestBody:
         required: true
         content:
@@ -689,7 +659,7 @@ paths:
       security: []
       operationId: HandleRegister
       tags:
-        - Auth — Local
+      - Auth — Local
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
         required: true
@@ -720,8 +690,8 @@ paths:
                 message: Validation error
                 code: BAD_REQUEST
                 errors:
-                  - field: email
-                    message: invalid email format
+                - field: email
+                  message: invalid email format
         "429":
           description: Too many requests
           content:
@@ -748,7 +718,7 @@ paths:
       security: []
       operationId: HandleVerifyEmail
       tags:
-        - Auth — Local
+      - Auth — Local
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
         required: true
@@ -763,11 +733,11 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: "#/components/schemas/SuccessResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/LocalAuthData"
+                - $ref: "#/components/schemas/SuccessResponse"
+                - type: object
+                  properties:
+                    data:
+                      $ref: "#/components/schemas/LocalAuthData"
               example:
                 status: success
                 message: Email verified successfully
@@ -812,22 +782,16 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
   /auth/forgot-password:
     post:
       security: []
       operationId: HandleForgotPassword
       tags:
-        - Auth — Local
+      - Auth — Local
       summary: Request a password reset code
       description: >-
-        Sends a 6-digit reset code to the email address if it belongs to a
-        registered local user that holds the `admin` role. The endpoint
-        always returns the same generic success response regardless of
-        whether the email exists or whether the user is an admin — this
-        is intentional, to prevent account / role enumeration. The role
-        gate is enforced server-side; this is unauthenticated by design
-        because the caller has no token to present when they have lost
-        their password.
+        Sends a 6-digit reset code to the email address if it belongs to a registered local user that holds the `admin` role. The endpoint always returns the same generic success response regardless of whether the email exists or whether the user is an admin — this is intentional, to prevent account / role enumeration. The role gate is enforced server-side; this is unauthenticated by design because the caller has no token to present when they have lost their password.
       requestBody:
         required: true
         content:
@@ -857,8 +821,8 @@ paths:
                 message: Validation error
                 code: BAD_REQUEST
                 errors:
-                  - field: email
-                    message: invalid email format
+                - field: email
+                  message: invalid email format
         "429":
           description: Too many requests
           content:
@@ -879,22 +843,16 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
   /auth/reset-password:
     post:
       security: []
       operationId: HandleResetPassword
       tags:
-        - Auth — Local
+      - Auth — Local
       summary: Reset password using a previously emailed code
       description: >-
-        Validates the 6-digit code and sets a new password. The endpoint is
-        gated server-side to users that currently hold the `admin` role —
-        any other caller (non-admin, inactive, unknown email, wrong code)
-        receives the same generic 400 response so the role check cannot be
-        probed. On success the code is consumed (single-use) and all
-        existing refresh sessions for the user are revoked. Unauthenticated
-        by design, since the caller has no token when resetting a forgotten
-        password.
+        Validates the 6-digit code and sets a new password. The endpoint is gated server-side to users that currently hold the `admin` role — any other caller (non-admin, inactive, unknown email, wrong code) receives the same generic 400 response so the role check cannot be probed. On success the code is consumed (single-use) and all existing refresh sessions for the user are revoked. Unauthenticated by design, since the caller has no token when resetting a forgotten password.
       requestBody:
         required: true
         content:
@@ -948,7 +906,7 @@ paths:
     post:
       operationId: AdminAdd
       tags:
-        - Admin
+      - Admin
       summary: Create an admin account (super_admin only)
       description: |
         Creates a user with role=admin and a server-generated password,
@@ -956,17 +914,21 @@ paths:
         (email, local) pair: if the user already exists, the password is
         rotated and the role is set to admin.
       security:
-        - bearerAuth: []
+      - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email, name]
+              required: [ email, name ]
               properties:
-                email: { type: string, format: email }
-                name: { type: string, minLength: 1 }
+                email:
+                  type: string
+                  format: email
+                name:
+                  type: string
+                  minLength: 1
       responses:
         "201":
           description: Admin created and credentials emailed
@@ -993,125 +955,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /auth/admin/log-in:
+  /admin/trainers:
     post:
-      security: []
-      operationId: HandleAdminLogin
+      operationId: AdminCreateTrainer
       tags:
-        - Admin
-      summary: Log Administrators into the application with email and password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  format: password
-      responses:
-        "200":
-          description: Authentication successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Email authentication successful
-                code: OK
-                data:
-                  user:
-                    id: "4b52f888-427c-418e-9f8f-15f268329ec3"
-                    email: "oluwatobiloba@gmail.com"
-                    name: "oluwatobiloba rose"
-                    user_type: admin
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: Email is required
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid email or password
-                code: UNAUTHORIZED
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-  /trainers:
-    get:
-      operationId: GetTrainers
-      tags:
-        - Trainer
-      summary: Get trainers (admin only)
-      parameters:
-        - name: category
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by category (maps to trainers.specialization)
-      responses:
-        "200":
-          description: Trainers fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainersListResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      operationId: CreateTrainer
-      tags:
-        - Trainer
-      summary: Add trainer (admin only)
+      - Admin
+      summary: Create trainer profile (admin only)
+      description: Creates a trainer profile for an existing user.
+      security:
+      - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1138,7 +990,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden
+          description: Forbidden (admin only)
           content:
             application/json:
               schema:
@@ -1150,153 +1002,88 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /trainers/{id}:
-    get:
-      operationId: GetTrainerByID
+  /auth/admin/log-in:
+    post:
+      security: []
+      operationId: HandleAdminLogin
       tags:
-        - Trainer
-      summary: Get trainer by ID (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Trainer fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    patch:
-      operationId: UpdateTrainer
-      tags:
-        - Trainer
-      summary: Update trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+      - Admin
+      summary: Log Administrators into the application with email and password
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateTrainerRequest"
+              type: object
+              required: [ email, password ]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
       responses:
         "200":
-          description: Trainer updated
+          description: Authentication successful
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrainerResponse"
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Email authentication successful
+                code: OK
+                data:
+                  user:
+                    id: "4b52f888-427c-418e-9f8f-15f268329ec3"
+                    email: "oluwatobiloba@gmail.com"
+                    name: "oluwatobiloba rose"
+                    user_type: admin
+                    profile_complete: true
+                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
         "400":
-          description: Bad request
+          description: Validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Validation error
+                code: BAD_REQUEST
+                errors:
+                - field: email
+                  message: Email is required
         "401":
-          description: Unauthorized
+          description: Invalid credentials
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid email or password
+                code: UNAUTHORIZED
         "500":
-          description: Server error
+          description: Internal server error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: DeleteTrainer
-      tags:
-        - Trainer
-      summary: Delete trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
 
   /waitlist:
     post:
       security: []
       operationId: HandleAddWaitlist
       tags:
-        - Waitlist
+      - Waitlist
       summary: Handle adding an email address to the waitlist table
       requestBody:
         required: true
@@ -1345,19 +1132,20 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
     get:
       security:
-        - bearerAuth: []
+      - bearerAuth: []
       operationId: HandleGetWaitlist
       tags:
-        - Waitlist
+      - Waitlist
       summary: Handle getting emails or filtered emails in waitlist
       parameters:
-        - name: email
-          in: query
-          required: false
-          schema:
-            type: string
+      - name: email
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         "200":
           description: Waitlists retrieved
@@ -1399,3 +1187,190 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /trainers:
+    get:
+      operationId: GetTrainers
+      tags:
+      - Trainer
+      summary: Get trainers (authenticated users)
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by category (maps to trainers.specialization)
+      responses:
+        "200":
+          description: Trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainersListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}:
+    get:
+      operationId: GetTrainerByID
+      tags:
+      - Trainer
+      summary: Get trainer by ID (authenticated users)
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Trainer fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/login:
+    post:
+      security: []
+      operationId: TrainerLogin
+      tags:
+      - Trainer
+      summary: Trainer login with user ID and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ user_id, password ]
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: LOGIN_SUCCESSFUL
+                code: OK
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/setup-password:
+    post:
+      security: []
+      operationId: TrainerSetupPassword
+      tags:
+      - Trainer
+      summary: Set trainer password using an invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ token, password ]
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  maxLength: 72
+      responses:
+        "200":
+          description: Password set successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: PASSWORD_SET_SUCCESSFULLY
+                code: OK
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          description: Invalid or expired token / validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
