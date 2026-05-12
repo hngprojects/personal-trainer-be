@@ -14,11 +14,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     CONSTRAINT reviews_trainer_id_fkey
         FOREIGN KEY (trainer_id) REFERENCES trainers(id) ON DELETE CASCADE,
     CONSTRAINT reviews_client_user_id_fkey
-        FOREIGN KEY (client_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT reviews_booking_actor_match_fkey
-        FOREIGN KEY (booking_id, trainer_id, client_user_id)
-            REFERENCES bookings(id, trainer_id, client_user_id)
-            ON DELETE CASCADE
+        FOREIGN KEY (client_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_reviews_trainer_created_id

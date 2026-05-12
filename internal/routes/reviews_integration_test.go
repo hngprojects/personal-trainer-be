@@ -279,15 +279,15 @@ RETURNING id
 	return trainerID
 }
 
-func insertBooking(t *testing.T, db *sql.DB, trainerID, clientUserID, status string, completedAt *time.Time) string {
+func insertBooking(t *testing.T, db *sql.DB, trainerID, clientUserID, status string, _ *time.Time) string {
 	t.Helper()
 
 	var trainerBookingID string
 	err := db.QueryRow(`
-INSERT INTO bookings (trainer_id, client_user_id, status, completed_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO bookings (trainer_id, client_id, booking_status)
+VALUES ($1, $2, $3)
 RETURNING id
-`, trainerID, clientUserID, status, completedAt).Scan(&trainerBookingID)
+`, trainerID, clientUserID, status).Scan(&trainerBookingID)
 	require.NoError(t, err)
 
 	return trainerBookingID
