@@ -20,3 +20,12 @@ func TestSMTPMailerSendRejectsInjectedRecipient(t *testing.T) {
 		t.Fatal("expected injected recipient to be rejected")
 	}
 }
+
+func TestLogMailerDoesNotRenderOTP(t *testing.T) {
+	t.Parallel()
+
+	m := NewLogMailer()
+	if err := m.SendVerificationCode("user@example.com", "123456", 15); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

@@ -16,10 +16,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestMain(m *testing.M) {
@@ -35,6 +34,8 @@ type fakeLocalUserRepo struct {
 	findErr         error
 	createUserErr   error
 	markVerifiedErr error
+	findUserRole    *db.UserRole
+	findUserRoleErr error
 }
 
 func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
@@ -43,6 +44,10 @@ func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ strin
 
 func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
 	return f.findUser, f.findErr
+}
+
+func (f *fakeLocalUserRepo) GetUserRole(_ context.Context, _ string) (*db.UserRole, error) {
+	return f.findUserRole, f.findUserRoleErr
 }
 
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
@@ -122,9 +127,15 @@ func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error {
 	return m.err
 }
 
+func (m *fakeMailer) SendAdminCredentials(_, _ string) error {
+	return m.err
+}
+
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
+
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error { return m.err }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
