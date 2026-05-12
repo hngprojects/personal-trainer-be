@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -56,13 +57,16 @@ func (s *Router) Close() {
 
 type routerImpl struct {
 	google        *auth.GoogleHandler
+	googleMobile  *auth.MobileGoogleHandler
 	local         *auth.LocalHandler
 	root          *root.RootHandler
+	adminLogin    *handlers.AdminLoginHandler
 	health        *health.HealthHandler
 	waitlist      *waitlist.WaitlistHandler
 	logout        *auth.LogoutHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainersStore
+	admin         *admin.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -115,15 +119,18 @@ func (s *Router) Routes() *gin.Engine {
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
 			rolesRepo := auth.NewPostgresRoleRepo(q)
+			adminLoginService := auth.NewAdminLoginService(usersRepo, rolesRepo, s.log)
 			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
-			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log)
-			impl.trainers = newTrainersStore(q)
-
 			mailer := s.buildMailer()
+
+			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
+			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
+			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
+			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
+			impl.trainers = newTrainersStore(q)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
@@ -152,14 +159,17 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
+			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
 
 		authMw := middleware.AuthMiddleware(s.redis)
-		var adminOnly api.MiddlewareFunc
+		var trainersAdminOnly api.MiddlewareFunc
+		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
-			adminOnly = middleware.TrainersAdminOnly(q)
+			trainersAdminOnly = middleware.TrainersAdminOnly(q)
+			superAdminOnly = middleware.SuperAdminOnly(q)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
@@ -171,8 +181,14 @@ func (s *Router) Routes() *gin.Engine {
 							return
 						}
 					}
-					if adminOnly != nil {
-						adminOnly(c)
+					if trainersAdminOnly != nil {
+						trainersAdminOnly(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					if superAdminOnly != nil {
+						superAdminOnly(c)
 					}
 				},
 			},

@@ -37,7 +37,14 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 		status := c.Writer.Status()
 		requestID := c.GetString("request_id")
 
-		path := c.Request.URL.Path
+		// Prefer the matched route pattern (e.g. /admin/invites/:token) over
+		// the raw path so secret path segments aren't leaked to log pipelines.
+		// FullPath returns "" when no route matched (404) — fall back to the
+		// raw path in that case, still scrubbing query strings.
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
 		if query := c.Request.URL.RawQuery; query != "" {
 			path = path + "?" + filterQueryParams(query)
 		}
