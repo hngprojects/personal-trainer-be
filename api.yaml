@@ -1644,58 +1644,58 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
-/contact-us:
-  post:
-    security: []
-    operationId: HandleContactUs
-    tags:
-      - Contact
-    summary: Handle taking user feedback
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [email, name, message, subject]
-            properties:
-              email:
-                type: string
-                format: email
-              subject:
-                type: string
-              name:
-                type: string
-              message:
-                type: string
-    responses:
-      "200":
-        description: Your message has been received
+  /contact-us:
+    post:
+      security: []
+      operationId: HandleContactUs
+      tags:
+        - Contact
+      summary: Handle taking user feedback
+      requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SuccessResponse"
-            example:
-              status: success
-              message: Your feedback has been recieved
-              code: OK
-      "400":
-        description: Invalid or missing parameters
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ErrorResponse"
-            example:
-              status: error
-              message: Invalid or missing parameters
-              code: BAD_REQUEST
-      "500":
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ErrorResponse"
-            example:
-              status: error
-              message: Internal server error
-              code: SERVER_ERROR
+              type: object
+              required: [email, name, message, subject]
+              properties:
+                email:
+                  type: string
+                  format: email
+                subject:
+                  type: string
+                name:
+                  type: string
+                message:
+                  type: string
+      responses:
+        "200":
+          description: Your message has been received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Your feedback has been recieved
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR

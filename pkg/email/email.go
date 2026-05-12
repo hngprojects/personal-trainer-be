@@ -15,6 +15,7 @@ type Mailer interface {
 	SendAdminCredentials(to, password string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
+	SendContactConfirmation(to, name string) error
 }
 
 type SMTPMailer struct {
@@ -133,6 +134,11 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 
 func (m *LogMailer) SendWaitlistConfirmation(to string) error {
 	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
+	return nil
+}
+
+func (m *LogMailer) SendContactConfirmation(to, _ string) error {
+	slog.Info("email", "to", to, "subject", contactConfirmationSubject)
 	return nil
 }
 
@@ -319,6 +325,27 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
+func (m *SMTPMailer) SendContactConfirmation(to, name string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := contactConfirmationHTML(name)
+	if err != nil {
+		return fmt.Errorf("build contact confirmation email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, contactConfirmationSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
 const waitlistConfirmationSubject = "You're on the waitlist!"
 
 var waitlistConfirmationTemplate = template.Must(template.New("waitlist-confirmation-email").Parse(`<!DOCTYPE html>
@@ -346,6 +373,38 @@ var waitlistConfirmationTemplate = template.Must(template.New("waitlist-confirma
 func waitlistConfirmationHTML() (string, error) {
 	var body bytes.Buffer
 	if err := waitlistConfirmationTemplate.Execute(&body, nil); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+const contactConfirmationSubject = "We received your message!"
+
+var contactConfirmationTemplate = template.Must(template.New("contact-confirmation-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">We received your message!</h2>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">Hi {{ .Name }}, thanks for reaching out. We'll get back to you as soon as possible.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func contactConfirmationHTML(name string) (string, error) {
+	var body bytes.Buffer
+	if err := contactConfirmationTemplate.Execute(&body, struct{ Name string }{Name: name}); err != nil {
 		return "", err
 	}
 	return body.String(), nil
