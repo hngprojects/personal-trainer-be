@@ -23,6 +23,14 @@ func (s *routerImpl) HandleGoogleCallback(c *gin.Context, params api.HandleGoogl
 	s.google.HandleGoogleCallback(c, params.State, params.Code)
 }
 
+func (s *routerImpl) HandleGoogleMobileSignIn(c *gin.Context) {
+	if s.googleMobile == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.googleMobile.SignIn(c)
+}
+
 func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
 	if s.local == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
