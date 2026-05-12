@@ -13,6 +13,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -69,6 +70,7 @@ type routerImpl struct {
 	trainers      *trainersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
+	contact       *contact.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -132,6 +134,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
+			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
