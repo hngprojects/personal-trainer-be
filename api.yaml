@@ -1534,228 +1534,6 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
-  /trainers:
-    get:
-      operationId: GetTrainers
-      tags:
-        - Trainer
-      summary: Get trainers (admin only)
-      parameters:
-        - name: category
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by category (maps to trainers.specialization)
-      responses:
-        "200":
-          description: Trainers fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainersListResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      operationId: CreateTrainer
-      tags:
-        - Trainer
-      summary: Add trainer (admin only)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateTrainerRequest"
-      responses:
-        "201":
-          description: Trainer created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /trainers/{id}:
-    get:
-      operationId: GetTrainerByID
-      tags:
-        - Trainer
-      summary: Get trainer by ID (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Trainer fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    patch:
-      operationId: UpdateTrainer
-      tags:
-        - Trainer
-      summary: Update trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateTrainerRequest"
-      responses:
-        "200":
-          description: Trainer updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: DeleteTrainer
-      tags:
-        - Trainer
-      summary: Delete trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /waitlist:
     post:
@@ -1865,3 +1643,59 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+/contact-us:
+  post:
+    security: []
+    operationId: HandleContactUs
+    tags:
+      - Contact
+    summary: Handle taking user feedback
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, name, message, subject]
+            properties:
+              email:
+                type: string
+                format: email
+              subject:
+                type: string
+              name:
+                type: string
+              message:
+                type: string
+    responses:
+      "200":
+        description: Your message has been received
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuccessResponse"
+            example:
+              status: success
+              message: Your feedback has been recieved
+              code: OK
+      "400":
+        description: Invalid or missing parameters
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErrorResponse"
+            example:
+              status: error
+              message: Invalid or missing parameters
+              code: BAD_REQUEST
+      "500":
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErrorResponse"
+            example:
+              status: error
+              message: Internal server error
+              code: SERVER_ERROR
