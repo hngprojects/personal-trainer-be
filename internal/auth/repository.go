@@ -24,7 +24,6 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
 	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
-	GetUserRole(ctx context.Context, email string) (*db.GetUserRoleRow, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
 }
@@ -61,7 +60,6 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	// return r.q.UserHasRole(ctx, userID, roleName)
 	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
