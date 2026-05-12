@@ -17,6 +17,7 @@ const (
 	RefreshToken    TokenType = "refresh"
 	AccessTokenTTL            = 10 * time.Minute
 	RefreshTokenTTL           = 7 * 24 * time.Hour
+	BcryptSaltRound           = 12
 )
 
 // jwtSecret is set once at process startup via Configure. Production callers
