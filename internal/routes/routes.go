@@ -13,10 +13,12 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -66,7 +68,9 @@ type routerImpl struct {
 	logout        *auth.LogoutHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainersStore
+	reviews       *reviewsvc.Service
 	admin         *admin.Handler
+	contact       *contact.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -130,7 +134,9 @@ func (s *Router) Routes() *gin.Engine {
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
+			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
+			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
@@ -164,7 +170,11 @@ func (s *Router) Routes() *gin.Engine {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
 
-		authMw := middleware.AuthMiddleware(s.redis)
+		var authRedis appredis.RedisClient
+		if s.redis != nil {
+			authRedis = s.redis
+		}
+		authMw := middleware.AuthMiddleware(authRedis)
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
