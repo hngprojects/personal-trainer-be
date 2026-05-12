@@ -12,13 +12,19 @@ import (
 )
 
 type Booking struct {
-	ID           uuid.UUID
-	TrainerID    uuid.UUID
-	ClientUserID uuid.UUID
-	Status       string
-	CompletedAt  sql.NullTime
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
 }
 
 type PasswordResetCode struct {

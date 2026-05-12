@@ -111,11 +111,11 @@ func (s *Service) CreateReview(ctx context.Context, input CreateReviewInput) (db
 		s.log.Error("review submission failed", "booking_id", input.BookingID.String(), "error_code", "INTERNAL_ERROR", "err", err)
 		return db.Review{}, err
 	}
-	if booking.ClientUserID != input.UserID {
+	if booking.ClientID != input.UserID {
 		s.log.Warn("review submission failed", "trainer_id", booking.TrainerID.String(), "booking_id", booking.ID.String(), "error_code", "FORBIDDEN")
 		return db.Review{}, ErrBookingForbidden
 	}
-	if booking.Status != completedStatus {
+	if !booking.BookingStatus.Valid || booking.BookingStatus.String != completedStatus {
 		s.log.Warn("review submission failed", "trainer_id", booking.TrainerID.String(), "booking_id", booking.ID.String(), "error_code", "INVALID_INPUT")
 		return db.Review{}, ErrBookingNotCompleted
 	}
@@ -123,7 +123,7 @@ func (s *Service) CreateReview(ctx context.Context, input CreateReviewInput) (db
 	created, err := qtx.CreateReview(ctx, db.CreateReviewParams{
 		BookingID:    booking.ID,
 		TrainerID:    booking.TrainerID,
-		ClientUserID: booking.ClientUserID,
+		ClientUserID: booking.ClientID,
 		Rating:       int32(input.Rating),
 		Review:       nullStringPtr(input.Review),
 	})

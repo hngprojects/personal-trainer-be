@@ -15,48 +15,92 @@ import (
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
   trainer_id,
-  client_user_id,
-  status,
-  completed_at
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at
 ) VALUES (
   $1,
   $2,
-  COALESCE($3::text, 'pending'),
-  $4
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  $10,
+  $11,
+  $12
 )
 RETURNING
   id,
   trainer_id,
-  client_user_id,
-  status,
-  completed_at,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
   created_at,
-  updated_at
+  cancelled_at
 `
 
 type CreateBookingParams struct {
-	TrainerID    uuid.UUID
-	ClientUserID uuid.UUID
-	Status       string
-	CompletedAt  sql.NullTime
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
 }
 
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
-		arg.ClientUserID,
-		arg.Status,
-		arg.CompletedAt,
+		arg.ClientID,
+		arg.SubscriptionID,
+		arg.CalendlyEventID,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+		arg.Timezone,
+		arg.BookingStatus,
+		arg.SessionPlatform,
+		arg.CancellationReason,
+		arg.CreatedAt,
+		arg.CancelledAt,
 	)
 	var i Booking
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
-		&i.ClientUserID,
-		&i.Status,
-		&i.CompletedAt,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.CalendlyEventID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.CancelledAt,
 	)
 	return i, err
 }
@@ -65,11 +109,17 @@ const getBookingByID = `-- name: GetBookingByID :one
 SELECT
   id,
   trainer_id,
-  client_user_id,
-  status,
-  completed_at,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
   created_at,
-  updated_at
+  cancelled_at
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -81,11 +131,17 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
-		&i.ClientUserID,
-		&i.Status,
-		&i.CompletedAt,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.CalendlyEventID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.CancelledAt,
 	)
 	return i, err
 }
@@ -94,11 +150,17 @@ const getBookingByIDForUpdate = `-- name: GetBookingByIDForUpdate :one
 SELECT
   id,
   trainer_id,
-  client_user_id,
-  status,
-  completed_at,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
   created_at,
-  updated_at
+  cancelled_at
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -111,11 +173,17 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
-		&i.ClientUserID,
-		&i.Status,
-		&i.CompletedAt,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.CalendlyEventID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
 		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.CancelledAt,
 	)
 	return i, err
 }
