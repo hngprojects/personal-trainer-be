@@ -172,8 +172,6 @@ func (s *Router) Routes() *gin.Engine {
 			authRedis = s.redis
 		}
 		authMw := middleware.AuthMiddleware(authRedis)
-		var adminOnly api.MiddlewareFunc
-		authMw := middleware.AuthMiddleware(s.redis)
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
