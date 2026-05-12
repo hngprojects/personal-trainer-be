@@ -108,3 +108,11 @@ func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	}
 	return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, string(body))
 }
+
+func (m *ResendMailer) SendContactConfirmation(to, name string) error {
+	body, err := contactConfirmationHTML(name)
+	if err != nil {
+		return fmt.Errorf("resend: build contact confirmation email body: %w", err)
+	}
+	return m.send(to, contactConfirmationSubject, body)
+}
