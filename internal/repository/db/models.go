@@ -98,7 +98,10 @@ type VerificationCode struct {
 }
 
 type Waitlist struct {
-	ID        uuid.UUID
-	Email     string
-	CreatedAt time.Time
+	ID          uuid.UUID
+	Email       string
+	CreatedAt   time.Time
+	PhoneNumber sql.NullString
+	Location    sql.NullString
+	Name        sql.NullString
 }
