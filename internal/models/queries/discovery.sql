@@ -60,11 +60,11 @@ RETURNING *;
 -- name: UpdateBookingSlot :one
 UPDATE booking_slots
 SET
-    day_of_week = COALESCE(sqlc.arg(day_of_week), day_of_week),
-    start_time  = COALESCE(sqlc.arg(start_time), start_time),
-    end_time    = COALESCE(sqlc.arg(end_time), end_time),
-    timezone    = COALESCE(sqlc.arg(timezone), timezone),
-    is_active   = COALESCE(sqlc.arg(is_active), is_active),
+    day_of_week = sqlc.arg(day_of_week),
+    start_time  = sqlc.arg(start_time),
+    end_time    = sqlc.arg(end_time),
+    timezone    = sqlc.arg(timezone),
+    is_active   = sqlc.arg(is_active),
     updated_at  = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
@@ -75,5 +75,6 @@ WHERE id = $1;
 
 -- name: CheckSlotConflict :one
 SELECT COUNT(*) FROM discovery_bookings
-WHERE selected_datetime = sqlc.arg(selected_datetime)
+WHERE selected_datetime > $1 - INTERVAL '30 minutes'
+  AND selected_datetime < $1 + INTERVAL '30 minutes'
   AND status NOT IN ('cancelled');

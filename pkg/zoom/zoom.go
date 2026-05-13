@@ -2,6 +2,7 @@ package zoom
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,9 +30,9 @@ func (c *Client) IsConfigured() bool {
 	return c.accountID != "" && c.clientID != "" && c.clientSecret != ""
 }
 
-func (c *Client) getAccessToken() (string, error) {
+func (c *Client) getAccessToken(ctx context.Context) (string, error) {
 	url := fmt.Sprintf("https://zoom.us/oauth/token?grant_type=account_credentials&account_id=%s", c.accountID)
-	req, err := http.NewRequest(http.MethodPost, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -56,8 +57,8 @@ func (c *Client) getAccessToken() (string, error) {
 }
 
 // CreateMeeting implements meeting.Provider.
-func (c *Client) CreateMeeting(topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error) {
-	token, err := c.getAccessToken()
+func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error) {
+	token, err := c.getAccessToken(ctx)
 	if err != nil {
 		return "", "", fmt.Errorf("zoom: get token: %w", err)
 	}
@@ -73,8 +74,12 @@ func (c *Client) CreateMeeting(topic string, startTime time.Time, durationMinute
 		},
 	}
 
-	b, _ := json.Marshal(body)
-	req, err := http.NewRequest(http.MethodPost, "https://api.zoom.us/v2/users/me/meetings", bytes.NewReader(b))
+	b, err := json.Marshal(body)
+	if err != nil {
+		return "", "", fmt.Errorf("zoom: marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.zoom.us/v2/users/me/meetings", bytes.NewReader(b))
 	if err != nil {
 		return "", "", err
 	}

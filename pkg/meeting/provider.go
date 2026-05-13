@@ -1,19 +1,22 @@
 package meeting
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Provider is the interface every video-call backend must satisfy.
 // Swap Zoom for Google Meet (or any other provider) by implementing this.
 type Provider interface {
 	IsConfigured() bool
-	CreateMeeting(topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error)
+	CreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error)
 }
 
-// NoOp is returned when no credentials are configured — callers get empty
-// strings and no error, so bookings proceed without a meeting link.
+// NoOp is used when no meeting provider is configured — bookings proceed
+// without a meeting link.
 type NoOp struct{}
 
 func (NoOp) IsConfigured() bool { return false }
-func (NoOp) CreateMeeting(_ string, _ time.Time, _ int) (string, string, error) {
+func (NoOp) CreateMeeting(_ context.Context, _ string, _ time.Time, _ int) (string, string, error) {
 	return "", "", nil
 }
