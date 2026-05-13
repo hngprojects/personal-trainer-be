@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -45,14 +46,20 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
-	selectedTime := req.SelectedDatetime
+	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
+		return
+	}
 
-	if err := h.validateAgainstSlots(c, selectedTime, req.Timezone); err != nil {
+	selectedTime := req.SelectedDatetime
+	ctx := c.Request.Context()
+
+	if err := h.validateAgainstSlots(ctx, selectedTime); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
-	count, err := h.repo.CheckSlotConflict(c.Request.Context(), selectedTime)
+	count, err := h.repo.CheckSlotConflict(ctx, selectedTime)
 	if err != nil {
 		h.log.Error("failed to check slot conflict", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
@@ -65,7 +72,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 
 	var zoomLink, zoomMeetingID string
 	if req.ContactMode == api.ZoomMeeting {
-		zoomLink, zoomMeetingID = h.createMeeting(c, selectedTime)
+		zoomLink, zoomMeetingID = h.createMeeting(ctx, selectedTime)
 	}
 
 	arg := db.CreateDiscoveryBookingParams{
@@ -79,7 +86,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		ZoomMeetingID:    sql.NullString{String: zoomMeetingID, Valid: zoomMeetingID != ""},
 	}
 
-	booking, err := h.repo.CreateBooking(c.Request.Context(), arg)
+	booking, err := h.repo.CreateBooking(ctx, arg)
 	if err != nil {
 		h.log.Error("failed to create discovery booking", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking", api.CodeServerError))
@@ -104,13 +111,12 @@ func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsPara
 
 	clientTZ := "Africa/Lagos"
 	if params.Timezone != nil && *params.Timezone != "" {
-		clientTZ = *params.Timezone
+		if _, err := time.LoadLocation(*params.Timezone); err == nil {
+			clientTZ = *params.Timezone
+		}
 	}
 
-	loc, err := time.LoadLocation(clientTZ)
-	if err != nil {
-		loc, _ = time.LoadLocation("Africa/Lagos")
-	}
+	loc, _ := time.LoadLocation(clientTZ)
 
 	list := make([]map[string]interface{}, 0, len(slots))
 	for _, s := range slots {
@@ -130,6 +136,10 @@ func (h *Handler) CreateBookingSlot(c *gin.Context) {
 
 	tz := "Africa/Lagos"
 	if req.Timezone != nil {
+		if _, err := time.LoadLocation(*req.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone", api.CodeBadRequest))
+			return
+		}
 		tz = *req.Timezone
 	}
 
@@ -175,6 +185,10 @@ func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
 
 	tz := "Africa/Lagos"
 	if req.Timezone != nil {
+		if _, err := time.LoadLocation(*req.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone", api.CodeBadRequest))
+			return
+		}
 		tz = *req.Timezone
 	}
 
@@ -228,8 +242,8 @@ func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *Handler) validateAgainstSlots(c *gin.Context, selectedTime time.Time, clientTZ string) error {
-	slots, err := h.repo.GetActiveSlots(c.Request.Context())
+func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Time) error {
+	slots, err := h.repo.GetActiveSlots(ctx)
 	if err != nil || len(slots) == 0 {
 		return fmt.Errorf("no available booking slots at this time")
 	}
@@ -253,12 +267,12 @@ func (h *Handler) validateAgainstSlots(c *gin.Context, selectedTime time.Time, c
 	return fmt.Errorf("selected time is outside available booking hours")
 }
 
-func (h *Handler) createMeeting(c *gin.Context, startTime time.Time) (link, meetingID string) {
+func (h *Handler) createMeeting(ctx context.Context, startTime time.Time) (link, meetingID string) {
 	if !h.meeting.IsConfigured() {
 		h.log.Warn("meeting provider not configured — skipping meeting creation")
 		return "", ""
 	}
-	link, meetingID, err := h.meeting.CreateMeeting("FitCall Discovery Call", startTime, 30)
+	link, meetingID, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
 	if err != nil {
 		h.log.Error("meeting creation failed", "err", err)
 		return "", ""
@@ -289,6 +303,9 @@ func bookingToMap(b db.DiscoveryBooking) map[string]interface{} {
 	}
 	if b.ZoomMeetingLink.Valid {
 		m["zoom_meeting_link"] = b.ZoomMeetingLink.String
+	}
+	if b.ZoomMeetingID.Valid {
+		m["zoom_meeting_id"] = b.ZoomMeetingID.String
 	}
 	return m
 }

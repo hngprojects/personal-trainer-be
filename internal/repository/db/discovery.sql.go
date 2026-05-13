@@ -15,12 +15,13 @@ import (
 
 const checkSlotConflict = `-- name: CheckSlotConflict :one
 SELECT COUNT(*) FROM discovery_bookings
-WHERE selected_datetime = $1
+WHERE selected_datetime > $1 - INTERVAL '30 minutes'
+  AND selected_datetime < $1 + INTERVAL '30 minutes'
   AND status NOT IN ('cancelled')
 `
 
-func (q *Queries) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
-	row := q.db.QueryRowContext(ctx, checkSlotConflict, selectedDatetime)
+func (q *Queries) CheckSlotConflict(ctx context.Context, dollar_1 interface{}) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkSlotConflict, dollar_1)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -276,11 +277,11 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 const updateBookingSlot = `-- name: UpdateBookingSlot :one
 UPDATE booking_slots
 SET
-    day_of_week = COALESCE($1, day_of_week),
-    start_time  = COALESCE($2, start_time),
-    end_time    = COALESCE($3, end_time),
-    timezone    = COALESCE($4, timezone),
-    is_active   = COALESCE($5, is_active),
+    day_of_week = $1,
+    start_time  = $2,
+    end_time    = $3,
+    timezone    = $4,
+    is_active   = $5,
     updated_at  = NOW()
 WHERE id = $6
 RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
