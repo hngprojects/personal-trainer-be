@@ -149,7 +149,8 @@ func (s *Router) Routes() *gin.Engine {
 				RetryMaxDelay:    time.Duration(s.cfg.ZoomRetryMaxDelayMS) * time.Millisecond,
 			})
 			impl.bookings = bookingsvc.NewService(s.db, q, zoomClient, mailer, s.log, bookingsvc.Config{
-				UpgradeURL: s.cfg.FrontendURL + "/pricing",
+				UpgradeURL:   s.cfg.FrontendURL + "/pricing",
+				StateTracker: bookingsvc.NewRedisStateTracker(s.redis, s.log, 10*time.Minute),
 			})
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire

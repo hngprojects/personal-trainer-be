@@ -25,6 +25,12 @@ const (
 	defaultEmailRetryMaxDelay   = time.Second
 	defaultDiscoveryCallTopic   = "Discovery Call"
 	defaultDiscoveryCallMinutes = 30
+
+	BookingStateInitiated   = "initiated"
+	BookingStateZoomPending = "zoom_pending"
+	BookingStateZoomFailed  = "zoom_failed"
+	BookingStateBooked      = "booked"
+	BookingStateReleased    = "released"
 )
 
 var (
@@ -56,6 +62,7 @@ type Config struct {
 	EmailRetryAttempts  int
 	EmailRetryBaseDelay time.Duration
 	EmailRetryMaxDelay  time.Duration
+	StateTracker        StateTracker
 }
 
 type Service struct {
@@ -65,6 +72,7 @@ type Service struct {
 	mailer email.Mailer
 	log    *slog.Logger
 	cfg    Config
+	state  StateTracker
 }
 
 type BookDiscoveryCallInput struct {
@@ -103,6 +111,9 @@ func NewService(dbConn *sql.DB, q *db.Queries, zoomClient zoom.Client, mailer em
 	if cfg.EmailRetryMaxDelay < cfg.EmailRetryBaseDelay {
 		cfg.EmailRetryMaxDelay = cfg.EmailRetryBaseDelay
 	}
+	if cfg.StateTracker == nil {
+		cfg.StateTracker = noopStateTracker{}
+	}
 
 	return &Service{
 		db:     dbConn,
@@ -111,6 +122,7 @@ func NewService(dbConn *sql.DB, q *db.Queries, zoomClient zoom.Client, mailer em
 		mailer: mailer,
 		log:    log,
 		cfg:    cfg,
+		state:  cfg.StateTracker,
 	}
 }
 
@@ -121,6 +133,7 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 	if s.zoom == nil {
 		return BookDiscoveryCallResult{}, fmt.Errorf("%w: zoom client is not configured", ErrZoomUnavailable)
 	}
+	s.state.Track(ctx, input.SlotID, input.ClientID, BookingStateInitiated)
 
 	trainer, err := s.q.GetTrainerByID(ctx, input.TrainerID)
 	if err != nil {
@@ -165,6 +178,7 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 	defer func() {
 		if !committed {
 			_ = tx.Rollback()
+			s.state.Track(ctx, input.SlotID, input.ClientID, BookingStateReleased)
 		}
 	}()
 
@@ -206,6 +220,7 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 		}
 		return BookDiscoveryCallResult{}, err
 	}
+	s.state.Track(ctx, input.SlotID, input.ClientID, BookingStateZoomPending)
 
 	meeting, err := s.zoom.CreateMeeting(ctx, zoom.CreateMeetingInput{
 		Topic:           defaultDiscoveryCallTopic,
@@ -215,6 +230,7 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 		Agenda:          fmt.Sprintf("Discovery call between %s and %s", client.Name, trainerUser.Name),
 	})
 	if err != nil {
+		s.state.Track(ctx, input.SlotID, input.ClientID, BookingStateZoomFailed)
 		s.log.Warn("zoom meeting creation failed for discovery booking", "slot_id", input.SlotID.String(), "trainer_id", input.TrainerID.String(), "client_id", input.ClientID.String(), "err", err)
 		return BookDiscoveryCallResult{}, fmt.Errorf("%w: %v", ErrZoomUnavailable, err)
 	}
@@ -261,6 +277,7 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 		return BookDiscoveryCallResult{}, err
 	}
 	committed = true
+	s.state.Track(ctx, input.SlotID, input.ClientID, BookingStateBooked)
 
 	notifications := s.sendDiscoveryBookingNotifications(ctx, trainerUser, client, booking, meeting.JoinURL)
 	result := BookDiscoveryCallResult{
