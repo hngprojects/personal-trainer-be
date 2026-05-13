@@ -11,6 +11,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	bookingsvc "github.com/hngprojects/personal-trainer-be/internal/bookings"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
@@ -23,6 +24,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
 // Router holds the wrapped Redis client (*appredis.Client) — its method set
@@ -69,6 +71,7 @@ type routerImpl struct {
 	trainers      *trainersStore
 	admin         *admin.Handler
 	reviews       *reviewsvc.Service
+	bookings      *bookingsvc.Service
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -134,6 +137,20 @@ func (s *Router) Routes() *gin.Engine {
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
+			zoomClient := zoom.NewClient(zoom.Config{
+				AccountID:        s.cfg.ZoomAccountID,
+				ClientID:         s.cfg.ZoomClientID,
+				Secret:           s.cfg.ZoomClientSecret,
+				UserID:           s.cfg.ZoomUserID,
+				TokenURL:         s.cfg.ZoomTokenURL,
+				APIBaseURL:       s.cfg.ZoomAPIBaseURL,
+				RetryMaxAttempts: s.cfg.ZoomRetryMaxAttempts,
+				RetryBaseDelay:   time.Duration(s.cfg.ZoomRetryBaseDelayMS) * time.Millisecond,
+				RetryMaxDelay:    time.Duration(s.cfg.ZoomRetryMaxDelayMS) * time.Millisecond,
+			})
+			impl.bookings = bookingsvc.NewService(s.db, q, zoomClient, mailer, s.log, bookingsvc.Config{
+				UpgradeURL: s.cfg.FrontendURL + "/pricing",
+			})
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up

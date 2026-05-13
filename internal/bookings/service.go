@@ -30,6 +30,7 @@ const (
 var (
 	ErrTrainerNotFound      = errors.New("trainer not found")
 	ErrClientNotFound       = errors.New("client not found")
+	ErrClientRoleRequired   = errors.New("client role required")
 	ErrSlotNotFound         = errors.New("booking slot not found")
 	ErrSlotMismatch         = errors.New("booking slot does not belong to trainer")
 	ErrSlotUnavailable      = errors.New("booking slot unavailable")
@@ -135,6 +136,16 @@ func (s *Service) BookDiscoveryCall(ctx context.Context, input BookDiscoveryCall
 			return BookDiscoveryCallResult{}, ErrClientNotFound
 		}
 		return BookDiscoveryCallResult{}, err
+	}
+	role, err := s.q.GetUserRoleByID(ctx, input.ClientID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return BookDiscoveryCallResult{}, ErrClientNotFound
+		}
+		return BookDiscoveryCallResult{}, err
+	}
+	if role != "client" {
+		return BookDiscoveryCallResult{}, ErrClientRoleRequired
 	}
 
 	trainerUser, err := s.q.GetUserByID(ctx, trainer.UserID)
