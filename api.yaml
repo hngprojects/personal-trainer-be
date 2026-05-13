@@ -12,8 +12,6 @@ tags:
     description: Base URL endpoints.
   - name: Health
     description: Health endpoints to verify application health status.
-  - name: Auth — Local
-    description: Email/password sign-up, login, OTP verification, and password recovery.
   - name: Auth — OAuth
     description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
   - name: Auth — Session
@@ -402,7 +400,16 @@ components:
 
     Review:
       type: object
-      required: [id, booking_id, trainer_id, client_user_id, rating, created_at, updated_at]
+      required:
+        [
+          id,
+          booking_id,
+          trainer_id,
+          client_user_id,
+          rating,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -496,69 +503,6 @@ paths:
                 code: OK
                 data:
                   timestamp: "2026-05-07T10:00:00Z"
-
-  /auth/login:
-    post:
-      security: []
-      operationId: HandleLocalAuth
-      tags:
-        - Auth — Local
-      summary: Login with email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Login successful
-                code: OK
-                data:
-                  user:
-                    id: "550e8400-e29b-41d4-a716-446655440000"
-                    email: "jane@example.com"
-                    name: "Jane Doe"
-                    user_type: client
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: Email is required
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid email
-                code: UNAUTHORIZED
 
   /auth/logout:
     post:
@@ -766,137 +710,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /auth/register:
-    post:
-      security: []
-      operationId: HandleRegister
-      tags:
-        - Auth — Local
-      summary: Register or request a new OTP — sends a 6-digit verification code to the email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterRequest"
-      responses:
-        "201":
-          description: Verification code sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Verification code sent to your email
-                code: CREATED
-                data: null
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: invalid email format
-        "429":
-          description: Too many requests
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: too many requests, please try again later
-                code: TOO_MANY_REQUESTS
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
-  /auth/verify-email:
-    post:
-      security: []
-      operationId: HandleVerifyEmail
-      tags:
-        - Auth — Local
-      summary: Verify email with OTP — completes signup/login and returns JWT tokens
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VerifyEmailRequest"
-      responses:
-        "200":
-          description: Email verified — tokens issued
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/LocalAuthData"
-              example:
-                status: success
-                message: Email verified successfully
-                code: OK
-                data:
-                  user:
-                    id: "550e8400-e29b-41d4-a716-446655440000"
-                    email: "john@example.com"
-                    name: "John Doe"
-                    user_type: client
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Invalid or expired code, or validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: invalid or expired verification code
-                code: BAD_REQUEST
-        "429":
-          description: Too many attempts
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: too many attempts, please request a new code
-                code: TOO_MANY_REQUESTS
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
   /trainers:
     get:
       operationId: GetTrainers
+      tags:
+        - Trainer
       summary: Get trainers (admin only)
       parameters:
         - name: category
@@ -933,6 +751,8 @@ paths:
 
     post:
       operationId: CreateTrainer
+      tags:
+        - Trainer
       summary: Add trainer (admin only)
       requestBody:
         required: true
@@ -975,6 +795,8 @@ paths:
   /trainers/{id}:
     get:
       operationId: GetTrainerByID
+      tags:
+        - Trainer
       summary: Get trainer by ID (admin only)
       parameters:
         - name: id
@@ -1017,6 +839,8 @@ paths:
 
     patch:
       operationId: UpdateTrainer
+      tags:
+        - Trainer
       summary: Update trainer (admin only)
       parameters:
         - name: id
@@ -1071,6 +895,8 @@ paths:
 
     delete:
       operationId: DeleteTrainer
+      tags:
+        - Trainer
       summary: Delete trainer (admin only)
       parameters:
         - name: id
@@ -1111,6 +937,8 @@ paths:
     get:
       security: []
       operationId: GetTrainerReviews
+      tags:
+        - Trainer
       summary: Get public paginated reviews for a trainer
       parameters:
         - name: id
