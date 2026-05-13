@@ -29,3 +29,10 @@ coverage.txt
 /tmp/
 /dist/
 .claude/
+bookingcall.md
+changes.md
+review.md
+RFC-0042-implementation-plan.md
+RFC-0042-MinIO-Presigned-Upload.pdf
+RFC-0043-Review-Routes.pdf
+summary.md
