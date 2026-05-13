@@ -20,8 +20,11 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
+	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
@@ -71,6 +74,7 @@ type routerImpl struct {
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
 	contact       *contact.Handler
+	discovery     *discovery.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -136,6 +140,13 @@ func (s *Router) Routes() *gin.Engine {
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
+
+			var meetingProvider meeting.Provider = meeting.NoOp{}
+			if s.cfg.ZoomAccountID != "" {
+				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			}
+			discoveryRepo := discovery.NewPostgresRepo(q)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire

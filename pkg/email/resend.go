@@ -109,6 +109,13 @@ func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, string(body))
 }
 
+func (m *ResendMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
+	_ = scheduledAt
+	subject := discoveryBookingConfirmationSubject
+	html := fmt.Sprintf("<p>Hi %s, your discovery call is confirmed. Zoom link: %s (Timezone: %s)</p>", name, zoomLink, timezone)
+	return m.send(to, subject, html)
+}
+
 func (m *ResendMailer) SendContactConfirmation(to, name string) error {
 	body, err := contactConfirmationHTML(name)
 	if err != nil {
