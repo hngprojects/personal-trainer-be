@@ -1,0 +1,108 @@
+package zoom
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+type Client struct {
+	accountID    string
+	clientID     string
+	clientSecret string
+	httpClient   *http.Client
+}
+
+type MeetingResponse struct {
+	ID       int64  `json:"id"`
+	JoinURL  string `json:"join_url"`
+	Password string `json:"password"`
+}
+
+func New(accountID, clientID, clientSecret string) *Client {
+	return &Client{
+		accountID:    accountID,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+// IsConfigured returns false when Zoom credentials are not set.
+// Callers should skip Zoom meeting creation and store an empty link instead.
+func (c *Client) IsConfigured() bool {
+	return c.accountID != "" && c.clientID != "" && c.clientSecret != ""
+}
+
+func (c *Client) getAccessToken() (string, error) {
+	url := fmt.Sprintf("https://zoom.us/oauth/token?grant_type=account_credentials&account_id=%s", c.accountID)
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.SetBasicAuth(c.clientID, c.clientSecret)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.AccessToken == "" {
+		return "", fmt.Errorf("zoom: empty access token in response")
+	}
+	return result.AccessToken, nil
+}
+
+// CreateMeeting creates a Zoom meeting and returns the join URL and meeting ID.
+func (c *Client) CreateMeeting(topic string, startTime time.Time, durationMinutes int) (*MeetingResponse, error) {
+	token, err := c.getAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("zoom: get token: %w", err)
+	}
+
+	body := map[string]interface{}{
+		"topic":      topic,
+		"type":       2, // scheduled
+		"start_time": startTime.UTC().Format("2006-01-02T15:04:05Z"),
+		"duration":   durationMinutes,
+		"settings": map[string]interface{}{
+			"join_before_host": true,
+			"waiting_room":     false,
+		},
+	}
+
+	b, _ := json.Marshal(body)
+	req, err := http.NewRequest(http.MethodPost, "https://api.zoom.us/v2/users/me/meetings", bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("zoom: create meeting: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		raw, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("zoom: create meeting failed (%d): %s", resp.StatusCode, string(raw))
+	}
+
+	var meeting MeetingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&meeting); err != nil {
+		return nil, fmt.Errorf("zoom: decode response: %w", err)
+	}
+	return &meeting, nil
+}

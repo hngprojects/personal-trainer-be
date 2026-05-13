@@ -30,9 +30,9 @@ func NewPostgresWaitlistRepo(q *db.Queries) WaitlistRepository {
 func (r *postgresWaitlistRepo) AddEmail(ctx context.Context, email, phoneNumber, location, name string) error {
 	_, err := r.q.AddWaitlist(ctx, db.AddWaitlistParams{
 		Email:       email,
-		PhoneNumber: sql.NullString{String: phoneNumber, Valid: phoneNumber != ""},
-		Location:    sql.NullString{String: location, Valid: location != ""},
-		Name:        sql.NullString{String: name, Valid: name != ""},
+		PhoneNumber: phoneNumber,
+		Location:    location,
+		Name:        name,
 	})
 	if err != nil {
 		return err

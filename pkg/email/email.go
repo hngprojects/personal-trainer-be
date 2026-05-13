@@ -16,6 +16,7 @@ type Mailer interface {
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
 	SendContactConfirmation(to, name string) error
+	SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -137,8 +138,20 @@ func (m *LogMailer) SendWaitlistConfirmation(to string) error {
 	return nil
 }
 
+func (m *LogMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
+	slog.Info("email", "to", to, "subject", discoveryBookingConfirmationSubject, "name", name, "zoom_link", zoomLink)
+	return nil
+}
+
 func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	slog.Info("email", "to", to, "subject", contactConfirmationSubject)
+	return nil
+}
+
+const discoveryBookingConfirmationSubject = "Your FitCall discovery call is confirmed!"
+
+func (m *SMTPMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
+	slog.Info("smtp: discovery booking confirmation", "to", to, "name", name)
 	return nil
 }
 

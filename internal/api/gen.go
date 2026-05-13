@@ -56,6 +56,24 @@ func (e BaseResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for BookDiscoveryCallRequestContactMode.
+const (
+	PhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
+	ZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
+)
+
+// Valid indicates whether the value is a known member of the BookDiscoveryCallRequestContactMode enum.
+func (e BookDiscoveryCallRequestContactMode) Valid() bool {
+	switch e {
+	case PhoneCallback:
+		return true
+	case ZoomMeeting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestOnboardingStatus.
 const (
 	CreateTrainerRequestOnboardingStatusApproved  CreateTrainerRequestOnboardingStatus = "approved"
@@ -294,6 +312,41 @@ type BaseResponse struct {
 
 // BaseResponseStatus defines model for BaseResponse.Status.
 type BaseResponseStatus string
+
+// BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
+type BookDiscoveryCallRequest struct {
+	ContactMode BookDiscoveryCallRequestContactMode `json:"contact_mode"`
+	Email       openapi_types.Email                 `json:"email"`
+	Name        string                              `json:"name"`
+
+	// PhoneNumber Required when contact_mode is phone_callback
+	PhoneNumber *string `json:"phone_number,omitempty"`
+
+	// SelectedDatetime ISO 8601 UTC datetime for the call
+	SelectedDatetime time.Time `json:"selected_datetime"`
+
+	// Timezone Client IANA timezone
+	Timezone string `json:"timezone"`
+}
+
+// BookDiscoveryCallRequestContactMode defines model for BookDiscoveryCallRequest.ContactMode.
+type BookDiscoveryCallRequestContactMode string
+
+// BookingSlotRequest defines model for BookingSlotRequest.
+type BookingSlotRequest struct {
+	// DayOfWeek 0=Sunday, 6=Saturday
+	DayOfWeek int `json:"day_of_week"`
+
+	// EndTime 24h time HH:MM
+	EndTime  string `json:"end_time"`
+	IsActive *bool  `json:"is_active,omitempty"`
+
+	// StartTime 24h time HH:MM
+	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone for the slot
+	Timezone *string `json:"timezone,omitempty"`
+}
 
 // CreateReviewRequest defines model for CreateReviewRequest.
 type CreateReviewRequest struct {
@@ -580,6 +633,12 @@ type HandleLogoutJSONBody struct {
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
+// GetBookingSlotsParams defines parameters for GetBookingSlots.
+type GetBookingSlotsParams struct {
+	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+}
+
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
 	Email   openapi_types.Email `json:"email"`
@@ -634,6 +693,15 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
+// CreateBookingSlotJSONRequestBody defines body for CreateBookingSlot for application/json ContentType.
+type CreateBookingSlotJSONRequestBody = BookingSlotRequest
+
+// UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
+type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
+
+// BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
+type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
+
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
@@ -658,7 +726,7 @@ type ServerInterface interface {
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
 	// Approve a trainer
-	// (PUT /admin/trainers/:id/approve)
+	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
@@ -690,6 +758,21 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// List all active booking slots (public)
+	// (GET /booking-slots)
+	GetBookingSlots(c *gin.Context, params GetBookingSlotsParams)
+	// Create a booking slot (admin or customer_care only)
+	// (POST /booking-slots)
+	CreateBookingSlot(c *gin.Context)
+	// Delete a booking slot (admin or customer_care only)
+	// (DELETE /booking-slots/{id})
+	DeleteBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// Update a booking slot (admin or customer_care only)
+	// (PUT /booking-slots/{id})
+	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// Book a discovery call with a FitCall rep
+	// (POST /bookings/discovery)
+	BookDiscoveryCall(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -941,6 +1024,115 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	}
 
 	siw.Handler.HandleVerifyEmail(c)
+}
+
+// GetBookingSlots operation middleware
+func (siw *ServerInterfaceWrapper) GetBookingSlots(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBookingSlotsParams
+
+	// ------------- Optional query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBookingSlots(c, params)
+}
+
+// CreateBookingSlot operation middleware
+func (siw *ServerInterfaceWrapper) CreateBookingSlot(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBookingSlot(c)
+}
+
+// DeleteBookingSlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBookingSlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteBookingSlot(c, id)
+}
+
+// UpdateBookingSlot operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBookingSlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateBookingSlot(c, id)
+}
+
+// BookDiscoveryCall operation middleware
+func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BookDiscoveryCall(c)
 }
 
 // HandleContactUs operation middleware
@@ -1235,6 +1427,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.GET(options.BaseURL+"/booking-slots", wrapper.GetBookingSlots)
+	router.POST(options.BaseURL+"/booking-slots", wrapper.CreateBookingSlot)
+	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
+	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
+	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
