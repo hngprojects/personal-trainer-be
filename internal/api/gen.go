@@ -657,6 +657,9 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
+	// Approve a trainer
+	// (PUT /admin/trainers/:id/approve)
+	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -757,6 +760,33 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	}
 
 	siw.Handler.AdminAdd(c)
+}
+
+// AdminApproveTrainer operation middleware
+func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminApproveTrainer(c, id)
 }
 
 // HandleAdminLogin operation middleware
@@ -1194,6 +1224,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)

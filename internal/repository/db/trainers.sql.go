@@ -12,6 +12,51 @@ import (
 	"github.com/google/uuid"
 )
 
+const approveTrainer = `-- name: ApproveTrainer :one
+UPDATE trainers
+SET
+  onboarding_status = 'approved',
+  updated_at        = NOW()
+WHERE id = $1
+RETURNING
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,
+  calendly_link,
+  onboarding_status,
+  average_rating,
+  total_reviews,
+  created_at,
+  updated_at
+`
+
+func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
+	row := q.db.QueryRowContext(ctx, approveTrainer, id)
+	var i Trainer
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Specialization,
+		&i.Bio,
+		&i.YearsOfExperience,
+		&i.IntroVideoUrl,
+		&i.DisplayPicture,
+		&i.CalendlyConnected,
+		&i.CalendlyLink,
+		&i.OnboardingStatus,
+		&i.AverageRating,
+		&i.TotalReviews,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTrainer = `-- name: CreateTrainer :one
 INSERT INTO trainers (
   user_id,
