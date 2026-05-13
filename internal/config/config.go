@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -27,6 +28,16 @@ type Config struct {
 	GoogleRedirectURL     string
 	GoogleAndroidClientID string
 	GoogleIOSClientID     string
+
+	ZoomAccountID        string
+	ZoomClientID         string
+	ZoomClientSecret     string
+	ZoomUserID           string
+	ZoomTokenURL         string
+	ZoomAPIBaseURL       string
+	ZoomRetryMaxAttempts int
+	ZoomRetryBaseDelayMS int
+	ZoomRetryMaxDelayMS  int
 
 	OTPSecret string
 	RedisURL  string
@@ -58,6 +69,16 @@ func Load() (*Config, error) {
 		GoogleAndroidClientID: os.Getenv("GOOGLE_ANDROID_CLIENT_ID"),
 		GoogleIOSClientID:     os.Getenv("GOOGLE_IOS_CLIENT_ID"),
 
+		ZoomAccountID:        os.Getenv("ZOOM_ACCOUNT_ID"),
+		ZoomClientID:         os.Getenv("ZOOM_CLIENT_ID"),
+		ZoomClientSecret:     os.Getenv("ZOOM_CLIENT_SECRET"),
+		ZoomUserID:           getenv("ZOOM_USER_ID", "me"),
+		ZoomTokenURL:         getenv("ZOOM_TOKEN_URL", "https://zoom.us/oauth/token"),
+		ZoomAPIBaseURL:       getenv("ZOOM_API_BASE_URL", "https://api.zoom.us/v2"),
+		ZoomRetryMaxAttempts: getenvInt("ZOOM_RETRY_MAX_ATTEMPTS", 4),
+		ZoomRetryBaseDelayMS: getenvInt("ZOOM_RETRY_BASE_DELAY_MS", 250),
+		ZoomRetryMaxDelayMS:  getenvInt("ZOOM_RETRY_MAX_DELAY_MS", 1000),
+
 		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
 		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
 		JwtSecret: os.Getenv("JWT_SECRET"),
@@ -78,4 +99,17 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
