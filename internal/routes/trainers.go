@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -112,23 +111,6 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 	}
 
 	return out
-}
-
-func nullStringPtr(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{Valid: false}
-	}
-	return sql.NullString{String: *s, Valid: true}
-}
-
-func nullInt32Ptr(i *int) sql.NullInt32 {
-	if i == nil {
-		return sql.NullInt32{Valid: false}
-	}
-	if *i > math.MaxInt32 || *i < math.MinInt32 {
-		return sql.NullInt32{Valid: false}
-	}
-	return sql.NullInt32{Int32: int32(*i), Valid: true}
 }
 
 // GET /trainers?category=...
