@@ -1459,7 +1459,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /admin/trainers/{id}/approve:
+  /admin/trainers/:id/approve:
     put:
       operationId: AdminApproveTrainer
       tags:

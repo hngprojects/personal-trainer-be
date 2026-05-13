@@ -658,7 +658,7 @@ type ServerInterface interface {
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
 	// Approve a trainer
-	// (PUT /admin/trainers/{id}/approve)
+	// (PUT /admin/trainers/:id/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
