@@ -22,6 +22,8 @@ tags:
     description: Admin-only operations including admin login and user invitation.
   - name: Trainer
     description: Trainer endpoints to manage all trainer activities.
+  - name: Booking
+    description: Booking endpoints for discovery calls and session scheduling.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
 
@@ -349,6 +351,178 @@ components:
           # Capped at bcrypt's 72-byte hard limit (server enforces byte length).
           maxLength: 72
           example: "Str0ngPassw0rd"
+
+    CreateReviewRequest:
+      type: object
+      required: [booking_id, rating]
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        review:
+          type: string
+          nullable: true
+
+    Review:
+      type: object
+      required:
+        - id
+        - booking_id
+        - trainer_id
+        - client_user_id
+        - rating
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        booking_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        client_user_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+        review:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CursorPaginationMeta:
+      type: object
+      required: [has_more]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor to request the next page.
+
+    ReviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Review"
+
+    ReviewsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data, meta]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Review"
+            meta:
+              $ref: "#/components/schemas/CursorPaginationMeta"
+
+    DiscoveryBookingRequest:
+      type: object
+      required: [trainer_id, slot_id]
+      properties:
+        trainer_id:
+          type: string
+          format: uuid
+        slot_id:
+          type: string
+          format: uuid
+        timezone:
+          type: string
+          example: "Africa/Lagos"
+
+    DiscoveryBookingNotificationStatus:
+      type: object
+      required: [client_email_sent, trainer_email_sent, warnings]
+      properties:
+        client_email_sent:
+          type: boolean
+        trainer_email_sent:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+
+    DiscoveryBookingData:
+      type: object
+      required:
+        - booking_id
+        - trainer_id
+        - client_id
+        - slot_id
+        - scheduled_start
+        - scheduled_end
+        - timezone
+        - booking_status
+        - session_platform
+        - meeting_join_url
+        - meeting_start_url
+        - notifications
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        slot_id:
+          type: string
+          format: uuid
+        meeting_id:
+          type: string
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        booking_status:
+          type: string
+          example: "booked"
+        session_platform:
+          type: string
+          example: "zoom"
+        meeting_join_url:
+          type: string
+          format: uri
+        meeting_start_url:
+          type: string
+          format: uri
+        notifications:
+          $ref: "#/components/schemas/DiscoveryBookingNotificationStatus"
+
+    DiscoveryBookingResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/DiscoveryBookingData"
 
     WaitlistRequest:
       type: object
@@ -1370,6 +1544,109 @@ paths:
                 status: error
                 message: Internal server error
                 code: INTERNAL_ERROR
+
+  /bookings/discovery:
+    post:
+      operationId: BookDiscoveryCall
+      tags:
+        - Booking
+      summary: Book a trainer discovery call for an available slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscoveryBookingRequest"
+      responses:
+        "201":
+          description: Discovery call booked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoveryBookingResponse"
+              example:
+                status: success
+                message: Discovery call booked successfully
+                code: CREATED
+                data:
+                  booking_id: "11111111-1111-1111-1111-111111111111"
+                  trainer_id: "33333333-3333-3333-3333-333333333333"
+                  client_id: "44444444-4444-4444-4444-444444444444"
+                  slot_id: "55555555-5555-5555-5555-555555555555"
+                  meeting_id: "987654321"
+                  scheduled_start: "2026-05-13T14:00:00Z"
+                  scheduled_end: "2026-05-13T14:30:00Z"
+                  timezone: "Africa/Lagos"
+                  booking_status: "booked"
+                  session_platform: "zoom"
+                  meeting_join_url: "https://zoom.us/j/987654321"
+                  meeting_start_url: "https://zoom.us/s/987654321"
+                  notifications:
+                    client_email_sent: true
+                    trainer_email_sent: true
+                    warnings: []
+        "401":
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Missing or invalid access token
+                code: UNAUTHORIZED
+        "403":
+          description: Client already used free discovery call with this trainer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: free discovery call already used
+                code: FORBIDDEN
+                meta:
+                  upgrade_url: "/pricing"
+        "404":
+          description: Trainer or booking slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: trainer or slot not found
+                code: NOT_FOUND
+        "409":
+          description: Slot is unavailable or booking collision occurred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: requested slot is unavailable
+                code: CONFLICT
+        "422":
+          description: Invalid request payload or trainer-slot mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid request payload
+                code: INVALID_INPUT
+        "503":
+          description: Zoom meeting could not be created after retries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: meeting provider unavailable
+                code: SERVER_ERROR
 
   /reviews:
     post:

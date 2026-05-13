@@ -80,6 +80,24 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for DiscoveryBookingResponseStatus.
+const (
+	DiscoveryBookingResponseStatusError   DiscoveryBookingResponseStatus = "error"
+	DiscoveryBookingResponseStatusSuccess DiscoveryBookingResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the DiscoveryBookingResponseStatus enum.
+func (e DiscoveryBookingResponseStatus) Valid() bool {
+	switch e {
+	case DiscoveryBookingResponseStatusError:
+		return true
+	case DiscoveryBookingResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorResponseStatus.
 const (
 	ErrorResponseStatusError   ErrorResponseStatus = "error"
@@ -256,16 +274,16 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
 const (
-	Error   HandleVerifyEmail200JSONResponseBodyStatus = "error"
-	Success HandleVerifyEmail200JSONResponseBodyStatus = "success"
+	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
+	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
 func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case HandleVerifyEmail200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -325,6 +343,52 @@ type CursorPaginationMeta struct {
 	// NextCursor Opaque cursor to request the next page.
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
+
+// DiscoveryBookingData defines model for DiscoveryBookingData.
+type DiscoveryBookingData struct {
+	BookingId       openapi_types.UUID                 `json:"booking_id"`
+	BookingStatus   string                             `json:"booking_status"`
+	ClientId        openapi_types.UUID                 `json:"client_id"`
+	MeetingId       *string                            `json:"meeting_id,omitempty"`
+	MeetingJoinUrl  string                             `json:"meeting_join_url"`
+	MeetingStartUrl string                             `json:"meeting_start_url"`
+	Notifications   DiscoveryBookingNotificationStatus `json:"notifications"`
+	ScheduledEnd    time.Time                          `json:"scheduled_end"`
+	ScheduledStart  time.Time                          `json:"scheduled_start"`
+	SessionPlatform string                             `json:"session_platform"`
+	SlotId          openapi_types.UUID                 `json:"slot_id"`
+	Timezone        string                             `json:"timezone"`
+	TrainerId       openapi_types.UUID                 `json:"trainer_id"`
+}
+
+// DiscoveryBookingNotificationStatus defines model for DiscoveryBookingNotificationStatus.
+type DiscoveryBookingNotificationStatus struct {
+	ClientEmailSent  bool     `json:"client_email_sent"`
+	TrainerEmailSent bool     `json:"trainer_email_sent"`
+	Warnings         []string `json:"warnings"`
+}
+
+// DiscoveryBookingRequest defines model for DiscoveryBookingRequest.
+type DiscoveryBookingRequest struct {
+	SlotId    openapi_types.UUID `json:"slot_id"`
+	Timezone  *string            `json:"timezone,omitempty"`
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+}
+
+// DiscoveryBookingResponse defines model for DiscoveryBookingResponse.
+type DiscoveryBookingResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string               `json:"code"`
+	Data    DiscoveryBookingData `json:"data"`
+	Message string               `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                   `json:"meta,omitempty"`
+	Status DiscoveryBookingResponseStatus `json:"status"`
+}
+
+// DiscoveryBookingResponseStatus defines model for DiscoveryBookingResponse.Status.
+type DiscoveryBookingResponseStatus string
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
@@ -626,6 +690,9 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
+// BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
+type BookDiscoveryCallJSONRequestBody = DiscoveryBookingRequest
+
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
@@ -652,7 +719,7 @@ type ServerInterface interface {
 	// Request a password reset code
 	// (POST /auth/forgot-password)
 	HandleForgotPassword(c *gin.Context)
-	// Initiate Google OAuth — redirects browser to Google consent screen
+	// Initiate Google OAuth â€” redirects browser to Google consent screen
 	// (GET /auth/google)
 	HandleGoogleLogin(c *gin.Context)
 	// Handle Google OAuth callback and return JWT tokens
@@ -667,15 +734,18 @@ type ServerInterface interface {
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
-	// Register or request a new OTP — sends a 6-digit verification code to the email
+	// Register or request a new OTP â€” sends a 6-digit verification code to the email
 	// (POST /auth/register)
 	HandleRegister(c *gin.Context)
 	// Reset password using a previously emailed code
 	// (POST /auth/reset-password)
 	HandleResetPassword(c *gin.Context)
-	// Verify email with OTP — completes signup/login and returns JWT tokens
+	// Verify email with OTP â€” completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// Book a trainer discovery call for an available slot
+	// (POST /bookings/discovery)
+	BookDiscoveryCall(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -897,6 +967,21 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	}
 
 	siw.Handler.HandleVerifyEmail(c)
+}
+
+// BookDiscoveryCall operation middleware
+func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BookDiscoveryCall(c)
 }
 
 // HealthCheck operation middleware
@@ -1177,6 +1262,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
