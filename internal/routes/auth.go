@@ -39,6 +39,14 @@ func (s *routerImpl) HandleLogout(c *gin.Context) {
 	s.logout.HandleLogout(c)
 }
 
+func (s *routerImpl) HandleRefresh(c *gin.Context) {
+	if s.refresh == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.refresh.HandleRefresh(c)
+}
+
 func (s *routerImpl) HandleForgotPassword(c *gin.Context) {
 	if s.passwordReset == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))

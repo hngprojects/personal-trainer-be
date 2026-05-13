@@ -254,6 +254,21 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for HandleRefresh200JSONResponseBodyStatus.
+const (
+	Success HandleRefresh200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleRefresh200JSONResponseBodyStatus enum.
+func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case Success:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
 	Email           string             `json:"email"`
@@ -535,6 +550,15 @@ type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// HandleRefreshJSONBody defines parameters for HandleRefresh.
+type HandleRefreshJSONBody struct {
+	// AccessToken The current access token to invalidate
+	AccessToken string `json:"access_token"`
+}
+
+// HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
+type HandleRefresh200JSONResponseBodyStatus string
+
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
 	Email   openapi_types.Email `json:"email"`
@@ -576,6 +600,9 @@ type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
+
+// HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
+type HandleRefreshJSONRequestBody HandleRefreshJSONBody
 
 // HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
 type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
@@ -621,6 +648,9 @@ type ServerInterface interface {
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
+	// Refresh access token
+	// (POST /auth/refresh)
+	HandleRefresh(c *gin.Context)
 	// Reset password using a previously emailed code
 	// (POST /auth/reset-password)
 	HandleResetPassword(c *gin.Context)
@@ -796,6 +826,21 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 	}
 
 	siw.Handler.HandleLogout(c)
+}
+
+// HandleRefresh operation middleware
+func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRefresh(c)
 }
 
 // HandleResetPassword operation middleware
@@ -1098,6 +1143,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
