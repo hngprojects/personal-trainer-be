@@ -42,6 +42,22 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Subscription struct {
+	ID                    uuid.UUID
+	ClientID              uuid.UUID
+	TrainerID             uuid.UUID
+	PlanType              string
+	SessionsPerMonth      sql.NullInt32
+	SessionsUsedThisMonth int32
+	Amount                sql.NullInt64
+	Currency              string
+	Status                string
+	CurrentPeriodStart    sql.NullTime
+	CurrentPeriodEnd      sql.NullTime
+	CreatedAt             time.Time
+	CancelledAt           sql.NullTime
+}
+
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID

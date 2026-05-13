@@ -124,6 +124,28 @@ RETURNING
   created_at,
   updated_at;
 
+-- name: ApproveTrainer :one
+UPDATE trainers
+SET
+  onboarding_status = 'approved',
+  updated_at        = NOW()
+WHERE id = $1
+RETURNING
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,
+  calendly_link,
+  onboarding_status,
+  average_rating,
+  total_reviews,
+  created_at,
+  updated_at;
+
 -- name: GetTrainerByUserID :one
 SELECT
   id,
