@@ -71,7 +71,23 @@ type CreateBookingParams struct {
 	CancelledAt        sql.NullTime
 }
 
-func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
+type CreateBookingRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+}
+
+func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (CreateBookingRow, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
 		arg.ClientID,
@@ -86,7 +102,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.CreatedAt,
 		arg.CancelledAt,
 	)
-	var i Booking
+	var i CreateBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -125,9 +141,25 @@ WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, error) {
+type GetBookingByIDRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+}
+
+func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (GetBookingByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByID, id)
-	var i Booking
+	var i GetBookingByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -167,9 +199,25 @@ LIMIT 1
 FOR UPDATE
 `
 
-func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Booking, error) {
+type GetBookingByIDForUpdateRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+}
+
+func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (GetBookingByIDForUpdateRow, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByIDForUpdate, id)
-	var i Booking
+	var i GetBookingByIDForUpdateRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,

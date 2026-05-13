@@ -25,6 +25,33 @@ type Booking struct {
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
+	IsDiscoveryCall    bool
+	MeetingJoinUrl     sql.NullString
+	MeetingStartUrl    sql.NullString
+}
+
+type BookingRescheduleHistory struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	OldSlotID     uuid.NullUUID
+	NewSlotID     uuid.NullUUID
+	Reason        sql.NullString
+	RescheduledBy uuid.UUID
+	CreatedAt     time.Time
+}
+
+type BookingSlot struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Timezone  string
+	Status    string
+	LockedBy  uuid.NullUUID
+	LockedAt  sql.NullTime
+	BookingID uuid.NullUUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type PasswordResetCode struct {
@@ -58,6 +85,22 @@ type Session struct {
 	Token     string
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type Subscription struct {
+	ID                    uuid.UUID
+	ClientID              uuid.UUID
+	TrainerID             uuid.UUID
+	PlanType              string
+	SessionsPerMonth      sql.NullInt32
+	SessionsUsedThisMonth int32
+	Amount                sql.NullInt64
+	Currency              string
+	Status                string
+	CurrentPeriodStart    sql.NullTime
+	CurrentPeriodEnd      sql.NullTime
+	CreatedAt             time.Time
+	CancelledAt           sql.NullTime
 }
 
 type Trainer struct {
