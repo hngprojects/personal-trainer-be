@@ -42,7 +42,7 @@ func (c *Client) getAccessToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result struct {
 		AccessToken string `json:"access_token"`
@@ -90,7 +90,7 @@ func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time
 	if err != nil {
 		return "", "", fmt.Errorf("zoom: create meeting: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(resp.Body)
