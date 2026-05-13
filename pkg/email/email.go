@@ -15,6 +15,8 @@ type Mailer interface {
 	SendAdminCredentials(to, password string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
+	SendDiscoveryBookingConfirmationToClient(to, trainerName, scheduledAt, timezone, meetingJoinURL string) error
+	SendDiscoveryBookingConfirmationToTrainer(to, clientName, scheduledAt, timezone, meetingJoinURL string) error
 }
 
 type SMTPMailer struct {
@@ -94,6 +96,48 @@ func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) e
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
+func (m *SMTPMailer) SendDiscoveryBookingConfirmationToClient(to, trainerName, scheduledAt, timezone, meetingJoinURL string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := discoveryBookingClientHTML(trainerName, scheduledAt, timezone, meetingJoinURL)
+	if err != nil {
+		return fmt.Errorf("build discovery booking client email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryBookingClientSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendDiscoveryBookingConfirmationToTrainer(to, clientName, scheduledAt, timezone, meetingJoinURL string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := discoveryBookingTrainerHTML(clientName, scheduledAt, timezone, meetingJoinURL)
+	if err != nil {
+		return fmt.Errorf("build discovery booking trainer email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryBookingTrainerSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
 // LogMailer logs emails instead of sending them — useful in development.
 type LogMailer struct{}
 
@@ -133,6 +177,30 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 
 func (m *LogMailer) SendWaitlistConfirmation(to string) error {
 	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
+	return nil
+}
+
+func (m *LogMailer) SendDiscoveryBookingConfirmationToClient(to, trainerName, scheduledAt, timezone, meetingJoinURL string) error {
+	slog.Info("email",
+		"to", to,
+		"subject", discoveryBookingClientSubject,
+		"trainer_name", trainerName,
+		"scheduled_at", scheduledAt,
+		"timezone", timezone,
+		"meeting_join_url", meetingJoinURL,
+	)
+	return nil
+}
+
+func (m *LogMailer) SendDiscoveryBookingConfirmationToTrainer(to, clientName, scheduledAt, timezone, meetingJoinURL string) error {
+	slog.Info("email",
+		"to", to,
+		"subject", discoveryBookingTrainerSubject,
+		"client_name", clientName,
+		"scheduled_at", scheduledAt,
+		"timezone", timezone,
+		"meeting_join_url", meetingJoinURL,
+	)
 	return nil
 }
 
@@ -346,6 +414,108 @@ var waitlistConfirmationTemplate = template.Must(template.New("waitlist-confirma
 func waitlistConfirmationHTML() (string, error) {
 	var body bytes.Buffer
 	if err := waitlistConfirmationTemplate.Execute(&body, nil); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+const discoveryBookingClientSubject = "Your discovery call is confirmed"
+
+var discoveryBookingClientTemplate = template.Must(template.New("discovery-booking-client-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Discovery call confirmed</h2>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Trainer:</strong> {{ .TrainerName }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>When:</strong> {{ .ScheduledAt }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Timezone:</strong> {{ .Timezone }}</p>
+        </td></tr>
+        <tr><td style="padding:12px 0;">
+          <a href="{{ .MeetingJoinURL }}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 16px;border-radius:6px;">Join call</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func discoveryBookingClientHTML(trainerName, scheduledAt, timezone, meetingJoinURL string) (string, error) {
+	var body bytes.Buffer
+	if err := discoveryBookingClientTemplate.Execute(&body, struct {
+		TrainerName    string
+		ScheduledAt    string
+		Timezone       string
+		MeetingJoinURL string
+	}{
+		TrainerName:    trainerName,
+		ScheduledAt:    scheduledAt,
+		Timezone:       timezone,
+		MeetingJoinURL: meetingJoinURL,
+	}); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+const discoveryBookingTrainerSubject = "New discovery call booking"
+
+var discoveryBookingTrainerTemplate = template.Must(template.New("discovery-booking-trainer-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">New discovery call booked</h2>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Client:</strong> {{ .ClientName }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>When:</strong> {{ .ScheduledAt }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Timezone:</strong> {{ .Timezone }}</p>
+        </td></tr>
+        <tr><td style="padding:12px 0;">
+          <a href="{{ .MeetingJoinURL }}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 16px;border-radius:6px;">Open meeting</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func discoveryBookingTrainerHTML(clientName, scheduledAt, timezone, meetingJoinURL string) (string, error) {
+	var body bytes.Buffer
+	if err := discoveryBookingTrainerTemplate.Execute(&body, struct {
+		ClientName     string
+		ScheduledAt    string
+		Timezone       string
+		MeetingJoinURL string
+	}{
+		ClientName:     clientName,
+		ScheduledAt:    scheduledAt,
+		Timezone:       timezone,
+		MeetingJoinURL: meetingJoinURL,
+	}); err != nil {
 		return "", err
 	}
 	return body.String(), nil

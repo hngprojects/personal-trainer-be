@@ -73,6 +73,22 @@ func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
 	return m.send(to, waitlistConfirmationSubject, body)
 }
 
+func (m *ResendMailer) SendDiscoveryBookingConfirmationToClient(to, trainerName, scheduledAt, timezone, meetingJoinURL string) error {
+	body, err := discoveryBookingClientHTML(trainerName, scheduledAt, timezone, meetingJoinURL)
+	if err != nil {
+		return fmt.Errorf("resend: build discovery booking client email body: %w", err)
+	}
+	return m.send(to, discoveryBookingClientSubject, body)
+}
+
+func (m *ResendMailer) SendDiscoveryBookingConfirmationToTrainer(to, clientName, scheduledAt, timezone, meetingJoinURL string) error {
+	body, err := discoveryBookingTrainerHTML(clientName, scheduledAt, timezone, meetingJoinURL)
+	if err != nil {
+		return fmt.Errorf("resend: build discovery booking trainer email body: %w", err)
+	}
+	return m.send(to, discoveryBookingTrainerSubject, body)
+}
+
 func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	payload, err := json.Marshal(resendRequest{
 		From:    m.from,
