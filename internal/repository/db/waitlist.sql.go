@@ -18,9 +18,9 @@ ON CONFLICT (email) DO NOTHING
 
 type AddWaitlistParams struct {
 	Email       string
-	PhoneNumber sql.NullString
-	Location    sql.NullString
-	Name        sql.NullString
+	PhoneNumber string
+	Location    string
+	Name        string
 }
 
 func (q *Queries) AddWaitlist(ctx context.Context, arg AddWaitlistParams) (sql.Result, error) {
