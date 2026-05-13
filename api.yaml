@@ -24,6 +24,8 @@ tags:
     description: Trainer endpoints to manage all trainer activities.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
+  - name: User
+    description: User profile and onboarding endpoints.
 
 components:
   securitySchemes:
@@ -349,6 +351,66 @@ components:
           # Capped at bcrypt's 72-byte hard limit (server enforces byte length).
           maxLength: 72
           example: "Str0ngPassw0rd"
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Ezeaku Dorothy"
+        gender:
+          type: string
+          enum: [male, female, other]
+          example: female
+        fitness_goals:
+          type: array
+          items:
+            type: string
+            enum:
+              - lose_weight
+              - build_muscle
+              - improve_flexibility
+              - boost_energy
+              - build_healthy_habits
+              - build_strength
+          minItems: 1
+          example: [build_muscle, build_strength]
+        fitness_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+          example: beginner
+        avatar_url:
+          type: string
+          format: uri
+          example: "https://example.com/avatar.jpg"
+
+    UserProfileResponse:
+      type: object
+      required: [id, email, name, gender, fitness_goals, fitness_level, avatar_url, profile_complete]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+        fitness_goals:
+          type: array
+          items:
+            type: string
+        fitness_level:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+        profile_complete:
+          type: boolean
 
     WaitlistRequest:
       type: object
@@ -949,6 +1011,104 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /users/me/profile:
+    patch:
+      operationId: UpdateUserProfile
+      tags:
+        - User
+      summary: Update the authenticated user's profile (onboarding)
+      description: |
+        Saves name, gender, fitness goals, fitness level, and avatar URL for the
+        logged-in user. All fields are optional — send only what changed.
+        Sets profile_complete = true once name is non-empty.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserProfileResponse"
+              example:
+                status: success
+                message: Profile updated successfully
+                code: OK
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  email: "dorothy@example.com"
+                  name: "Ezeaku Dorothy"
+                  gender: "female"
+                  fitness_goals: ["build_muscle", "build_strength"]
+                  fitness_level: "beginner"
+                  avatar_url: null
+                  profile_complete: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Missing or invalid access token
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: GetUserProfile
+      tags:
+        - User
+      summary: Get the authenticated user's profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers:
     get:
       operationId: GetTrainers
