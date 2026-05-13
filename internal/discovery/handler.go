@@ -14,18 +14,18 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
-	"github.com/hngprojects/personal-trainer-be/pkg/zoom"
+	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 )
 
 type Handler struct {
-	repo   Repository
-	zoom   *zoom.Client
-	mailer email.Mailer
-	log    *slog.Logger
+	repo    Repository
+	meeting meeting.Provider
+	mailer  email.Mailer
+	log     *slog.Logger
 }
 
-func NewHandler(repo Repository, zoomClient *zoom.Client, mailer email.Mailer, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, zoom: zoomClient, mailer: mailer, log: log}
+func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, log *slog.Logger) *Handler {
+	return &Handler{repo: repo, meeting: meetingProvider, mailer: mailer, log: log}
 }
 
 // POST /bookings/discovery — public
@@ -47,13 +47,11 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 
 	selectedTime := req.SelectedDatetime
 
-	// Validate the selected time falls within an active booking slot
 	if err := h.validateAgainstSlots(c, selectedTime, req.Timezone); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
-	// Check for concurrent booking collision
 	count, err := h.repo.CheckSlotConflict(c.Request.Context(), selectedTime)
 	if err != nil {
 		h.log.Error("failed to check slot conflict", "err", err)
@@ -67,7 +65,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 
 	var zoomLink, zoomMeetingID string
 	if req.ContactMode == api.ZoomMeeting {
-		zoomLink, zoomMeetingID = h.createZoomMeeting(c, selectedTime)
+		zoomLink, zoomMeetingID = h.createMeeting(c, selectedTime)
 	}
 
 	arg := db.CreateDiscoveryBookingParams{
@@ -230,7 +228,6 @@ func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
 	c.Status(http.StatusNoContent)
 }
 
-// validateAgainstSlots checks the selected datetime falls within an active slot day/time window.
 func (h *Handler) validateAgainstSlots(c *gin.Context, selectedTime time.Time, clientTZ string) error {
 	slots, err := h.repo.GetActiveSlots(c.Request.Context())
 	if err != nil || len(slots) == 0 {
@@ -256,17 +253,17 @@ func (h *Handler) validateAgainstSlots(c *gin.Context, selectedTime time.Time, c
 	return fmt.Errorf("selected time is outside available booking hours")
 }
 
-func (h *Handler) createZoomMeeting(c *gin.Context, startTime time.Time) (link, meetingID string) {
-	if !h.zoom.IsConfigured() {
-		h.log.Warn("zoom not configured — skipping meeting creation")
+func (h *Handler) createMeeting(c *gin.Context, startTime time.Time) (link, meetingID string) {
+	if !h.meeting.IsConfigured() {
+		h.log.Warn("meeting provider not configured — skipping meeting creation")
 		return "", ""
 	}
-	meeting, err := h.zoom.CreateMeeting("FitCall Discovery Call", startTime, 30)
+	link, meetingID, err := h.meeting.CreateMeeting("FitCall Discovery Call", startTime, 30)
 	if err != nil {
-		h.log.Error("zoom meeting creation failed", "err", err)
+		h.log.Error("meeting creation failed", "err", err)
 		return "", ""
 	}
-	return meeting.JoinURL, fmt.Sprintf("%d", meeting.ID)
+	return link, meetingID
 }
 
 func nullString(s *string) sql.NullString {

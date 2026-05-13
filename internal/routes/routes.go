@@ -23,6 +23,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
@@ -140,9 +141,12 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 
-			zoomClient := appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			var meetingProvider meeting.Provider = meeting.NoOp{}
+			if s.cfg.ZoomAccountID != "" {
+				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			}
 			discoveryRepo := discovery.NewPostgresRepo(q)
-			impl.discovery = discovery.NewHandler(discoveryRepo, zoomClient, mailer, s.log)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
