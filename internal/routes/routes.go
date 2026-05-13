@@ -71,6 +71,7 @@ type routerImpl struct {
 	logout        *auth.LogoutHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainersStore
+	users         *usersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
 	contact       *contact.Handler
@@ -140,6 +141,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
+			impl.users = newUsersStore(q)
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {
