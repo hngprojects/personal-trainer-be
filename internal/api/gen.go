@@ -720,6 +720,9 @@ type ServerInterface interface {
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
+
+	// (GET /dev/token)
+	HandleCreateDevToken(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -969,6 +972,19 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 	}
 
 	siw.Handler.HandleContactUs(c)
+}
+
+// HandleCreateDevToken operation middleware
+func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleCreateDevToken(c)
 }
 
 // HealthCheck operation middleware
@@ -1251,6 +1267,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
+	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)

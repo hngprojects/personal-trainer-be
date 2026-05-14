@@ -1805,14 +1805,19 @@ paths:
                 code: SERVER_ERROR
 
   /dev/token:
-  get:
-    operationId: DevGenerateToken
-    parameters:
-      - name: id
-        in: query
-        required: true
-        schema:
-          type: string
-    responses:
-      "200":
-        description: Token generated
+    get:
+      security: []
+      operationId: HandleCreateDevToken
+      responses:
+        "200":
+          description: Token generated
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR

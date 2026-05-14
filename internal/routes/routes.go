@@ -14,6 +14,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
+	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -72,6 +73,7 @@ type routerImpl struct {
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
 	contact       *contact.Handler
+	dev           *dev.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -107,6 +109,7 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
+
 		impl := &routerImpl{
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
@@ -172,6 +175,9 @@ func (s *Router) Routes() *gin.Engine {
 			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
+		}
+		if s.cfg.Env == "development" {
+			impl.dev = dev.NewDevHandler()
 		}
 
 		var authRedis appredis.RedisClient
