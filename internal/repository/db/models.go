@@ -27,6 +27,27 @@ type Booking struct {
 	CancelledAt        sql.NullTime
 }
 
+type BookingRescheduleHistory struct {
+	ID                 uuid.UUID
+	DiscoveryBookingID uuid.UUID
+	PreviousDatetime   time.Time
+	NewDatetime        time.Time
+	RescheduledBy      string
+	Reason             sql.NullString
+	CreatedAt          time.Time
+}
+
+type BookingSlot struct {
+	ID        uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type ContactMessage struct {
 	ID        uuid.UUID
 	Email     string
@@ -34,6 +55,22 @@ type ContactMessage struct {
 	Message   string
 	Name      string
 	CreatedAt time.Time
+}
+
+type DiscoveryBooking struct {
+	ID               uuid.UUID
+	Name             string
+	Email            string
+	ContactMode      string
+	PhoneNumber      sql.NullString
+	SelectedDatetime time.Time
+	ClientTimezone   string
+	ZoomMeetingLink  sql.NullString
+	ZoomMeetingID    sql.NullString
+	Status           string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	UserID           uuid.NullUUID
 }
 
 type PasswordResetCode struct {
@@ -69,6 +106,22 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Subscription struct {
+	ID                    uuid.UUID
+	ClientID              uuid.UUID
+	TrainerID             uuid.UUID
+	PlanType              string
+	SessionsPerMonth      sql.NullInt32
+	SessionsUsedThisMonth int32
+	Amount                sql.NullInt64
+	Currency              string
+	Status                string
+	CurrentPeriodStart    sql.NullTime
+	CurrentPeriodEnd      sql.NullTime
+	CreatedAt             time.Time
+	CancelledAt           sql.NullTime
+}
+
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
@@ -96,6 +149,10 @@ type User struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	Role         string
+	Gender       sql.NullString
+	FitnessGoals []string
+	FitnessLevel sql.NullString
+	AvatarUrl    sql.NullString
 }
 
 type UserRole struct {
@@ -116,7 +173,7 @@ type Waitlist struct {
 	ID          uuid.UUID
 	Email       string
 	CreatedAt   time.Time
-	PhoneNumber sql.NullString
-	Location    sql.NullString
-	Name        sql.NullString
+	PhoneNumber string
+	Location    string
+	Name        string
 }

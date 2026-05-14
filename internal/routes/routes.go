@@ -15,6 +15,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/dev"
+	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -23,8 +24,10 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
+	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
 // Router holds the wrapped Redis client (*appredis.Client) — its method set
@@ -70,9 +73,11 @@ type routerImpl struct {
 	refresh       *auth.RefreshHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainersStore
+	users         *usersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
 	contact       *contact.Handler
+	discovery     *discovery.Handler
 	dev           *dev.Handler
 }
 
@@ -140,6 +145,14 @@ func (s *Router) Routes() *gin.Engine {
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
+			impl.users = newUsersStore(q)
+
+			var meetingProvider meeting.Provider = meeting.NoOp{}
+			if s.cfg.ZoomAccountID != "" {
+				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			}
+			discoveryRepo := discovery.NewPostgresRepo(q)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
