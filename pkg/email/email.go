@@ -1,7 +1,6 @@
 package email
 
 import (
-	"time"
 	"bytes"
 	"fmt"
 	"html/template"
@@ -9,6 +8,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"strings"
+	"time"
 )
 
 type Mailer interface {

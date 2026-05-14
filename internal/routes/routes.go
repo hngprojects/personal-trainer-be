@@ -14,19 +14,20 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
+	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
-	"github.com/hngprojects/personal-trainer-be/internal/discovery"
+	"github.com/hngprojects/personal-trainer-be/internal/trainers"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
-	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
+	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
 // Router holds the wrapped Redis client (*appredis.Client) — its method set
@@ -70,7 +71,7 @@ type routerImpl struct {
 	waitlist      *waitlist.WaitlistHandler
 	logout        *auth.LogoutHandler
 	passwordReset *auth.PasswordResetHandler
-	trainers      *trainersStore
+	trainers      *trainers.Handler
 	users         *usersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
@@ -140,7 +141,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
-			impl.trainers = newTrainersStore(q)
+			impl.trainers = trainers.NewHandler(q, usersRepo, s.log)
 			impl.users = newUsersStore(q)
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
@@ -178,7 +179,7 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
-			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
+			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log, q)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
@@ -198,20 +199,26 @@ func (s *Router) Routes() *gin.Engine {
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
 				func(c *gin.Context) {
+					path := c.FullPath() // e.g., "/api/v1/trainers/apply"
+					method := c.Request.Method
+
+					// Require auth for all endpoints that need it
 					if _, requiresAuth := c.Get(string(api.BearerAuthScopes)); requiresAuth {
 						authMw(c)
 						if c.IsAborted() {
 							return
 						}
-					}
-					if trainersAdminOnly != nil {
-						trainersAdminOnly(c)
-						if c.IsAborted() {
-							return
+						// Only apply trainersAdminOnly to protected admin routes -- NOT /trainers/apply
+						if trainersAdminOnly != nil &&
+							!(method == "POST" && path == "/api/v1/trainers/apply") {
+							trainersAdminOnly(c)
+							if c.IsAborted() {
+								return
+							}
 						}
-					}
-					if superAdminOnly != nil {
-						superAdminOnly(c)
+						if superAdminOnly != nil {
+							superAdminOnly(c)
+						}
 					}
 				},
 			},

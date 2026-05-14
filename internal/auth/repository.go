@@ -26,6 +26,7 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error)
 }
 
 // AdminUserRepository defines admin-specific user operations.
@@ -71,6 +72,10 @@ type postgresUserRepo struct {
 
 func NewPostgresUserRepo(q *db.Queries) UserRepository {
 	return &postgresUserRepo{q: q}
+}
+
+func (r *postgresUserRepo) GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error) {
+	return r.q.GetUserByID(ctx, id)
 }
 
 func (r *postgresUserRepo) FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error) {

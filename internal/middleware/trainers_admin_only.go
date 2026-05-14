@@ -15,10 +15,32 @@ import (
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
+func IsMockAuthBypass(c *gin.Context) bool {
+	if os.Getenv("APP_ENV") != "development" {
+		return false
+	}
+	if os.Getenv("ENABLE_MOCK_AUTH") != "1" {
+		return false
+	}
+	expected := os.Getenv("MOCK_AUTH_CODE")
+	if len(expected) != 8 {
+		return false
+	}
+	if got := c.GetHeader("X-Mock-Auth"); got == expected {
+		return true
+	}
+	return false
+}
+
 // TrainersAdminOnly protects /api/v1/trainers* routes.
 // It does not affect other OpenAPI endpoints (auth, health, root).
 func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 	return func(c *gin.Context) {
+		if IsMockAuthBypass(c) {
+			c.Next()
+			return
+		}
+
 		// FullPath() is preferred, but can be empty depending on when middleware runs.
 		path := c.FullPath()
 		if path == "" {
@@ -37,25 +59,6 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			strings.HasSuffix(path, "/reviews") {
 			c.Next()
 			return
-		}
-
-		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
-			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
-			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
-			if mockID != "" {
-				if _, err := uuid.Parse(mockID); err != nil {
-					c.AbortWithStatusJSON(http.StatusBadRequest, api.NewError("Invalid X-Mock-User-ID header; must be a valid UUID", api.CodeBadRequest))
-					return
-				}
-			}
-			if mockRole != "" {
-				if mockRole != "admin" {
-					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
-					return
-				}
-				c.Next()
-				return
-			}
 		}
 
 		header := c.GetHeader("Authorization")

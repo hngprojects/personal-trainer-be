@@ -3,6 +3,9 @@
 package admin
 
 import (
+	"context"
+	"github.com/google/uuid"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,6 +15,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	trainers "github.com/hngprojects/personal-trainer-be/internal/trainers"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
@@ -20,14 +24,20 @@ import (
 // any practical brute-force threshold against bcrypt.
 const generatedPasswordLen = 16
 
-type Handler struct {
-	users  auth.AdminUserRepository
-	mailer email.Mailer
-	log    *slog.Logger
+type TrainersRepo interface {
+	ListPendingTrainers(ctx context.Context) ([]db.Trainer, error)
+	ApproveTrainer(ctx context.Context, id uuid.UUID) (db.Trainer, error)
 }
 
-func NewHandler(users auth.AdminUserRepository, mailer email.Mailer, log *slog.Logger) *Handler {
-	return &Handler{users: users, mailer: mailer, log: log}
+type Handler struct {
+	users    auth.AdminUserRepository
+	mailer   email.Mailer
+	log      *slog.Logger
+	trainers TrainersRepo
+}
+
+func NewHandler(users auth.AdminUserRepository, mailer email.Mailer, log *slog.Logger, trainers TrainersRepo) *Handler {
+	return &Handler{users: users, mailer: mailer, log: log, trainers: trainers}
 }
 
 // AdminAdd handles POST /admin/add. It generates a password, upserts the
@@ -99,4 +109,41 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		"name":  user.Name,
 		"role":  user.Role,
 	}))
+}
+
+// AdminApproveTrainer handles approving a pending trainer application.
+func (h *Handler) AdminApproveTrainer(c *gin.Context, id string) {
+	trainerID, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid trainer id", api.CodeBadRequest))
+		return
+	}
+
+	trainer, err := h.trainers.ApproveTrainer(c.Request.Context(), trainerID)
+	if err != nil {
+		h.log.Error("approve trainer failed", "err", err, "id", id)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to approve trainer", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "trainer approved",
+		"trainer": trainers.TrainerToMap(trainer),
+	})
+}
+
+// AdminTrainers lists all trainers with pending onboarding_status.
+func (h *Handler) AdminTrainers(c *gin.Context) {
+	trainersList, err := h.trainers.ListPendingTrainers(c.Request.Context())
+	if err != nil {
+		h.log.Error("list pending trainers", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list trainers", api.CodeServerError))
+		return
+	}
+
+	resp := make([]map[string]interface{}, 0, len(trainersList))
+	for _, t := range trainersList {
+		resp = append(resp, trainers.TrainerToMap(t))
+	}
+	c.JSON(http.StatusOK, resp)
 }

@@ -53,7 +53,7 @@ func (s *routerImpl) CreateReview(c *gin.Context) {
 	c.JSON(http.StatusCreated, api.NewSuccess("Review created", api.CodeCreated, reviewToAPI(review)))
 }
 
-func (s *routerImpl) GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params api.GetTrainerReviewsParams) {
+func (s *routerImpl) GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params api.GetTrainersIdReviewsParams) {
 	if s.reviews == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeInternalError))
 		return

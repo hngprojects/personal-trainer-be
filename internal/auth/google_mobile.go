@@ -27,8 +27,8 @@ type MobileGoogleHandler struct {
 	users        UserRepository
 	sessions     SessionRepository
 	log          *slog.Logger
-	allowedAuds  []string                                                                          // accepted `aud` claim values
-	validateFunc func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error)     // swappable for tests
+	allowedAuds  []string                                                                      // accepted `aud` claim values
+	validateFunc func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error) // swappable for tests
 }
 
 func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, log *slog.Logger) *MobileGoogleHandler {
@@ -138,7 +138,7 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 			Id:              user.ID,
 			Email:           user.Email,
 			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
+			UserType:        api.Client,
 			ProfileComplete: user.Name != "",
 		},
 		AccessToken:  accessToken,

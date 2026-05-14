@@ -145,3 +145,6 @@ RETURNING
   total_reviews,
   created_at,
   updated_at;
+
+-- name: ListPendingTrainers :many
+SELECT * FROM trainers WHERE onboarding_status = 'pending' ORDER BY created_at DESC;

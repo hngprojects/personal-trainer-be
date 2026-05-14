@@ -68,6 +68,13 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
+func (f *fakeLocalUserRepo) GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error) {
+	if f.findUser != nil {
+		return *f.findUser, f.findErr
+	}
+	return db.User{ID: id, Email: "dummy@example.com", AuthProvider: "local", IsActive: true}, nil
+}
+
 // fakeCodeRepo controls verification code behaviour.
 type fakeCodeRepo struct {
 	consumeErr error
@@ -136,9 +143,13 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 }
 
 func (m *fakeMailer) SendWaitlistConfirmation(_ string) error   { return m.err }
-func (m *fakeMailer) SendContactConfirmation(_, _ string) error                              { return m.err }
-func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error { return m.err }
-func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error { return m.err }
+func (m *fakeMailer) SendContactConfirmation(_, _ string) error { return m.err }
+func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
+	return m.err
+}
+func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error {
+	return m.err
+}
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {

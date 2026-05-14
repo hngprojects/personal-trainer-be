@@ -232,7 +232,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 			Id:              user.ID,
 			Email:           user.Email,
 			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
+			UserType:        api.Client,
 			ProfileComplete: user.Name != "",
 		},
 		AccessToken:  accessToken,
@@ -308,7 +308,7 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 			Id:              user.ID,
 			Email:           user.Email,
 			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
+			UserType:        api.Client,
 			ProfileComplete: user.Name != "",
 		},
 		AccessToken:  accessToken,
@@ -339,4 +339,3 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
-
