@@ -24,6 +24,8 @@ tags:
     description: Trainer endpoints to manage all trainer activities.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
+  - name: User
+    description: User profile and onboarding endpoints.
 
 components:
   securitySchemes:
@@ -350,6 +352,66 @@ components:
           maxLength: 72
           example: "Str0ngPassw0rd"
 
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Ezeaku Dorothy"
+        gender:
+          type: string
+          enum: [male, female, other]
+          example: female
+        fitness_goals:
+          type: array
+          items:
+            type: string
+            enum:
+              - lose_weight
+              - build_muscle
+              - improve_flexibility
+              - boost_energy
+              - build_healthy_habits
+              - build_strength
+          minItems: 1
+          example: [build_muscle, build_strength]
+        fitness_level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+          example: beginner
+        avatar_url:
+          type: string
+          format: uri
+          example: "https://example.com/avatar.jpg"
+
+    UserProfileResponse:
+      type: object
+      required: [id, email, name, gender, fitness_goals, fitness_level, avatar_url, profile_complete]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+        fitness_goals:
+          type: array
+          items:
+            type: string
+        fitness_level:
+          type: string
+          nullable: true
+        avatar_url:
+          type: string
+          nullable: true
+        profile_complete:
+          type: boolean
+
     WaitlistRequest:
       type: object
       required: [email]
@@ -452,8 +514,63 @@ components:
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
 
+    BookDiscoveryCallRequest:
+      type: object
+      required: [name, email, contact_mode, selected_datetime, timezone]
+      properties:
+        name:
+          type: string
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        contact_mode:
+          type: string
+          enum: [zoom_meeting, phone_callback]
+        phone_number:
+          type: string
+          description: Required when contact_mode is phone_callback
+          example: "+2348012345678"
+        selected_datetime:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC datetime for the call
+          example: "2026-05-20T10:00:00Z"
+        timezone:
+          type: string
+          description: Client IANA timezone
+          example: America/New_York
+
+    BookingSlotRequest:
+      type: object
+      required: [day_of_week, start_time, end_time]
+      properties:
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0=Sunday, 6=Saturday
+          example: 1
+        start_time:
+          type: string
+          description: 24h time HH:MM
+          example: "09:00"
+        end_time:
+          type: string
+          description: 24h time HH:MM
+          example: "17:00"
+        timezone:
+          type: string
+          description: IANA timezone for the slot
+          example: Africa/Lagos
+        is_active:
+          type: boolean
+          default: true
+
 security:
   - bearerAuth: []
+
 
 paths:
   /:
@@ -894,6 +1011,104 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /users/me/profile:
+    patch:
+      operationId: UpdateUserProfile
+      tags:
+        - User
+      summary: Update the authenticated user's profile (onboarding)
+      description: |
+        Saves name, gender, fitness goals, fitness level, and avatar URL for the
+        logged-in user. All fields are optional — send only what changed.
+        Sets profile_complete = true once name is non-empty.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserProfileResponse"
+              example:
+                status: success
+                message: Profile updated successfully
+                code: OK
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  email: "dorothy@example.com"
+                  name: "Ezeaku Dorothy"
+                  gender: "female"
+                  fitness_goals: ["build_muscle", "build_strength"]
+                  fitness_level: "beginner"
+                  avatar_url: null
+                  profile_complete: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Missing or invalid access token
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: GetUserProfile
+      tags:
+        - User
+      summary: Get the authenticated user's profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers:
     get:
       operationId: GetTrainers
@@ -1459,7 +1674,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /admin/trainers/:id/approve:
+  /admin/trainers/{id}/approve:
     put:
       operationId: AdminApproveTrainer
       tags:
@@ -1747,3 +1962,205 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /bookings/discovery:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: BookDiscoveryCall
+      summary: Book a discovery call with a FitCall rep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookDiscoveryCallRequest"
+      responses:
+        "201":
+          description: Discovery call booked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Time slot already booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /booking-slots:
+    get:
+      security: []
+      operationId: GetBookingSlots
+      summary: List all active booking slots (public)
+      parameters:
+        - name: timezone
+          in: query
+          required: false
+          schema:
+            type: string
+          description: IANA timezone to convert slots into (e.g. America/New_York)
+      responses:
+        "200":
+          description: Booking slots retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      security:
+        - bearerAuth: []
+      operationId: CreateBookingSlot
+      summary: Create a booking slot (admin or customer_care only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingSlotRequest"
+      responses:
+        "201":
+          description: Booking slot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /booking-slots/{id}:
+    put:
+      security:
+        - bearerAuth: []
+      operationId: UpdateBookingSlot
+      summary: Update a booking slot (admin or customer_care only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingSlotRequest"
+      responses:
+        "200":
+          description: Booking slot updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      security:
+        - bearerAuth: []
+      operationId: DeleteBookingSlot
+      summary: Delete a booking slot (admin or customer_care only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Booking slot deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

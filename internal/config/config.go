@@ -31,6 +31,12 @@ type Config struct {
 	OTPSecret string
 	RedisURL  string
 	JwtSecret string
+
+	ZoomAccountID    string
+	ZoomClientID     string
+	ZoomClientSecret string
+
+	NotificationEmail string
 }
 
 func Load() (*Config, error) {
@@ -61,6 +67,12 @@ func Load() (*Config, error) {
 		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
 		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
 		JwtSecret: os.Getenv("JWT_SECRET"),
+
+		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
+		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
+		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
+
+		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
 	}
 
 	if cfg.DatabaseURL == "" {

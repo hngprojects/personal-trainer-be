@@ -102,9 +102,9 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 			"id":           result.ID,
 			"email":        result.Email,
 			"created_at":   result.CreatedAt,
-			"phone_number": result.PhoneNumber.String,
-			"location":     result.Location.String,
-			"name":         result.Name.String,
+			"phone_number": result.PhoneNumber,
+			"location":     result.Location,
+			"name":         result.Name,
 		}
 
 		c.JSON(http.StatusOK, api.NewSuccess("success", api.CodeOK, data))
@@ -124,9 +124,9 @@ func (h *WaitlistHandler) HandleGetWaitlist(c *gin.Context, params api.HandleGet
 			"id":           r.ID,
 			"email":        r.Email,
 			"created_at":   r.CreatedAt,
-			"phone_number": r.PhoneNumber.String,
-			"location":     r.Location.String,
-			"name":         r.Name.String,
+			"phone_number": r.PhoneNumber,
+			"location":     r.Location,
+			"name":         r.Name,
 		})
 	}
 
