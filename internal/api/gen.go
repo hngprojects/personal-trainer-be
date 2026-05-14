@@ -256,13 +256,31 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
-	Success HandleRefresh200JSONResponseBodyStatus = "success"
+	HandleRefresh200JSONResponseBodyStatusSuccess HandleRefresh200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the HandleRefresh200JSONResponseBodyStatus enum.
 func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Success:
+	case HandleRefresh200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
+const (
+	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
+	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
+func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case HandleVerifyEmail200JSONResponseBodyStatusError:
+		return true
+	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -377,6 +395,19 @@ type GoogleAuthResponseStatus string
 type GoogleMobileSignInRequest struct {
 	// IdToken Google-signed ID token (JWT) obtained client-side via the platform Google Sign-In SDK on Android or iOS. The server verifies the signature against Google's public keys and checks that the `aud` claim matches one of the configured client IDs.
 	IdToken string `json:"id_token"`
+}
+
+// LocalAuthData defines model for LocalAuthData.
+type LocalAuthData struct {
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	RefreshToken string   `json:"refresh_token"`
+	User         AuthUser `json:"user"`
+}
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email openapi_types.Email `json:"email"`
 }
 
 // ResetPasswordRequest defines model for ResetPasswordRequest.
@@ -510,6 +541,12 @@ type UpdateTrainerRequest struct {
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
 type UpdateTrainerRequestOnboardingStatus string
 
+// VerifyEmailRequest defines model for VerifyEmailRequest.
+type VerifyEmailRequest struct {
+	Code  string              `json:"code"`
+	Email openapi_types.Email `json:"email"`
+}
+
 // WaitlistRequest defines model for WaitlistRequest.
 type WaitlistRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -545,6 +582,11 @@ type HandleGoogleCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
+// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
+type HandleLocalAuthJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
@@ -558,6 +600,9 @@ type HandleRefreshJSONBody struct {
 
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
 type HandleRefresh200JSONResponseBodyStatus string
+
+// HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
+type HandleVerifyEmail200JSONResponseBodyStatus string
 
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
@@ -598,14 +643,23 @@ type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 // HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
 type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
+// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
+type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
+
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
 // HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
 type HandleRefreshJSONRequestBody HandleRefreshJSONBody
 
+// HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
+type HandleRegisterJSONRequestBody = RegisterRequest
+
 // HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
 type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
+
+// HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
+type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
@@ -645,15 +699,24 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
+	// Login with email
+	// (POST /auth/login)
+	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
 	// Refresh access token
 	// (POST /auth/refresh)
 	HandleRefresh(c *gin.Context)
+	// Register or request a new OTP — sends a 6-digit verification code to the email
+	// (POST /auth/register)
+	HandleRegister(c *gin.Context)
 	// Reset password using a previously emailed code
 	// (POST /auth/reset-password)
 	HandleResetPassword(c *gin.Context)
+	// Verify email with OTP — completes signup/login and returns JWT tokens
+	// (POST /auth/verify-email)
+	HandleVerifyEmail(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -813,6 +876,19 @@ func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
 	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
+// HandleLocalAuth operation middleware
+func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleLocalAuth(c)
+}
+
 // HandleLogout operation middleware
 func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
@@ -843,6 +919,19 @@ func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
 	siw.Handler.HandleRefresh(c)
 }
 
+// HandleRegister operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegister(c)
+}
+
 // HandleResetPassword operation middleware
 func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
 
@@ -854,6 +943,19 @@ func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
 	}
 
 	siw.Handler.HandleResetPassword(c)
+}
+
+// HandleVerifyEmail operation middleware
+func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleVerifyEmail(c)
 }
 
 // HandleContactUs operation middleware
@@ -1142,9 +1244,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
+	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
+	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
+	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
