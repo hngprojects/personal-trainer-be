@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,30 +11,44 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 )
 
 type Handler struct {
-	repo    Repository
-	meeting meeting.Provider
-	mailer  email.Mailer
-	log     *slog.Logger
+	repo              Repository
+	meeting           meeting.Provider
+	mailer            email.Mailer
+	notificationEmail string
+	log               *slog.Logger
 }
 
-func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, meeting: meetingProvider, mailer: mailer, log: log}
+func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, notificationEmail string, log *slog.Logger) *Handler {
+	return &Handler{repo: repo, meeting: meetingProvider, mailer: mailer, notificationEmail: notificationEmail, log: log}
 }
 
-// POST /bookings/discovery — public
+// POST /bookings/discovery — authenticated users only
 func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	var req api.BookDiscoveryCallRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
 
@@ -54,6 +69,24 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	selectedTime := req.SelectedDatetime
 	ctx := c.Request.Context()
 
+	// Reject past datetimes.
+	if selectedTime.Before(time.Now()) {
+		c.JSON(http.StatusBadRequest, api.NewError("selected time is in the past", api.CodeBadRequest))
+		return
+	}
+
+	// One free discovery call per user.
+	exists, err := h.repo.HasExistingBooking(ctx, userID)
+	if err != nil {
+		h.log.Error("failed to check existing booking", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if exists {
+		c.JSON(http.StatusForbidden, api.NewError("you have already used your free discovery call — please upgrade to book a session", api.CodeForbidden))
+		return
+	}
+
 	if err := h.validateAgainstSlots(ctx, selectedTime); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
@@ -71,30 +104,57 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	}
 
 	var zoomLink, zoomMeetingID string
-	if req.ContactMode == api.ZoomMeeting {
-		zoomLink, zoomMeetingID = h.createMeeting(ctx, selectedTime)
+
+	phoneNumber := ""
+	if req.PhoneNumber != nil {
+		phoneNumber = *req.PhoneNumber
 	}
 
-	arg := db.CreateDiscoveryBookingParams{
+	// Insert booking first; create Zoom meeting after so no orphaned meeting on DB failure.
+	booking, err := h.repo.CreateBooking(ctx, db.CreateDiscoveryBookingParams{
+		UserID:           uuid.NullUUID{UUID: userID, Valid: true},
 		Name:             req.Name,
 		Email:            string(req.Email),
 		ContactMode:      string(req.ContactMode),
 		PhoneNumber:      nullString(req.PhoneNumber),
 		SelectedDatetime: selectedTime,
 		ClientTimezone:   req.Timezone,
-		ZoomMeetingLink:  sql.NullString{String: zoomLink, Valid: zoomLink != ""},
-		ZoomMeetingID:    sql.NullString{String: zoomMeetingID, Valid: zoomMeetingID != ""},
-	}
-
-	booking, err := h.repo.CreateBooking(ctx, arg)
+	})
 	if err != nil {
+		// Unique index violation means a concurrent request won the race for this slot.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_discovery_bookings_slot_lock" {
+			c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
+			return
+		}
 		h.log.Error("failed to create discovery booking", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking", api.CodeServerError))
 		return
 	}
 
-	if err := h.mailer.SendDiscoveryBookingConfirmation(string(req.Email), req.Name, selectedTime, req.Timezone, zoomLink); err != nil {
+	if req.ContactMode == api.ZoomMeeting {
+		zoomLink, zoomMeetingID = h.createMeetingWithRetry(ctx, selectedTime)
+		if zoomLink != "" {
+			if updated, err := h.repo.UpdateBookingZoom(ctx, db.UpdateDiscoveryBookingZoomParams{
+				ID:              booking.ID,
+				ZoomMeetingLink: sql.NullString{String: zoomLink, Valid: true},
+				ZoomMeetingID:   sql.NullString{String: zoomMeetingID, Valid: true},
+			}); err == nil {
+				booking = updated
+			} else {
+				h.log.Error("failed to persist zoom link", "err", err, "booking_id", booking.ID)
+			}
+		}
+	}
+
+	if err := h.mailer.SendDiscoveryBookingConfirmation(string(req.Email), req.Name, selectedTime, req.Timezone, string(req.ContactMode), phoneNumber, zoomLink); err != nil {
 		h.log.Error("failed to send booking confirmation email", "err", err, "email", req.Email)
+	}
+
+	if h.notificationEmail != "" {
+		if err := h.mailer.SendDiscoveryBookingAdminNotification(h.notificationEmail, req.Name, string(req.Email), selectedTime, req.Timezone, string(req.ContactMode), phoneNumber, zoomLink); err != nil {
+			h.log.Error("failed to send admin notification email", "err", err)
+		}
 	}
 
 	c.JSON(http.StatusCreated, api.NewSuccess("Discovery call booked successfully", api.CodeCreated, bookingToMap(booking)))
@@ -244,20 +304,20 @@ func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
 
 func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Time) error {
 	slots, err := h.repo.GetActiveSlots(ctx)
-	if err != nil || len(slots) == 0 {
-		return fmt.Errorf("no available booking slots at this time")
-	}
-
-	loc, err := time.LoadLocation("Africa/Lagos")
 	if err != nil {
-		loc = time.UTC
+		return fmt.Errorf("could not retrieve booking slots")
 	}
-
-	watTime := selectedTime.In(loc)
-	dayOfWeek := int16(watTime.Weekday())
-	timeOfDay := watTime.Format("15:04")
-
+	if len(slots) == 0 {
+		return fmt.Errorf("no booking slots are currently configured")
+	}
 	for _, s := range slots {
+		loc, err := time.LoadLocation(s.Timezone)
+		if err != nil {
+			loc = time.UTC
+		}
+		local := selectedTime.In(loc)
+		dayOfWeek := int16(local.Weekday())
+		timeOfDay := local.Format("15:04")
 		slotStart := s.StartTime.Format("15:04")
 		slotEnd := s.EndTime.Format("15:04")
 		if s.DayOfWeek == dayOfWeek && timeOfDay >= slotStart && timeOfDay < slotEnd {
@@ -267,17 +327,24 @@ func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Ti
 	return fmt.Errorf("selected time is outside available booking hours")
 }
 
-func (h *Handler) createMeeting(ctx context.Context, startTime time.Time) (link, meetingID string) {
+func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Time) (link, meetingID string) {
 	if !h.meeting.IsConfigured() {
 		h.log.Warn("meeting provider not configured — skipping meeting creation")
 		return "", ""
 	}
-	link, meetingID, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
-	if err != nil {
-		h.log.Error("meeting creation failed", "err", err)
-		return "", ""
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		l, id, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
+		if err == nil {
+			return l, id
+		}
+		h.log.Warn("zoom meeting creation failed, retrying", "attempt", attempt, "err", err)
+		if attempt < maxAttempts {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
 	}
-	return link, meetingID
+	h.log.Error("zoom meeting creation failed after all retries")
+	return "", ""
 }
 
 func nullString(s *string) sql.NullString {

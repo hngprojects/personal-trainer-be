@@ -109,11 +109,24 @@ func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, string(body))
 }
 
-func (m *ResendMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
-	_ = scheduledAt
-	subject := discoveryBookingConfirmationSubject
-	html := fmt.Sprintf("<p>Hi %s, your discovery call is confirmed. Zoom link: %s (Timezone: %s)</p>", name, zoomLink, timezone)
+func (m *ResendMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryBookingHTML(name, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build discovery booking email: %w", err)
+	}
+	subject := zoomMeetingConfirmationSubject
+	if contactMode == "phone_callback" {
+		subject = phoneCallConfirmationSubject
+	}
 	return m.send(to, subject, html)
+}
+
+func (m *ResendMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryBookingAdminHTML(clientName, clientEmail, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build admin notification email: %w", err)
+	}
+	return m.send(to, discoveryBookingAdminNotificationSubject, html)
 }
 
 func (m *ResendMailer) SendContactConfirmation(to, name string) error {

@@ -1,5 +1,6 @@
 -- name: CreateDiscoveryBooking :one
 INSERT INTO discovery_bookings (
+    user_id,
     name,
     email,
     contact_mode,
@@ -10,6 +11,7 @@ INSERT INTO discovery_bookings (
     zoom_meeting_id,
     status
 ) VALUES (
+    sqlc.arg(user_id),
     sqlc.arg(name),
     sqlc.arg(email),
     sqlc.arg(contact_mode),
@@ -75,6 +77,21 @@ WHERE id = $1;
 
 -- name: CheckSlotConflict :one
 SELECT COUNT(*) FROM discovery_bookings
-WHERE selected_datetime > $1 - INTERVAL '30 minutes'
-  AND selected_datetime < $1 + INTERVAL '30 minutes'
-  AND status NOT IN ('cancelled');
+WHERE selected_datetime > sqlc.arg(selected_datetime)::timestamptz - INTERVAL '30 minutes'
+  AND selected_datetime < sqlc.arg(selected_datetime)::timestamptz + INTERVAL '30 minutes'
+  AND status NOT IN ('cancelled', 'completed');
+
+-- name: UpdateDiscoveryBookingZoom :one
+UPDATE discovery_bookings
+SET
+    zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+    zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    updated_at        = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
+-- name: GetDiscoveryBookingByUserID :one
+SELECT * FROM discovery_bookings
+WHERE user_id = sqlc.arg(user_id)
+  AND status NOT IN ('cancelled')
+LIMIT 1;
