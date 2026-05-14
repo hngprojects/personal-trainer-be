@@ -115,7 +115,11 @@ func (r *sessionService) TrainerSessionNote(ctx context.Context, sessionID uuid.
 		r.log.Error("failed to get session", "err", err)
 		return nil, err
 	}
+<<<<<<< HEAD
 	if session.Status != sessionCompleted {
+=======
+	if session.Status.String != sessionCompleted {
+>>>>>>> 52d636f (feat(booking_session): booking session endpoint)
 		return nil, errors.New("session is not completed yet")
 	}
 	updatedSession, err := r.repo.UpdateTrainersNote(ctx, sessionID, notes)
