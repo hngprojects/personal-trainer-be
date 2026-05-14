@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,7 +12,9 @@ import (
 
 type Repository interface {
 	CreateBooking(ctx context.Context, arg db.CreateDiscoveryBookingParams) (db.DiscoveryBooking, error)
+	UpdateBookingZoom(ctx context.Context, arg db.UpdateDiscoveryBookingZoomParams) (db.DiscoveryBooking, error)
 	GetBookingByID(ctx context.Context, id uuid.UUID) (db.DiscoveryBooking, error)
+	HasExistingBooking(ctx context.Context, userID uuid.UUID) (bool, error)
 	CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error)
 
 	GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error)
@@ -32,8 +36,23 @@ func (r *postgresRepo) CreateBooking(ctx context.Context, arg db.CreateDiscovery
 	return r.q.CreateDiscoveryBooking(ctx, arg)
 }
 
+func (r *postgresRepo) UpdateBookingZoom(ctx context.Context, arg db.UpdateDiscoveryBookingZoomParams) (db.DiscoveryBooking, error) {
+	return r.q.UpdateDiscoveryBookingZoom(ctx, arg)
+}
+
 func (r *postgresRepo) GetBookingByID(ctx context.Context, id uuid.UUID) (db.DiscoveryBooking, error) {
 	return r.q.GetDiscoveryBookingByID(ctx, id)
+}
+
+func (r *postgresRepo) HasExistingBooking(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, err := r.q.GetDiscoveryBookingByUserID(ctx, uuid.NullUUID{UUID: userID, Valid: true})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *postgresRepo) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {

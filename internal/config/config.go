@@ -35,6 +35,8 @@ type Config struct {
 	ZoomAccountID    string
 	ZoomClientID     string
 	ZoomClientSecret string
+
+	NotificationEmail string
 }
 
 func Load() (*Config, error) {
@@ -69,6 +71,8 @@ func Load() (*Config, error) {
 		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
 		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
+
+		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
 	}
 
 	if cfg.DatabaseURL == "" {

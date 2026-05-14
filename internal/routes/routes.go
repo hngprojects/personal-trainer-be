@@ -148,7 +148,7 @@ func (s *Router) Routes() *gin.Engine {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
 			}
 			discoveryRepo := discovery.NewPostgresRepo(q)
-			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.log)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire

@@ -1965,7 +1965,8 @@ paths:
 
   /bookings/discovery:
     post:
-      security: []
+      security:
+        - bearerAuth: []
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
