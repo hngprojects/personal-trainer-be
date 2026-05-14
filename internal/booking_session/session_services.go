@@ -115,7 +115,7 @@ func (r *sessionService) TrainerSessionNote(ctx context.Context, sessionID uuid.
 		return nil, err
 	}
 	if session.Status.String != sessionCompleted {
-		return nil, errors.New("session is not completed yet.")
+		return nil, errors.New("session is not completed yet")
 	}
 	updatedSession, err := r.repo.UpdateTrainersNote(ctx, sessionID, notes)
 	if err != nil {
