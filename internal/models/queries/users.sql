@@ -39,3 +39,15 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        is_active  = true,
        updated_at = NOW()
 RETURNING *;
+
+-- name: UpdateUserOnboarding :one
+UPDATE users
+SET
+    name           = COALESCE(NULLIF(sqlc.arg(name)::text, ''), name),
+    gender         = COALESCE(NULLIF(sqlc.arg(gender)::text, ''), gender),
+    fitness_goals  = CASE WHEN sqlc.arg(fitness_goals)::text[] IS NULL THEN fitness_goals ELSE sqlc.arg(fitness_goals)::text[] END,
+    fitness_level  = COALESCE(NULLIF(sqlc.arg(fitness_level)::text, ''), fitness_level),
+    avatar_url     = COALESCE(NULLIF(sqlc.arg(avatar_url)::text, ''), avatar_url),
+    updated_at     = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;

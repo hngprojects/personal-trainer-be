@@ -149,6 +149,10 @@ type User struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	Role         string
+	Gender       sql.NullString
+	FitnessGoals []string
+	FitnessLevel sql.NullString
+	AvatarUrl    sql.NullString
 }
 
 type UserRole struct {

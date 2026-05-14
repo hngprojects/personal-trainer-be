@@ -248,6 +248,78 @@ func (e TrainersListResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for UpdateProfileRequestFitnessGoals.
+const (
+	BoostEnergy        UpdateProfileRequestFitnessGoals = "boost_energy"
+	BuildHealthyHabits UpdateProfileRequestFitnessGoals = "build_healthy_habits"
+	BuildMuscle        UpdateProfileRequestFitnessGoals = "build_muscle"
+	BuildStrength      UpdateProfileRequestFitnessGoals = "build_strength"
+	ImproveFlexibility UpdateProfileRequestFitnessGoals = "improve_flexibility"
+	LoseWeight         UpdateProfileRequestFitnessGoals = "lose_weight"
+)
+
+// Valid indicates whether the value is a known member of the UpdateProfileRequestFitnessGoals enum.
+func (e UpdateProfileRequestFitnessGoals) Valid() bool {
+	switch e {
+	case BoostEnergy:
+		return true
+	case BuildHealthyHabits:
+		return true
+	case BuildMuscle:
+		return true
+	case BuildStrength:
+		return true
+	case ImproveFlexibility:
+		return true
+	case LoseWeight:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateProfileRequestFitnessLevel.
+const (
+	Advanced     UpdateProfileRequestFitnessLevel = "advanced"
+	Beginner     UpdateProfileRequestFitnessLevel = "beginner"
+	Intermediate UpdateProfileRequestFitnessLevel = "intermediate"
+)
+
+// Valid indicates whether the value is a known member of the UpdateProfileRequestFitnessLevel enum.
+func (e UpdateProfileRequestFitnessLevel) Valid() bool {
+	switch e {
+	case Advanced:
+		return true
+	case Beginner:
+		return true
+	case Intermediate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateProfileRequestGender.
+const (
+	Female UpdateProfileRequestGender = "female"
+	Male   UpdateProfileRequestGender = "male"
+	Other  UpdateProfileRequestGender = "other"
+)
+
+// Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
+func (e UpdateProfileRequestGender) Valid() bool {
+	switch e {
+	case Female:
+		return true
+	case Male:
+		return true
+	case Other:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateTrainerRequestOnboardingStatus.
 const (
 	Approved  UpdateTrainerRequestOnboardingStatus = "approved"
@@ -274,12 +346,48 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
 const (
-	Error   HandleVerifyEmail200JSONResponseBodyStatus = "error"
-	Success HandleVerifyEmail200JSONResponseBodyStatus = "success"
+	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
+	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
 func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case HandleVerifyEmail200JSONResponseBodyStatusError:
+		return true
+	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetUserProfile200JSONResponseBodyStatus.
+const (
+	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
+	GetUserProfile200JSONResponseBodyStatusSuccess GetUserProfile200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetUserProfile200JSONResponseBodyStatus enum.
+func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetUserProfile200JSONResponseBodyStatusError:
+		return true
+	case GetUserProfile200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateUserProfile200JSONResponseBodyStatus.
+const (
+	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
+func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case Error:
 		return true
@@ -564,6 +672,24 @@ type TrainersListResponse struct {
 // TrainersListResponseStatus defines model for TrainersListResponse.Status.
 type TrainersListResponseStatus string
 
+// UpdateProfileRequest defines model for UpdateProfileRequest.
+type UpdateProfileRequest struct {
+	AvatarUrl    *string                             `json:"avatar_url,omitempty"`
+	FitnessGoals *[]UpdateProfileRequestFitnessGoals `json:"fitness_goals,omitempty"`
+	FitnessLevel *UpdateProfileRequestFitnessLevel   `json:"fitness_level,omitempty"`
+	Gender       *UpdateProfileRequestGender         `json:"gender,omitempty"`
+	Name         *string                             `json:"name,omitempty"`
+}
+
+// UpdateProfileRequestFitnessGoals defines model for UpdateProfileRequest.FitnessGoals.
+type UpdateProfileRequestFitnessGoals string
+
+// UpdateProfileRequestFitnessLevel defines model for UpdateProfileRequest.FitnessLevel.
+type UpdateProfileRequestFitnessLevel string
+
+// UpdateProfileRequestGender defines model for UpdateProfileRequest.Gender.
+type UpdateProfileRequestGender string
+
 // UpdateTrainerRequest defines model for UpdateTrainerRequest.
 type UpdateTrainerRequest struct {
 	Bio               *string                               `json:"bio,omitempty"`
@@ -578,6 +704,18 @@ type UpdateTrainerRequest struct {
 
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
 type UpdateTrainerRequestOnboardingStatus string
+
+// UserProfileResponse defines model for UserProfileResponse.
+type UserProfileResponse struct {
+	AvatarUrl       *string             `json:"avatar_url"`
+	Email           openapi_types.Email `json:"email"`
+	FitnessGoals    []string            `json:"fitness_goals"`
+	FitnessLevel    *string             `json:"fitness_level"`
+	Gender          *string             `json:"gender"`
+	Id              openapi_types.UUID  `json:"id"`
+	Name            string              `json:"name"`
+	ProfileComplete bool                `json:"profile_complete"`
+}
 
 // VerifyEmailRequest defines model for VerifyEmailRequest.
 type VerifyEmailRequest struct {
@@ -661,6 +799,12 @@ type GetTrainerReviewsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// GetUserProfile200JSONResponseBodyStatus defines parameters for GetUserProfile.
+type GetUserProfile200JSONResponseBodyStatus string
+
+// UpdateUserProfile200JSONResponseBodyStatus defines parameters for UpdateUserProfile.
+type UpdateUserProfile200JSONResponseBodyStatus string
+
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -713,6 +857,9 @@ type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
+
+// UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
+type UpdateUserProfileJSONRequestBody = UpdateProfileRequest
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
@@ -800,6 +947,12 @@ type ServerInterface interface {
 	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
+	// Get the authenticated user's profile
+	// (GET /users/me/profile)
+	GetUserProfile(c *gin.Context)
+	// Update the authenticated user's profile (onboarding)
+	// (PATCH /users/me/profile)
+	UpdateUserProfile(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -1347,6 +1500,36 @@ func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
 	siw.Handler.GetTrainerReviews(c, id, params)
 }
 
+// GetUserProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetUserProfile(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserProfile(c)
+}
+
+// UpdateUserProfile operation middleware
+func (siw *ServerInterfaceWrapper) UpdateUserProfile(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateUserProfile(c)
+}
+
 // HandleGetWaitlist operation middleware
 func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
 
@@ -1443,6 +1626,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
+	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
+	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }
