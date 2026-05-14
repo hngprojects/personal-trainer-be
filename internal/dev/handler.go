@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
-	"github.com/hngprojects/personal-trainer-be/internal/config"
 )
 
 type Handler struct {
@@ -18,8 +17,6 @@ type Handler struct {
 func NewDevHandler() *Handler {
 	return &Handler{}
 }
-
-var cfg *config.Config
 
 func (h *Handler) HandleCreateDevToken(c *gin.Context) {
 	type response struct {
