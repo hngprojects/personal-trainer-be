@@ -147,4 +147,26 @@ RETURNING
   updated_at;
 
 -- name: ListPendingTrainers :many
-SELECT * FROM trainers WHERE onboarding_status = 'pending' ORDER BY created_at DESC;
+SELECT * 
+FROM trainers 
+WHERE onboarding_status = 'pending' 
+ORDER BY created_at DESC;
+
+-- name: GetTrainers :many
+SELECT
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,         
+  calendly_link,
+  onboarding_status,
+  average_rating, 
+  total_reviews,
+  created_at,
+  updated_at
+FROM trainers
+ORDER BY created_at DESC; 

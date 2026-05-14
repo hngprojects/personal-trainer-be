@@ -68,6 +68,45 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Rev
 	return i, err
 }
 
+const getTrainerReviews = `-- name: GetTrainerReviews :many
+SELECT id, booking_id, trainer_id, client_user_id, rating, review, created_at, updated_at
+FROM reviews
+WHERE trainer_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetTrainerReviews(ctx context.Context, trainerID uuid.UUID) ([]Review, error) {
+	rows, err := q.db.QueryContext(ctx, getTrainerReviews, trainerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Review
+	for rows.Next() {
+		var i Review
+		if err := rows.Scan(
+			&i.ID,
+			&i.BookingID,
+			&i.TrainerID,
+			&i.ClientUserID,
+			&i.Rating,
+			&i.Review,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrainerReviewsAfterCursor = `-- name: ListTrainerReviewsAfterCursor :many
 SELECT
   id,

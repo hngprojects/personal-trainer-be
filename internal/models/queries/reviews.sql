@@ -83,3 +83,9 @@ RETURNING
   total_reviews,
   created_at,
   updated_at;
+
+-- name: GetTrainerReviews :many
+SELECT *
+FROM reviews
+WHERE trainer_id = $1
+ORDER BY created_at DESC;

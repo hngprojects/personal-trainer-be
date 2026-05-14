@@ -19,19 +19,19 @@ const (
 
 // Defines values for AuthUserUserType.
 const (
-	Admin   AuthUserUserType = "admin"
-	Client  AuthUserUserType = "client"
-	Trainer AuthUserUserType = "trainer"
+	AuthUserUserTypeAdmin   AuthUserUserType = "admin"
+	AuthUserUserTypeClient  AuthUserUserType = "client"
+	AuthUserUserTypeTrainer AuthUserUserType = "trainer"
 )
 
 // Valid indicates whether the value is a known member of the AuthUserUserType enum.
 func (e AuthUserUserType) Valid() bool {
 	switch e {
-	case Admin:
+	case AuthUserUserTypeAdmin:
 		return true
-	case Client:
+	case AuthUserUserTypeClient:
 		return true
-	case Trainer:
+	case AuthUserUserTypeTrainer:
 		return true
 	default:
 		return false
@@ -146,6 +146,48 @@ func (e SuccessResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for TrainerOnboardingStatus.
+const (
+	Approved  TrainerOnboardingStatus = "approved"
+	Pending   TrainerOnboardingStatus = "pending"
+	Rejected  TrainerOnboardingStatus = "rejected"
+	Suspended TrainerOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the TrainerOnboardingStatus enum.
+func (e TrainerOnboardingStatus) Valid() bool {
+	switch e {
+	case Approved:
+		return true
+	case Pending:
+		return true
+	case Rejected:
+		return true
+	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerResponseStatus.
+const (
+	TrainerResponseStatusError   TrainerResponseStatus = "error"
+	TrainerResponseStatusSuccess TrainerResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainerResponseStatus enum.
+func (e TrainerResponseStatus) Valid() bool {
+	switch e {
+	case TrainerResponseStatusError:
+		return true
+	case TrainerResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainerReviewsListResponseStatus.
 const (
 	TrainerReviewsListResponseStatusError   TrainerReviewsListResponseStatus = "error"
@@ -158,6 +200,24 @@ func (e TrainerReviewsListResponseStatus) Valid() bool {
 	case TrainerReviewsListResponseStatusError:
 		return true
 	case TrainerReviewsListResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainersListResponseStatus.
+const (
+	TrainersListResponseStatusError   TrainersListResponseStatus = "error"
+	TrainersListResponseStatusSuccess TrainersListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainersListResponseStatus enum.
+func (e TrainersListResponseStatus) Valid() bool {
+	switch e {
+	case TrainersListResponseStatusError:
+		return true
+	case TrainersListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -483,6 +543,28 @@ type SuccessResponse struct {
 // SuccessResponseStatus defines model for SuccessResponse.Status.
 type SuccessResponseStatus string
 
+// Trainer defines model for Trainer.
+type Trainer struct {
+	// AverageRating Average rating from client reviews. Null if no reviews yet.
+	AverageRating     *float32                `json:"average_rating"`
+	Bio               *string                 `json:"bio,omitempty"`
+	CalendlyConnected bool                    `json:"calendly_connected"`
+	CalendlyLink      *string                 `json:"calendly_link,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	DisplayPicture    *string                 `json:"display_picture,omitempty"`
+	Id                openapi_types.UUID      `json:"id"`
+	IntroVideoUrl     *string                 `json:"intro_video_url,omitempty"`
+	OnboardingStatus  TrainerOnboardingStatus `json:"onboarding_status"`
+	Specialization    *string                 `json:"specialization,omitempty"`
+	TotalReviews      int                     `json:"total_reviews"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	UserId            openapi_types.UUID      `json:"user_id"`
+	YearsOfExperience *int                    `json:"years_of_experience,omitempty"`
+}
+
+// TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
+type TrainerOnboardingStatus string
+
 // TrainerApplication defines model for TrainerApplication.
 type TrainerApplication struct {
 	Bio               *string            `json:"bio,omitempty"`
@@ -494,6 +576,21 @@ type TrainerApplication struct {
 	UserId            openapi_types.UUID `json:"user_id"`
 	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
 }
+
+// TrainerResponse defines model for TrainerResponse.
+type TrainerResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string   `json:"code"`
+	Data    *Trainer `json:"data,omitempty"`
+	Message string   `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}          `json:"meta,omitempty"`
+	Status TrainerResponseStatus `json:"status"`
+}
+
+// TrainerResponseStatus defines model for TrainerResponse.Status.
+type TrainerResponseStatus string
 
 // TrainerReviewsListResponse defines model for TrainerReviewsListResponse.
 type TrainerReviewsListResponse struct {
@@ -507,6 +604,21 @@ type TrainerReviewsListResponse struct {
 
 // TrainerReviewsListResponseStatus defines model for TrainerReviewsListResponse.Status.
 type TrainerReviewsListResponseStatus string
+
+// TrainersListResponse defines model for TrainersListResponse.
+type TrainersListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string     `json:"code"`
+	Data    *[]Trainer `json:"data,omitempty"`
+	Message string     `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}               `json:"meta,omitempty"`
+	Status TrainersListResponseStatus `json:"status"`
+}
+
+// TrainersListResponseStatus defines model for TrainersListResponse.Status.
+type TrainersListResponseStatus string
 
 // UpdateProfileRequest defines model for UpdateProfileRequest.
 type UpdateProfileRequest struct {
@@ -604,6 +716,14 @@ type HandleContactUsJSONBody struct {
 	Message string              `json:"message"`
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
+}
+
+// GetTrainersParams defines parameters for GetTrainers.
+type GetTrainersParams struct {
+	Specialization *string  `form:"specialization,omitempty" json:"specialization,omitempty"`
+	MinRating      *float32 `form:"min_rating,omitempty" json:"min_rating,omitempty"`
+	Limit          *int     `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor         *string  `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // GetTrainersIdReviewsParams defines parameters for GetTrainersIdReviews.
@@ -739,9 +859,15 @@ type ServerInterface interface {
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
+	// List approved trainers with optional filters
+	// (GET /trainers)
+	GetTrainers(c *gin.Context, params GetTrainersParams)
 	// Apply to become a trainer
 	// (POST /trainers/apply)
 	PostTrainersApply(c *gin.Context)
+	// Get a trainer's profile
+	// (GET /trainers/{id})
+	GetTrainersId(c *gin.Context, id openapi_types.UUID)
 	// Get reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainersIdReviews(c *gin.Context, id openapi_types.UUID, params GetTrainersIdReviewsParams)
@@ -1129,6 +1255,59 @@ func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 	siw.Handler.CreateReview(c)
 }
 
+// GetTrainers operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersParams
+
+	// ------------- Optional query parameter "specialization" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "specialization", c.Request.URL.Query(), &params.Specialization, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter specialization: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "min_rating" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_rating", c.Request.URL.Query(), &params.MinRating, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter min_rating: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainers(c, params)
+}
+
 // PostTrainersApply operation middleware
 func (siw *ServerInterfaceWrapper) PostTrainersApply(c *gin.Context) {
 
@@ -1142,6 +1321,33 @@ func (siw *ServerInterfaceWrapper) PostTrainersApply(c *gin.Context) {
 	}
 
 	siw.Handler.PostTrainersApply(c)
+}
+
+// GetTrainersId operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersId(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersId(c, id)
 }
 
 // GetTrainersIdReviews operation middleware
@@ -1310,7 +1516,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
+	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers/apply", wrapper.PostTrainersApply)
+	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainersId)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainersIdReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)

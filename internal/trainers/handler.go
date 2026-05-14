@@ -76,6 +76,45 @@ func (h *Handler) TrainerApply(c *gin.Context) {
 	c.JSON(http.StatusCreated, TrainerToMap(trainer))
 }
 
+func (h *Handler) GetTrainerId(c *gin.Context, id uuid.UUID) {
+	trainer, err := h.q.GetTrainerByID(c.Request.Context(), id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
+			return
+		}
+		h.log.Error("get trainer by id failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainer", api.CodeServerError))
+		return
+	}
+	c.JSON(http.StatusOK, TrainerToMap(trainer))
+}
+
+func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
+	trainers, err := h.q.GetTrainers(c.Request.Context())
+	if err != nil {
+		h.log.Error("get trainers failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainers", api.CodeServerError))
+		return
+	}
+	out := make([]map[string]interface{}, len(trainers))
+	for i, t := range trainers {
+		out[i] = TrainerToMap(t)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.GetTrainersIdReviewsParams) {
+	reviews, err := h.q.GetTrainerReviews(c.Request.Context(), id)
+	if err != nil {
+		h.log.Error("get trainer reviews failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainer reviews", api.CodeServerError))
+		return
+	}
+	c.JSON(http.StatusOK, reviews)
+}
+
+
 // Helper functions
 func nullStringPtr(s *string) sql.NullString {
 	if s == nil {
