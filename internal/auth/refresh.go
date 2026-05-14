@@ -80,10 +80,7 @@ func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := ValidateAccessToken(body.AccessToken)
-	if err != nil {
-		//intentionally ignore
-	}
+	accessToken, _ := ValidateAccessToken(body.AccessToken)
 
 	if accessToken != nil && accessToken.Valid {
 		accessClaims, ok := accessToken.Claims.(jwt.MapClaims)
