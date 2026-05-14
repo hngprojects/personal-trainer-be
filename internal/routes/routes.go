@@ -14,19 +14,19 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
+	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
-	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
-	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
+	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
 // Router holds the wrapped Redis client (*appredis.Client) — its method set

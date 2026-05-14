@@ -1278,8 +1278,6 @@ func (siw *ServerInterfaceWrapper) UpdateBookingSlot(c *gin.Context) {
 // BookDiscoveryCall operation middleware
 func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 
-	c.Set(string(BearerAuthScopes), []string{})
-
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {

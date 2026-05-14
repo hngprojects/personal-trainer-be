@@ -62,9 +62,13 @@ func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error  { return ni
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
 func (m *fakeMailer) SendWaitlistConfirmation(_ string) error        { return nil }
 func (m *fakeMailer) SendAdminCredentials(_, _ string) error         { return nil }
-func (m *fakeMailer) SendContactConfirmation(_, _ string) error                              { return nil }
-func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error { return nil }
-func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error { return nil }
+func (m *fakeMailer) SendContactConfirmation(_, _ string) error      { return nil }
+func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
+	return nil
+}
+func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error {
+	return nil
+}
 
 var _ email.Mailer = (*fakeMailer)(nil)
 

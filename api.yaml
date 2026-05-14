@@ -26,6 +26,8 @@ tags:
     description: Endpoints to handle waitlist data.
   - name: User
     description: User profile and onboarding endpoints.
+  - name: User
+    description: User profile and onboarding endpoints.
 
 components:
   securitySchemes:
@@ -386,7 +388,17 @@ components:
 
     UserProfileResponse:
       type: object
-      required: [id, email, name, gender, fitness_goals, fitness_level, avatar_url, profile_complete]
+      required:
+        [
+          id,
+          email,
+          name,
+          gender,
+          fitness_goals,
+          fitness_level,
+          avatar_url,
+          profile_complete,
+        ]
       properties:
         id:
           type: string
@@ -464,7 +476,16 @@ components:
 
     Review:
       type: object
-      required: [id, booking_id, trainer_id, client_user_id, rating, created_at, updated_at]
+      required:
+        [
+          id,
+          booking_id,
+          trainer_id,
+          client_user_id,
+          rating,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -570,7 +591,6 @@ components:
 
 security:
   - bearerAuth: []
-
 
 paths:
   /:
