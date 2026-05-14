@@ -210,7 +210,7 @@ func (s *Router) Routes() *gin.Engine {
 						}
 						// Only apply trainersAdminOnly to protected admin routes -- NOT /trainers/apply
 						if trainersAdminOnly != nil &&
-							!(method == "POST" && path == "/api/v1/trainers/apply") {
+							(method != "POST" || path != "/api/v1/trainers/apply") {
 							trainersAdminOnly(c)
 							if c.IsAborted() {
 								return
