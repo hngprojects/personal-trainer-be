@@ -16,6 +16,9 @@ type Repository interface {
 	GetBookingByID(ctx context.Context, id uuid.UUID) (db.DiscoveryBooking, error)
 	HasExistingBooking(ctx context.Context, userID uuid.UUID) (bool, error)
 	CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error)
+	CheckSlotConflictExcluding(ctx context.Context, arg db.CheckSlotConflictExcludingParams) (int64, error)
+	RescheduleBooking(ctx context.Context, arg db.RescheduleDiscoveryBookingParams) (db.DiscoveryBooking, error)
+	CreateRescheduleHistory(ctx context.Context, arg db.CreateRescheduleHistoryParams) error
 
 	GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error)
 	GetSlotByID(ctx context.Context, id uuid.UUID) (db.BookingSlot, error)
@@ -57,6 +60,18 @@ func (r *postgresRepo) HasExistingBooking(ctx context.Context, userID uuid.UUID)
 
 func (r *postgresRepo) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
 	return r.q.CheckSlotConflict(ctx, selectedDatetime)
+}
+
+func (r *postgresRepo) CheckSlotConflictExcluding(ctx context.Context, arg db.CheckSlotConflictExcludingParams) (int64, error) {
+	return r.q.CheckSlotConflictExcluding(ctx, arg)
+}
+
+func (r *postgresRepo) RescheduleBooking(ctx context.Context, arg db.RescheduleDiscoveryBookingParams) (db.DiscoveryBooking, error) {
+	return r.q.RescheduleDiscoveryBooking(ctx, arg)
+}
+
+func (r *postgresRepo) CreateRescheduleHistory(ctx context.Context, arg db.CreateRescheduleHistoryParams) error {
+	return r.q.CreateRescheduleHistory(ctx, arg)
 }
 
 func (r *postgresRepo) GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error) {

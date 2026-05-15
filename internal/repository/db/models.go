@@ -35,6 +35,7 @@ type BookingRescheduleHistory struct {
 	RescheduledBy      string
 	Reason             sql.NullString
 	CreatedAt          time.Time
+	Notes              sql.NullString
 }
 
 type BookingSlot struct {
@@ -71,6 +72,7 @@ type DiscoveryBooking struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
+	RescheduleCount  int32
 }
 
 type PasswordResetCode struct {
