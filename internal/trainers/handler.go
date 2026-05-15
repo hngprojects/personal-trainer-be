@@ -3,6 +3,7 @@ package trainers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"math"
 	"net/http"
@@ -74,7 +75,7 @@ func (h *Handler) TrainerApply(c *gin.Context) {
 func (h *Handler) GetTrainerId(c *gin.Context, id uuid.UUID) {
 	trainer, err := h.q.GetTrainerByID(c.Request.Context(), id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
@@ -123,6 +124,10 @@ func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.GetTrainersIdReviewsParams) {
 	reviews, err := h.q.GetTrainerReviews(c.Request.Context(), id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
+			return
+		}
 		h.log.Error("get trainer reviews failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainer reviews", api.CodeServerError))
 		return
