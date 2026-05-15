@@ -19,6 +19,7 @@ type Mailer interface {
 	SendContactConfirmation(to, name string) error
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -151,7 +152,12 @@ func (m *LogMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledA
 }
 
 func (m *LogMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
-	slog.Info("email (admin notification)", "to", to, "client", clientName, "client_email", clientEmail, "contact_mode", contactMode)
+	slog.Info("email (admin discovery notification)", "to", to, "client", clientName)
+	return nil
+}
+
+func (m *LogMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	slog.Info("email (discovery reschedule)", "to", to, "name", name, "new_time", newTime)
 	return nil
 }
 
@@ -623,3 +629,78 @@ func contactConfirmationHTML(name string) (string, error) {
 	}
 	return body.String(), nil
 }
+
+func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build reschedule email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryRescheduleSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const discoveryRescheduleSubject = "Your Discovery Call Has Been Rescheduled"
+
+func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	oldLocal := oldTime.In(loc)
+	newLocal := newTime.In(loc)
+
+	contactDetails := ""
+	if contactMode == "zoom_meeting" && zoomLink != "" {
+		contactDetails = `<p><strong>New Zoom Link:</strong> <a href="` + zoomLink + `">` + zoomLink + `</a></p>`
+	} else if contactMode == "phone_callback" && phoneNumber != "" {
+		contactDetails = `<p><strong>Phone Number:</strong> ` + phoneNumber + `</p>`
+	}
+
+	t, err := template.New("reschedule").Parse(discoveryRescheduleTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"Name":           name,
+		"OldTime":        oldLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":        newLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone":       timezone,
+		"ContactMode":    contactMode,
+		"ContactDetails": template.HTML(contactDetails),
+	})
+	return buf.String(), err
+}
+
+const discoveryRescheduleTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Discovery Call Rescheduled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Your Discovery Call Has Been Rescheduled</h2>
+  <p>Hi {{.Name}},</p>
+  <p>Your discovery call has been successfully rescheduled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{.ContactDetails}}
+  <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
+  <p>See you soon!</p>
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`
