@@ -345,12 +345,51 @@ SELECT
   created_at,
   updated_at
 FROM trainers
-WHERE ($1::text = '' OR specialization = $1)
-ORDER BY created_at DESC
+WHERE
+  (
+    $2::text IS NULL
+    OR specialization = $2
+  )
+  AND (
+    $3::int IS NULL
+    OR years_of_experience >= $3
+  )
+  AND (
+    $4 IS NULL
+    OR average_rating >= $4
+  )
+  AND onboarding_status = 'approved'
+  
+  AND (
+    $5::timestamptz IS NULL
+    OR created_at < $5
+    OR (
+      created_at = $5
+      AND id < $6::uuid
+    )
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $1
 `
 
-func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainers, dollar_1)
+type ListTrainersParams struct {
+	Limit                int32
+	Specialization       sql.NullString
+	MinYearsOfExperience sql.NullInt32
+	MinAverageRating     interface{}
+	CursorCreatedAt      sql.NullTime
+	CursorID             uuid.NullUUID
+}
+
+func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]Trainer, error) {
+	rows, err := q.db.QueryContext(ctx, listTrainers,
+		arg.Limit,
+		arg.Specialization,
+		arg.MinYearsOfExperience,
+		arg.MinAverageRating,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+	)
 	if err != nil {
 		return nil, err
 	}

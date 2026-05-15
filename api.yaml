@@ -1931,9 +1931,17 @@ paths:
           name: min_rating
           schema:
             type: number
+            format: double
             minimum: 1
             maximum: 5
             description: Filter by minimum average rating
+        - in: query
+          name: min_years_of_experience
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            description: Filter by minimum years of experience
         - in: query
           name: limit
           schema:

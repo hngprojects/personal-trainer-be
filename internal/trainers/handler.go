@@ -86,16 +86,37 @@ func (h *Handler) GetTrainerId(c *gin.Context, id uuid.UUID) {
 }
 
 func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
-	trainers, err := h.q.GetTrainers(c.Request.Context())
+	dbParams := db.ListTrainersParams{}
+
+	if params.Specialization != nil {
+		dbParams.Specialization = sql.NullString{
+			String: *params.Specialization,
+			Valid:  true,
+		}
+	}
+
+	if params.MinRating != nil {
+		dbParams.MinAverageRating = params.MinRating
+	}
+
+	if params.Limit != nil {
+		dbParams.Limit = int32(*params.Limit)
+	} else {
+		dbParams.Limit = 20
+	}
+
+	trainers, err := h.q.ListTrainers(c.Request.Context(), dbParams)
 	if err != nil {
 		h.log.Error("get trainers failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainers", api.CodeServerError))
 		return
 	}
+
 	out := make([]map[string]interface{}, len(trainers))
 	for i, t := range trainers {
 		out[i] = TrainerToMap(t)
 	}
+
 	c.JSON(http.StatusOK, out)
 }
 

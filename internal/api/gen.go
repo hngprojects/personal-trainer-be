@@ -719,10 +719,11 @@ type HandleContactUsJSONBody struct {
 
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
-	Specialization *string  `form:"specialization,omitempty" json:"specialization,omitempty"`
-	MinRating      *float32 `form:"min_rating,omitempty" json:"min_rating,omitempty"`
-	Limit          *int     `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor         *string  `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Specialization       *string  `form:"specialization,omitempty" json:"specialization,omitempty"`
+	MinRating            *float64 `form:"min_rating,omitempty" json:"min_rating,omitempty"`
+	MinYearsOfExperience *int     `form:"min_years_of_experience,omitempty" json:"min_years_of_experience,omitempty"`
+	Limit                *int     `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor               *string  `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // GetTrainersIdReviewsParams defines parameters for GetTrainersIdReviews.
@@ -1275,9 +1276,17 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
 	// ------------- Optional query parameter "min_rating" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_rating", c.Request.URL.Query(), &params.MinRating, runtime.BindQueryParameterOptions{Type: "number", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_rating", c.Request.URL.Query(), &params.MinRating, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter min_rating: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "min_years_of_experience" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_years_of_experience", c.Request.URL.Query(), &params.MinYearsOfExperience, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter min_years_of_experience: %w", err), http.StatusBadRequest)
 		return
 	}
 

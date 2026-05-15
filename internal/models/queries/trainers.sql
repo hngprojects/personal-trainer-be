@@ -73,9 +73,31 @@ SELECT
   created_at,
   updated_at
 FROM trainers
-WHERE ($1::text = '' OR specialization = $1)
-ORDER BY created_at DESC;
-
+WHERE
+  (
+    sqlc.narg(specialization)::text IS NULL
+    OR specialization = sqlc.narg(specialization)
+  )
+  AND (
+    sqlc.narg(min_years_of_experience)::int IS NULL
+    OR years_of_experience >= sqlc.narg(min_years_of_experience)
+  )
+  AND (
+    sqlc.narg(min_average_rating) IS NULL
+    OR average_rating >= sqlc.narg(min_average_rating)
+  )
+  AND onboarding_status = 'approved'
+  
+  AND (
+    sqlc.narg(cursor_created_at)::timestamptz IS NULL
+    OR created_at < sqlc.narg(cursor_created_at)
+    OR (
+      created_at = sqlc.narg(cursor_created_at)
+      AND id < sqlc.narg(cursor_id)::uuid
+    )
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $1;
 -- name: UpdateTrainer :one
 UPDATE trainers
 SET
