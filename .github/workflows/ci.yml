@@ -133,17 +133,35 @@ jobs:
         env:
           GITLEAKS_VERSION: "8.30.1"
         run: |
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin gitleaks
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          checksums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+
+          # Download tarball + the official checksums manifest from the same release.
+          curl -fsSL --retry 3 -o "${archive}" "${base}/${archive}"
+          curl -fsSL --retry 3 -o "${checksums}" "${base}/${checksums}"
+
+          # Verify SHA-256 against the manifest BEFORE extracting. Fails the
+          # step if the bytes don't match (mirror compromise, MITM, corrupt
+          # download, etc.) — never run an unverified binary as root.
+          grep "  ${archive}$" "${checksums}" | sha256sum -c -
+
+          sudo tar -xz -C /usr/local/bin -f "${archive}" gitleaks
+          rm -f "${archive}" "${checksums}"
           gitleaks version
 
-      # `detect` walks every commit in the repo's history. To suppress a known
-      # false positive (or an already-rotated secret), add its fingerprint to a
-      # `.gitleaksignore` file at the repo root, or define an allowlist rule in
-      # `.gitleaks.toml`. Real fix for any unexpected finding is to ROTATE the
-      # secret, then ignore — the leak is in git history forever otherwise.
+      # `git` is the modern command for scanning a repo's commit history
+      # (`detect` was deprecated in v8.19.0). The trailing `.` is the positional
+      # repo path. `--redact=100` fully redacts secret values in output (the
+      # bool form was removed when `--redact` became a percentage Uint flag).
+      #
+      # To suppress a known false positive (or an already-rotated secret) add
+      # its fingerprint to `.gitleaksignore` at the repo root, or define an
+      # allowlist rule in `.gitleaks.toml`. Real fix for any unexpected finding
+      # is to ROTATE the secret first — the leak is in git history forever.
       - name: Scan repo and history for secrets
-        run: gitleaks detect --source . --redact --no-banner --verbose
+        run: gitleaks git . --redact=100 --no-banner --verbose
 
   # Aggregator status check — the branch-protection rule on `dev`/`main` requires
   # a status check named exactly "ci". This job exists solely so that one shows
