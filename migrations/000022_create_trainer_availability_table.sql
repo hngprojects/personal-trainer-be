@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS trainer_availability (
 
 CREATE INDEX IF NOT EXISTS idx_trainer_availability_trainer ON trainer_availability(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_trainer_availability_day    ON trainer_availability(day_of_week);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trainer_availability_unique ON trainer_availability(trainer_id, day_of_week, start_time, end_time);
 
 -- +goose Down
+DROP INDEX IF EXISTS idx_trainer_availability_unique;
 DROP INDEX IF EXISTS idx_trainer_availability_day;
 DROP INDEX IF EXISTS idx_trainer_availability_trainer;
 DROP TABLE IF EXISTS trainer_availability;

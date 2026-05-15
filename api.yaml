@@ -294,10 +294,12 @@ components:
           description: "Day of week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday"
         start_time:
           type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
           example: "09:00"
           description: "Start time in HH:MM format (24-hour)"
         end_time:
           type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
           example: "17:00"
           description: "End time in HH:MM format (24-hour)"
         timezone:
