@@ -16,11 +16,6 @@ import (
 
 func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if IsMockAuthBypass(c) {
-			c.Next()
-			return
-		}
-
 		header := c.GetHeader("Authorization")
 		if header == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("missing token", api.CodeUnauthorized))

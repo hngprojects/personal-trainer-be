@@ -101,3 +101,22 @@ func validateTyped(tokenString string, expected TokenType) (*jwt.Token, error) {
 	}
 	return tok, nil
 }
+
+func GetUserIDFromAccessToken(tokenString string) (string, error) {
+	token, err := ValidateAccessToken(tokenString)
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", errors.New("invalid token claims")
+	}
+
+	sub, ok := claims["sub"].(string)
+	if !ok || sub == "" {
+		return "", errors.New("missing or invalid sub claim")
+	}
+
+	return sub, nil
+}

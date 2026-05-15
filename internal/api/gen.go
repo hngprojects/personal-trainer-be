@@ -567,14 +567,13 @@ type TrainerOnboardingStatus string
 
 // TrainerApplication defines model for TrainerApplication.
 type TrainerApplication struct {
-	Bio               *string            `json:"bio,omitempty"`
-	CalendlyConnected *bool              `json:"calendly_connected,omitempty"`
-	CalendlyLink      *string            `json:"calendly_link,omitempty"`
-	DisplayPicture    *string            `json:"display_picture,omitempty"`
-	IntroVideoUrl     *string            `json:"intro_video_url,omitempty"`
-	Specialization    *string            `json:"specialization,omitempty"`
-	UserId            openapi_types.UUID `json:"user_id"`
-	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
+	Bio               *string `json:"bio,omitempty"`
+	CalendlyConnected *bool   `json:"calendly_connected,omitempty"`
+	CalendlyLink      *string `json:"calendly_link,omitempty"`
+	DisplayPicture    *string `json:"display_picture,omitempty"`
+	IntroVideoUrl     *string `json:"intro_video_url,omitempty"`
+	Specialization    *string `json:"specialization,omitempty"`
+	YearsOfExperience *int    `json:"years_of_experience,omitempty"`
 }
 
 // TrainerResponse defines model for TrainerResponse.
