@@ -344,24 +344,6 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
-// Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
-const (
-	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
-	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
-func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case HandleVerifyEmail200JSONResponseBodyStatusError:
-		return true
-	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetUserProfile200JSONResponseBodyStatus.
 const (
 	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
@@ -522,6 +504,16 @@ type GoogleAuthData struct {
 	User         AuthUser `json:"user"`
 }
 
+// LocalAuthData defines model for LocalAuthData.
+// Retained for internal use by local auth handler.
+type LocalAuthData struct {
+	AccessToken  string   `json:"access_token"`
+	ExpiresIn    int      `json:"expires_in"`
+	RefreshToken string   `json:"refresh_token"`
+	User         AuthUser `json:"user"`
+}
+
+
 // GoogleAuthResponse defines model for GoogleAuthResponse.
 type GoogleAuthResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -543,25 +535,19 @@ type GoogleMobileSignInRequest struct {
 	IdToken string `json:"id_token"`
 }
 
-// LocalAuthData defines model for LocalAuthData.
-type LocalAuthData struct {
-	AccessToken  string   `json:"access_token"`
-	ExpiresIn    int      `json:"expires_in"`
-	RefreshToken string   `json:"refresh_token"`
-	User         AuthUser `json:"user"`
-}
-
-// RegisterRequest defines model for RegisterRequest.
-type RegisterRequest struct {
-	Email openapi_types.Email `json:"email"`
-}
-
 // ResetPasswordRequest defines model for ResetPasswordRequest.
 type ResetPasswordRequest struct {
 	Code        string              `json:"code"`
 	Email       openapi_types.Email `json:"email"`
 	NewPassword string              `json:"new_password"`
 }
+
+// RegisterRequest defines model for RegisterRequest.
+// Retained for internal use by local auth handler.
+type RegisterRequest struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 
 // Review defines model for Review.
 type Review struct {
@@ -718,10 +704,12 @@ type UserProfileResponse struct {
 }
 
 // VerifyEmailRequest defines model for VerifyEmailRequest.
+// Retained for internal use by local auth handler.
 type VerifyEmailRequest struct {
 	Code  string              `json:"code"`
 	Email openapi_types.Email `json:"email"`
 }
+
 
 // WaitlistRequest defines model for WaitlistRequest.
 type WaitlistRequest struct {
@@ -758,18 +746,17 @@ type HandleGoogleCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
-// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
-type HandleLocalAuthJSONBody struct {
-	Email openapi_types.Email `json:"email"`
-}
-
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
-type HandleVerifyEmail200JSONResponseBodyStatus string
+// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
+// Retained for internal use by local auth handler.
+type HandleLocalAuthJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 
 // GetBookingSlotsParams defines parameters for GetBookingSlots.
 type GetBookingSlotsParams struct {
@@ -822,20 +809,21 @@ type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 // HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
 type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
-// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
-type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
-
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
+
+// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
+type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
 
-// HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
-type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
-
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
+
+
+// HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
+type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 
 // CreateBookingSlotJSONRequestBody defines body for CreateBookingSlot for application/json ContentType.
 type CreateBookingSlotJSONRequestBody = BookingSlotRequest
@@ -870,16 +858,16 @@ type ServerInterface interface {
 	// (GET /)
 	Root(c *gin.Context)
 	// Create an admin account (super_admin only)
-	// (POST /admin/add)
+	// (POST /admin/users)
 	AdminAdd(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
-	// (POST /auth/admin/log-in)
+	// (POST /auth/admin/login)
 	HandleAdminLogin(c *gin.Context)
 	// Request a password reset code
-	// (POST /auth/forgot-password)
+	// (POST /auth/password/forgot)
 	HandleForgotPassword(c *gin.Context)
 	// Initiate Google OAuth — redirects browser to Google consent screen
 	// (GET /auth/google)
@@ -890,21 +878,12 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
-	// Login with email
-	// (POST /auth/login)
-	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
-	// Register or request a new OTP — sends a 6-digit verification code to the email
-	// (POST /auth/register)
-	HandleRegister(c *gin.Context)
 	// Reset password using a previously emailed code
-	// (POST /auth/reset-password)
+	// (POST /auth/password/reset)
 	HandleResetPassword(c *gin.Context)
-	// Verify email with OTP — completes signup/login and returns JWT tokens
-	// (POST /auth/verify-email)
-	HandleVerifyEmail(c *gin.Context)
 	// List all active booking slots (public)
 	// (GET /booking-slots)
 	GetBookingSlots(c *gin.Context, params GetBookingSlotsParams)
@@ -918,10 +897,10 @@ type ServerInterface interface {
 	// (PUT /booking-slots/{id})
 	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
 	// Book a discovery call with a FitCall rep
-	// (POST /bookings/discovery)
+	// (POST /discovery-calls)
 	BookDiscoveryCall(c *gin.Context)
 	// Handle taking user feedback
-	// (POST /contact-us)
+	// (POST /contact)
 	HandleContactUs(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
@@ -1112,19 +1091,6 @@ func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
 	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
-// HandleLocalAuth operation middleware
-func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleLocalAuth(c)
-}
-
 // HandleLogout operation middleware
 func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
@@ -1140,19 +1106,6 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 	siw.Handler.HandleLogout(c)
 }
 
-// HandleRegister operation middleware
-func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleRegister(c)
-}
-
 // HandleResetPassword operation middleware
 func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
 
@@ -1164,19 +1117,6 @@ func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
 	}
 
 	siw.Handler.HandleResetPassword(c)
-}
-
-// HandleVerifyEmail operation middleware
-func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleVerifyEmail(c)
 }
 
 // GetBookingSlots operation middleware
@@ -1600,24 +1540,21 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
-	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.POST(options.BaseURL+"/admin/users", wrapper.AdminAdd)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
-	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
-	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
+	router.POST(options.BaseURL+"/auth/admin/login", wrapper.HandleAdminLogin)
+	router.POST(options.BaseURL+"/auth/password/forgot", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
-	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
-	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
-	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
-	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/auth/password/reset", wrapper.HandleResetPassword)
 	router.GET(options.BaseURL+"/booking-slots", wrapper.GetBookingSlots)
 	router.POST(options.BaseURL+"/booking-slots", wrapper.CreateBookingSlot)
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
-	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
-	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
+	router.POST(options.BaseURL+"/contact", wrapper.HandleContactUs)
+	router.POST(options.BaseURL+"/discovery-calls", wrapper.BookDiscoveryCall)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)

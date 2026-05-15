@@ -63,7 +63,6 @@ func (s *Router) Close() {
 type routerImpl struct {
 	google        *auth.GoogleHandler
 	googleMobile  *auth.MobileGoogleHandler
-	local         *auth.LocalHandler
 	root          *root.RootHandler
 	adminLogin    *handlers.AdminLoginHandler
 	health        *health.HealthHandler
@@ -129,8 +128,6 @@ func (s *Router) Routes() *gin.Engine {
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
 			rolesRepo := auth.NewPostgresRoleRepo(q)
 			adminLoginService := auth.NewAdminLoginService(usersRepo, rolesRepo, s.log)
-			codesRepo := auth.NewPostgresVerificationCodeRepo(q)
-			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
 			mailer := s.buildMailer()
@@ -157,8 +154,6 @@ func (s *Router) Routes() *gin.Engine {
 			// at request time already fail open; this matches that behaviour for
 			// the "no backend at all" startup case.
 			var (
-				verifyLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				registerLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 				forgotLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 				forgotIPLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 				resetLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
@@ -166,8 +161,6 @@ func (s *Router) Routes() *gin.Engine {
 			)
 			if s.redis != nil {
 				rawRedis := s.redis.Raw()
-				verifyLimiter = ratelimit.New(rawRedis, "rl:auth:verify", 5, 15*time.Minute)
-				registerLimiter = ratelimit.New(rawRedis, "rl:auth:register", 3, 15*time.Minute)
 				forgotLimiter = ratelimit.New(rawRedis, "rl:auth:forgot-password", 3, 15*time.Minute)
 				forgotIPLimiter = ratelimit.New(rawRedis, "rl:auth:forgot-password:ip", 10, 15*time.Minute)
 				resetLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
@@ -176,7 +169,6 @@ func (s *Router) Routes() *gin.Engine {
 				s.log.Warn("redis is not configured — auth rate limits disabled (using no-op limiters)")
 			}
 
-			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
 			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
 		} else {
