@@ -2416,7 +2416,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
   /dev/token:
     get:
       security: []
@@ -2424,6 +2423,322 @@ paths:
       responses:
         "200":
           description: Token generated
+  /sessions/{id}:
+    get:
+      security: []
+        # - bearerAuth: []
+      operationId: HandleGetSessionById
+      summary: Takes the Id of a session and returns data concerning the session
+      tags:
+        - Booking Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Session Fetched
+                code: OK
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  actual_start: "2026-05-07T10:00:00Z"
+                  actual_end: "2026-06-07T10:00:00Z"
+                  trainer_joined: false
+                  client_joined: false
+                  status: booked
+                  trainer_note: "Great session and clear communication."
+                  created_at: "2026-05-07T10:00:00Z"
+        "404":
+          description: session with provided ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking session not found.
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /sessions/{id}/start:
+    put:
+      security: []
+        # - bearerAuth: []
+      operationId: HandleStartSession
+      summary: A trainer starts a session via this endpoint.
+      tags:
+        - Booking Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session started successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Session started
+                code: OK
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  actual_start: "2026-05-07T10:00:00Z"
+                  actual_end: "2026-06-07T10:00:00Z"
+                  trainer_joined: true
+                  client_joined: false
+                  status: started
+                  trainer_note: ""
+                  created_at: "2026-05-07T10:00:00Z"
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "404":
+          description: session with provided ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking session not found.
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /sessions/{id}/join:
+    put:
+      security: []
+        # - bearerAuth: []
+      operationId: HandleJoinSession
+      summary: A client joined a session via this endpoint.
+      tags:
+        - Booking Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session joined successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Session joined
+                code: OK
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  actual_start: "2026-05-07T10:00:00Z"
+                  actual_end: "2026-06-07T10:00:00Z"
+                  trainer_joined: true
+                  client_joined: true
+                  status: in-session
+                  trainer_note: ""
+                  created_at: "2026-05-07T10:00:00Z"
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "404":
+          description: session with provided ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking session not found.
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /sessions/{id}/complete:
+    put:
+      security: []
+        # - bearerAuth: []
+      operationId: HandleCompleteSession
+      summary: The session is completed via this endpoint.
+      tags:
+        - Booking Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Session completed
+                code: OK
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  actual_start: "2026-05-07T10:00:00Z"
+                  actual_end: "2026-06-07T10:00:00Z"
+                  trainer_joined: true
+                  client_joined: true
+                  status: completed
+                  trainer_note: ""
+                  created_at: "2026-05-07T10:00:00Z"
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "404":
+          description: session with provided ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking session not found.
+                code: BAD_REQUEST
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /sessions/{id}/notes:
+    put:
+      security: []
+        # - bearerAuth: []
+      operationId: HandleTrainersNote
+      summary: Trainers submit notes for client.
+      tags:
+        - Booking Session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note:
+                  type: string
+                  format: string
+      responses:
+        "200":
+          description: trainers note sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Trainer submitted note
+                code: OK
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  actual_start: "2026-05-07T10:00:00Z"
+                  actual_end: "2026-06-07T10:00:00Z"
+                  trainer_joined: true
+                  client_joined: true
+                  status: completed
+                  trainer_note: "It was a greaession. Looking forwars for more sessions"
+                  created_at: "2026-05-07T10:00:00Z"
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "404":
+          description: session with provided ID not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: booking session not found.
+                code: BAD_REQUEST
         "500":
           description: Internal server error
           content:

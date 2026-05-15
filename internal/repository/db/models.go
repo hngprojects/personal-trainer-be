@@ -38,6 +38,18 @@ type BookingRescheduleHistory struct {
 	Notes              sql.NullString
 }
 
+type BookingSession struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	ActualStart   sql.NullTime
+	ActualEnd     sql.NullTime
+	TrainerJoined sql.NullBool
+	ClientJoined  sql.NullBool
+	Status        sql.NullString
+	TrainerNotes  sql.NullString
+	CreatedAt     time.Time
+}
+
 type BookingSlot struct {
 	ID        uuid.UUID
 	DayOfWeek int16

@@ -41,7 +41,8 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 		if err := json.Unmarshal([]byte(cached.Val()), &body); err != nil {
 			h.log.Error("failed to marshal data into body")
 		} else {
-			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, body, nil))
+			result := ParseResponse(&body)
+			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 			return
 		}
 	} else {
