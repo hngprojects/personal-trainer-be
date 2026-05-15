@@ -186,7 +186,7 @@ func saveAvailabilitySlots(ctx context.Context, store *availabilityStore, traine
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	qtx := store.q.WithTx(tx)
 
