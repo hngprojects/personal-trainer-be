@@ -76,6 +76,7 @@ type routerImpl struct {
 	admin         *admin.Handler
 	contact       *contact.Handler
 	discovery     *discovery.Handler
+	availability  *availabilityStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -142,6 +143,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.users = newUsersStore(q)
+			impl.availability = &availabilityStore{db: s.db, q: q}
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {

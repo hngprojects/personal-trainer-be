@@ -39,6 +39,12 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
+		// Trainer-owned endpoints (/trainers/me/*) are accessible to any authenticated trainer.
+		if strings.HasPrefix(path, "/api/v1/trainers/me/") || strings.HasPrefix(path, "/trainers/me/") {
+			c.Next()
+			return
+		}
+
 		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
 			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
