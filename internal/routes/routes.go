@@ -14,6 +14,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
+	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
@@ -70,6 +71,7 @@ type routerImpl struct {
 	health        *health.HealthHandler
 	waitlist      *waitlist.WaitlistHandler
 	logout        *auth.LogoutHandler
+	refresh       *auth.RefreshHandler
 	passwordReset *auth.PasswordResetHandler
 	trainers      *trainers.Handler
 	users         *usersStore
@@ -77,6 +79,7 @@ type routerImpl struct {
 	admin         *admin.Handler
 	contact       *contact.Handler
 	discovery     *discovery.Handler
+	dev           *dev.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -112,6 +115,7 @@ func (s *Router) Routes() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
+
 		impl := &routerImpl{
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
@@ -164,6 +168,7 @@ func (s *Router) Routes() *gin.Engine {
 				forgotIPLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 				resetLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 				resetIPLimiter  ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				refreshLimiter  ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 			)
 			if s.redis != nil {
 				rawRedis := s.redis.Raw()
@@ -173,15 +178,20 @@ func (s *Router) Routes() *gin.Engine {
 				forgotIPLimiter = ratelimit.New(rawRedis, "rl:auth:forgot-password:ip", 10, 15*time.Minute)
 				resetLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
 				resetIPLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password:ip", 20, 15*time.Minute)
+				refreshLimiter = ratelimit.New(rawRedis, "rl:auth:refresh", 10, 1*time.Minute)
 			} else {
 				s.log.Warn("redis is not configured — auth rate limits disabled (using no-op limiters)")
 			}
 
 			impl.local = auth.NewLocalHandler(usersRepo, sessionsRepo, codesRepo, localAuthRepo, mailer, s.log, s.cfg.OTPSecret, verifyLimiter, registerLimiter)
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
+			impl.refresh = auth.NewRefreshHandler(s.redis, s.log, refreshLimiter)
 			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log, q)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
+		}
+		if s.cfg.Env == "development" {
+			impl.dev = dev.NewDevHandler()
 		}
 
 		var authRedis appredis.RedisClient
