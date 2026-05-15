@@ -150,9 +150,6 @@ func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, 
 func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error {
 	return m.err
 }
-func (m *fakeMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error {
-	return m.err
-}
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {

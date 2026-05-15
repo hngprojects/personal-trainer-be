@@ -136,11 +136,3 @@ func (m *ResendMailer) SendContactConfirmation(to, name string) error {
 	}
 	return m.send(to, contactConfirmationSubject, body)
 }
-
-func (m *ResendMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
-	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
-	if err != nil {
-		return fmt.Errorf("resend: build reschedule email: %w", err)
-	}
-	return m.send(to, discoveryRescheduleSubject, html)
-}

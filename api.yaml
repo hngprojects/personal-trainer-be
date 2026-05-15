@@ -521,41 +521,6 @@ components:
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
 
-    RescheduleBookingRequest:
-      type: object
-      required:
-        - new_datetime
-        - timezone
-        - reason
-      properties:
-        new_datetime:
-          type: string
-          format: date-time
-          description: The new desired date and time (ISO 8601)
-        timezone:
-          type: string
-          description: IANA timezone string (e.g. America/New_York)
-          example: Africa/Lagos
-        reason:
-          $ref: "#/components/schemas/RescheduleReason"
-        notes:
-          type: string
-          maxLength: 200
-          description: Optional additional details
-        phone_number:
-          type: string
-          description: Updated phone number (phone_callback bookings only)
-
-    RescheduleReason:
-      type: string
-      enum:
-        - something_came_up
-        - feeling_unwell
-        - work_conflict
-        - personal_emergency
-        - travel
-        - other
-
     BookDiscoveryCallRequest:
       type: object
       required: [name, email, contact_mode, selected_datetime, timezone]
@@ -767,101 +732,6 @@ paths:
                 status: error
                 message: unauthorized
                 code: UNAUTHORIZED
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: internal server error
-                code: SERVER_ERROR
-
-  /auth/refresh:
-    post:
-      security:
-        - bearerAuth: []
-      operationId: HandleRefresh
-      tags:
-        - Auth — Session
-      summary: Refresh access token
-      description: >-
-        Invalidates the current access token by adding it to the blocklist (via cache)
-        and issues a new access token. Requires a valid refresh token in the Authorization header.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [access_token]
-              properties:
-                access_token:
-                  type: string
-                  description: The current access token to invalidate
-      responses:
-        "200":
-          description: Token refresh successful
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [status, message, code, data]
-                properties:
-                  status:
-                    type: string
-                    enum: [success]
-                  message:
-                    type: string
-                  code:
-                    type: string
-                  data:
-                    type: object
-                    required: [access_token, expires_in]
-                    properties:
-                      access_token:
-                        type: string
-                      expires_in:
-                        type: integer
-                        example: 600
-              example:
-                status: success
-                message: Access token refreshed
-                code: OK
-                data:
-                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Missing or invalid access token
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: access token is required
-                code: BAD_REQUEST
-        "401":
-          description: Invalid or expired refresh token in Authorization header
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: unauthorized
-                code: UNAUTHORIZED
-        "429":
-          description: Too many requests (rate limit exceeded)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: too many requests
-                code: TOO_MANY_REQUESTS
         "500":
           description: Internal server error
           content:
@@ -1825,82 +1695,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /bookings/{id}/reschedule:
-    put:
-      operationId: RescheduleDiscoveryCall
-      tags:
-        - Booking
-      summary: Reschedule an existing discovery call booking
-      description: |
-        Allows a client to reschedule their discovery call to a new date and time.
-        Blocked within 12 hours of the original call time.
-        For Zoom bookings, the old meeting is deleted and a new one is created.
-        For phone callbacks, only the time and phone number are updated.
-        Maximum 3 reschedules per booking.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RescheduleBookingRequest"
-      responses:
-        "200":
-          description: Discovery call rescheduled successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessResponse"
-                  - type: object
-                    properties:
-                      data:
-                        $ref: "#/components/schemas/DiscoveryBookingResponse"
-        "400":
-          description: Invalid input or new time outside open hours / in the past
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Booking locked (within 12-hour window), cancelled, or completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Booking not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: New time slot already taken
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: Maximum reschedule limit (3) reached
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /booking-slots:
     get:
       security: []
@@ -2203,21 +1997,3 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-  /dev/token:
-    get:
-      security: []
-      operationId: HandleCreateDevToken
-      responses:
-        "200":
-          description: Token generated
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
