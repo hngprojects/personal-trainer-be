@@ -386,7 +386,17 @@ components:
 
     UserProfileResponse:
       type: object
-      required: [id, email, name, gender, fitness_goals, fitness_level, avatar_url, profile_complete]
+      required:
+        [
+          id,
+          email,
+          name,
+          gender,
+          fitness_goals,
+          fitness_level,
+          avatar_url,
+          profile_complete,
+        ]
       properties:
         id:
           type: string
@@ -464,7 +474,16 @@ components:
 
     Review:
       type: object
-      required: [id, booking_id, trainer_id, client_user_id, rating, created_at, updated_at]
+      required:
+        [
+          id,
+          booking_id,
+          trainer_id,
+          client_user_id,
+          rating,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -605,7 +624,6 @@ components:
 
 security:
   - bearerAuth: []
-
 
 paths:
   /:
@@ -761,6 +779,101 @@ paths:
                 status: error
                 message: unauthorized
                 code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: internal server error
+                code: SERVER_ERROR
+
+  /auth/refresh:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleRefresh
+      tags:
+        - Auth — Session
+      summary: Refresh access token
+      description: >-
+        Invalidates the current access token by adding it to the blocklist (via cache)
+        and issues a new access token. Requires a valid refresh token in the Authorization header.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [access_token]
+              properties:
+                access_token:
+                  type: string
+                  description: The current access token to invalidate
+      responses:
+        "200":
+          description: Token refresh successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message, code, data]
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                  message:
+                    type: string
+                  code:
+                    type: string
+                  data:
+                    type: object
+                    required: [access_token, expires_in]
+                    properties:
+                      access_token:
+                        type: string
+                      expires_in:
+                        type: integer
+                        example: 600
+              example:
+                status: success
+                message: Access token refreshed
+                code: OK
+                data:
+                  access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in: 600
+        "400":
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: access token is required
+                code: BAD_REQUEST
+        "401":
+          description: Invalid or expired refresh token in Authorization header
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: unauthorized
+                code: UNAUTHORIZED
+        "429":
+          description: Too many requests (rate limit exceeded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: too many requests
+                code: TOO_MANY_REQUESTS
         "500":
           description: Internal server error
           content:
@@ -2275,3 +2388,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /dev/token:
+    get:
+      security: []
+      operationId: HandleCreateDevToken
+      responses:
+        "200":
+          description: Token generated
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR

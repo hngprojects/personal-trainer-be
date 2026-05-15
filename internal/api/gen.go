@@ -344,6 +344,21 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for HandleRefresh200JSONResponseBodyStatus.
+const (
+	HandleRefresh200JSONResponseBodyStatusSuccess HandleRefresh200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleRefresh200JSONResponseBodyStatus enum.
+func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case HandleRefresh200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
 const (
 	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
@@ -382,16 +397,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -807,6 +822,15 @@ type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// HandleRefreshJSONBody defines parameters for HandleRefresh.
+type HandleRefreshJSONBody struct {
+	// AccessToken The current access token to invalidate
+	AccessToken string `json:"access_token"`
+}
+
+// HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
+type HandleRefresh200JSONResponseBodyStatus string
+
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
@@ -866,6 +890,9 @@ type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
+
+// HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
+type HandleRefreshJSONRequestBody HandleRefreshJSONBody
 
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
@@ -935,6 +962,9 @@ type ServerInterface interface {
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
+	// Refresh access token
+	// (POST /auth/refresh)
+	HandleRefresh(c *gin.Context)
 	// Register or request a new OTP — sends a 6-digit verification code to the email
 	// (POST /auth/register)
 	HandleRegister(c *gin.Context)
@@ -965,6 +995,9 @@ type ServerInterface interface {
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
+
+	// (GET /dev/token)
+	HandleCreateDevToken(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -1182,6 +1215,21 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 	siw.Handler.HandleLogout(c)
 }
 
+// HandleRefresh operation middleware
+func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRefresh(c)
+}
+
 // HandleRegister operation middleware
 func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
 
@@ -1371,6 +1419,19 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 	}
 
 	siw.Handler.HandleContactUs(c)
+}
+
+// HandleCreateDevToken operation middleware
+func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleCreateDevToken(c)
 }
 
 // HealthCheck operation middleware
@@ -1679,6 +1740,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
@@ -1689,6 +1751,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
+	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
