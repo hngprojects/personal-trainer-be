@@ -116,7 +116,9 @@ SELECT
   cancelled_at
 FROM subscriptions
 WHERE client_id = $1
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT $2
+OFFSET $3;
 
 -- name: GetSubscriptionByID :one
 SELECT
@@ -138,6 +140,27 @@ FROM subscriptions
 WHERE id = $1
 LIMIT 1;
 
+-- name: GetPaymentByIdempotencyKey :one
+SELECT
+  id,
+  subscription_id,
+  booking_id,
+  payer_id,
+  provider,
+  provider_transaction_id,
+  idempotency_key,
+  currency,
+  total_amount,
+  trainer_earning,
+  platform_fee,
+  payment_type,
+  payment_status,
+  paid_at,
+  created_at
+FROM payments
+WHERE idempotency_key = $1
+LIMIT 1;
+
 -- name: CountSubscriptionUsage :one
 SELECT COUNT(*)
 FROM subscription_usage
@@ -145,7 +168,7 @@ WHERE subscription_id = $1;
 
 -- name: CancelSubscription :one
 UPDATE subscriptions
-SET cancel_at_period_end = true
+SET cancelled_at_period_end = true
 WHERE id = sqlc.arg(id)
 RETURNING
   id,

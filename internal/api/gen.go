@@ -509,6 +509,24 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for TipTrainerJSONBodyCurrency.
+const (
+	GBP TipTrainerJSONBodyCurrency = "GBP"
+	USD TipTrainerJSONBodyCurrency = "USD"
+)
+
+// Valid indicates whether the value is a known member of the TipTrainerJSONBodyCurrency enum.
+func (e TipTrainerJSONBodyCurrency) Valid() bool {
+	switch e {
+	case GBP:
+		return true
+	case USD:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateSubscriptionJSONBodyPlanType.
 const (
 	Monthly12 CreateSubscriptionJSONBodyPlanType = "monthly_12"
@@ -1082,10 +1100,15 @@ type HandleTrainersNoteJSONBody struct {
 // TipTrainerJSONBody defines parameters for TipTrainer.
 type TipTrainerJSONBody struct {
 	// Amount Amount in smallest currency unit (cents)
-	Amount          int    `json:"amount"`
-	Currency        string `json:"currency"`
-	PaymentMethodId string `json:"payment_method_id"`
+	Amount int `json:"amount"`
+
+	// Currency ISO 4217 currency code (lowercase, as required by Stripe).
+	Currency        TipTrainerJSONBodyCurrency `json:"currency"`
+	PaymentMethodId string                     `json:"payment_method_id"`
 }
+
+// TipTrainerJSONBodyCurrency defines parameters for TipTrainer.
+type TipTrainerJSONBodyCurrency string
 
 // CreateSubscriptionJSONBody defines parameters for CreateSubscription.
 type CreateSubscriptionJSONBody struct {

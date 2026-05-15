@@ -31,15 +31,18 @@ type ChargeResult struct {
 }
 
 func (c *Client) Charge(ctx context.Context, params ChargeParams) (*ChargeResult, error) {
-	pi, err := paymentintent.New(&stripe.PaymentIntentParams{
+	piParams := &stripe.PaymentIntentParams{
 		Amount:        stripe.Int64(params.Amount),
 		Currency:      stripe.String(params.Currency),
 		PaymentMethod: stripe.String(params.PaymentMethodID),
 		Confirm:       stripe.Bool(true),
-		Params: stripe.Params{
-			IdempotencyKey: stripe.String(params.IdempotencyKey),
-		},
-	})
+	}
+	piParams.Params.Context = ctx
+	if params.IdempotencyKey != "" {
+		piParams.Params.IdempotencyKey = stripe.String(params.IdempotencyKey)
+	}
+
+	pi, err := paymentintent.New(piParams)
 	if err != nil {
 		return nil, fmt.Errorf("stripe charge failed: %w", err)
 	}

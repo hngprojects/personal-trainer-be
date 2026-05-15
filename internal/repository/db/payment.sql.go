@@ -20,6 +20,7 @@ SET
   provider_transaction_id = $1,
   paid_at                 = NOW()
 WHERE id = $2
+    AND payment_status = 'pending'
 RETURNING
   id,
   subscription_id,
@@ -203,6 +204,7 @@ const failPayment = `-- name: FailPayment :one
 UPDATE payments
 SET payment_status = 'failed'
 WHERE id = $1
+    AND payment_status = 'pending'
 RETURNING
   id,
   subscription_id,
@@ -345,7 +347,15 @@ SELECT
 FROM payments
 WHERE payer_id = $1
 ORDER BY created_at DESC
+LIMIT $2
+OFFSET $3
 `
+
+type ListPaymentsParams struct {
+	PayerID uuid.UUID
+	Limit   int32
+	Offset  int32
+}
 
 type ListPaymentsRow struct {
 	ID                    uuid.UUID
@@ -365,8 +375,8 @@ type ListPaymentsRow struct {
 	CreatedAt             time.Time
 }
 
-func (q *Queries) ListPayments(ctx context.Context, payerID uuid.UUID) ([]ListPaymentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPayments, payerID)
+func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]ListPaymentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPayments, arg.PayerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,7 +58,7 @@ func (q *Queries) ActivateSubscription(ctx context.Context, id uuid.UUID) (Subsc
 
 const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
-SET cancel_at_period_end = true
+SET cancelled_at_period_end = true
 WHERE id = $1
 RETURNING
   id,
@@ -248,6 +249,69 @@ func (q *Queries) GetActiveSubscription(ctx context.Context, arg GetActiveSubscr
 	return i, err
 }
 
+const getPaymentByIdempotencyKey = `-- name: GetPaymentByIdempotencyKey :one
+SELECT
+  id,
+  subscription_id,
+  booking_id,
+  payer_id,
+  provider,
+  provider_transaction_id,
+  idempotency_key,
+  currency,
+  total_amount,
+  trainer_earning,
+  platform_fee,
+  payment_type,
+  payment_status,
+  paid_at,
+  created_at
+FROM payments
+WHERE idempotency_key = $1
+LIMIT 1
+`
+
+type GetPaymentByIdempotencyKeyRow struct {
+	ID                    uuid.UUID
+	SubscriptionID        uuid.NullUUID
+	BookingID             uuid.NullUUID
+	PayerID               uuid.UUID
+	Provider              string
+	ProviderTransactionID sql.NullString
+	IdempotencyKey        string
+	Currency              string
+	TotalAmount           int64
+	TrainerEarning        int64
+	PlatformFee           int64
+	PaymentType           string
+	PaymentStatus         string
+	PaidAt                sql.NullTime
+	CreatedAt             time.Time
+}
+
+func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, idempotencyKey string) (GetPaymentByIdempotencyKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, getPaymentByIdempotencyKey, idempotencyKey)
+	var i GetPaymentByIdempotencyKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.SubscriptionID,
+		&i.BookingID,
+		&i.PayerID,
+		&i.Provider,
+		&i.ProviderTransactionID,
+		&i.IdempotencyKey,
+		&i.Currency,
+		&i.TotalAmount,
+		&i.TrainerEarning,
+		&i.PlatformFee,
+		&i.PaymentType,
+		&i.PaymentStatus,
+		&i.PaidAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getPlanByType = `-- name: GetPlanByType :one
 SELECT
   id,
@@ -344,10 +408,18 @@ SELECT
 FROM subscriptions
 WHERE client_id = $1
 ORDER BY created_at DESC
+LIMIT $2
+OFFSET $3
 `
 
-func (q *Queries) ListSubscriptions(ctx context.Context, clientID uuid.UUID) ([]Subscription, error) {
-	rows, err := q.db.QueryContext(ctx, listSubscriptions, clientID)
+type ListSubscriptionsParams struct {
+	ClientID uuid.UUID
+	Limit    int32
+	Offset   int32
+}
+
+func (q *Queries) ListSubscriptions(ctx context.Context, arg ListSubscriptionsParams) ([]Subscription, error) {
+	rows, err := q.db.QueryContext(ctx, listSubscriptions, arg.ClientID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

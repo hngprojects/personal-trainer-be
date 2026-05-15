@@ -50,6 +50,7 @@ SET
   provider_transaction_id = sqlc.arg(provider_transaction_id),
   paid_at                 = NOW()
 WHERE id = sqlc.arg(id)
+    AND payment_status = 'pending'
 RETURNING
   id,
   subscription_id,
@@ -71,6 +72,7 @@ RETURNING
 UPDATE payments
 SET payment_status = 'failed'
 WHERE id = sqlc.arg(id)
+    AND payment_status = 'pending'
 RETURNING
   id,
   subscription_id,
@@ -107,7 +109,9 @@ SELECT
   created_at
 FROM payments
 WHERE payer_id = $1
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT $2
+OFFSET $3;
 
 -- name: GetPaymentByID :one
 SELECT

@@ -8,6 +8,10 @@ CREATE TABLE trainer_wallet_ledger (
     amount           BIGINT NOT NULL,
     balance_before   BIGINT NOT NULL,
     balance_after    BIGINT NOT NULL,
+    CONSTRAINT chk_balance_calculation CHECK (
+        (transaction_type = 'credit' AND balance_after = balance_before + amount) OR
+        (transaction_type = 'debit' AND balance_after = balance_before - amount)
+    ),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -12,6 +12,7 @@ CREATE TABLE payments (
     total_amount           BIGINT NOT NULL,
     trainer_earning        BIGINT NOT NULL,
     platform_fee           BIGINT NOT NULL,
+    CONSTRAINT chk_payment_split CHECK (trainer_earning + platform_fee = total_amount),
     payment_status         VARCHAR NOT NULL,
     paid_at                TIMESTAMPTZ,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -22,6 +23,11 @@ CREATE TABLE payments (
         (booking_id IS NOT NULL AND subscription_id IS NULL)
     )
 );
+
+CREATE INDEX idx_payments_booking_id ON payments(booking_id) WHERE booking_id IS NOT NULL;
+CREATE INDEX idx_payments_subscription_id ON payments(subscription_id) WHERE subscription_id IS NOT NULL;
+CREATE INDEX idx_payments_payer_id ON payments(payer_id);
+CREATE INDEX idx_payments_status ON payments(payment_status);
 
 -- +goose Down
 DROP TABLE IF EXISTS payments;

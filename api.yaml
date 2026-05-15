@@ -26,8 +26,10 @@ tags:
     description: Endpoints to handle waitlist data.
   - name: User
     description: User profile and onboarding endpoints.
-  - name: Subscription
-    description: Enpoints for handing subscription and payments
+  - name: Subscriptions
+    description: Endpoints for handling subscription
+  - name: Payment
+    description: Endpoints to handle payments
 
 components:
   securitySchemes:
@@ -3395,7 +3397,7 @@ paths:
   /sessions/{id}/tip:
     post:
       tags:
-        - Sessions
+        - Payments
       summary: Tip a trainer after a session
       operationId: TipTrainer
       security:
@@ -3417,9 +3419,13 @@ paths:
               properties:
                 amount:
                   type: integer
+                  fomat: int64
+                  minimum: 1
                   description: Amount in smallest currency unit (cents)
                 currency:
                   type: string
+                  enum: [USD, GBP]
+                  description: ISO 4217 currency code (lowercase, as required by Stripe).
                   example: USD
                 payment_method_id:
                   type: string
