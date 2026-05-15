@@ -30,7 +30,6 @@ func NewHandler(q *db.Queries, users TrainersStore, log *slog.Logger) *Handler {
 // /trainers/apply POST
 func (h *Handler) TrainerApply(c *gin.Context) {
 	var req struct {
-		UserID            string  `json:"user_id" binding:"required"`
 		Specialization    *string `json:"specialization"`
 		Bio               *string `json:"bio"`
 		YearsOfExperience *int    `json:"years_of_experience"`
@@ -44,11 +43,7 @@ func (h *Handler) TrainerApply(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
-	userID, err := uuid.Parse(req.UserID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid user id", api.CodeBadRequest))
-		return
-	}
+	userID := c.MustGet("user_id").(uuid.UUID)
 	calConn := false
 	if req.CalendlyConnected != nil {
 		calConn = *req.CalendlyConnected
@@ -113,7 +108,6 @@ func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.Get
 	}
 	c.JSON(http.StatusOK, reviews)
 }
-
 
 // Helper functions
 func nullStringPtr(s *string) sql.NullString {
