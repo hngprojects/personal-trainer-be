@@ -37,6 +37,7 @@ type Config struct {
 	ZoomClientSecret string
 
 	NotificationEmail string
+	StripeSecretKey   string
 }
 
 func Load() (*Config, error) {
@@ -73,6 +74,7 @@ func Load() (*Config, error) {
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
 
 		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
+		StripeSecretKey:   os.Getenv("STRIPE_SECRET_KEY"),
 	}
 
 	if cfg.DatabaseURL == "" {

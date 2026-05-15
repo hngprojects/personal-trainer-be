@@ -5,7 +5,7 @@ CREATE TABLE subscription_plans (
     display_name  VARCHAR NOT NULL,
     sessions_total INT NOT NULL,
     amount        BIGINT NOT NULL,
-    currency      VARCHAR NOT NULL DEFAULT 'USD',
+    currency      VARCHAR NOT NULL,
     is_active     BOOLEAN NOT NULL DEFAULT true,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()

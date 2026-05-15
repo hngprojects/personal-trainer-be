@@ -4,6 +4,7 @@ CREATE TABLE payments (
     booking_id             UUID REFERENCES bookings(id),
     subscription_id        UUID REFERENCES subscriptions(id),
     payer_id               UUID NOT NULL REFERENCES users(id),
+    payment_type VARCHAR NOT NULL,
     provider               VARCHAR NOT NULL,
     provider_transaction_id VARCHAR,
     idempotency_key        VARCHAR NOT NULL UNIQUE,

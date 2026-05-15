@@ -11,7 +11,7 @@ CREATE TABLE subscriptions (
     status                  VARCHAR NOT NULL,
     current_period_start    TIMESTAMPTZ NOT NULL,
     current_period_end      TIMESTAMPTZ NOT NULL,
-    grace_period_end        TIMESTAMPTZ,
+    cancelled_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     cancelled_at            TIMESTAMPTZ
 );
