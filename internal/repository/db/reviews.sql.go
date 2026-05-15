@@ -73,10 +73,16 @@ SELECT id, booking_id, trainer_id, client_user_id, rating, review, created_at, u
 FROM reviews
 WHERE trainer_id = $1
 ORDER BY created_at DESC
+LIMIT $2
 `
 
-func (q *Queries) GetTrainerReviews(ctx context.Context, trainerID uuid.UUID) ([]Review, error) {
-	rows, err := q.db.QueryContext(ctx, getTrainerReviews, trainerID)
+type GetTrainerReviewsParams struct {
+	TrainerID uuid.UUID
+	Limit     int32
+}
+
+func (q *Queries) GetTrainerReviews(ctx context.Context, arg GetTrainerReviewsParams) ([]Review, error) {
+	rows, err := q.db.QueryContext(ctx, getTrainerReviews, arg.TrainerID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

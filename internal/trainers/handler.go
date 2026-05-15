@@ -128,7 +128,11 @@ func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 }
 
 func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.GetTrainersIdReviewsParams) {
-	reviews, err := h.q.GetTrainerReviews(c.Request.Context(), id)
+	var limit int32 = 10
+	if params.Limit != nil {
+		limit = int32(*params.Limit)
+	}
+	reviews, err := h.q.GetTrainerReviews(c.Request.Context(), db.GetTrainerReviewsParams{TrainerID: id, Limit: limit})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))

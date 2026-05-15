@@ -88,4 +88,5 @@ RETURNING
 SELECT *
 FROM reviews
 WHERE trainer_id = $1
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT $2;
