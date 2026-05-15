@@ -37,9 +37,9 @@ func (c *Client) Charge(ctx context.Context, params ChargeParams) (*ChargeResult
 		PaymentMethod: stripe.String(params.PaymentMethodID),
 		Confirm:       stripe.Bool(true),
 	}
-	piParams.Params.Context = ctx
+	piParams.Context = ctx
 	if params.IdempotencyKey != "" {
-		piParams.Params.IdempotencyKey = stripe.String(params.IdempotencyKey)
+		piParams.IdempotencyKey = stripe.String(params.IdempotencyKey)
 	}
 
 	pi, err := paymentintent.New(piParams)
