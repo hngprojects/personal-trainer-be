@@ -355,7 +355,7 @@ WHERE
     OR years_of_experience >= $3
   )
   AND (
-    $4 IS NULL
+    $4::double precision IS NULL
     OR average_rating >= $4
   )
   AND onboarding_status = 'approved'
@@ -376,7 +376,7 @@ type ListTrainersParams struct {
 	Limit                int32
 	Specialization       sql.NullString
 	MinYearsOfExperience sql.NullInt32
-	MinAverageRating     interface{}
+	MinAverageRating     sql.NullFloat64
 	CursorCreatedAt      sql.NullTime
 	CursorID             uuid.NullUUID
 }

@@ -83,7 +83,7 @@ WHERE
     OR years_of_experience >= sqlc.narg(min_years_of_experience)
   )
   AND (
-    sqlc.narg(min_average_rating) IS NULL
+    sqlc.narg(min_average_rating)::double precision IS NULL
     OR average_rating >= sqlc.narg(min_average_rating)
   )
   AND onboarding_status = 'approved'

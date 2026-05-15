@@ -9,7 +9,7 @@ import (
 
 func (s *routerImpl) PostTrainersApply(c *gin.Context) {
 	if s.trainers == nil {
-		c.JSON(503, gin.H{"error": "trainer service unavailable"})
+		c.JSON(503, api.NewError("trainer service unavailable", api.CodeServerError))
 		return
 	}
 	s.trainers.TrainerApply(c)
@@ -42,4 +42,3 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 	s.trainers.GetTrainers(c, params)
 }
-

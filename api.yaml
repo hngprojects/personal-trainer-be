@@ -239,25 +239,25 @@ components:
       properties:
         specialization:
           type: string
-          nullable: true
+          nullable: false
         bio:
           type: string
-          nullable: true
+          nullable: false
         years_of_experience:
           type: integer
-          nullable: true
+          nullable: false
         intro_video_url:
           type: string
-          nullable: true
+          nullable: false
         display_picture:
           type: string
-          nullable: true
+          nullable: false
         calendly_connected:
           type: boolean
-          nullable: true
+          nullable: false
         calendly_link:
           type: string
-          nullable: true
+          nullable: false
 
     TrainerReviewsListResponse:
       allOf:

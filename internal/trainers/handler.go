@@ -69,7 +69,7 @@ func (h *Handler) TrainerApply(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, TrainerToMap(trainer))
+	c.JSON(http.StatusCreated, api.NewSuccess("application submitted", api.CodeCreated, TrainerToMap(trainer)))
 }
 
 func (h *Handler) GetTrainerId(c *gin.Context, id uuid.UUID) {
@@ -83,11 +83,12 @@ func (h *Handler) GetTrainerId(c *gin.Context, id uuid.UUID) {
 		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainer", api.CodeServerError))
 		return
 	}
-	c.JSON(http.StatusOK, TrainerToMap(trainer))
+	c.JSON(http.StatusOK, api.NewSuccess("trainer retrieved", api.CodeOK, TrainerToMap(trainer)))
 }
 
 func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	dbParams := db.ListTrainersParams{}
+	var minRating sql.NullFloat64
 
 	if params.Specialization != nil {
 		dbParams.Specialization = sql.NullString{
@@ -97,7 +98,12 @@ func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 
 	if params.MinRating != nil {
-		dbParams.MinAverageRating = params.MinRating
+		minRating = sql.NullFloat64{
+			Float64: *params.MinRating,
+			Valid:   true,
+		}
+
+		dbParams.MinAverageRating = minRating
 	}
 
 	if params.Limit != nil {
@@ -118,7 +124,7 @@ func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 		out[i] = TrainerToMap(t)
 	}
 
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, api.NewSuccess("trainers retrieved", api.CodeOK, out))
 }
 
 func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.GetTrainersIdReviewsParams) {
