@@ -117,13 +117,41 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
 
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Scan full git history, not just the working tree, so secrets that
+          # were committed and later removed still get flagged. Trivy's fs scan
+          # only looks at current files; this is the dedicated complementary
+          # scan for the historical record.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      # `detect` walks every commit in the repo's history. To suppress a known
+      # false positive (or an already-rotated secret), add its fingerprint to a
+      # `.gitleaksignore` file at the repo root, or define an allowlist rule in
+      # `.gitleaks.toml`. Real fix for any unexpected finding is to ROTATE the
+      # secret, then ignore — the leak is in git history forever otherwise.
+      - name: Scan repo and history for secrets
+        run: gitleaks detect --source . --redact --no-banner --verbose
+
   # Aggregator status check — the branch-protection rule on `dev`/`main` requires
   # a status check named exactly "ci". This job exists solely so that one shows
   # up. It only goes green when every dependency above also went green.
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [lint, test, security]
+    needs: [lint, test, security, secrets]
     if: always()
     steps:
       - name: Aggregate job results
@@ -131,9 +159,11 @@ jobs:
           echo "lint:     ${{ needs.lint.result }}"
           echo "test:     ${{ needs.test.result }}"
           echo "security: ${{ needs.security.result }}"
+          echo "secrets:  ${{ needs.secrets.result }}"
           if [[ "${{ needs.lint.result }}" != "success" \
              || "${{ needs.test.result }}" != "success" \
-             || "${{ needs.security.result }}" != "success" ]]; then
+             || "${{ needs.security.result }}" != "success" \
+             || "${{ needs.secrets.result }}" != "success" ]]; then
             echo "::error::One or more required CI jobs failed"
             exit 1
           fi
