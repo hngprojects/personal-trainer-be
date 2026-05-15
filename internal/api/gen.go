@@ -509,6 +509,27 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for CreateSubscriptionJSONBodyPlanType.
+const (
+	Monthly12 CreateSubscriptionJSONBodyPlanType = "monthly_12"
+	Monthly18 CreateSubscriptionJSONBodyPlanType = "monthly_18"
+	Single    CreateSubscriptionJSONBodyPlanType = "single"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionJSONBodyPlanType enum.
+func (e CreateSubscriptionJSONBodyPlanType) Valid() bool {
+	switch e {
+	case Monthly12:
+		return true
+	case Monthly18:
+		return true
+	case Single:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetUserProfile200JSONResponseBodyStatus.
 const (
 	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
@@ -529,16 +550,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1058,6 +1079,24 @@ type HandleTrainersNoteJSONBody struct {
 	Note string `json:"note"`
 }
 
+// TipTrainerJSONBody defines parameters for TipTrainer.
+type TipTrainerJSONBody struct {
+	// Amount Amount in smallest currency unit (cents)
+	Amount          int    `json:"amount"`
+	Currency        string `json:"currency"`
+	PaymentMethodId string `json:"payment_method_id"`
+}
+
+// CreateSubscriptionJSONBody defines parameters for CreateSubscription.
+type CreateSubscriptionJSONBody struct {
+	PaymentMethodId string                             `json:"payment_method_id"`
+	PlanType        CreateSubscriptionJSONBodyPlanType `json:"plan_type"`
+	TrainerId       openapi_types.UUID                 `json:"trainer_id"`
+}
+
+// CreateSubscriptionJSONBodyPlanType defines parameters for CreateSubscription.
+type CreateSubscriptionJSONBodyPlanType string
+
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
@@ -1136,6 +1175,12 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
+
+// TipTrainerJSONRequestBody defines body for TipTrainer for application/json ContentType.
+type TipTrainerJSONRequestBody TipTrainerJSONBody
+
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody CreateSubscriptionJSONBody
 
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
@@ -1229,6 +1274,12 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// List my payment history
+	// (GET /payments)
+	ListPayments(c *gin.Context)
+	// Get a payment by ID
+	// (GET /payments/{id})
+	GetPayment(c *gin.Context, id openapi_types.UUID)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -1247,6 +1298,21 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// Tip a trainer after a session
+	// (POST /sessions/{id}/tip)
+	TipTrainer(c *gin.Context, id openapi_types.UUID)
+	// List my subscriptions
+	// (GET /subscriptions)
+	ListSubscriptions(c *gin.Context)
+	// Purchase a subscription plan
+	// (POST /subscriptions)
+	CreateSubscription(c *gin.Context)
+	// Get a subscription with session usage
+	// (GET /subscriptions/{id})
+	GetSubscription(c *gin.Context, id openapi_types.UUID)
+	// Cancel a monthly subscription at period end
+	// (PUT /subscriptions/{id}/cancel)
+	CancelSubscription(c *gin.Context, id openapi_types.UUID)
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -1772,6 +1838,48 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	siw.Handler.HealthCheck(c)
 }
 
+// ListPayments operation middleware
+func (siw *ServerInterfaceWrapper) ListPayments(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPayments(c)
+}
+
+// GetPayment operation middleware
+func (siw *ServerInterfaceWrapper) GetPayment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPayment(c, id)
+}
+
 // CreateReview operation middleware
 func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 
@@ -1910,6 +2018,117 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	}
 
 	siw.Handler.HandleStartSession(c, id)
+}
+
+// TipTrainer operation middleware
+func (siw *ServerInterfaceWrapper) TipTrainer(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TipTrainer(c, id)
+}
+
+// ListSubscriptions operation middleware
+func (siw *ServerInterfaceWrapper) ListSubscriptions(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSubscriptions(c)
+}
+
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubscription(c)
+}
+
+// GetSubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetSubscription(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSubscription(c, id)
+}
+
+// CancelSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelSubscription(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelSubscription(c, id)
 }
 
 // GetTrainers operation middleware
@@ -2220,12 +2439,19 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.GET(options.BaseURL+"/payments", wrapper.ListPayments)
+	router.GET(options.BaseURL+"/payments/:id", wrapper.GetPayment)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.POST(options.BaseURL+"/sessions/:id/tip", wrapper.TipTrainer)
+	router.GET(options.BaseURL+"/subscriptions", wrapper.ListSubscriptions)
+	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
+	router.GET(options.BaseURL+"/subscriptions/:id", wrapper.GetSubscription)
+	router.PUT(options.BaseURL+"/subscriptions/:id/cancel", wrapper.CancelSubscription)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)

@@ -16,5 +16,14 @@ CREATE TABLE subscriptions (
     cancelled_at            TIMESTAMPTZ
 );
 
+CREATE INDEX IF NOT EXISTS idx_subscriptions_client_id ON subscriptions(client_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_trainer_id ON subscriptions(trainer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_current_period_end ON subscriptions(current_period_end);
+
 -- +goose Down
+DROP INDEX IF EXISTS idx_subscriptions_current_period_end;
+DROP INDEX IF EXISTS idx_subscriptions_status;
+DROP INDEX IF EXISTS idx_subscriptions_trainer_id;
+DROP INDEX IF EXISTS idx_subscriptions_client_id;
 DROP TABLE IF EXISTS subscriptions;

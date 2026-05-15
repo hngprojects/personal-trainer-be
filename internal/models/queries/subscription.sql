@@ -19,7 +19,6 @@ SELECT
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -41,7 +40,6 @@ LIMIT 1;
 INSERT INTO subscriptions (
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -49,12 +47,11 @@ INSERT INTO subscriptions (
   currency,
   status,
   current_period_start,
-  cancelled_at_period_end,
-  current_period_end
+  current_period_end,
+  cancelled_at_period_end
 ) VALUES (
   sqlc.arg(client_id),
   sqlc.arg(trainer_id),
-  sqlc.arg(plan_id),
   sqlc.arg(plan_type),
   sqlc.arg(sessions_per_month),
   0,
@@ -62,14 +59,13 @@ INSERT INTO subscriptions (
   sqlc.arg(currency),
   sqlc.arg(status),
   sqlc.arg(current_period_start),
-  false,
-  sqlc.arg(current_period_end)
+  sqlc.arg(current_period_end),
+  false
 )
 RETURNING
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -90,7 +86,6 @@ RETURNING
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -108,7 +103,6 @@ SELECT
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -129,7 +123,6 @@ SELECT
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,
@@ -146,19 +139,18 @@ WHERE id = $1
 LIMIT 1;
 
 -- name: CountSubscriptionUsage :one
-SELECT COUNT(*) 
+SELECT COUNT(*)
 FROM subscription_usage
 WHERE subscription_id = $1;
 
 -- name: CancelSubscription :one
 UPDATE subscriptions
-SET cancelled_at_period_end = true
+SET cancel_at_period_end = true
 WHERE id = sqlc.arg(id)
 RETURNING
   id,
   client_id,
   trainer_id,
-  plan_id,
   plan_type,
   sessions_per_month,
   sessions_used_this_month,

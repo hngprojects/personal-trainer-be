@@ -108,6 +108,24 @@ type PasswordResetCode struct {
 	ExpiresAt time.Time
 }
 
+type Payment struct {
+	ID                    uuid.UUID
+	BookingID             uuid.NullUUID
+	SubscriptionID        uuid.NullUUID
+	PayerID               uuid.UUID
+	PaymentType           string
+	Provider              string
+	ProviderTransactionID sql.NullString
+	IdempotencyKey        string
+	Currency              string
+	TotalAmount           int64
+	TrainerEarning        int64
+	PlatformFee           int64
+	PaymentStatus         string
+	PaidAt                sql.NullTime
+	CreatedAt             time.Time
+}
+
 type Review struct {
 	ID           uuid.UUID
 	BookingID    uuid.UUID
@@ -138,15 +156,35 @@ type Subscription struct {
 	ClientID              uuid.UUID
 	TrainerID             uuid.UUID
 	PlanType              string
-	SessionsPerMonth      sql.NullInt32
+	SessionsPerMonth      int32
 	SessionsUsedThisMonth int32
-	Amount                sql.NullInt64
+	Amount                int64
 	Currency              string
 	Status                string
-	CurrentPeriodStart    sql.NullTime
-	CurrentPeriodEnd      sql.NullTime
+	CurrentPeriodStart    time.Time
+	CurrentPeriodEnd      time.Time
+	CancelledAtPeriodEnd  bool
 	CreatedAt             time.Time
 	CancelledAt           sql.NullTime
+}
+
+type SubscriptionPlan struct {
+	ID            uuid.UUID
+	PlanType      string
+	DisplayName   string
+	SessionsTotal int32
+	Amount        int64
+	Currency      string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type SubscriptionUsage struct {
+	ID             uuid.UUID
+	SubscriptionID uuid.UUID
+	BookingID      uuid.UUID
+	UsedAt         time.Time
 }
 
 type Trainer struct {
@@ -175,6 +213,26 @@ type TrainerAvailability struct {
 	Timezone  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type TrainerWallet struct {
+	TrainerID      uuid.UUID
+	CurrentBalance int64
+	TotalEarned    int64
+	TotalPaidOut   int64
+	UpdatedAt      time.Time
+}
+
+type TrainerWalletLedger struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	TransactionType string
+	ReferenceType   string
+	ReferenceID     uuid.UUID
+	Amount          int64
+	BalanceBefore   int64
+	BalanceAfter    int64
+	CreatedAt       time.Time
 }
 
 type User struct {

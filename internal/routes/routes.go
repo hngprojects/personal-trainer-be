@@ -20,10 +20,12 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
+	infra_stripe "github.com/hngprojects/personal-trainer-be/internal/infra/stripe"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/subscription"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
@@ -64,16 +66,16 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	google        *auth.GoogleHandler
-	googleMobile  *auth.MobileGoogleHandler
-	local         *auth.LocalHandler
-	root          *root.RootHandler
-	adminLogin    *handlers.AdminLoginHandler
-	health        *health.HealthHandler
-	waitlist      *waitlist.WaitlistHandler
-	logout        *auth.LogoutHandler
-	refresh       *auth.RefreshHandler
-	passwordReset *auth.PasswordResetHandler
+	google         *auth.GoogleHandler
+	googleMobile   *auth.MobileGoogleHandler
+	local          *auth.LocalHandler
+	root           *root.RootHandler
+	adminLogin     *handlers.AdminLoginHandler
+	health         *health.HealthHandler
+	waitlist       *waitlist.WaitlistHandler
+	logout         *auth.LogoutHandler
+	refresh        *auth.RefreshHandler
+	passwordReset  *auth.PasswordResetHandler
 	trainers       *trainersStore
 	users          *usersStore
 	reviews        *reviewsvc.Service
@@ -85,6 +87,7 @@ type routerImpl struct {
 	availability   *availabilityStore
 	dev            *dev.Handler
 	bookingSession booking_session.SessionHandler
+	subscription   *subscription.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -199,6 +202,13 @@ func (s *Router) Routes() *gin.Engine {
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
 			impl.refresh = auth.NewRefreshHandler(s.redis, s.log, refreshLimiter)
 			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
+
+			var stripeClient *infra_stripe.Client
+			if s.cfg.StripeSecretKey != "" {
+				stripeClient = infra_stripe.New(s.cfg.StripeSecretKey)
+			}
+			impl.subscription = subscription.NewHandler(s.log, stripeClient)
+
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
