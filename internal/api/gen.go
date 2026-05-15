@@ -421,6 +421,45 @@ type BaseResponse struct {
 // BaseResponseStatus defines model for BaseResponse.Status.
 type BaseResponseStatus string
 
+// RescheduleReason defines model for RescheduleReason.
+type RescheduleReason string
+
+// Defines values for RescheduleReason.
+const (
+	RescheduleReasonSomethingCameUp    RescheduleReason = "something_came_up"
+	RescheduleReasonFeelingUnwell      RescheduleReason = "feeling_unwell"
+	RescheduleReasonWorkConflict       RescheduleReason = "work_conflict"
+	RescheduleReasonPersonalEmergency  RescheduleReason = "personal_emergency"
+	RescheduleReasonTravel             RescheduleReason = "travel"
+	RescheduleReasonOther              RescheduleReason = "other"
+)
+
+// Valid indicates whether the value is a known member of the RescheduleReason enum.
+func (e RescheduleReason) Valid() bool {
+	switch e {
+	case RescheduleReasonSomethingCameUp,
+		RescheduleReasonFeelingUnwell,
+		RescheduleReasonWorkConflict,
+		RescheduleReasonPersonalEmergency,
+		RescheduleReasonTravel,
+		RescheduleReasonOther:
+		return true
+	}
+	return false
+}
+
+// RescheduleBookingRequest defines model for RescheduleBookingRequest.
+type RescheduleBookingRequest struct {
+	NewDatetime  time.Time        `json:"new_datetime"`
+	Timezone     string           `json:"timezone"`
+	Reason       RescheduleReason `json:"reason"`
+	Notes        *string          `json:"notes,omitempty"`
+	PhoneNumber  *string          `json:"phone_number,omitempty"`
+}
+
+// RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall.
+type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
+
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
 	ContactMode BookDiscoveryCallRequestContactMode `json:"contact_mode"`
@@ -920,6 +959,9 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// Reschedule a discovery call booking
+	// (PUT /bookings/{id}/reschedule)
+	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -1290,6 +1332,34 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	siw.Handler.BookDiscoveryCall(c)
 }
 
+// RescheduleDiscoveryCall operation middleware
+func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RescheduleDiscoveryCall(c, id)
+}
+
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -1617,6 +1687,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
