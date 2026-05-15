@@ -106,3 +106,31 @@ func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time
 	}
 	return m.JoinURL, fmt.Sprintf("%d", m.ID), nil
 }
+
+// DeleteMeeting implements meeting.Provider.
+func (c *Client) DeleteMeeting(ctx context.Context, meetingID string) error {
+	token, err := c.getAccessToken(ctx)
+	if err != nil {
+		return fmt.Errorf("zoom: get token: %w", err)
+	}
+
+	url := fmt.Sprintf("https://api.zoom.us/v2/meetings/%s", meetingID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("zoom: delete meeting: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// 204 No Content = success; 404 = already gone (treat as success)
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("zoom: delete meeting failed (%d): %s", resp.StatusCode, string(raw))
+	}
+	return nil
+}

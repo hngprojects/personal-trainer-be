@@ -533,6 +533,41 @@ components:
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
 
+    RescheduleBookingRequest:
+      type: object
+      required:
+        - new_datetime
+        - timezone
+        - reason
+      properties:
+        new_datetime:
+          type: string
+          format: date-time
+          description: The new desired date and time (ISO 8601)
+        timezone:
+          type: string
+          description: IANA timezone string (e.g. America/New_York)
+          example: Africa/Lagos
+        reason:
+          $ref: "#/components/schemas/RescheduleReason"
+        notes:
+          type: string
+          maxLength: 200
+          description: Optional additional details
+        phone_number:
+          type: string
+          description: Updated phone number (phone_callback bookings only)
+
+    RescheduleReason:
+      type: string
+      enum:
+        - something_came_up
+        - feeling_unwell
+        - work_conflict
+        - personal_emergency
+        - travel
+        - other
+
     BookDiscoveryCallRequest:
       type: object
       required: [name, email, contact_mode, selected_datetime, timezone]
@@ -2103,6 +2138,82 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Time slot already booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bookings/{id}/reschedule:
+    put:
+      operationId: RescheduleDiscoveryCall
+      tags:
+        - Booking
+      summary: Reschedule an existing discovery call booking
+      description: |
+        Allows a client to reschedule their discovery call to a new date and time.
+        Blocked within 12 hours of the original call time.
+        For Zoom bookings, the old meeting is deleted and a new one is created.
+        For phone callbacks, only the time and phone number are updated.
+        Maximum 3 reschedules per booking.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RescheduleBookingRequest"
+      responses:
+        "200":
+          description: Discovery call rescheduled successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DiscoveryBookingResponse"
+        "400":
+          description: Invalid input or new time outside open hours / in the past
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Booking locked (within 12-hour window), cancelled, or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: New time slot already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Maximum reschedule limit (3) reached
           content:
             application/json:
               schema:

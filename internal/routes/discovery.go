@@ -48,3 +48,11 @@ func (s *routerImpl) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
 	}
 	s.discovery.DeleteBookingSlot(c, id)
 }
+
+func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID) {
+	if s.discovery == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.RescheduleDiscoveryCall(c, id)
+}
