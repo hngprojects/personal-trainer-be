@@ -730,7 +730,6 @@ paths:
                 status: error
                 message: Invalid email
                 code: UNAUTHORIZED
-
   /auth/logout:
     post:
       security:

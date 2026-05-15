@@ -848,6 +848,11 @@ type HandleContactUsJSONBody struct {
 	Subject string              `json:"subject"`
 }
 
+// HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
+type HandleTrainersNoteJSONBody struct {
+	Note string `json:"note"`
+}
+
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
@@ -917,6 +922,9 @@ type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
+
+// HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
+type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
@@ -1004,6 +1012,21 @@ type ServerInterface interface {
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
+	// Takes the Id of a session and returns data concerning the session
+	// (GET /sessions/{id})
+	HandleGetSessionById(c *gin.Context, id openapi_types.UUID)
+	// The session is completed via this endpoint.
+	// (PUT /sessions/{id}/complete)
+	HandleCompleteSession(c *gin.Context, id openapi_types.UUID)
+	// A client joined a session via this endpoint.
+	// (PUT /sessions/{id}/join)
+	HandleJoinSession(c *gin.Context, id openapi_types.UUID)
+	// Trainers submit notes for client.
+	// (PUT /sessions/{id}/notes)
+	HandleTrainersNote(c *gin.Context, id openapi_types.UUID)
+	// A trainer starts a session via this endpoint.
+	// (PUT /sessions/{id}/start)
+	HandleStartSession(c *gin.Context, id openapi_types.UUID)
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -1462,6 +1485,131 @@ func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 	siw.Handler.CreateReview(c)
 }
 
+// HandleGetSessionById operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetSessionById(c, id)
+}
+
+// HandleCompleteSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleCompleteSession(c, id)
+}
+
+// HandleJoinSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleJoinSession(c, id)
+}
+
+// HandleTrainersNote operation middleware
+func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleTrainersNote(c, id)
+}
+
+// HandleStartSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleStartSession(c, id)
+}
+
 // GetTrainers operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
@@ -1754,6 +1902,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
+	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
+	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
+	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
+	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
+	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
