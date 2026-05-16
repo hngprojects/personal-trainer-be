@@ -20,6 +20,7 @@ WHERE selected_datetime > $1::timestamptz - INTERVAL '30 minutes'
   AND status NOT IN ('cancelled', 'completed')
 `
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflict, selectedDatetime)
 	var count int64
@@ -40,6 +41,7 @@ type CheckSlotConflictExcludingParams struct {
 	ExcludeID        uuid.UUID
 }
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotConflictExcludingParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflictExcluding, arg.SelectedDatetime, arg.ExcludeID)
 	var count int64
@@ -61,7 +63,7 @@ INSERT INTO booking_slots (
     $4,
     true
 )
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id
 `
 
 type CreateBookingSlotParams struct {
@@ -88,6 +90,7 @@ func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }
@@ -213,7 +216,7 @@ func (q *Queries) DeleteBookingSlot(ctx context.Context, id uuid.UUID) error {
 }
 
 const getActiveBookingSlots = `-- name: GetActiveBookingSlots :many
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC
 `
@@ -236,6 +239,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TrainerID,
 		); err != nil {
 			return nil, err
 		}
@@ -251,7 +255,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 }
 
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE id = $1
 LIMIT 1
 `
@@ -268,6 +272,7 @@ func (q *Queries) GetBookingSlotByID(ctx context.Context, id uuid.UUID) (Booking
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }
@@ -431,7 +436,7 @@ SET
     is_active   = $5,
     updated_at  = NOW()
 WHERE id = $6
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id
 `
 
 type UpdateBookingSlotParams struct {
@@ -462,6 +467,7 @@ func (q *Queries) UpdateBookingSlot(ctx context.Context, arg UpdateBookingSlotPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }

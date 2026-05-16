@@ -79,6 +79,7 @@ type routerImpl struct {
 	contact       *contact.Handler
 	discovery     *discovery.Handler
 	dev           *dev.Handler
+	bookings      *bookingsStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -154,6 +155,7 @@ func (s *Router) Routes() *gin.Engine {
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
+			impl.bookings = &bookingsStore{db: s.db, q: q}
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up

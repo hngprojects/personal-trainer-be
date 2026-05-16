@@ -3,7 +3,7 @@ services:
     image: postgres:17
     container_name: personal_trainer_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_DB: ${DATABASE_NAME}

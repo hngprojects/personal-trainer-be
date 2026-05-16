@@ -110,7 +110,8 @@ SET
   is_active = true,
   updated_at = NOW()
 WHERE
-  day_of_week = EXTRACT(DOW FROM sqlc.arg(scheduled_start)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::SMALLINT
+  trainer_id = sqlc.arg(trainer_id)
+  AND day_of_week = EXTRACT(DOW FROM sqlc.arg(scheduled_start)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::SMALLINT
   AND start_time = (sqlc.arg(scheduled_start)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::TIME
   AND end_time = (sqlc.arg(scheduled_end)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::TIME
   AND timezone = sqlc.arg(timezone);
