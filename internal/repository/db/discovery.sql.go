@@ -20,6 +20,7 @@ WHERE selected_datetime > $1::timestamptz - INTERVAL '30 minutes'
   AND status NOT IN ('cancelled', 'completed')
 `
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflict, selectedDatetime)
 	var count int64
@@ -40,6 +41,7 @@ type CheckSlotConflictExcludingParams struct {
 	ExcludeID        uuid.UUID
 }
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotConflictExcludingParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflictExcluding, arg.SelectedDatetime, arg.ExcludeID)
 	var count int64
@@ -327,6 +329,52 @@ func (q *Queries) GetDiscoveryBookingByUserID(ctx context.Context, userID uuid.N
 		&i.RescheduleCount,
 	)
 	return i, err
+}
+
+const getUpcomingDiscoveryBookings = `-- name: GetUpcomingDiscoveryBookings :many
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+WHERE user_id = $1
+  AND selected_datetime > NOW()
+  AND status NOT IN ('cancelled', 'completed')
+ORDER BY selected_datetime ASC
+`
+
+func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.NullUUID) ([]DiscoveryBooking, error) {
+	rows, err := q.db.QueryContext(ctx, getUpcomingDiscoveryBookings, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryBooking
+	for rows.Next() {
+		var i DiscoveryBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.ContactMode,
+			&i.PhoneNumber,
+			&i.SelectedDatetime,
+			&i.ClientTimezone,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDiscoveryBookings = `-- name: ListDiscoveryBookings :many

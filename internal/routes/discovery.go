@@ -56,3 +56,11 @@ func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UU
 	}
 	s.discovery.RescheduleDiscoveryCall(c, id)
 }
+
+func (s *routerImpl) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBookingsParams) {
+	if s.discovery == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.GetUpcomingBookings(c, params)
+}

@@ -133,3 +133,10 @@ WHERE selected_datetime > sqlc.arg(selected_datetime)::timestamptz - INTERVAL '3
   AND selected_datetime < sqlc.arg(selected_datetime)::timestamptz + INTERVAL '30 minutes'
   AND status NOT IN ('cancelled', 'completed')
   AND id != sqlc.arg(exclude_id);
+
+-- name: GetUpcomingDiscoveryBookings :many
+SELECT * FROM discovery_bookings
+WHERE user_id = sqlc.arg(user_id)
+  AND selected_datetime > NOW()
+  AND status NOT IN ('cancelled', 'completed')
+ORDER BY selected_datetime ASC;
