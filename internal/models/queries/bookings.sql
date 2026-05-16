@@ -79,3 +79,38 @@ FROM bookings
 WHERE id = $1
 LIMIT 1
 FOR UPDATE;
+
+-- name: CancelBooking :one
+UPDATE bookings
+SET
+  booking_status = 'cancelled',
+  cancellation_reason = sqlc.arg(cancellation_reason),
+  cancelled_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at;
+
+-- name: ReleaseBookingSlot :exec
+-- Release a booking slot by marking it as available again
+-- This updates the booking_slots table to set is_active = true for the slot used by this booking
+UPDATE booking_slots
+SET
+  is_active = true,
+  updated_at = NOW()
+WHERE
+  day_of_week = EXTRACT(DOW FROM sqlc.arg(scheduled_start)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::SMALLINT
+  AND start_time = (sqlc.arg(scheduled_start)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::TIME
+  AND end_time = (sqlc.arg(scheduled_end)::TIMESTAMPTZ AT TIME ZONE sqlc.arg(timezone)::TEXT)::TIME
+  AND timezone = sqlc.arg(timezone);
