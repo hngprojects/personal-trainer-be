@@ -12,6 +12,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/booking_session"
+	"github.com/hngprojects/personal-trainer-be/internal/bookings"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
@@ -73,14 +74,16 @@ type routerImpl struct {
 	logout        *auth.LogoutHandler
 	refresh       *auth.RefreshHandler
 	passwordReset *auth.PasswordResetHandler
-	trainers      *trainersStore
-	users         *usersStore
-	reviews       *reviewsvc.Service
-	admin         *admin.Handler
-	contact       *contact.Handler
-	discovery     *discovery.Handler
-	availability  *availabilityStore
-	dev           *dev.Handler
+	trainers       *trainersStore
+	users          *usersStore
+	reviews        *reviewsvc.Service
+	admin          *admin.Handler
+	contact        *contact.Handler
+	bookings       *bookingsStore
+	paidReschedule *bookings.Handler
+	discovery      *discovery.Handler
+	availability   *availabilityStore
+	dev            *dev.Handler
 	bookingSession booking_session.SessionHandler
 }
 
@@ -159,8 +162,12 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
+			bookingsRepo := bookings.NewPostgresRepo(q)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
+			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
 			// instead of returning 503 across the board. Real Redis-Allow errors
