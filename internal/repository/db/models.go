@@ -25,6 +25,9 @@ type Booking struct {
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	RescheduleCount    int32
 }
 
 type BookingRescheduleHistory struct {
@@ -86,6 +89,15 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
+}
+
+type PaidBookingRescheduleHistory struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	PreviousStart time.Time
+	NewStart      time.Time
+	Reason        sql.NullString
+	CreatedAt     time.Time
 }
 
 type PasswordResetCode struct {
