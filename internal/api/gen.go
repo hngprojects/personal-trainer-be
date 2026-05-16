@@ -74,6 +74,72 @@ func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	}
 }
 
+// Defines values for CancelBookingRequestReason.
+const (
+	CancelBookingRequestReasonClientRequest     CancelBookingRequestReason = "client_request"
+	CancelBookingRequestReasonFeelingUnwell     CancelBookingRequestReason = "feeling_unwell"
+	CancelBookingRequestReasonOther             CancelBookingRequestReason = "other"
+	CancelBookingRequestReasonPersonalEmergency CancelBookingRequestReason = "personal_emergency"
+	CancelBookingRequestReasonScheduleConflict  CancelBookingRequestReason = "schedule_conflict"
+	CancelBookingRequestReasonTrainerRequest    CancelBookingRequestReason = "trainer_request"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingRequestReason enum.
+func (e CancelBookingRequestReason) Valid() bool {
+	switch e {
+	case CancelBookingRequestReasonClientRequest:
+		return true
+	case CancelBookingRequestReasonFeelingUnwell:
+		return true
+	case CancelBookingRequestReasonOther:
+		return true
+	case CancelBookingRequestReasonPersonalEmergency:
+		return true
+	case CancelBookingRequestReasonScheduleConflict:
+		return true
+	case CancelBookingRequestReasonTrainerRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelBookingResponseDataRefundReason.
+const (
+	After12Hours  CancelBookingResponseDataRefundReason = "after_12_hours"
+	Within12Hours CancelBookingResponseDataRefundReason = "within_12_hours"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingResponseDataRefundReason enum.
+func (e CancelBookingResponseDataRefundReason) Valid() bool {
+	switch e {
+	case After12Hours:
+		return true
+	case Within12Hours:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelBookingResponseStatus.
+const (
+	CancelBookingResponseStatusError   CancelBookingResponseStatus = "error"
+	CancelBookingResponseStatusSuccess CancelBookingResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingResponseStatus enum.
+func (e CancelBookingResponseStatus) Valid() bool {
+	switch e {
+	case CancelBookingResponseStatusError:
+		return true
+	case CancelBookingResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorResponseStatus.
 const (
 	ErrorResponseStatusError   ErrorResponseStatus = "error"
@@ -110,6 +176,36 @@ func (e GoogleAuthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for RescheduleReason.
+const (
+	RescheduleReasonFeelingUnwell     RescheduleReason = "feeling_unwell"
+	RescheduleReasonOther             RescheduleReason = "other"
+	RescheduleReasonPersonalEmergency RescheduleReason = "personal_emergency"
+	RescheduleReasonSomethingCameUp   RescheduleReason = "something_came_up"
+	RescheduleReasonTravel            RescheduleReason = "travel"
+	RescheduleReasonWorkConflict      RescheduleReason = "work_conflict"
+)
+
+// Valid indicates whether the value is a known member of the RescheduleReason enum.
+func (e RescheduleReason) Valid() bool {
+	switch e {
+	case RescheduleReasonFeelingUnwell:
+		return true
+	case RescheduleReasonOther:
+		return true
+	case RescheduleReasonPersonalEmergency:
+		return true
+	case RescheduleReasonSomethingCameUp:
+		return true
+	case RescheduleReasonTravel:
+		return true
+	case RescheduleReasonWorkConflict:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewResponseStatus.
 const (
 	ReviewResponseStatusError   ReviewResponseStatus = "error"
@@ -122,6 +218,42 @@ func (e ReviewResponseStatus) Valid() bool {
 	case ReviewResponseStatusError:
 		return true
 	case ReviewResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewsListResponseStatus.
+const (
+	ReviewsListResponseStatusError   ReviewsListResponseStatus = "error"
+	ReviewsListResponseStatusSuccess ReviewsListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ReviewsListResponseStatus enum.
+func (e ReviewsListResponseStatus) Valid() bool {
+	switch e {
+	case ReviewsListResponseStatusError:
+		return true
+	case ReviewsListResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SetAvailabilityResponseStatus.
+const (
+	SetAvailabilityResponseStatusError   SetAvailabilityResponseStatus = "error"
+	SetAvailabilityResponseStatusSuccess SetAvailabilityResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the SetAvailabilityResponseStatus enum.
+func (e SetAvailabilityResponseStatus) Valid() bool {
+	switch e {
+	case SetAvailabilityResponseStatusError:
+		return true
+	case SetAvailabilityResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -182,24 +314,6 @@ func (e TrainerResponseStatus) Valid() bool {
 	case TrainerResponseStatusError:
 		return true
 	case TrainerResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TrainerReviewsListResponseStatus.
-const (
-	TrainerReviewsListResponseStatusError   TrainerReviewsListResponseStatus = "error"
-	TrainerReviewsListResponseStatusSuccess TrainerReviewsListResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainerReviewsListResponseStatus enum.
-func (e TrainerReviewsListResponseStatus) Valid() bool {
-	switch e {
-	case TrainerReviewsListResponseStatusError:
-		return true
-	case TrainerReviewsListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -362,6 +476,21 @@ type AuthUser struct {
 // AuthUserUserType defines model for AuthUser.UserType.
 type AuthUserUserType string
 
+// AvailabilitySlot defines model for AvailabilitySlot.
+type AvailabilitySlot struct {
+	// DayOfWeek Day of week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+	DayOfWeek int `json:"day_of_week"`
+
+	// EndTime End time in HH:MM format (24-hour)
+	EndTime string `json:"end_time"`
+
+	// StartTime Start time in HH:MM format (24-hour)
+	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone string
+	Timezone string `json:"timezone"`
+}
+
 // BaseResponse defines model for BaseResponse.
 type BaseResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -408,11 +537,65 @@ type BookingSlotRequest struct {
 	Timezone *string `json:"timezone,omitempty"`
 }
 
+// CancelBookingRequest defines model for CancelBookingRequest.
+type CancelBookingRequest struct {
+	// Notes Optional additional details about cancellation
+	Notes *string `json:"notes,omitempty"`
+
+	// Reason Reason for cancellation
+	Reason CancelBookingRequestReason `json:"reason"`
+}
+
+// CancelBookingRequestReason Reason for cancellation
+type CancelBookingRequestReason string
+
+// CancelBookingResponse defines model for CancelBookingResponse.
+type CancelBookingResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code string `json:"code"`
+	Data *struct {
+		BookingId   openapi_types.UUID `json:"booking_id"`
+		CancelledAt time.Time          `json:"cancelled_at"`
+
+		// NotificationSent Whether cancellation notification was sent to both parties
+		NotificationSent bool `json:"notification_sent"`
+
+		// RefundAmount Number of session credits refunded (0 if forfeited within 12 hours)
+		RefundAmount int `json:"refund_amount"`
+
+		// RefundReason Why the refund amount was calculated this way
+		RefundReason CancelBookingResponseDataRefundReason `json:"refund_reason"`
+		Status       string                                `json:"status"`
+	} `json:"data,omitempty"`
+	Message string `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                `json:"meta,omitempty"`
+	Status CancelBookingResponseStatus `json:"status"`
+}
+
+// CancelBookingResponseDataRefundReason Why the refund amount was calculated this way
+type CancelBookingResponseDataRefundReason string
+
+// CancelBookingResponseStatus defines model for CancelBookingResponse.Status.
+type CancelBookingResponseStatus string
+
 // CreateReviewRequest defines model for CreateReviewRequest.
 type CreateReviewRequest struct {
 	BookingId openapi_types.UUID `json:"booking_id"`
 	Rating    int                `json:"rating"`
 	Review    *string            `json:"review,omitempty"`
+}
+
+// CreateTrainerRequest defines model for CreateTrainerRequest.
+type CreateTrainerRequest struct {
+	Bio               string `json:"bio"`
+	CalendlyConnected bool   `json:"calendly_connected"`
+	CalendlyLink      string `json:"calendly_link"`
+	DisplayPicture    string `json:"display_picture"`
+	IntroVideoUrl     string `json:"intro_video_url"`
+	Specialization    string `json:"specialization"`
+	YearsOfExperience int    `json:"years_of_experience"`
 }
 
 // CursorPaginationMeta defines model for CursorPaginationMeta.
@@ -487,20 +670,29 @@ type LocalAuthData struct {
 	User         AuthUser `json:"user"`
 }
 
-// PublicReview defines model for PublicReview.
-type PublicReview struct {
-	CreatedAt time.Time          `json:"created_at"`
-	Id        openapi_types.UUID `json:"id"`
-	Rating    int                `json:"rating"`
-	Review    *string            `json:"review,omitempty"`
-	TrainerId openapi_types.UUID `json:"trainer_id"`
-	UpdatedAt time.Time          `json:"updated_at"`
-}
-
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
+
+// RescheduleBookingRequest defines model for RescheduleBookingRequest.
+type RescheduleBookingRequest struct {
+	// NewDatetime The new desired date and time (ISO 8601)
+	NewDatetime time.Time `json:"new_datetime"`
+
+	// Notes Optional additional details
+	Notes *string `json:"notes,omitempty"`
+
+	// PhoneNumber Updated phone number (phone_callback bookings only)
+	PhoneNumber *string          `json:"phone_number,omitempty"`
+	Reason      RescheduleReason `json:"reason"`
+
+	// Timezone IANA timezone string (e.g. America/New_York)
+	Timezone string `json:"timezone"`
+}
+
+// RescheduleReason defines model for RescheduleReason.
+type RescheduleReason string
 
 // ResetPasswordRequest defines model for ResetPasswordRequest.
 type ResetPasswordRequest struct {
@@ -535,6 +727,40 @@ type ReviewResponse struct {
 
 // ReviewResponseStatus defines model for ReviewResponse.Status.
 type ReviewResponseStatus string
+
+// ReviewsListResponse defines model for ReviewsListResponse.
+type ReviewsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string                    `json:"code"`
+	Data    []Review                  `json:"data"`
+	Message string                    `json:"message"`
+	Meta    CursorPaginationMeta      `json:"meta"`
+	Status  ReviewsListResponseStatus `json:"status"`
+}
+
+// ReviewsListResponseStatus defines model for ReviewsListResponse.Status.
+type ReviewsListResponseStatus string
+
+// SetAvailabilityRequest defines model for SetAvailabilityRequest.
+type SetAvailabilityRequest struct {
+	// Availability List of weekly availability slots. Empty array clears all slots.
+	Availability []AvailabilitySlot `json:"availability"`
+}
+
+// SetAvailabilityResponse defines model for SetAvailabilityResponse.
+type SetAvailabilityResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string              `json:"code"`
+	Data    *[]AvailabilitySlot `json:"data,omitempty"`
+	Message string              `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                  `json:"meta,omitempty"`
+	Status SetAvailabilityResponseStatus `json:"status"`
+}
+
+// SetAvailabilityResponseStatus defines model for SetAvailabilityResponse.Status.
+type SetAvailabilityResponseStatus string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -601,19 +827,6 @@ type TrainerResponse struct {
 // TrainerResponseStatus defines model for TrainerResponse.Status.
 type TrainerResponseStatus string
 
-// TrainerReviewsListResponse defines model for TrainerReviewsListResponse.
-type TrainerReviewsListResponse struct {
-	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string                           `json:"code"`
-	Data    *[]PublicReview                  `json:"data,omitempty"`
-	Message string                           `json:"message"`
-	Meta    *CursorPaginationMeta            `json:"meta,omitempty"`
-	Status  TrainerReviewsListResponseStatus `json:"status"`
-}
-
-// TrainerReviewsListResponseStatus defines model for TrainerReviewsListResponse.Status.
-type TrainerReviewsListResponseStatus string
-
 // TrainersListResponse defines model for TrainersListResponse.
 type TrainersListResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -646,6 +859,17 @@ type UpdateProfileRequestFitnessLevel string
 
 // UpdateProfileRequestGender defines model for UpdateProfileRequest.Gender.
 type UpdateProfileRequestGender string
+
+// UpdateTrainerRequest defines model for UpdateTrainerRequest.
+type UpdateTrainerRequest struct {
+	Bio               *string `json:"bio,omitempty"`
+	CalendlyConnected *bool   `json:"calendly_connected,omitempty"`
+	CalendlyLink      *string `json:"calendly_link,omitempty"`
+	DisplayPicture    *string `json:"display_picture,omitempty"`
+	IntroVideoUrl     *string `json:"intro_video_url,omitempty"`
+	Specialization    *string `json:"specialization,omitempty"`
+	YearsOfExperience *int    `json:"years_of_experience,omitempty"`
+}
 
 // UserProfileResponse defines model for UserProfileResponse.
 type UserProfileResponse struct {
@@ -729,16 +953,15 @@ type HandleContactUsJSONBody struct {
 
 // GetTrainersParams defines parameters for GetTrainers.
 type GetTrainersParams struct {
-	Specialization       *string  `form:"specialization,omitempty" json:"specialization,omitempty"`
-	MinRating            *float64 `form:"min_rating,omitempty" json:"min_rating,omitempty"`
-	MinYearsOfExperience *int     `form:"min_years_of_experience,omitempty" json:"min_years_of_experience,omitempty"`
-	Limit                *int     `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor               *string  `form:"cursor,omitempty" json:"cursor,omitempty"`
+	// Category Filter by category (maps to trainers.specialization)
+	Category *string `form:"category,omitempty" json:"category,omitempty"`
 }
 
-// GetTrainersIdReviewsParams defines parameters for GetTrainersIdReviews.
-type GetTrainersIdReviewsParams struct {
-	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+// GetTrainerReviewsParams defines parameters for GetTrainerReviews.
+type GetTrainerReviewsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from the previous response.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
@@ -789,14 +1012,29 @@ type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
 
+// CancelBookingJSONRequestBody defines body for CancelBooking for application/json ContentType.
+type CancelBookingJSONRequestBody = CancelBookingRequest
+
+// RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall for application/json ContentType.
+type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
+
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
+// CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
+type CreateTrainerJSONRequestBody = CreateTrainerRequest
+
 // PostTrainersApplyJSONRequestBody defines body for PostTrainersApply for application/json ContentType.
 type PostTrainersApplyJSONRequestBody = TrainerApplication
+
+// PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
+type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+
+// UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
+type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateProfileRequest
@@ -860,6 +1098,12 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// Cancel a confirmed booking
+	// (PUT /bookings/{id}/cancel)
+	CancelBooking(c *gin.Context, id openapi_types.UUID)
+	// Reschedule an existing discovery call booking
+	// (PUT /bookings/{id}/reschedule)
+	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -869,18 +1113,30 @@ type ServerInterface interface {
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
-	// List approved trainers with optional filters
+	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
+	// Add trainer (admin only)
+	// (POST /trainers)
+	CreateTrainer(c *gin.Context)
 	// Apply to become a trainer
 	// (POST /trainers/apply)
 	PostTrainersApply(c *gin.Context)
-	// Get a trainer's profile
+	// Set trainer weekly availability
+	// (PUT /trainers/me/availability)
+	PutTrainersMeAvailability(c *gin.Context)
+	// Delete trainer (admin only)
+	// (DELETE /trainers/{id})
+	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get trainer by ID (admin only)
 	// (GET /trainers/{id})
-	GetTrainersId(c *gin.Context, id openapi_types.UUID)
-	// Get reviews for a trainer
+	GetTrainerByID(c *gin.Context, id openapi_types.UUID)
+	// Update trainer (admin only)
+	// (PATCH /trainers/{id})
+	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
-	GetTrainersIdReviews(c *gin.Context, id openapi_types.UUID, params GetTrainersIdReviewsParams)
+	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
 	// Get the authenticated user's profile
 	// (GET /users/me/profile)
 	GetUserProfile(c *gin.Context)
@@ -1224,6 +1480,60 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	siw.Handler.BookDiscoveryCall(c)
 }
 
+// CancelBooking operation middleware
+func (siw *ServerInterfaceWrapper) CancelBooking(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelBooking(c, id)
+}
+
+// RescheduleDiscoveryCall operation middleware
+func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RescheduleDiscoveryCall(c, id)
+}
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -1276,43 +1586,11 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	// Parameter object where we will unmarshal all parameters from the context
 	var params GetTrainersParams
 
-	// ------------- Optional query parameter "specialization" -------------
+	// ------------- Optional query parameter "category" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "specialization", c.Request.URL.Query(), &params.Specialization, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter specialization: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "min_rating" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_rating", c.Request.URL.Query(), &params.MinRating, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter min_rating: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "min_years_of_experience" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_years_of_experience", c.Request.URL.Query(), &params.MinYearsOfExperience, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter min_years_of_experience: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "cursor" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -1324,6 +1602,21 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainers(c, params)
+}
+
+// CreateTrainer operation middleware
+func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateTrainer(c)
 }
 
 // PostTrainersApply operation middleware
@@ -1341,8 +1634,23 @@ func (siw *ServerInterfaceWrapper) PostTrainersApply(c *gin.Context) {
 	siw.Handler.PostTrainersApply(c)
 }
 
-// GetTrainersId operation middleware
-func (siw *ServerInterfaceWrapper) GetTrainersId(c *gin.Context) {
+// PutTrainersMeAvailability operation middleware
+func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutTrainersMeAvailability(c)
+}
+
+// DeleteTrainer operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1365,11 +1673,11 @@ func (siw *ServerInterfaceWrapper) GetTrainersId(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTrainersId(c, id)
+	siw.Handler.DeleteTrainer(c, id)
 }
 
-// GetTrainersIdReviews operation middleware
-func (siw *ServerInterfaceWrapper) GetTrainersIdReviews(c *gin.Context) {
+// GetTrainerByID operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerByID(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -1385,8 +1693,60 @@ func (siw *ServerInterfaceWrapper) GetTrainersIdReviews(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
 
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainerByID(c, id)
+}
+
+// UpdateTrainer operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateTrainer(c, id)
+}
+
+// GetTrainerReviews operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetTrainersIdReviewsParams
+	var params GetTrainerReviewsParams
 
 	// ------------- Optional query parameter "limit" -------------
 
@@ -1411,7 +1771,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersIdReviews(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTrainersIdReviews(c, id, params)
+	siw.Handler.GetTrainerReviews(c, id, params)
 }
 
 // GetUserProfile operation middleware
@@ -1531,13 +1891,19 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
+	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
+	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.POST(options.BaseURL+"/trainers/apply", wrapper.PostTrainersApply)
-	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainersId)
-	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainersIdReviews)
+	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
+	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
+	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
+	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
