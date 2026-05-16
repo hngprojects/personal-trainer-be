@@ -22,6 +22,9 @@ type Repository interface {
 	CreateSlot(ctx context.Context, arg db.CreateBookingSlotParams) (db.BookingSlot, error)
 	UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotParams) (db.BookingSlot, error)
 	DeleteSlot(ctx context.Context, id uuid.UUID) error
+
+	GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error)
+	GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error)
 }
 
 type postgresRepo struct {
@@ -77,4 +80,12 @@ func (r *postgresRepo) UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotP
 
 func (r *postgresRepo) DeleteSlot(ctx context.Context, id uuid.UUID) error {
 	return r.q.DeleteBookingSlot(ctx, id)
+}
+
+func (r *postgresRepo) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error) {
+	return r.q.GetUpcomingDiscoveryBookings(ctx, uuid.NullUUID{UUID: userID, Valid: true})
+}
+
+func (r *postgresRepo) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error) {
+	return r.q.GetUpcomingPaidSessions(ctx, clientID)
 }
