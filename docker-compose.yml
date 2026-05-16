@@ -1,18 +1,4 @@
 services:
-  db:
-    image: postgres:17
-    container_name: personal_trainer_db
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_DB: ${DATABASE_NAME}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env_file:
-      - .env
-
   redis:
     image: redis:7-alpine
     container_name: personal_trainer_redis

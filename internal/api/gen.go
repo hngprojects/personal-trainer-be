@@ -473,18 +473,18 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for RescheduleDiscoveryCall200JSONResponseBodyStatus.
+// Defines values for GetUpcomingBookingsParamsType.
 const (
-	RescheduleDiscoveryCall200JSONResponseBodyStatusError   RescheduleDiscoveryCall200JSONResponseBodyStatus = "error"
-	RescheduleDiscoveryCall200JSONResponseBodyStatusSuccess RescheduleDiscoveryCall200JSONResponseBodyStatus = "success"
+	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
+	PaidSession   GetUpcomingBookingsParamsType = "paid_session"
 )
 
-// Valid indicates whether the value is a known member of the RescheduleDiscoveryCall200JSONResponseBodyStatus enum.
-func (e RescheduleDiscoveryCall200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the GetUpcomingBookingsParamsType enum.
+func (e GetUpcomingBookingsParamsType) Valid() bool {
 	switch e {
-	case RescheduleDiscoveryCall200JSONResponseBodyStatusError:
+	case DiscoveryCall:
 		return true
-	case RescheduleDiscoveryCall200JSONResponseBodyStatusSuccess:
+	case PaidSession:
 		return true
 	default:
 		return false
@@ -511,16 +511,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
+	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UpdateUserProfile200JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -606,14 +606,14 @@ type CancelBookingResponse struct {
 		CancelledAt time.Time          `json:"cancelled_at"`
 
 		// NotificationSent Whether cancellation notification was sent to both parties
-		NotificationSent *bool `json:"notification_sent,omitempty"`
+		NotificationSent bool `json:"notification_sent"`
 
 		// RefundAmount Number of session credits refunded (0 if forfeited within 12 hours)
 		RefundAmount int `json:"refund_amount"`
 
 		// RefundReason Why the refund amount was calculated this way
-		RefundReason *CancelBookingResponseDataRefundReason `json:"refund_reason,omitempty"`
-		Status       string                                 `json:"status"`
+		RefundReason CancelBookingResponseDataRefundReason `json:"refund_reason"`
+		Status       string                                `json:"status"`
 	} `json:"data,omitempty"`
 	Message string `json:"message"`
 
@@ -657,14 +657,6 @@ type CursorPaginationMeta struct {
 
 	// NextCursor Opaque cursor to request the next page.
 	NextCursor *string `json:"next_cursor,omitempty"`
-}
-
-// DiscoveryBookingResponse Booking details response
-type DiscoveryBookingResponse struct {
-	Id             *openapi_types.UUID `json:"id,omitempty"`
-	ScheduledEnd   *time.Time          `json:"scheduled_end,omitempty"`
-	ScheduledStart *time.Time          `json:"scheduled_start,omitempty"`
-	Status         *string             `json:"status,omitempty"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -985,8 +977,19 @@ type GetBookingSlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
-// RescheduleDiscoveryCall200JSONResponseBodyStatus defines parameters for RescheduleDiscoveryCall.
-type RescheduleDiscoveryCall200JSONResponseBodyStatus string
+// GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParams struct {
+	// Timezone IANA timezone for displaying times (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Type Filter by booking type
+	Type  *GetUpcomingBookingsParamsType `form:"type,omitempty" json:"type,omitempty"`
+	Page  *int                           `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUpcomingBookingsParamsType defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParamsType string
 
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
@@ -994,6 +997,11 @@ type HandleContactUsJSONBody struct {
 	Message string              `json:"message"`
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
+}
+
+// HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
+type HandleTrainersNoteJSONBody struct {
+	Note string `json:"note"`
 }
 
 // GetTrainersParams defines parameters for GetTrainers.
@@ -1072,6 +1080,9 @@ type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
+// HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
+type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
+
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
@@ -1143,6 +1154,9 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// Get upcoming bookings for the authenticated client
+	// (GET /bookings/upcoming)
+	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
 	// Cancel a confirmed booking
 	// (PUT /bookings/{id}/cancel)
 	CancelBooking(c *gin.Context, id openapi_types.UUID)
@@ -1161,6 +1175,21 @@ type ServerInterface interface {
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
+	// Takes the Id of a session and returns data concerning the session
+	// (GET /sessions/{id})
+	HandleGetSessionById(c *gin.Context, id openapi_types.UUID)
+	// The session is completed via this endpoint.
+	// (PUT /sessions/{id}/complete)
+	HandleCompleteSession(c *gin.Context, id openapi_types.UUID)
+	// A client joined a session via this endpoint.
+	// (PUT /sessions/{id}/join)
+	HandleJoinSession(c *gin.Context, id openapi_types.UUID)
+	// Trainers submit notes for client.
+	// (PUT /sessions/{id}/notes)
+	HandleTrainersNote(c *gin.Context, id openapi_types.UUID)
+	// A trainer starts a session via this endpoint.
+	// (PUT /sessions/{id}/start)
+	HandleStartSession(c *gin.Context, id openapi_types.UUID)
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -1537,6 +1566,59 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	siw.Handler.BookDiscoveryCall(c)
 }
 
+// GetUpcomingBookings operation middleware
+func (siw *ServerInterfaceWrapper) GetUpcomingBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUpcomingBookingsParams
+
+	// ------------- Optional query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpcomingBookings(c, params)
+}
+
 // CancelBooking operation middleware
 func (siw *ServerInterfaceWrapper) CancelBooking(c *gin.Context) {
 
@@ -1643,6 +1725,131 @@ func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 	}
 
 	siw.Handler.CreateReview(c)
+}
+
+// HandleGetSessionById operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetSessionById(c, id)
+}
+
+// HandleCompleteSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleCompleteSession(c, id)
+}
+
+// HandleJoinSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleJoinSession(c, id)
+}
+
+// HandleTrainersNote operation middleware
+func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleTrainersNote(c, id)
+}
+
+// HandleStartSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleStartSession(c, id)
 }
 
 // GetTrainers operation middleware
@@ -1932,12 +2139,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
+	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
+	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
+	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
+	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
+	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)

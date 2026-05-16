@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"time"
 
+	"sort"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -640,4 +642,186 @@ func slotToMap(s db.BookingSlot, loc *time.Location) map[string]interface{} {
 		m["display_timezone"] = s.Timezone
 	}
 	return m
+}
+
+// GET /bookings/upcoming — authenticated client
+const discoveryCallDurationMinutes = 30
+
+func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBookingsParams) {
+	ctx := c.Request.Context()
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	// Resolve timezone
+	clientTZ := "UTC"
+	if params.Timezone != nil && *params.Timezone != "" {
+		if _, err := time.LoadLocation(*params.Timezone); err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
+			return
+		}
+		clientTZ = *params.Timezone
+	}
+	loc, _ := time.LoadLocation(clientTZ)
+
+	// Validate and apply pagination params
+	page := 1
+	if params.Page != nil {
+		if *params.Page < 1 {
+			c.JSON(http.StatusBadRequest, api.NewError("page must be >= 1", api.CodeBadRequest))
+			return
+		}
+		page = *params.Page
+	}
+	limit := 10
+	if params.Limit != nil {
+		if *params.Limit < 1 || *params.Limit > 100 {
+			c.JSON(http.StatusBadRequest, api.NewError("limit must be between 1 and 100", api.CodeBadRequest))
+			return
+		}
+		limit = *params.Limit
+	}
+
+	type upcomingItem struct {
+		ID               string    `json:"id"`
+		Type             string    `json:"type"`
+		ScheduledAt      string    `json:"scheduled_at"`
+		ScheduledAtLocal string    `json:"scheduled_at_local"`
+		DurationMinutes  int       `json:"duration_minutes"`
+		Status           string    `json:"status"`
+		ContactMode      *string   `json:"contact_mode,omitempty"`
+		ZoomMeetingLink  *string   `json:"zoom_meeting_link,omitempty"`
+		PhoneNumber      *string   `json:"phone_number,omitempty"`
+		TrainerName      *string   `json:"trainer_name,omitempty"`
+		TrainerPhoto     *string   `json:"trainer_photo,omitempty"`
+		Specialization   *string   `json:"specialization,omitempty"`
+		SortKey          time.Time `json:"-"`
+	}
+
+	var items []upcomingItem
+
+	filterType := ""
+	if params.Type != nil {
+		filterType = string(*params.Type)
+	}
+
+	// Fetch discovery calls
+	if filterType == "" || filterType == string(api.DiscoveryCall) {
+		discovery, err := h.repo.GetUpcomingDiscoveryBookings(ctx, userID)
+		if err != nil {
+			h.log.Error("failed to get upcoming discovery bookings", "err", err, "user_id", userID)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
+		}
+		for _, b := range discovery {
+			mode := b.ContactMode
+			item := upcomingItem{
+				ID:               b.ID.String(),
+				Type:             "discovery_call",
+				ScheduledAt:      b.SelectedDatetime.UTC().Format(time.RFC3339),
+				ScheduledAtLocal: b.SelectedDatetime.In(loc).Format(time.RFC3339),
+				DurationMinutes:  discoveryCallDurationMinutes,
+				Status:           b.Status,
+				ContactMode:      &mode,
+				SortKey:          b.SelectedDatetime,
+			}
+			if b.ZoomMeetingLink.Valid {
+				v := b.ZoomMeetingLink.String
+				item.ZoomMeetingLink = &v
+			}
+			if b.PhoneNumber.Valid {
+				v := b.PhoneNumber.String
+				item.PhoneNumber = &v
+			}
+			items = append(items, item)
+		}
+	}
+
+	// Fetch paid sessions
+	if filterType == "" || filterType == string(api.PaidSession) {
+		sessions, err := h.repo.GetUpcomingPaidSessions(ctx, userID)
+		if err != nil {
+			h.log.Error("failed to get upcoming paid sessions", "err", err, "user_id", userID)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
+		}
+		for _, s := range sessions {
+			if !s.ScheduledStart.Valid {
+				continue
+			}
+			scheduledStart := s.ScheduledStart.Time
+			durationMins := 60
+			if s.ScheduledEnd.Valid {
+				durationMins = int(s.ScheduledEnd.Time.Sub(scheduledStart).Minutes())
+			}
+			status := "confirmed"
+			if s.BookingStatus.Valid {
+				status = s.BookingStatus.String
+			}
+			item := upcomingItem{
+				ID:               s.ID.String(),
+				Type:             "paid_session",
+				ScheduledAt:      scheduledStart.UTC().Format(time.RFC3339),
+				ScheduledAtLocal: scheduledStart.In(loc).Format(time.RFC3339),
+				DurationMinutes:  durationMins,
+				Status:           status,
+				SortKey:          scheduledStart,
+			}
+			if s.SessionPlatform.Valid {
+				v := s.SessionPlatform.String
+				item.ContactMode = &v
+			}
+			if s.TrainerName != "" {
+				v := s.TrainerName
+				item.TrainerName = &v
+			}
+			if s.TrainerSpecialization.Valid {
+				v := s.TrainerSpecialization.String
+				item.Specialization = &v
+			}
+			if s.TrainerPhoto.Valid {
+				v := s.TrainerPhoto.String
+				item.TrainerPhoto = &v
+			}
+			items = append(items, item)
+		}
+	}
+
+	// Sort merged results by datetime ascending
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].SortKey.Before(items[j].SortKey)
+	})
+
+	// Paginate
+	total := len(items)
+	totalPages := (total + limit - 1) / limit
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	offset := (page - 1) * limit
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	paged := items[offset:end]
+
+	meta := map[string]int{
+		"page":        page,
+		"per_page":    limit,
+		"total":       total,
+		"total_pages": totalPages,
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Upcoming bookings retrieved", api.CodeOK, paged, meta))
 }

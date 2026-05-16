@@ -153,7 +153,6 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	}
 
 	// Build response
-	notificationSent := true
 	response := api.CancelBookingResponse{
 		Status:  api.CancelBookingResponseStatusSuccess,
 		Code:    "OK",
@@ -161,17 +160,17 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		Data: &struct {
 			BookingId        openapi_types.UUID `json:"booking_id"`
 			CancelledAt      time.Time          `json:"cancelled_at"`
-			NotificationSent *bool              `json:"notification_sent,omitempty"`
+			NotificationSent bool               `json:"notification_sent"`
 			RefundAmount     int                `json:"refund_amount"`
-			RefundReason     *api.CancelBookingResponseDataRefundReason `json:"refund_reason,omitempty"`
+			RefundReason     api.CancelBookingResponseDataRefundReason `json:"refund_reason"`
 			Status           string             `json:"status"`
 		}{
 			BookingId:        openapi_types.UUID(cancelledBooking.ID),
 			CancelledAt:      cancelledBooking.CancelledAt.Time,
 			RefundAmount:     refundAmount,
-			RefundReason:     &refundReason,
+			RefundReason:     refundReason,
 			Status:           "cancelled",
-			NotificationSent: &notificationSent,
+			NotificationSent: true,
 		},
 	}
 

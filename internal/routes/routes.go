@@ -11,6 +11,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/booking_session"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
@@ -76,10 +77,11 @@ type routerImpl struct {
 	users         *usersStore
 	reviews       *reviewsvc.Service
 	admin         *admin.Handler
-	contact       *contact.Handler
-	discovery     *discovery.Handler
-	dev           *dev.Handler
-	bookings      *bookingsStore
+	contact        *contact.Handler
+	discovery      *discovery.Handler
+	dev            *dev.Handler
+	bookings       *bookingsStore
+	bookingSession booking_session.SessionHandler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -138,6 +140,8 @@ func (s *Router) Routes() *gin.Engine {
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
+			bookingSessionRepo := booking_session.NewPostgresBookingSessionRepo(q)
+			bookingSessionService := booking_session.NewSessionService(bookingSessionRepo, s.log)
 			mailer := s.buildMailer()
 
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
@@ -156,6 +160,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
+			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
