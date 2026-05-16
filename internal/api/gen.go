@@ -134,6 +134,36 @@ func (e GoogleAuthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for RescheduleReason.
+const (
+	RescheduleReasonFeelingUnwell     RescheduleReason = "feeling_unwell"
+	RescheduleReasonOther             RescheduleReason = "other"
+	RescheduleReasonPersonalEmergency RescheduleReason = "personal_emergency"
+	RescheduleReasonSomethingCameUp   RescheduleReason = "something_came_up"
+	RescheduleReasonTravel            RescheduleReason = "travel"
+	RescheduleReasonWorkConflict      RescheduleReason = "work_conflict"
+)
+
+// Valid indicates whether the value is a known member of the RescheduleReason enum.
+func (e RescheduleReason) Valid() bool {
+	switch e {
+	case RescheduleReasonFeelingUnwell:
+		return true
+	case RescheduleReasonOther:
+		return true
+	case RescheduleReasonPersonalEmergency:
+		return true
+	case RescheduleReasonSomethingCameUp:
+		return true
+	case RescheduleReasonTravel:
+		return true
+	case RescheduleReasonWorkConflict:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewResponseStatus.
 const (
 	ReviewResponseStatusError   ReviewResponseStatus = "error"
@@ -319,19 +349,19 @@ func (e UpdateProfileRequestFitnessLevel) Valid() bool {
 
 // Defines values for UpdateProfileRequestGender.
 const (
-	Female UpdateProfileRequestGender = "female"
-	Male   UpdateProfileRequestGender = "male"
-	Other  UpdateProfileRequestGender = "other"
+	UpdateProfileRequestGenderFemale UpdateProfileRequestGender = "female"
+	UpdateProfileRequestGenderMale   UpdateProfileRequestGender = "male"
+	UpdateProfileRequestGenderOther  UpdateProfileRequestGender = "other"
 )
 
 // Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
 func (e UpdateProfileRequestGender) Valid() bool {
 	switch e {
-	case Female:
+	case UpdateProfileRequestGenderFemale:
 		return true
-	case Male:
+	case UpdateProfileRequestGenderMale:
 		return true
-	case Other:
+	case UpdateProfileRequestGenderOther:
 		return true
 	default:
 		return false
@@ -389,6 +419,24 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	case HandleVerifyEmail200JSONResponseBodyStatusError:
 		return true
 	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetUpcomingBookingsParamsType.
+const (
+	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
+	PaidSession   GetUpcomingBookingsParamsType = "paid_session"
+)
+
+// Valid indicates whether the value is a known member of the GetUpcomingBookingsParamsType enum.
+func (e GetUpcomingBookingsParamsType) Valid() bool {
+	switch e {
+	case DiscoveryCall:
+		return true
+	case PaidSession:
 		return true
 	default:
 		return false
@@ -468,45 +516,6 @@ type BaseResponse struct {
 
 // BaseResponseStatus defines model for BaseResponse.Status.
 type BaseResponseStatus string
-
-// RescheduleReason defines model for RescheduleReason.
-type RescheduleReason string
-
-// Defines values for RescheduleReason.
-const (
-	RescheduleReasonSomethingCameUp    RescheduleReason = "something_came_up"
-	RescheduleReasonFeelingUnwell      RescheduleReason = "feeling_unwell"
-	RescheduleReasonWorkConflict       RescheduleReason = "work_conflict"
-	RescheduleReasonPersonalEmergency  RescheduleReason = "personal_emergency"
-	RescheduleReasonTravel             RescheduleReason = "travel"
-	RescheduleReasonOther              RescheduleReason = "other"
-)
-
-// Valid indicates whether the value is a known member of the RescheduleReason enum.
-func (e RescheduleReason) Valid() bool {
-	switch e {
-	case RescheduleReasonSomethingCameUp,
-		RescheduleReasonFeelingUnwell,
-		RescheduleReasonWorkConflict,
-		RescheduleReasonPersonalEmergency,
-		RescheduleReasonTravel,
-		RescheduleReasonOther:
-		return true
-	}
-	return false
-}
-
-// RescheduleBookingRequest defines model for RescheduleBookingRequest.
-type RescheduleBookingRequest struct {
-	NewDatetime  time.Time        `json:"new_datetime"`
-	Timezone     string           `json:"timezone"`
-	Reason       RescheduleReason `json:"reason"`
-	Notes        *string          `json:"notes,omitempty"`
-	PhoneNumber  *string          `json:"phone_number,omitempty"`
-}
-
-// RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall.
-type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
 
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
@@ -642,6 +651,25 @@ type LocalAuthData struct {
 type RegisterRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
+
+// RescheduleBookingRequest defines model for RescheduleBookingRequest.
+type RescheduleBookingRequest struct {
+	// NewDatetime The new desired date and time (ISO 8601)
+	NewDatetime time.Time `json:"new_datetime"`
+
+	// Notes Optional additional details
+	Notes *string `json:"notes,omitempty"`
+
+	// PhoneNumber Updated phone number (phone_callback bookings only)
+	PhoneNumber *string          `json:"phone_number,omitempty"`
+	Reason      RescheduleReason `json:"reason"`
+
+	// Timezone IANA timezone string (e.g. America/New_York)
+	Timezone string `json:"timezone"`
+}
+
+// RescheduleReason defines model for RescheduleReason.
+type RescheduleReason string
 
 // ResetPasswordRequest defines model for ResetPasswordRequest.
 type ResetPasswordRequest struct {
@@ -894,12 +922,31 @@ type GetBookingSlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
+// GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParams struct {
+	// Timezone IANA timezone for displaying times (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Type Filter by booking type
+	Type  *GetUpcomingBookingsParamsType `form:"type,omitempty" json:"type,omitempty"`
+	Page  *int                           `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUpcomingBookingsParamsType defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParamsType string
+
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
 	Email   openapi_types.Email `json:"email"`
 	Message string              `json:"message"`
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
+}
+
+// HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
+type HandleTrainersNoteJSONBody struct {
+	Note string `json:"note"`
 }
 
 // GetTrainersParams defines parameters for GetTrainers.
@@ -966,11 +1013,17 @@ type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
 
+// RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall for application/json ContentType.
+type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
+
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
+
+// HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
+type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
@@ -1046,7 +1099,10 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
-	// Reschedule a discovery call booking
+	// Get upcoming bookings for the authenticated client
+	// (GET /bookings/upcoming)
+	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
+	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// Handle taking user feedback
@@ -1061,6 +1117,21 @@ type ServerInterface interface {
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
+	// Takes the Id of a session and returns data concerning the session
+	// (GET /sessions/{id})
+	HandleGetSessionById(c *gin.Context, id openapi_types.UUID)
+	// The session is completed via this endpoint.
+	// (PUT /sessions/{id}/complete)
+	HandleCompleteSession(c *gin.Context, id openapi_types.UUID)
+	// A client joined a session via this endpoint.
+	// (PUT /sessions/{id}/join)
+	HandleJoinSession(c *gin.Context, id openapi_types.UUID)
+	// Trainers submit notes for client.
+	// (PUT /sessions/{id}/notes)
+	HandleTrainersNote(c *gin.Context, id openapi_types.UUID)
+	// A trainer starts a session via this endpoint.
+	// (PUT /sessions/{id}/start)
+	HandleStartSession(c *gin.Context, id openapi_types.UUID)
 	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -1440,6 +1511,59 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	siw.Handler.BookDiscoveryCall(c)
 }
 
+// GetUpcomingBookings operation middleware
+func (siw *ServerInterfaceWrapper) GetUpcomingBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUpcomingBookingsParams
+
+	// ------------- Optional query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpcomingBookings(c, params)
+}
+
 // RescheduleDiscoveryCall operation middleware
 func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 
@@ -1466,7 +1590,6 @@ func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 
 	siw.Handler.RescheduleDiscoveryCall(c, id)
 }
-
 
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
@@ -1520,6 +1643,131 @@ func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 	}
 
 	siw.Handler.CreateReview(c)
+}
+
+// HandleGetSessionById operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetSessionById(c, id)
+}
+
+// HandleCompleteSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleCompleteSession(c, id)
+}
+
+// HandleJoinSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleJoinSession(c, id)
+}
+
+// HandleTrainersNote operation middleware
+func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleTrainersNote(c, id)
+}
+
+// HandleStartSession operation middleware
+func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleStartSession(c, id)
 }
 
 // GetTrainers operation middleware
@@ -1824,11 +2072,17 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
+	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
+	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
+	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
+	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
+	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
