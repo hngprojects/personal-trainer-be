@@ -136,27 +136,3 @@ func (m *ResendMailer) SendContactConfirmation(to, name string) error {
 	}
 	return m.send(to, contactConfirmationSubject, body)
 }
-
-func (m *ResendMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
-	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
-	if err != nil {
-		return fmt.Errorf("resend: build reschedule email: %w", err)
-	}
-	return m.send(to, discoveryRescheduleSubject, html)
-}
-
-func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
-	if err != nil {
-		return fmt.Errorf("resend: build paid session reschedule email: %w", err)
-	}
-	return m.send(to, paidRescheduleClientSubject, html)
-}
-
-func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
-	if err != nil {
-		return fmt.Errorf("resend: build paid session reschedule trainer notification email: %w", err)
-	}
-	return m.send(to, paidRescheduleTrainerSubject, html)
-}

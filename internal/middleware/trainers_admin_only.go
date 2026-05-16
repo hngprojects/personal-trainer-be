@@ -61,37 +61,6 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		// Trainer-owned endpoints (/trainers/me/*) are accessible to any authenticated trainer.
-		if strings.HasPrefix(path, "/api/v1/trainers/me/") ||
-			strings.HasPrefix(path, "/trainers/me/") ||
-			path == "/api/v1/trainers/me" ||
-			path == "/trainers/me" {
-			// Verify authenticated user is in context before allowing bypass
-			if _, ok := c.Get("user_id"); ok {
-				c.Next()
-				return
-			}
-		}
-
-		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
-			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
-			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
-			if mockID != "" {
-				if _, err := uuid.Parse(mockID); err != nil {
-					c.AbortWithStatusJSON(http.StatusBadRequest, api.NewError("Invalid X-Mock-User-ID header; must be a valid UUID", api.CodeBadRequest))
-					return
-				}
-			}
-			if mockRole != "" {
-				if mockRole != "admin" {
-					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
-					return
-				}
-				c.Next()
-				return
-			}
-		}
-
 		header := c.GetHeader("Authorization")
 		if header == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing token", api.CodeUnauthorized))

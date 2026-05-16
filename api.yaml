@@ -271,50 +271,6 @@ components:
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
 
-    AvailabilitySlot:
-      type: object
-      required: [day_of_week, start_time, end_time, timezone]
-      properties:
-        day_of_week:
-          type: integer
-          minimum: 0
-          maximum: 6
-          description: "Day of week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday"
-        start_time:
-          type: string
-          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
-          example: "09:00"
-          description: "Start time in HH:MM format (24-hour)"
-        end_time:
-          type: string
-          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
-          example: "17:00"
-          description: "End time in HH:MM format (24-hour)"
-        timezone:
-          type: string
-          example: "America/New_York"
-          description: "IANA timezone string"
-
-    SetAvailabilityRequest:
-      type: object
-      required: [availability]
-      properties:
-        availability:
-          type: array
-          items:
-            $ref: "#/components/schemas/AvailabilitySlot"
-          description: "List of weekly availability slots. Empty array clears all slots."
-
-    SetAvailabilityResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: array
-              items:
-                $ref: "#/components/schemas/AvailabilitySlot"
-
     LocalAuthData:
       type: object
       required: [user, access_token, refresh_token, expires_in]
@@ -588,115 +544,6 @@ components:
                 $ref: "#/components/schemas/Review"
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
-
-    RescheduleBookingRequest:
-      type: object
-      required:
-        - new_datetime
-        - timezone
-        - reason
-      properties:
-        new_datetime:
-          type: string
-          format: date-time
-          description: The new desired date and time (ISO 8601)
-        timezone:
-          type: string
-          description: IANA timezone string (e.g. America/New_York)
-          example: Africa/Lagos
-        reason:
-          $ref: "#/components/schemas/RescheduleReason"
-        notes:
-          type: string
-          maxLength: 200
-          description: Optional additional details
-        phone_number:
-          type: string
-          description: Updated phone number (phone_callback bookings only)
-
-    RescheduleReason:
-      type: string
-      enum:
-        - something_came_up
-        - feeling_unwell
-        - work_conflict
-        - personal_emergency
-        - travel
-        - other
-
-    CancelBookingRequest:
-      type: object
-      required: [reason]
-      properties:
-        reason:
-          type: string
-          enum:
-            - schedule_conflict
-            - feeling_unwell
-            - personal_emergency
-            - trainer_request
-            - client_request
-            - other
-          description: Reason for cancellation
-        notes:
-          type: string
-          maxLength: 200
-          description: Optional additional details about cancellation
-
-    DiscoveryBookingResponse:
-      type: object
-      description: Booking details response
-      properties:
-        id:
-          type: string
-          format: uuid
-        scheduled_start:
-          type: string
-          format: date-time
-        scheduled_end:
-          type: string
-          format: date-time
-        status:
-          type: string
-          example: confirmed
-
-    CancelBookingResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: object
-              required:
-                [
-                  booking_id,
-                  status,
-                  cancelled_at,
-                  refund_amount,
-                  refund_reason,
-                  notification_sent,
-                ]
-              properties:
-                booking_id:
-                  type: string
-                  format: uuid
-                status:
-                  type: string
-                  example: cancelled
-                cancelled_at:
-                  type: string
-                  format: date-time
-                refund_amount:
-                  type: integer
-                  description: Number of session credits refunded (0 if forfeited within 12 hours)
-                  example: 1
-                refund_reason:
-                  type: string
-                  enum: [within_12_hours, after_12_hours]
-                  description: Why the refund amount was calculated this way
-                notification_sent:
-                  type: boolean
-                  description: Whether cancellation notification was sent to both parties
 
     BookDiscoveryCallRequest:
       type: object
@@ -1287,354 +1134,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /trainers:
-    get:
-      operationId: GetTrainers
-      tags:
-        - Trainer
-      summary: Get trainers (admin only)
-      parameters:
-        - name: category
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by category (maps to trainers.specialization)
-      responses:
-        "200":
-          description: Trainers fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainersListResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      operationId: CreateTrainer
-      tags:
-        - Trainer
-      summary: Add trainer (admin only)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateTrainerRequest"
-      responses:
-        "201":
-          description: Trainer created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /trainers/{id}:
-    get:
-      operationId: GetTrainerByID
-      tags:
-        - Trainer
-      summary: Get trainer by ID (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Trainer fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    patch:
-      operationId: UpdateTrainer
-      tags:
-        - Trainer
-      summary: Update trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateTrainerRequest"
-      responses:
-        "200":
-          description: Trainer updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TrainerResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      operationId: DeleteTrainer
-      tags:
-        - Trainer
-      summary: Delete trainer (admin only)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /trainers/me/availability:
-    put:
-      operationId: PutTrainersMeAvailability
-      summary: Set trainer weekly availability
-      tags: [Trainer]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SetAvailabilityRequest"
-      responses:
-        "200":
-          description: Availability updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SetAvailabilityResponse"
-        "400":
-          description: Bad request (invalid timezone, overlapping slots, etc)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Trainer profile not found for this user
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /trainers/{id}/reviews:
-    get:
-      security: []
-      operationId: GetTrainerReviews
-      tags:
-        - Trainer
-      summary: Get public paginated reviews for a trainer
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Opaque cursor from the previous response.
-      responses:
-        "200":
-          description: Trainer reviews fetched
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReviewsListResponse"
-              example:
-                status: success
-                message: Trainer reviews fetched
-                code: OK
-                data:
-                  - id: "11111111-1111-1111-1111-111111111111"
-                    booking_id: "22222222-2222-2222-2222-222222222222"
-                    trainer_id: "33333333-3333-3333-3333-333333333333"
-                    client_user_id: "44444444-4444-4444-4444-444444444444"
-                    rating: 5
-                    review: "Great session and clear communication."
-                    created_at: "2026-05-07T10:00:00Z"
-                    updated_at: "2026-05-07T10:00:00Z"
-                meta:
-                  next_cursor: "eyJpZCI6IjE0NCJ9"
-                  has_more: true
-        "422":
-          description: Invalid pagination parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid pagination parameters
-                code: INVALID_INPUT
-        "404":
-          description: Trainer not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: trainer not found
-                code: NOT_FOUND
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: INTERNAL_ERROR
-
   /reviews:
     post:
       operationId: CreateReview
@@ -2220,149 +1719,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /bookings/{id}/reschedule:
-    put:
-      operationId: RescheduleDiscoveryCall
-      tags:
-        - Booking
-      summary: Reschedule an existing discovery call booking
-      description: |
-        Allows a client to reschedule their discovery call to a new date and time.
-        Blocked within 12 hours of the original call time.
-        For Zoom bookings, the old meeting is deleted and a new one is created.
-        For phone callbacks, only the time and phone number are updated.
-        Maximum 3 reschedules per booking.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RescheduleBookingRequest"
-      responses:
-        "200":
-          description: Discovery call rescheduled successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-        "400":
-          description: Invalid input or new time outside open hours / in the past
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Booking locked (within 12-hour window), cancelled, or completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Booking not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: New time slot already taken
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: Maximum reschedule limit (3) reached
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /bookings/{id}/cancel:
-    put:
-      operationId: CancelBooking
-      tags:
-        - Booking
-      summary: Cancel a confirmed booking
-      description: |
-        Allows a client or trainer to cancel a confirmed booking (PUT /bookings/:id/cancel).
-        Enforces cancellation policy based on time until session:
-        - Within 12 hours: No credit refund (credits forfeited)
-        - After 12 hours: Full credit refund
-        Releases the slot back to trainer's availability and notifies both parties.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Booking ID to cancel
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CancelBookingRequest"
-      responses:
-        "200":
-          description: Booking cancelled successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CancelBookingResponse"
-        "400":
-          description: Invalid input or validation failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized (missing or invalid token)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Forbidden (user is not the client or trainer of this booking)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Booking not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Conflict (booking already cancelled or session already started)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /booking-slots:
     get:
       security: []
@@ -2527,6 +1883,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/{id}/reviews:
+    get:
+      summary: Get reviews for a trainer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            nullable: true
+            description: Cursor for pagination
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerReviewsListResponse"
+
   /trainers/apply:
     post:
       summary: Apply to become a trainer
@@ -2545,6 +1931,86 @@ paths:
                 $ref: "#/components/schemas/SuccessResponse"
         "400":
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers:
+    get:
+      summary: List approved trainers with optional filters
+      parameters:
+        - in: query
+          name: specialization
+          schema:
+            type: string
+            description: Filter by trainer specialization (e.g. "strength_training")
+        - in: query
+          name: min_rating
+          schema:
+            type: number
+            format: double
+            minimum: 1
+            maximum: 5
+            description: Filter by minimum average rating
+        - in: query
+          name: min_years_of_experience
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            description: Filter by minimum years of experience
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            nullable: true
+            description: Cursor for pagination
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainersListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}:
+    get:
+      summary: Get a trainer's profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "404":
+          description: Trainer not found
           content:
             application/json:
               schema:
