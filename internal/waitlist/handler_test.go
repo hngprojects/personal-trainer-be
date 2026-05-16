@@ -66,6 +66,8 @@ func (m *fakeMailer) SendContactConfirmation(_, _ string) error                 
 func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error { return nil }
 func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error { return nil }
 func (m *fakeMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error { return nil }
+func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ time.Time, _, _ string) error { return nil }
+func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error { return nil }
 
 var _ email.Mailer = (*fakeMailer)(nil)
 

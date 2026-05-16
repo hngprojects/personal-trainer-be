@@ -16,18 +16,18 @@ type BookingService interface {
 }
 
 type bookingService struct {
-	repo BookingsRepository
+	repo Repository
 	log  *slog.Logger
 }
 
-func NewBookingSlotService(repo BookingsRepository, log *slog.Logger) BookingSlotService {
+func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService {
 	return &bookingService{
 		repo: repo,
 		log:  log,
 	}
 }
 
-func NewBookingService(repo BookingsRepository, log *slog.Logger) BookingService {
+func NewBookingService(repo Repository, log *slog.Logger) BookingService {
 	return &bookingService{
 		repo: repo,
 		log:  log,

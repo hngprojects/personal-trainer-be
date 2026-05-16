@@ -79,12 +79,13 @@ type routerImpl struct {
 	reviews        *reviewsvc.Service
 	admin          *admin.Handler
 	contact        *contact.Handler
+	bookings       *bookingsStore
+	paidReschedule *bookings.Handler
 	discovery      *discovery.Handler
 	dev            *dev.Handler
 	booking        bookings.BookingHandler
 	bookingSlot    bookings.BookingSlotHandler
 	bookingSession booking_session.SessionHandler
-	bookings       *bookingsStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -143,7 +144,7 @@ func (s *Router) Routes() *gin.Engine {
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
-			bookingSlotRepo := bookings.NewPostgresBookingRepository(q)
+			bookingSlotRepo := bookings.NewPostgresRepo(q)
 			bookingSlotService := bookings.NewBookingSlotService(bookingSlotRepo, s.log)
 			bookingService := bookings.NewBookingService(bookingSlotRepo, s.log)
 
@@ -165,6 +166,8 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
+			bookingsRepo := bookings.NewPostgresRepo(q)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
