@@ -45,14 +45,6 @@ func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
 	return n > 0, err
 }
 
-func (c *Client) Get(ctx context.Context, key string) *redis.StringCmd {
-	return c.rdb.Get(ctx, key)
-}
-
-func (c *Client) Delete(ctx context.Context, key string) *redis.IntCmd {
-	return c.rdb.Del(ctx, key)
-}
-
 func (c *Client) Close() error {
 	return c.rdb.Close()
 }

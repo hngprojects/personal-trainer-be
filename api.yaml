@@ -650,7 +650,6 @@ paths:
       operationId: HandleLocalAuth
       tags:
         - Auth — Local
-        - Authentication
       summary: Login with email
       requestBody:
         required: true
@@ -707,6 +706,7 @@ paths:
                 status: error
                 message: Invalid email
                 code: UNAUTHORIZED
+
   /auth/logout:
     post:
       security:
@@ -714,7 +714,6 @@ paths:
       operationId: HandleLogout
       tags:
         - Auth — Session
-        - Authentication
       summary: Logs out the authenticated user
       requestBody:
         required: true
@@ -774,7 +773,6 @@ paths:
       operationId: HandleGoogleLogin
       tags:
         - Auth — OAuth
-        - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
         "302":
@@ -786,7 +784,6 @@ paths:
       operationId: HandleGoogleCallback
       tags:
         - Auth — OAuth
-        - Authentication
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
         - name: code
@@ -917,7 +914,6 @@ paths:
       operationId: HandleRegister
       tags:
         - Auth — Local
-        - Authentication
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
         required: true
@@ -977,7 +973,6 @@ paths:
       operationId: HandleVerifyEmail
       tags:
         - Auth — Local
-        - Authentication
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
         required: true
@@ -1142,8 +1137,6 @@ paths:
   /reviews:
     post:
       operationId: CreateReview
-      tags:
-        - Trainer
       summary: Submit a review for a completed booking
       requestBody:
         required: true
@@ -1238,7 +1231,6 @@ paths:
       operationId: HandleForgotPassword
       tags:
         - Auth — Local
-        - Authentication
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a registered local user that holds the `admin` role. The endpoint always returns the same generic success response regardless of whether the email exists or whether the user is an admin — this is intentional, to prevent account / role enumeration. The role gate is enforced server-side; this is unauthenticated by design because the caller has no token to present when they have lost their password.
@@ -1299,7 +1291,6 @@ paths:
       operationId: HandleResetPassword
       tags:
         - Auth — Local
-        - Authentication
       summary: Reset password using a previously emailed code
       description: >-
         Validates the 6-digit code and sets a new password. The endpoint is gated server-side to users that currently hold the `admin` role — any other caller (non-admin, inactive, unknown email, wrong code) receives the same generic 400 response so the role check cannot be probed. On success the code is consumed (single-use) and all existing refresh sessions for the user are revoked. Unauthenticated by design, since the caller has no token when resetting a forgotten password.
@@ -1455,7 +1446,6 @@ paths:
       operationId: HandleAdminLogin
       tags:
         - Admin
-        - Authentication
       summary: Log Administrators into the application with email and password
       requestBody:
         required: true
@@ -1691,74 +1681,6 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
-  /bookings/upcoming:
-    get:
-      operationId: GetUpcomingBookings
-      tags:
-        - Booking
-      summary: Get upcoming bookings for the authenticated client
-      description: |
-        Returns a paginated list of all upcoming bookings for the authenticated client.
-        Includes both paid training sessions and discovery calls, sorted by date ascending.
-        Times are returned in the client's local timezone when a timezone is provided.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: timezone
-          in: query
-          required: false
-          schema:
-            type: string
-            example: Africa/Lagos
-          description: IANA timezone for displaying times (e.g. America/New_York)
-        - name: type
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [paid_session, discovery_call]
-          description: Filter by booking type
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
-      responses:
-        "200":
-          description: Upcoming bookings retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-        "400":
-          description: Bad request — invalid query parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /bookings/discovery:
     post:
       security:
@@ -1786,77 +1708,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Time slot already booked
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /bookings/{id}/reschedule:
-    put:
-      operationId: RescheduleDiscoveryCall
-      tags:
-        - Booking
-      summary: Reschedule an existing discovery call booking
-      description: |
-        Allows a client to reschedule their discovery call to a new date and time.
-        Blocked within 12 hours of the original call time.
-        For Zoom bookings, the old meeting is deleted and a new one is created.
-        For phone callbacks, only the time and phone number are updated.
-        Maximum 3 reschedules per booking.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RescheduleBookingRequest"
-      responses:
-        "200":
-          description: Discovery call rescheduled successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-        "400":
-          description: Invalid input or new time outside open hours / in the past
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Booking locked (within 12-hour window), cancelled, or completed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Booking not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: New time slot already taken
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "429":
-          description: Maximum reschedule limit (3) reached
           content:
             application/json:
               schema:
@@ -2170,333 +2021,3 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-  /dev/token:
-    get:
-      security: []
-      operationId: HandleCreateDevToken
-      responses:
-        "200":
-          description: Token generated
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
-  /sessions/{id}:
-    get:
-      security:
-        []
-        # - bearerAuth: []
-      operationId: HandleGetSessionById
-      summary: Takes the Id of a session and returns data concerning the session
-      tags:
-        - Booking Session
-      parameters:
-        - name: id
-          in: path
-          description: Session fetched successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Session Fetched
-                code: OK
-                data:
-                  id: "11111111-1111-1111-1111-111111111111"
-                  actual_start: "2026-05-07T10:00:00Z"
-                  actual_end: "2026-06-07T10:00:00Z"
-                  trainer_joined: false
-                  client_joined: false
-                  status: booked
-                  trainer_note: "Great session and clear communication."
-                  created_at: "2026-05-07T10:00:00Z"
-          "404":
-            description: session with provided ID not found.
-            example:
-              status: error
-              message: booking session not found.
-              code: BAD_REQUEST
-          "500":
-            description: Internal server error
-            content:
-              application/json:
-                schema:
-                  $ref: "#/components/schemas/ErrorResponse"
-                example:
-                  status: error
-                  message: Internal server error
-                  code: SERVER_ERROR
-  /sessions/{id}/start:
-    put:
-      security:
-        []
-        # - bearerAuth: []
-      operationId: HandleStartSession
-      summary: A trainer starts a session via this endpoint.
-      tags:
-        - Booking Session
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Session started successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Session started
-                code: OK
-                data:
-                  id: "11111111-1111-1111-1111-111111111111"
-                  actual_start: "2026-05-07T10:00:00Z"
-                  actual_end: "2026-06-07T10:00:00Z"
-                  trainer_joined: true
-                  client_joined: false
-                  status: started
-                  trainer_note: ""
-                  created_at: "2026-05-07T10:00:00Z"
-        "400":
-          description: Invalid or missing parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid or missing parameters
-                code: BAD_REQUEST
-        "404":
-          description: session with provided ID not found.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: booking session not found.
-                code: BAD_REQUEST
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-  /sessions/{id}/join:
-    put:
-      security:
-        []
-        # - bearerAuth: []
-      operationId: HandleJoinSession
-      summary: A client joined a session via this endpoint.
-      tags:
-        - Booking Session
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Session joined successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Session joined
-                code: OK
-                data:
-                  id: "11111111-1111-1111-1111-111111111111"
-                  actual_start: "2026-05-07T10:00:00Z"
-                  actual_end: "2026-06-07T10:00:00Z"
-                  trainer_joined: true
-                  client_joined: true
-                  status: in-session
-                  trainer_note: ""
-                  created_at: "2026-05-07T10:00:00Z"
-        "400":
-          description: Invalid or missing parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid or missing parameters
-                code: BAD_REQUEST
-        "404":
-          description: session with provided ID not found.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: booking session not found.
-                code: BAD_REQUEST
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-  /sessions/{id}/complete:
-    put:
-      security:
-        []
-        # - bearerAuth: []
-      operationId: HandleCompleteSession
-      summary: The session is completed via this endpoint.
-      tags:
-        - Booking Session
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Session completed successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Session completed
-                code: OK
-                data:
-                  id: "11111111-1111-1111-1111-111111111111"
-                  actual_start: "2026-05-07T10:00:00Z"
-                  actual_end: "2026-06-07T10:00:00Z"
-                  trainer_joined: true
-                  client_joined: true
-                  status: completed
-                  trainer_note: ""
-                  created_at: "2026-05-07T10:00:00Z"
-        "400":
-          description: Invalid or missing parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid or missing parameters
-                code: BAD_REQUEST
-        "404":
-          description: session with provided ID not found.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: booking session not found.
-                code: BAD_REQUEST
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-  /sessions/{id}/notes:
-    put:
-      security:
-        []
-        # - bearerAuth: []
-      operationId: HandleTrainersNote
-      summary: Trainers submit notes for client.
-      tags:
-        - Booking Session
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [note]
-              properties:
-                note:
-                  type: string
-                  format: string
-      responses:
-        "200":
-          description: trainers note sent successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Trainer submitted note
-                code: OK
-                data:
-                  id: "11111111-1111-1111-1111-111111111111"
-                  actual_start: "2026-05-07T10:00:00Z"
-                  actual_end: "2026-06-07T10:00:00Z"
-                  trainer_joined: true
-                  client_joined: true
-                  status: completed
-                  trainer_note: "It was a greaession. Looking forwars for more sessions"
-                  created_at: "2026-05-07T10:00:00Z"
-        "400":
-          description: Invalid or missing parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid or missing parameters
-                code: BAD_REQUEST
-        "404":
-          description: session with provided ID not found.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: booking session not found.
-                code: BAD_REQUEST
