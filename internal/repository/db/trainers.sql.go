@@ -328,6 +328,49 @@ func (q *Queries) ListPendingTrainers(ctx context.Context) ([]Trainer, error) {
 	return items, nil
 }
 
+const getTrainerByUserID = `-- name: GetTrainerByUserID :one
+SELECT
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,
+  calendly_link,
+  onboarding_status,
+  average_rating,
+  total_reviews,
+  created_at,
+  updated_at
+FROM trainers
+WHERE user_id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Trainer, error) {
+	row := q.db.QueryRowContext(ctx, getTrainerByUserID, userID)
+	var i Trainer
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Specialization,
+		&i.Bio,
+		&i.YearsOfExperience,
+		&i.IntroVideoUrl,
+		&i.DisplayPicture,
+		&i.CalendlyConnected,
+		&i.CalendlyLink,
+		&i.OnboardingStatus,
+		&i.AverageRating,
+		&i.TotalReviews,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listTrainers = `-- name: ListTrainers :many
 SELECT
   id,

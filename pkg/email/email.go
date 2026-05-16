@@ -19,6 +19,9 @@ type Mailer interface {
 	SendContactConfirmation(to, name string) error
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
+	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -103,7 +106,7 @@ type LogMailer struct{}
 
 func NewLogMailer() *LogMailer { return &LogMailer{} }
 
-func (m *LogMailer) SendVerificationCode(to, _ string, expiryMinutes int) error {
+func (m *LogMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
 	slog.Info("email (verification code redacted)",
 		"to", to,
 		"subject", verificationCodeSubject,
@@ -151,6 +154,16 @@ func (m *LogMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledA
 
 func (m *LogMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
 	slog.Info("email (admin notification)", "to", to, "client", clientName, "client_email", clientEmail, "contact_mode", contactMode)
+	return nil
+}
+
+func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	slog.Info("email (paid session reschedule)", "to", to, "name", name, "new_time", newTime)
+	return nil
+}
+
+func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	slog.Info("email (paid session reschedule trainer notification)", "to", to, "client", clientName, "new_time", newTime)
 	return nil
 }
 
@@ -622,3 +635,197 @@ func contactConfirmationHTML(name string) (string, error) {
 	}
 	return body.String(), nil
 }
+
+func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build reschedule email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryRescheduleSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const discoveryRescheduleSubject = "Your Discovery Call Has Been Rescheduled"
+
+func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	oldLocal := oldTime.In(loc)
+	newLocal := newTime.In(loc)
+
+	t, err := template.New("reschedule").Parse(discoveryRescheduleTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"Name":        name,
+		"OldTime":     oldLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":     newLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone":    timezone,
+		"ContactMode": contactMode,
+		"ZoomLink":    zoomLink,
+		"PhoneNumber": phoneNumber,
+	})
+	return buf.String(), err
+}
+
+const discoveryRescheduleTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Discovery Call Rescheduled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Your Discovery Call Has Been Rescheduled</h2>
+  <p>Hi {{.Name}},</p>
+  <p>Your discovery call has been successfully rescheduled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if eq .ContactMode "zoom_meeting" }}{{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
+  <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
+  <p>See you soon!</p>
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`
+
+func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, paidRescheduleClientSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build paid session reschedule trainer notification email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, paidRescheduleTrainerSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const paidRescheduleClientSubject = "Your Training Session Has Been Rescheduled"
+
+const paidRescheduleTrainerSubject = "Client Rescheduled Training Session"
+
+func paidRescheduleClientHTML(name string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t, err := template.New("paid-client-reschedule").Parse(paidRescheduleClientTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"Name":     name,
+		"OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone": timezone,
+		"ZoomLink": zoomLink,
+	})
+	return buf.String(), err
+}
+
+func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t, err := template.New("paid-trainer-reschedule").Parse(paidRescheduleTrainerTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"ClientName": clientName,
+		"OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":    newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone":   timezone,
+		"ZoomLink":   zoomLink,
+	})
+	return buf.String(), err
+}
+
+const paidRescheduleClientTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Training Session Rescheduled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Your Training Session Has Been Rescheduled</h2>
+  <p>Hi {{.Name}},</p>
+  <p>Your training session has been successfully rescheduled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
+  <p>If you need to make any further changes, please do so at least 12 hours before the session.</p>
+  <p>See you soon!</p>
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`
+
+const paidRescheduleTrainerTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Client Rescheduled Training Session</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Client Rescheduled Training Session</h2>
+  <p>Your client <strong>{{.ClientName}}</strong> has rescheduled their training session.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`

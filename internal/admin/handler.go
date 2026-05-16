@@ -4,11 +4,13 @@ package admin
 
 import (
 	"context"
-	"github.com/google/uuid"
-	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/google/uuid"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 
 	"github.com/gin-gonic/gin"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	trainers "github.com/hngprojects/personal-trainer-be/internal/trainers"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 // generatedPasswordLen is the length of the password we generate for new
@@ -87,8 +90,16 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 
 	user, err := h.users.UpsertAdminUser(c.Request.Context(), emailAddr, name, hash)
 	if err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
+			return
+		}
 		h.log.Error("admin add: upsert admin failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
 		return
 	}
 
