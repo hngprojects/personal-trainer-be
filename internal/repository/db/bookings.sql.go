@@ -8,9 +8,59 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const cancelBooking = `-- name: CancelBooking :one
+UPDATE bookings
+SET
+  booking_status = 'cancelled',
+  cancellation_reason = $1,
+  cancelled_at = NOW()
+WHERE id = $2
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at
+`
+
+type CancelBookingParams struct {
+	CancellationReason sql.NullString
+	ID                 uuid.UUID
+}
+
+func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, cancelBooking, arg.CancellationReason, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.CalendlyEventID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
 
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
@@ -260,4 +310,39 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 		return nil, err
 	}
 	return items, nil
+}
+
+const releaseBookingSlot = `-- name: ReleaseBookingSlot :execrows
+UPDATE booking_slots
+SET
+  is_active = true,
+  updated_at = NOW()
+WHERE
+  trainer_id = $1
+  AND day_of_week = EXTRACT(DOW FROM $3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::SMALLINT
+  AND start_time = ($3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND end_time = ($4::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND timezone = $2
+`
+
+type ReleaseBookingSlotParams struct {
+	TrainerID      uuid.UUID
+	Timezone       string
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+}
+
+// Release a booking slot by marking it as available again
+// This updates the booking_slots table to set is_active = true for the slot used by this booking
+func (q *Queries) ReleaseBookingSlot(ctx context.Context, arg ReleaseBookingSlotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseBookingSlot,
+		arg.TrainerID,
+		arg.Timezone,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
