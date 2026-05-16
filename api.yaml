@@ -2799,7 +2799,8 @@ paths:
   # Get booking slot by trainer id
   /booking-slots/{trainerId}:
     get:
-      security: []
+      security:
+        - bearerAuth: []
       operationId: GetTrainersBookingSlots
       summary: List all active booking slots (public)
       parameters:
@@ -2816,12 +2817,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/BookingSlotResponse"
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "`#/components/schemas/BookingSlotResponse`"
         "500":
           description: Internal server error
           content:
