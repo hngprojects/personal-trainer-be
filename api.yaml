@@ -612,6 +612,19 @@ components:
         - travel
         - other
 
+    CreateZoomMeetingRequest:
+      type: object
+      required: [booking_id, booking_type]
+      properties:
+        booking_id:
+          type: string
+          format: uuid
+          description: ID of the booking to create a Zoom meeting for
+        booking_type:
+          type: string
+          enum: [discovery, paid_session]
+          description: Type of booking
+
     CancelBookingRequest:
       type: object
       required: [reason]
@@ -2688,6 +2701,65 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Slot not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /integrations/zoom/create-meeting:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: CreateZoomMeeting
+      summary: Create a Zoom meeting for a booking (internal)
+      description: |
+        Idempotent endpoint — if the booking already has a Zoom meeting ID, the
+        existing meeting details are returned without creating a new one.
+        Supports both discovery bookings and paid session bookings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateZoomMeetingRequest"
+      responses:
+        "200":
+          description: Zoom meeting details (idempotent — existing meeting returned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "201":
+          description: Zoom meeting created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Zoom integration not configured
           content:
             application/json:
               schema:

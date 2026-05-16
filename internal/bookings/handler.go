@@ -165,7 +165,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 			topic = "Training Session with " + clientUser.Name
 		}
 		durationMins := int(newEnd.Sub(newStart).Minutes())
-		link, meetID, zoomErr := h.meeting.CreateMeeting(ctx, topic, newStart, durationMins)
+		link, meetID, _, zoomErr := h.meeting.CreateMeeting(ctx, topic, newStart, durationMins)
 		if zoomErr != nil {
 			h.log.Warn("failed to create new zoom meeting for reschedule — keeping old link", "err", zoomErr)
 		} else {
@@ -254,7 +254,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	return true
 }
 
-func bookingToResponse(b db.Booking) map[string]interface{} {
+func bookingToResponse(b db.ReschedulePaidBookingRow) map[string]interface{} {
 	resp := map[string]interface{}{
 		"id":                b.ID,
 		"trainer_id":        b.TrainerID,

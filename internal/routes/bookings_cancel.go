@@ -1,8 +1,10 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,11 +15,14 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 )
 
 type bookingsStore struct {
-	db *sql.DB
-	q  *db.Queries
+	db      *sql.DB
+	q       *db.Queries
+	meeting meeting.Provider
+	log     *slog.Logger
 }
 
 // CancelBooking handles PUT /bookings/:id/cancel
@@ -181,6 +186,27 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit transaction", api.CodeServerError))
 		return
+	}
+
+	// Delete Zoom meeting after successful commit — best-effort, non-fatal, non-blocking.
+	if booking.ZoomMeetingID.Valid && booking.ZoomMeetingID.String != "" && s.bookings.meeting != nil {
+		mID := booking.ZoomMeetingID.String
+		mProv := s.bookings.meeting
+		mLog := s.bookings.log
+		bID := id
+		go func() {
+			delCtx, delCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer delCancel()
+			if delErr := mProv.DeleteMeeting(delCtx, mID); delErr != nil {
+				if mLog != nil {
+					mLog.Warn("failed to delete zoom meeting after cancellation — may require manual cleanup",
+						"meeting_id", mID,
+						"booking_id", bID,
+						"err", delErr,
+					)
+				}
+			}
+		}()
 	}
 
 	// Build response

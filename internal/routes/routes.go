@@ -18,6 +18,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
+	zoomint "github.com/hngprojects/personal-trainer-be/internal/integrations/zoom"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -37,11 +38,19 @@ import (
 // expect. Code paths that need the raw go-redis client (rate limiter, which
 // runs Lua scripts) call s.redis.Raw().
 type Router struct {
-	cfg           *config.Config
-	log           *slog.Logger
-	db            *sql.DB
-	redis         *appredis.Client
-	globalLimiter ratelimit.RateLimiter
+	cfg              *config.Config
+	log              *slog.Logger
+	db               *sql.DB
+	redis            *appredis.Client
+	globalLimiter    ratelimit.RateLimiter
+	meetingOverride  meeting.Provider
+}
+
+// WithMeeting injects a meeting provider, overriding the one built from config.
+// Intended for tests only.
+func (r *Router) WithMeeting(p meeting.Provider) *Router {
+	r.meetingOverride = p
+	return r
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -79,12 +88,13 @@ type routerImpl struct {
 	reviews        *reviewsvc.Service
 	admin          *admin.Handler
 	contact        *contact.Handler
-	bookings       *bookingsStore
-	paidReschedule *bookings.Handler
-	discovery      *discovery.Handler
-	availability   *availabilityStore
-	dev            *dev.Handler
-	bookingSession booking_session.SessionHandler
+	bookings        *bookingsStore
+	paidReschedule  *bookings.Handler
+	discovery       *discovery.Handler
+	availability    *availabilityStore
+	dev             *dev.Handler
+	bookingSession  booking_session.SessionHandler
+	zoomIntegration *zoomint.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -157,7 +167,9 @@ func (s *Router) Routes() *gin.Engine {
 			impl.availability = &availabilityStore{db: s.db, q: q}
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
-			if s.cfg.ZoomAccountID != "" {
+			if s.meetingOverride != nil {
+				meetingProvider = s.meetingOverride
+			} else if s.cfg.ZoomAccountID != "" {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
 			}
 			discoveryRepo := discovery.NewPostgresRepo(q)
@@ -165,8 +177,13 @@ func (s *Router) Routes() *gin.Engine {
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
-			impl.bookings = &bookingsStore{db: s.db, q: q}
-			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+			impl.bookings = &bookingsStore{db: s.db, q: q, meeting: meetingProvider, log: s.log}
+			if s.redis != nil {
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+			}
+
+			zoomSvc := zoomint.NewService(q, meetingProvider, s.log)
+			impl.zoomIntegration = zoomint.NewHandler(zoomSvc)
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up

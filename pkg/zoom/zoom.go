@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -15,6 +16,7 @@ type Client struct {
 	clientID     string
 	clientSecret string
 	httpClient   *http.Client
+	log          *slog.Logger
 }
 
 func New(accountID, clientID, clientSecret string) *Client {
@@ -23,6 +25,7 @@ func New(accountID, clientID, clientSecret string) *Client {
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		log:          slog.Default(),
 	}
 }
 
@@ -57,10 +60,14 @@ func (c *Client) getAccessToken(ctx context.Context) (string, error) {
 }
 
 // CreateMeeting implements meeting.Provider.
-func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error) {
+func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID, passcode string, err error) {
+	return c.doCreateMeeting(ctx, topic, startTime, durationMinutes)
+}
+
+func (c *Client) doCreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID, passcode string, err error) {
 	token, err := c.getAccessToken(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("zoom: get token: %w", err)
+		return "", "", "", fmt.Errorf("zoom: get token: %w", err)
 	}
 
 	body := map[string]interface{}{
@@ -76,35 +83,36 @@ func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time
 
 	b, err := json.Marshal(body)
 	if err != nil {
-		return "", "", fmt.Errorf("zoom: marshal request: %w", err)
+		return "", "", "", fmt.Errorf("zoom: marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.zoom.us/v2/users/me/meetings", bytes.NewReader(b))
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", "", fmt.Errorf("zoom: create meeting: %w", err)
+		return "", "", "", fmt.Errorf("zoom: create meeting: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(resp.Body)
-		return "", "", fmt.Errorf("zoom: create meeting failed (%d): %s", resp.StatusCode, string(raw))
+		return "", "", "", fmt.Errorf("zoom: create meeting failed (%d): %s", resp.StatusCode, string(raw))
 	}
 
 	var m struct {
-		ID      int64  `json:"id"`
-		JoinURL string `json:"join_url"`
+		ID       int64  `json:"id"`
+		JoinURL  string `json:"join_url"`
+		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
-		return "", "", fmt.Errorf("zoom: decode response: %w", err)
+		return "", "", "", fmt.Errorf("zoom: decode response: %w", err)
 	}
-	return m.JoinURL, fmt.Sprintf("%d", m.ID), nil
+	return m.JoinURL, fmt.Sprintf("%d", m.ID), m.Password, nil
 }
 
 // DeleteMeeting implements meeting.Provider.
@@ -132,5 +140,7 @@ func (c *Client) DeleteMeeting(ctx context.Context, meetingID string) error {
 		raw, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("zoom: delete meeting failed (%d): %s", resp.StatusCode, string(raw))
 	}
+
+	c.log.Info("zoom meeting deleted", "meeting_id", meetingID)
 	return nil
 }

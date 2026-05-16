@@ -42,6 +42,7 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count;
 
 -- name: GetBookingByID :one
@@ -61,6 +62,7 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count
 FROM bookings
 WHERE id = $1
@@ -173,6 +175,7 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count;
 
 -- name: CheckPaidBookingConflict :one
@@ -191,3 +194,34 @@ VALUES (
   sqlc.arg(new_start)::timestamptz,
   sqlc.arg(reason)
 );
+-- name: GetBookingZoomInfo :one
+SELECT
+  id,
+  scheduled_start,
+  scheduled_end,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  zoom_passcode
+FROM bookings
+WHERE id = $1
+LIMIT 1;
+
+-- name: UpdateBookingZoom :one
+UPDATE bookings
+SET
+  zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+  zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+  zoom_passcode     = sqlc.arg(zoom_passcode)
+WHERE id = sqlc.arg(id)
+  AND zoom_meeting_id IS NULL
+RETURNING
+  id,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  zoom_passcode,
+  booking_status;
+
+-- name: GetBookingZoomMeetingID :one
+SELECT zoom_meeting_id FROM bookings
+WHERE id = $1
+LIMIT 1;
