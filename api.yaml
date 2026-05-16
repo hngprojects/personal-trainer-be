@@ -568,6 +568,72 @@ components:
         - travel
         - other
 
+    CancelBookingRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum:
+            - schedule_conflict
+            - feeling_unwell
+            - personal_emergency
+            - trainer_request
+            - client_request
+            - other
+          description: Reason for cancellation
+        notes:
+          type: string
+          maxLength: 200
+          description: Optional additional details about cancellation
+
+    DiscoveryBookingResponse:
+      type: object
+      description: Booking details response
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        status:
+          type: string
+          example: confirmed
+
+    CancelBookingResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [booking_id, status, cancelled_at, refund_amount]
+              properties:
+                booking_id:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  example: cancelled
+                cancelled_at:
+                  type: string
+                  format: date-time
+                refund_amount:
+                  type: integer
+                  description: Number of session credits refunded (0 if forfeited within 12 hours)
+                  example: 1
+                refund_reason:
+                  type: string
+                  enum: [within_12_hours, after_12_hours]
+                  description: Why the refund amount was calculated this way
+                notification_sent:
+                  type: boolean
+                  description: Whether cancellation notification was sent to both parties
+
     BookDiscoveryCallRequest:
       type: object
       required: [name, email, contact_mode, selected_datetime, timezone]
@@ -2214,6 +2280,78 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "429":
           description: Maximum reschedule limit (3) reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /bookings/{id}/cancel:
+    put:
+      operationId: CancelBooking
+      tags:
+        - Booking
+      summary: Cancel a confirmed booking
+      description: |
+        Allows a client or trainer to cancel a confirmed booking.
+        Enforces cancellation policy based on time until session:
+        - Within 12 hours: No credit refund (credits forfeited)
+        - After 12 hours: Full credit refund
+        Releases the slot back to trainer's availability and notifies both parties.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking ID to cancel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingRequest"
+      responses:
+        "200":
+          description: Booking cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelBookingResponse"
+        "400":
+          description: Invalid input or validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (user is not the client or trainer of this booking)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (booking already cancelled or session already started)
           content:
             application/json:
               schema:
