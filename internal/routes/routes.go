@@ -145,9 +145,7 @@ func (s *Router) Routes() *gin.Engine {
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
-			bookingSlotRepo := bookings.NewPostgresRepo(q)
-			bookingSlotService := bookings.NewBookingSlotService(bookingSlotRepo, s.log)
-			bookingService := bookings.NewBookingService(bookingSlotRepo, s.log)
+			bookingRepo := bookings.NewPostgresRepo(q)
 
 			bookingSessionRepo := booking_session.NewPostgresBookingSessionRepo(q)
 			bookingSessionService := booking_session.NewSessionService(bookingSessionRepo, s.log)
@@ -166,6 +164,8 @@ func (s *Router) Routes() *gin.Engine {
 			if s.cfg.ZoomAccountID != "" {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
 			}
+			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
+			bookingService := bookings.NewBookingService(bookingRepo, meetingProvider, mailer, s.log)
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)

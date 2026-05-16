@@ -314,6 +314,36 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 	return i, err
 }
 
+const getTrainerUserDetails = `-- name: GetTrainerUserDetails :one
+SELECT
+    u.id AS id,
+    u.name AS name,
+    u.email AS email,
+    t.id AS trainer_id
+FROM users u
+JOIN trainers t ON u.id = t.user_id
+WHERE t.id = $1
+`
+
+type GetTrainerUserDetailsRow struct {
+	ID        uuid.UUID
+	Name      string
+	Email     string
+	TrainerID uuid.UUID
+}
+
+func (q *Queries) GetTrainerUserDetails(ctx context.Context, id uuid.UUID) (GetTrainerUserDetailsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTrainerUserDetails, id)
+	var i GetTrainerUserDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.TrainerID,
+	)
+	return i, err
+}
+
 const getUpcomingPaidSessions = `-- name: GetUpcomingPaidSessions :many
 SELECT
   b.id,

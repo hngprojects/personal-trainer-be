@@ -196,3 +196,14 @@ VALUES (
   sqlc.arg(new_start)::timestamptz,
   sqlc.arg(reason)
 );
+
+-- name: GetTrainerUserDetails :one
+SELECT
+    u.id AS id,
+    u.name AS name,
+    u.email AS email,
+    t.id AS trainer_id
+FROM users u
+JOIN trainers t ON u.id = t.user_id
+WHERE t.id = $1
+;

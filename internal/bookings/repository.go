@@ -24,6 +24,8 @@ type Repository interface {
 	GetTrainerByID(ctx context.Context, id uuid.UUID) (db.Trainer, error)
 	FindBookingSlotByTrainerID(ctx context.Context, trainerID uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
+	GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error)
+	GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error)
 }
 
 type postgresRepo struct {
@@ -79,4 +81,12 @@ func (r *postgresRepo) GetUserByID(ctx context.Context, id uuid.UUID) (db.User, 
 
 func (r *postgresRepo) GetTrainerByID(ctx context.Context, id uuid.UUID) (db.Trainer, error) {
 	return r.q.GetTrainerByID(ctx, id)
+}
+
+func (r *postgresRepo) GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error) {
+	return r.q.GetTrainerUserDetails(ctx, trainerID)
+}
+
+func (r *postgresRepo) GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error) {
+	return r.q.GetSubscriptionByID(ctx, subID)
 }

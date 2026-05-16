@@ -105,6 +105,16 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("select a valid session platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
 	}
+	// check subscription status
+	activeSub, err := h.service.CheckSubscription(c.Request.Context(), request.SubscriptionId)
+	if err != nil {
+		h.log.Error("failed to check subscription", "error", err)
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscriptionId", Message: "could not get subscription status"})
+	}
+	if !activeSub {
+		h.log.Error("non-active subscription")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscriptionId", Message: "subscription is not active"})
+	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
@@ -129,8 +139,20 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		SessionPlatform: sql.NullString{Valid: true, String: defaultSessionPlatform},
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
+	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("failed to get user by id", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
+		return
+	}
+	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
+	if err != nil {
+		h.log.Error("failed to get trainer by id", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
+		return
+	}
 
-	created, err := h.service.CreateBooking(c.Request.Context(), *data)
+	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to create booking session"))
@@ -157,6 +179,7 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 	}
 
 	response := BookingSessionResponse{
+		ID:        data.ID,
 		TrainerID: data.TrainerID,
 		ClientID:  userID,
 	}
