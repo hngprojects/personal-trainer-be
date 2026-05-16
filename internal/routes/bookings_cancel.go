@@ -47,8 +47,16 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		return
 	}
 
-	// Validate cancellation reason is a known enum value
-	if req.Reason == "" {
+	// Validate cancellation reason is one of the allowed enum values
+	validReasons := map[string]bool{
+		"schedule_conflict":   true,
+		"feeling_unwell":      true,
+		"personal_emergency":  true,
+		"trainer_request":     true,
+		"client_request":      true,
+		"other":               true,
+	}
+	if req.Reason == "" || !validReasons[string(req.Reason)] {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid cancellation reason", api.CodeBadRequest))
 		return
 	}
