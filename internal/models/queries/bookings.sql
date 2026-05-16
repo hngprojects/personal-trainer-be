@@ -39,7 +39,10 @@ RETURNING
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at;
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count;
 
 -- name: GetBookingByID :one
 SELECT
@@ -55,7 +58,10 @@ SELECT
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count
 FROM bookings
 WHERE id = $1
 LIMIT 1;
@@ -74,7 +80,10 @@ SELECT
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -137,3 +146,48 @@ WHERE b.client_id = sqlc.arg(client_id)
   AND b.scheduled_start > NOW()
   AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
 ORDER BY b.scheduled_start ASC;
+
+-- name: ReschedulePaidBooking :one
+UPDATE bookings
+SET scheduled_start   = sqlc.arg(scheduled_start)::timestamptz,
+    scheduled_end     = sqlc.arg(scheduled_end)::timestamptz,
+    zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+    zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    reschedule_count  = reschedule_count + 1
+WHERE id = sqlc.arg(id)
+  AND reschedule_count < 3
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  calendly_event_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count;
+
+-- name: CheckPaidBookingConflict :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = sqlc.arg(trainer_id)
+  AND id != sqlc.arg(exclude_id)
+  AND scheduled_start < sqlc.arg(new_end)::timestamptz
+  AND scheduled_end   > sqlc.arg(new_start)::timestamptz
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'));
+
+-- name: CreatePaidRescheduleHistory :exec
+INSERT INTO paid_booking_reschedule_history (booking_id, previous_start, new_start, reason)
+VALUES (
+  sqlc.arg(booking_id),
+  sqlc.arg(previous_start)::timestamptz,
+  sqlc.arg(new_start)::timestamptz,
+  sqlc.arg(reason)
+);
