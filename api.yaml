@@ -611,7 +611,7 @@ components:
           properties:
             data:
               type: object
-              required: [booking_id, status, cancelled_at, refund_amount]
+              required: [booking_id, status, cancelled_at, refund_amount, refund_reason, notification_sent]
               properties:
                 booking_id:
                   type: string
