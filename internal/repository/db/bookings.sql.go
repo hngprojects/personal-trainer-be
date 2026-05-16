@@ -312,7 +312,7 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 	return items, nil
 }
 
-const releaseBookingSlot = `-- name: ReleaseBookingSlot :exec
+const releaseBookingSlot = `-- name: ReleaseBookingSlot :execrows
 UPDATE booking_slots
 SET
   is_active = true,
@@ -326,7 +326,7 @@ WHERE
 `
 
 type ReleaseBookingSlotParams struct {
-	TrainerID      uuid.NullUUID
+	TrainerID      uuid.UUID
 	Timezone       string
 	ScheduledStart time.Time
 	ScheduledEnd   time.Time
@@ -334,12 +334,15 @@ type ReleaseBookingSlotParams struct {
 
 // Release a booking slot by marking it as available again
 // This updates the booking_slots table to set is_active = true for the slot used by this booking
-func (q *Queries) ReleaseBookingSlot(ctx context.Context, arg ReleaseBookingSlotParams) error {
-	_, err := q.db.ExecContext(ctx, releaseBookingSlot,
+func (q *Queries) ReleaseBookingSlot(ctx context.Context, arg ReleaseBookingSlotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseBookingSlot,
 		arg.TrainerID,
 		arg.Timezone,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

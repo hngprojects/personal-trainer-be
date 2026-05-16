@@ -59,7 +59,7 @@ type BookingSlot struct {
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	TrainerID uuid.NullUUID
+	TrainerID uuid.UUID
 }
 
 type ContactMessage struct {

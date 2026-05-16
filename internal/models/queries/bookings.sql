@@ -102,7 +102,7 @@ RETURNING
   created_at,
   cancelled_at;
 
--- name: ReleaseBookingSlot :exec
+-- name: ReleaseBookingSlot :execrows
 -- Release a booking slot by marking it as available again
 -- This updates the booking_slots table to set is_active = true for the slot used by this booking
 UPDATE booking_slots

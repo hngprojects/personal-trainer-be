@@ -47,10 +47,26 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		return
 	}
 
+	// Validate cancellation reason is a known enum value
+	if req.Reason == "" {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid cancellation reason", api.CodeBadRequest))
+		return
+	}
+
 	ctx := c.Request.Context()
 
-	// Get booking details
-	booking, err := s.bookings.q.GetBookingByID(ctx, id)
+	// Start transaction with deferred rollback
+	tx, err := s.bookings.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to start transaction", api.CodeServerError))
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := s.bookings.q.WithTx(tx)
+
+	// Get booking with FOR UPDATE lock to prevent concurrent cancellations
+	booking, err := qtx.GetBookingByIDForUpdate(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("booking"))
@@ -103,16 +119,6 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		cancellationReason += " - " + *req.Notes
 	}
 
-	// Start transaction for atomic operations
-	tx, err := s.bookings.db.BeginTx(ctx, nil)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to start transaction", api.CodeServerError))
-		return
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qtx := s.bookings.q.WithTx(tx)
-
 	// Cancel the booking
 	cancelledBooking, err := qtx.CancelBooking(ctx, db.CancelBookingParams{
 		ID:                 id,
@@ -125,8 +131,8 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 
 	// Release the booking slot back to availability
 	if booking.ScheduledStart.Valid && booking.ScheduledEnd.Valid {
-		err = qtx.ReleaseBookingSlot(ctx, db.ReleaseBookingSlotParams{
-			TrainerID:      uuid.NullUUID{UUID: booking.TrainerID, Valid: true},
+		rowsAffected, err := qtx.ReleaseBookingSlot(ctx, db.ReleaseBookingSlotParams{
+			TrainerID:      booking.TrainerID,
 			ScheduledStart: booking.ScheduledStart.Time,
 			ScheduledEnd:   booking.ScheduledEnd.Time,
 			Timezone:       booking.Timezone.String,
@@ -135,14 +141,31 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 			c.JSON(http.StatusInternalServerError, api.NewError("failed to release booking slot", api.CodeServerError))
 			return
 		}
+		if rowsAffected != 1 {
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to release booking slot: slot not found", api.CodeServerError))
+			return
+		}
 	}
 
-	// Refund credits if applicable
+	// Refund credits if applicable (only for active subscriptions)
 	if refundAmount > 0 && booking.SubscriptionID.Valid {
-		_, err = qtx.RefundSessionCredit(ctx, booking.SubscriptionID.UUID)
+		subscription, err := qtx.GetSubscriptionByID(ctx, booking.SubscriptionID.UUID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, api.NewError("failed to refund credits", api.CodeServerError))
+			if errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusInternalServerError, api.NewError("subscription not found", api.CodeServerError))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to verify subscription", api.CodeServerError))
 			return
+		}
+
+		// Only refund if subscription is active
+		if subscription.Status == "active" {
+			_, err = qtx.RefundSessionCredit(ctx, booking.SubscriptionID.UUID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to refund credits", api.CodeServerError))
+				return
+			}
 		}
 	}
 
