@@ -20,6 +20,7 @@ WHERE selected_datetime > $1::timestamptz - INTERVAL '30 minutes'
   AND status NOT IN ('cancelled', 'completed')
 `
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflict, selectedDatetime)
 	var count int64
@@ -40,6 +41,7 @@ type CheckSlotConflictExcludingParams struct {
 	ExcludeID        uuid.UUID
 }
 
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotConflictExcludingParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, checkSlotConflictExcluding, arg.SelectedDatetime, arg.ExcludeID)
 	var count int64

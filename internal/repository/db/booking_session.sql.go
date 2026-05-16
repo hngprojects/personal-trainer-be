@@ -17,6 +17,7 @@ UPDATE booking_session
 SET
     trainer_notes=$1
 WHERE id=$2
+AND status='completed'
 RETURNING
     id,
     booking_id,
@@ -175,6 +176,7 @@ SET
     actual_end=$1,
     status=$2
 WHERE id=$3
+AND status IN ('started', 'in-session')
 RETURNING
     id,
     booking_id,
@@ -189,7 +191,7 @@ RETURNING
 
 type MarkSessionAsCompletedParams struct {
 	ActualEnd sql.NullTime
-	Status    sql.NullString
+	Status    string
 	ID        uuid.UUID
 }
 
@@ -216,6 +218,7 @@ SET
     client_joined=$1,
     status=$2
 WHERE id=$3
+AND status='started'
 RETURNING
     id,
     booking_id,
@@ -230,7 +233,7 @@ RETURNING
 
 type MarkSessionAsJoinedParams struct {
 	ClientJoined sql.NullBool
-	Status       sql.NullString
+	Status       string
 	ID           uuid.UUID
 }
 
@@ -258,6 +261,7 @@ SET
     trainer_joined=$2,
     status=$3
 WHERE id=$4
+AND status='booked'
 RETURNING
     id,
     booking_id,
@@ -273,7 +277,7 @@ RETURNING
 type MarkSessionAsStartedParams struct {
 	ActualStart   sql.NullTime
 	TrainerJoined sql.NullBool
-	Status        sql.NullString
+	Status        string
 	ID            uuid.UUID
 }
 

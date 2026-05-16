@@ -45,7 +45,7 @@ type BookingSession struct {
 	ActualEnd     sql.NullTime
 	TrainerJoined sql.NullBool
 	ClientJoined  sql.NullBool
-	Status        sql.NullString
+	Status        string
 	TrainerNotes  sql.NullString
 	CreatedAt     time.Time
 }

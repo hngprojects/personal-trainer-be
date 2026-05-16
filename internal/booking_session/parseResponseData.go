@@ -23,6 +23,8 @@ func ParseResponse(response *db.BookingSession) BookingSessionResponse {
 	result := &BookingSessionResponse{
 		ID:        response.ID,
 		BookingID: response.BookingID,
+		Status:    &response.Status,
+		CreatedAt: &response.CreatedAt,
 	}
 	if response.ActualStart.Valid {
 		result.ActualStart = &response.ActualStart.Time
@@ -38,9 +40,6 @@ func ParseResponse(response *db.BookingSession) BookingSessionResponse {
 	}
 	if response.ClientJoined.Valid {
 		result.ClientJoined = &response.ClientJoined.Bool
-	}
-	if response.Status.Valid {
-		result.Status = &response.Status.String
 	}
 	if response.TrainerNotes.Valid {
 		result.TrainerNotes = &response.TrainerNotes.String

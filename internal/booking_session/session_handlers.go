@@ -39,7 +39,7 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 		h.log.Info("Cache hit!!")
 		var body db.BookingSession
 		if err := json.Unmarshal([]byte(cached.Val()), &body); err != nil {
-			h.log.Error("failed to marshal data into body")
+			h.log.Error("failed to unmarshal data into body")
 		} else {
 			result := ParseResponse(&body)
 			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
@@ -177,7 +177,7 @@ func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
 		}
-		c.JSON(http.StatusNotFound, api.NewErrorResponse(err.Error(), api.CodeBadRequest, nil))
+		c.JSON(http.StatusBadRequest, api.NewErrorResponse(err.Error(), api.CodeBadRequest, nil))
 		return
 	}
 	result := ParseResponse(updateData)

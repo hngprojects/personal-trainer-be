@@ -1981,12 +1981,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/WaitlistRequest"
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
       responses:
         "200":
           description: You are already on the waitlist

@@ -17,9 +17,9 @@ var (
 
 type BookingSessionRepo interface {
 	GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
-	MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
+	MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID, start time.Time) (*db.BookingSession, error)
 	MarkSessionAsJoined(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
-	MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
+	MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID, end time.Time) (*db.BookingSession, error)
 	UpdateTrainersNote(ctx context.Context, sessionID uuid.UUID, notes string) (*db.BookingSession, error)
 }
 
@@ -42,12 +42,12 @@ func (r *bookingSessionRepo) GetSessionByID(ctx context.Context, sessionID uuid.
 	return &bookingSession, nil
 }
 
-func (r *bookingSessionRepo) MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error) {
+func (r *bookingSessionRepo) MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID, start time.Time) (*db.BookingSession, error) {
 	body := &db.MarkSessionAsStartedParams{
 		ID:            sessionID,
-		ActualStart:   sql.NullTime{Valid: true, Time: time.Now()},
+		ActualStart:   sql.NullTime{Valid: true, Time: start},
 		TrainerJoined: sql.NullBool{Valid: true, Bool: true},
-		Status:        sql.NullString{Valid: true, String: sessionStarted},
+		Status:        sessionStarted,
 	}
 	bookingSession, err := r.q.MarkSessionAsStarted(ctx, *body)
 	if err != nil {
@@ -63,7 +63,7 @@ func (r *bookingSessionRepo) MarkSessionAsJoined(ctx context.Context, sessionID 
 	body := &db.MarkSessionAsJoinedParams{
 		ID:           sessionID,
 		ClientJoined: sql.NullBool{Valid: true, Bool: true},
-		Status:       sql.NullString{Valid: true, String: sessionActive},
+		Status:       sessionActive,
 	}
 	bookingSession, err := r.q.MarkSessionAsJoined(ctx, *body)
 	if err != nil {
@@ -75,11 +75,11 @@ func (r *bookingSessionRepo) MarkSessionAsJoined(ctx context.Context, sessionID 
 	return &bookingSession, nil
 }
 
-func (r *bookingSessionRepo) MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error) {
+func (r *bookingSessionRepo) MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID, actualEnd time.Time) (*db.BookingSession, error) {
 	body := &db.MarkSessionAsCompletedParams{
 		ID:        sessionID,
-		ActualEnd: sql.NullTime{Valid: true, Time: time.Now()},
-		Status:    sql.NullString{Valid: true, String: sessionCompleted},
+		ActualEnd: sql.NullTime{Valid: true, Time: actualEnd},
+		Status:    sessionCompleted,
 	}
 	bookingSession, err := r.q.MarkSessionAsCompleted(ctx, *body)
 	if err != nil {

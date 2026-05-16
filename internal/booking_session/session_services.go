@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -48,7 +49,7 @@ func (r *sessionService) StartSession(ctx context.Context, sessionID uuid.UUID) 
 		r.log.Error("failed to get session", "err", err)
 		return nil, err
 	}
-	switch session.Status.String {
+	switch session.Status {
 	case sessionStarted:
 		return nil, errors.New("session already started")
 	case sessionActive:
@@ -56,7 +57,7 @@ func (r *sessionService) StartSession(ctx context.Context, sessionID uuid.UUID) 
 	case sessionCompleted:
 		return nil, errors.New("session already completed")
 	}
-	updatedSession, err := r.repo.MarkSessionAsStarted(ctx, sessionID)
+	updatedSession, err := r.repo.MarkSessionAsStarted(ctx, sessionID, time.Now())
 	if err != nil {
 		r.log.Error("failed to mark session as started", "err", err)
 		return nil, err
@@ -70,7 +71,7 @@ func (r *sessionService) JoinSession(ctx context.Context, sessionID uuid.UUID) (
 		r.log.Error("failed to get session", "err", err)
 		return nil, err
 	}
-	switch session.Status.String {
+	switch session.Status {
 	case sessionBooked:
 		return nil, errors.New("trainer has not started session yet")
 	case sessionActive:
@@ -92,7 +93,7 @@ func (r *sessionService) CompleteSession(ctx context.Context, sessionID uuid.UUI
 		r.log.Error("failed to get session", "err", err)
 		return nil, err
 	}
-	switch session.Status.String {
+	switch session.Status {
 	case sessionStarted:
 		return nil, errors.New("not yet in session")
 	case sessionBooked:
@@ -100,7 +101,7 @@ func (r *sessionService) CompleteSession(ctx context.Context, sessionID uuid.UUI
 	case sessionCompleted:
 		return nil, errors.New("session already completed")
 	}
-	updatedSession, err := r.repo.MarkSessionAsCompleted(ctx, sessionID)
+	updatedSession, err := r.repo.MarkSessionAsCompleted(ctx, sessionID, time.Now())
 	if err != nil {
 		r.log.Error("failed to complete session", "err", err)
 		return nil, err
@@ -114,12 +115,12 @@ func (r *sessionService) TrainerSessionNote(ctx context.Context, sessionID uuid.
 		r.log.Error("failed to get session", "err", err)
 		return nil, err
 	}
-	if session.Status.String != sessionCompleted {
+	if session.Status != sessionCompleted {
 		return nil, errors.New("session is not completed yet")
 	}
 	updatedSession, err := r.repo.UpdateTrainersNote(ctx, sessionID, notes)
 	if err != nil {
-		r.log.Error("failed to complete session", "err", err)
+		r.log.Error("failed to update trainer's notes", "err", err)
 		return nil, err
 	}
 	return updatedSession, nil
