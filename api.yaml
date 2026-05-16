@@ -1035,7 +1035,7 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth — OAuth
+        - Auth - OAuth
         - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
@@ -1113,7 +1113,6 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
-
   /auth/google/mobile:
     post:
       security: []
@@ -1183,7 +1182,7 @@ paths:
       security: []
       operationId: HandleRegister
       tags:
-        - Auth — Local
+        - Auth - Local
         - Authentication
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
