@@ -487,6 +487,16 @@ type LocalAuthData struct {
 	User         AuthUser `json:"user"`
 }
 
+// PublicReview defines model for PublicReview.
+type PublicReview struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Rating    int                `json:"rating"`
+	Review    *string            `json:"review,omitempty"`
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+	UpdatedAt time.Time          `json:"updated_at"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -595,7 +605,7 @@ type TrainerResponseStatus string
 type TrainerReviewsListResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 	Code    string                           `json:"code"`
-	Data    *[]Review                        `json:"data,omitempty"`
+	Data    *[]PublicReview                  `json:"data,omitempty"`
 	Message string                           `json:"message"`
 	Meta    *CursorPaginationMeta            `json:"meta,omitempty"`
 	Status  TrainerReviewsListResponseStatus `json:"status"`

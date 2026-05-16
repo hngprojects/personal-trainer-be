@@ -3,10 +3,13 @@ package trainers
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -127,22 +130,96 @@ func (h *Handler) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	c.JSON(http.StatusOK, api.NewSuccess("trainers retrieved", api.CodeOK, out))
 }
 
+type reviewCursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID `json:"id"`
+}
+
+func encodeReviewCursor(r db.Review) string {
+	b, _ := json.Marshal(reviewCursor{CreatedAt: r.CreatedAt, ID: r.ID})
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func decodeReviewCursor(s string) (reviewCursor, error) {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return reviewCursor{}, err
+	}
+	var c reviewCursor
+	return c, json.Unmarshal(b, &c)
+}
+
+func publicReview(r db.Review) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":         r.ID,
+		"trainer_id": r.TrainerID,
+		"rating":     r.Rating,
+		"created_at": r.CreatedAt,
+		"updated_at": r.UpdatedAt,
+	}
+	if r.Review.Valid {
+		m["review"] = r.Review.String
+	}
+	return m
+}
+
 func (h *Handler) GetTrainerReviews(c *gin.Context, id uuid.UUID, params api.GetTrainersIdReviewsParams) {
+	ctx := c.Request.Context()
 	var limit int32 = 10
-	if params.Limit != nil {
+	if params.Limit != nil && *params.Limit > 0 {
 		limit = int32(*params.Limit)
 	}
-	reviews, err := h.q.GetTrainerReviews(c.Request.Context(), db.GetTrainerReviewsParams{TrainerID: id, Limit: limit})
+
+	var reviews []db.Review
+	var err error
+
+	if params.Cursor != nil && *params.Cursor != "" {
+		cur, decErr := decodeReviewCursor(*params.Cursor)
+		if decErr != nil {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid cursor", api.CodeBadRequest))
+			return
+		}
+		reviews, err = h.q.ListTrainerReviewsAfterCursor(ctx, db.ListTrainerReviewsAfterCursorParams{
+			TrainerID:       id,
+			CursorCreatedAt: cur.CreatedAt,
+			CursorID:        cur.ID,
+			LimitCount:      limit,
+		})
+	} else {
+		reviews, err = h.q.ListTrainerReviewsFirstPage(ctx, db.ListTrainerReviewsFirstPageParams{
+			TrainerID:  id,
+			LimitCount: limit,
+		})
+	}
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
-		h.log.Error("get trainer reviews failed", "err", err)
+		h.log.Error("get trainer reviews failed", "err", err, "trainer_id", id)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not get trainer reviews", api.CodeServerError))
 		return
 	}
-	c.JSON(http.StatusOK, reviews)
+
+	public := make([]map[string]interface{}, len(reviews))
+	for i, r := range reviews {
+		public[i] = publicReview(r)
+	}
+
+	hasMore := len(reviews) == int(limit)
+	var nextCursor *string
+	if hasMore && len(reviews) > 0 {
+		s := encodeReviewCursor(reviews[len(reviews)-1])
+		nextCursor = &s
+	}
+
+	meta := map[string]interface{}{
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Reviews retrieved", api.CodeOK, public, meta))
 }
 
 // Helper functions

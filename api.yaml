@@ -267,7 +267,7 @@ components:
             data:
               type: array
               items:
-                $ref: "#/components/schemas/Review"
+                $ref: "#/components/schemas/PublicReview"
             meta:
               $ref: "#/components/schemas/CursorPaginationMeta"
 
@@ -459,6 +459,30 @@ components:
           type: string
           nullable: true
           example: "Great session and clear communication."
+
+    PublicReview:
+      type: object
+      required: [id, trainer_id, rating, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        review:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     Review:
       type: object
