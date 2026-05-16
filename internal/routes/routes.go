@@ -82,6 +82,7 @@ type routerImpl struct {
 	bookings       *bookingsStore
 	paidReschedule *bookings.Handler
 	discovery      *discovery.Handler
+	availability   *availabilityStore
 	dev            *dev.Handler
 	booking        bookings.BookingHandler
 	bookingSlot    bookings.BookingSlotHandler
@@ -159,6 +160,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.users = newUsersStore(q)
+			impl.availability = &availabilityStore{db: s.db, q: q}
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {

@@ -45,7 +45,6 @@ type CancelBookingRow struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
 	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -317,27 +316,44 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 
 const getUpcomingPaidSessions = `-- name: GetUpcomingPaidSessions :many
 SELECT
-    id,
-    client_id,
-    trainer_id,
-    status,
-    created_at
-FROM subscriptions
-WHERE id = $1
-AND status = 'active'
-LIMIT 1
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  u.name           AS trainer_name,
+  t.specialization AS trainer_specialization,
+  t.display_picture AS trainer_photo
+FROM bookings b
+JOIN trainers t ON t.id = b.trainer_id
+JOIN users u ON u.id = t.user_id
+WHERE b.client_id = $1
+  AND b.scheduled_start > NOW()
+  AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
+ORDER BY b.scheduled_start ASC
 `
 
 type GetUpcomingPaidSessionsRow struct {
-	ID        uuid.UUID
-	ClientID  uuid.UUID
-	TrainerID uuid.UUID
-	Status    string
-	CreatedAt time.Time
+	ID                    uuid.UUID
+	TrainerID             uuid.UUID
+	ClientID              uuid.UUID
+	ScheduledStart        sql.NullTime
+	ScheduledEnd          sql.NullTime
+	Timezone              sql.NullString
+	BookingStatus         sql.NullString
+	SessionPlatform       sql.NullString
+	CreatedAt             sql.NullTime
+	TrainerName           string
+	TrainerSpecialization sql.NullString
+	TrainerPhoto          sql.NullString
 }
 
-func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, id uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUpcomingPaidSessions, id)
+func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUpcomingPaidSessions, clientID)
 	if err != nil {
 		return nil, err
 	}
@@ -347,10 +363,17 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, id uuid.UUID) ([]
 		var i GetUpcomingPaidSessionsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.ClientID,
 			&i.TrainerID,
-			&i.Status,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
 			&i.CreatedAt,
+			&i.TrainerName,
+			&i.TrainerSpecialization,
+			&i.TrainerPhoto,
 		); err != nil {
 			return nil, err
 		}
@@ -415,7 +438,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -451,7 +473,6 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,

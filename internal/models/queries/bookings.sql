@@ -168,7 +168,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
