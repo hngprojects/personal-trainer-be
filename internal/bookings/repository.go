@@ -11,9 +11,8 @@ import (
 )
 
 var (
-	activeSubscriptionStatus = "active"
-	ErrNotFound              = auth.ErrNotFound
-	ErrTrainerNotFound       = errors.New("trainer not found")
+	ErrNotFound        = auth.ErrNotFound
+	ErrTrainerNotFound = errors.New("trainer not found")
 )
 
 type Repository interface {
