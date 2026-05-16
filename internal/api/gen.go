@@ -512,18 +512,18 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	}
 }
 
-// Defines values for RescheduleDiscoveryCall200JSONResponseBodyStatus.
+// Defines values for GetUpcomingBookingsParamsType.
 const (
-	RescheduleDiscoveryCall200JSONResponseBodyStatusError   RescheduleDiscoveryCall200JSONResponseBodyStatus = "error"
-	RescheduleDiscoveryCall200JSONResponseBodyStatusSuccess RescheduleDiscoveryCall200JSONResponseBodyStatus = "success"
+	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
+	PaidSession   GetUpcomingBookingsParamsType = "paid_session"
 )
 
-// Valid indicates whether the value is a known member of the RescheduleDiscoveryCall200JSONResponseBodyStatus enum.
-func (e RescheduleDiscoveryCall200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the GetUpcomingBookingsParamsType enum.
+func (e GetUpcomingBookingsParamsType) Valid() bool {
 	switch e {
-	case RescheduleDiscoveryCall200JSONResponseBodyStatusError:
+	case DiscoveryCall:
 		return true
-	case RescheduleDiscoveryCall200JSONResponseBodyStatusSuccess:
+	case PaidSession:
 		return true
 	default:
 		return false
@@ -550,16 +550,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -711,14 +711,6 @@ type CursorPaginationMeta struct {
 
 	// NextCursor Opaque cursor to request the next page.
 	NextCursor *string `json:"next_cursor,omitempty"`
-}
-
-// DiscoveryBookingResponse Booking details response
-type DiscoveryBookingResponse struct {
-	Id             *openapi_types.UUID `json:"id,omitempty"`
-	ScheduledEnd   *time.Time          `json:"scheduled_end,omitempty"`
-	ScheduledStart *time.Time          `json:"scheduled_start,omitempty"`
-	Status         *string             `json:"status,omitempty"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -1073,8 +1065,19 @@ type CreateBookingJSONBody struct {
 // CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
 type CreateBookingJSONBodySessionPlatform string
 
-// RescheduleDiscoveryCall200JSONResponseBodyStatus defines parameters for RescheduleDiscoveryCall.
-type RescheduleDiscoveryCall200JSONResponseBodyStatus string
+// GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParams struct {
+	// Timezone IANA timezone for displaying times (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Type Filter by booking type
+	Type  *GetUpcomingBookingsParamsType `form:"type,omitempty" json:"type,omitempty"`
+	Page  *int                           `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUpcomingBookingsParamsType defines parameters for GetUpcomingBookings.
+type GetUpcomingBookingsParamsType string
 
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
@@ -1251,6 +1254,9 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// Get upcoming bookings for the authenticated client
+	// (GET /bookings/upcoming)
+	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
 	// Cancel a confirmed booking
 	// (PUT /bookings/{id}/cancel)
 	CancelBooking(c *gin.Context, id openapi_types.UUID)
@@ -1701,6 +1707,59 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	}
 
 	siw.Handler.BookDiscoveryCall(c)
+}
+
+// GetUpcomingBookings operation middleware
+func (siw *ServerInterfaceWrapper) GetUpcomingBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUpcomingBookingsParams
+
+	// ------------- Optional query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpcomingBookings(c, params)
 }
 
 // CancelBooking operation middleware
@@ -2250,6 +2309,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
