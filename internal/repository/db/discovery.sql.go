@@ -63,7 +63,7 @@ INSERT INTO booking_slots (
     $4,
     true
 )
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, trainer_id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
 `
 
 type CreateBookingSlotParams struct {
@@ -83,6 +83,7 @@ func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotPa
 	var i BookingSlot
 	err := row.Scan(
 		&i.ID,
+		&i.TrainerID,
 		&i.DayOfWeek,
 		&i.StartTime,
 		&i.EndTime,
@@ -215,7 +216,7 @@ func (q *Queries) DeleteBookingSlot(ctx context.Context, id uuid.UUID) error {
 }
 
 const getActiveBookingSlots = `-- name: GetActiveBookingSlots :many
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, trainer_id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC
 `
@@ -231,6 +232,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 		var i BookingSlot
 		if err := rows.Scan(
 			&i.ID,
+			&i.TrainerID,
 			&i.DayOfWeek,
 			&i.StartTime,
 			&i.EndTime,
@@ -253,7 +255,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 }
 
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, trainer_id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
 WHERE id = $1
 LIMIT 1
 `
@@ -263,6 +265,7 @@ func (q *Queries) GetBookingSlotByID(ctx context.Context, id uuid.UUID) (Booking
 	var i BookingSlot
 	err := row.Scan(
 		&i.ID,
+		&i.TrainerID,
 		&i.DayOfWeek,
 		&i.StartTime,
 		&i.EndTime,
@@ -433,7 +436,7 @@ SET
     is_active   = $5,
     updated_at  = NOW()
 WHERE id = $6
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, trainer_id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
 `
 
 type UpdateBookingSlotParams struct {
@@ -457,6 +460,7 @@ func (q *Queries) UpdateBookingSlot(ctx context.Context, arg UpdateBookingSlotPa
 	var i BookingSlot
 	err := row.Scan(
 		&i.ID,
+		&i.TrainerID,
 		&i.DayOfWeek,
 		&i.StartTime,
 		&i.EndTime,

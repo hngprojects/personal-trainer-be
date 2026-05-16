@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,9 +18,7 @@ INSERT INTO bookings (
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -36,18 +35,14 @@ INSERT INTO bookings (
   $7,
   $8,
   $9,
-  $10,
-  $11,
-  $12
+  $10
 )
 RETURNING
   id,
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -59,13 +54,11 @@ RETURNING
 type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
-	ScheduledStart     sql.NullTime
-	ScheduledEnd       sql.NullTime
+	SubscriptionID     uuid.UUID
+	BookingSlot        uuid.UUID
 	Timezone           sql.NullString
-	BookingStatus      sql.NullString
-	SessionPlatform    sql.NullString
+	BookingStatus      string
+	SessionPlatform    string
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -76,9 +69,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.TrainerID,
 		arg.ClientID,
 		arg.SubscriptionID,
-		arg.CalendlyEventID,
-		arg.ScheduledStart,
-		arg.ScheduledEnd,
+		arg.BookingSlot,
 		arg.Timezone,
 		arg.BookingStatus,
 		arg.SessionPlatform,
@@ -92,9 +83,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
-		&i.ScheduledStart,
-		&i.ScheduledEnd,
+		&i.BookingSlot,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
@@ -111,9 +100,7 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -133,9 +120,7 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
-		&i.ScheduledStart,
-		&i.ScheduledEnd,
+		&i.BookingSlot,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
@@ -152,9 +137,7 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -175,15 +158,47 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
-		&i.ScheduledStart,
-		&i.ScheduledEnd,
+		&i.BookingSlot,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
 		&i.CancellationReason,
 		&i.CreatedAt,
 		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const getSubscription = `-- name: GetSubscription :one
+SELECT
+    id,
+    client_id,
+    trainer_id,
+    status,
+    created_at
+FROM subscriptions
+WHERE id = $1
+AND status = 'active'
+LIMIT 1
+`
+
+type GetSubscriptionRow struct {
+	ID        uuid.UUID
+	ClientID  uuid.UUID
+	TrainerID uuid.UUID
+	Status    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) GetSubscription(ctx context.Context, id uuid.UUID) (GetSubscriptionRow, error) {
+	row := q.db.QueryRowContext(ctx, getSubscription, id)
+	var i GetSubscriptionRow
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.Status,
+		&i.CreatedAt,
 	)
 	return i, err
 }

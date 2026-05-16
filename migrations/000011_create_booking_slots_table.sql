@@ -1,6 +1,7 @@
 -- +goose Up
 CREATE TABLE IF NOT EXISTS booking_slots (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    trainer_id  UUID        NOT NULL REFERENCES trainers(id),
     day_of_week SMALLINT    NOT NULL CHECK (day_of_week BETWEEN 0 AND 6), -- 0=Sun, 6=Sat
     start_time  TIME        NOT NULL,
     end_time    TIME        NOT NULL,

@@ -3,9 +3,7 @@ INSERT INTO bookings (
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -16,9 +14,7 @@ INSERT INTO bookings (
   sqlc.arg(trainer_id),
   sqlc.arg(client_id),
   sqlc.arg(subscription_id),
-  sqlc.arg(calendly_event_id),
-  sqlc.arg(scheduled_start),
-  sqlc.arg(scheduled_end),
+  sqlc.arg(booking_slot),
   sqlc.arg(timezone),
   sqlc.arg(booking_status),
   sqlc.arg(session_platform),
@@ -31,9 +27,7 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -47,9 +41,7 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -66,9 +58,7 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
-  scheduled_start,
-  scheduled_end,
+  booking_slot,
   timezone,
   booking_status,
   session_platform,
@@ -79,3 +69,15 @@ FROM bookings
 WHERE id = $1
 LIMIT 1
 FOR UPDATE;
+
+-- name: GetSubscription :one
+SELECT
+    id,
+    client_id,
+    trainer_id,
+    status,
+    created_at
+FROM subscriptions
+WHERE id = $1
+AND status = 'active'
+LIMIT 1;

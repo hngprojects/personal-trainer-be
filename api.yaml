@@ -596,10 +596,56 @@ components:
           description: Client IANA timezone
           example: America/New_York
 
+    DiscoveryBookingResponse:
+      type: object
+      properties:
+        ID:
+          type: string
+          example:
+        SelectedDatetime:
+          type: string
+          format: date-time
+          example: "2026-05-20T10:00:00Z"
+        PhoneNumber:
+          type: string
+          example: "+2348012345678"
+        ZoomMeetingLink:
+          type: string
+          example: "https://zoom.us/j/123456789"
+        ZoomMeetingID:
+          type: string
+          example: "123456789"
     BookingSlotRequest:
       type: object
       required: [day_of_week, start_time, end_time]
       properties:
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0=Sunday, 6=Saturday
+          example: 1
+        start_time:
+          type: string
+          description: 24h time HH:MM
+          example: "09:00"
+        end_time:
+          type: string
+          description: 24h time HH:MM
+          example: "17:00"
+        timezone:
+          type: string
+          description: IANA timezone for the slot
+          example: Africa/Lagos
+        is_active:
+          type: boolean
+          default: true
+    BookingSlotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example:
         day_of_week:
           type: integer
           minimum: 0
@@ -1164,6 +1210,67 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /bookings:
+    post:
+      operationId: CreateBooking
+      tags:
+        - Booking
+      summary: Clients creates a booking session with preferred trainer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trainer_id, subscription_id, booking_slot, timezone]
+              properties:
+                trainer_id:
+                  type: string
+                  format: uuid
+                client_id:
+                  type: string
+                  format: uuid
+                subscription_id:
+                  type: string
+                  format: uuid
+                booking_slot:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                session_platform:
+                  type: string
+                  enum: [zoom, google_meet, in_person]
+                timezone:
+                  type: string
+      responses:
+        "200":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Booking created successfully
+                code: OK
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  client_id: "550e8400-e29b-41d4-a716-446655440000"
+                  trainer_id: "550e8400-e29b-41d4-a716-446655440000"
+                  subscription_id: "550e8400-e29b-41d4-a716-446655440000"
+                  booking_slot:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    start_time: "2026-05-17 10:30:40.067585+00"
+                    end_time: "2026-05-17 11:30:40.067585+00"
+                  timezone: "London"
+                  booking_status: "pending"
+                  session_platform: "zoom"
+                  created_at: "2026-05-16 10:30:40.067585+00"
+
   /users/me/profile:
     patch:
       operationId: UpdateUserProfile
@@ -2404,6 +2511,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  # Get booking slot by trainer id
+  /booking-slots/{trainerId}:
+    get:
+      security: []
+      operationId: GetTrainersBookingSlots
+      summary: List all active booking slots (public)
+      parameters:
+        - name: trainerId
+          in: path
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: IANA timezone to convert slots into (e.g. America/New_York)
+      responses:
+        "200":
+          description: Booking slots retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BookingSlotResponse"
         "500":
           description: Internal server error
           content:
