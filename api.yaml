@@ -283,6 +283,50 @@ components:
           type: string
           enum: [pending, approved, rejected, suspended]
 
+    AvailabilitySlot:
+      type: object
+      required: [day_of_week, start_time, end_time, timezone]
+      properties:
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: "Day of week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday"
+        start_time:
+          type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+          example: "09:00"
+          description: "Start time in HH:MM format (24-hour)"
+        end_time:
+          type: string
+          pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
+          example: "17:00"
+          description: "End time in HH:MM format (24-hour)"
+        timezone:
+          type: string
+          example: "America/New_York"
+          description: "IANA timezone string"
+
+    SetAvailabilityRequest:
+      type: object
+      required: [availability]
+      properties:
+        availability:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailabilitySlot"
+          description: "List of weekly availability slots. Empty array clears all slots."
+
+    SetAvailabilityResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/AvailabilitySlot"
+
     LocalAuthData:
       type: object
       required: [user, access_token, refresh_token, expires_in]
@@ -1540,6 +1584,49 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/availability:
+    put:
+      operationId: PutTrainersMeAvailability
+      summary: Set trainer weekly availability
+      tags: [Trainer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAvailabilityRequest"
+      responses:
+        "200":
+          description: Availability updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
           content:
             application/json:
               schema:

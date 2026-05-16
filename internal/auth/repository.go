@@ -31,6 +31,7 @@ type UserRepository interface {
 // AdminUserRepository defines admin-specific user operations.
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.

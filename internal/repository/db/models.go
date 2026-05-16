@@ -166,6 +166,17 @@ type Trainer struct {
 	UpdatedAt         time.Time
 }
 
+type TrainerAvailability struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

@@ -74,14 +74,15 @@ type routerImpl struct {
 	logout        *auth.LogoutHandler
 	refresh       *auth.RefreshHandler
 	passwordReset *auth.PasswordResetHandler
-	trainers      *trainersStore
-	users         *usersStore
-	reviews       *reviewsvc.Service
-	admin         *admin.Handler
+	trainers       *trainersStore
+	users          *usersStore
+	reviews        *reviewsvc.Service
+	admin          *admin.Handler
 	contact        *contact.Handler
 	bookings       *bookingsStore
 	paidReschedule *bookings.Handler
 	discovery      *discovery.Handler
+	availability   *availabilityStore
 	dev            *dev.Handler
 	bookingSession booking_session.SessionHandler
 }
@@ -153,6 +154,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(q)
 			impl.users = newUsersStore(q)
+			impl.availability = &availabilityStore{db: s.db, q: q}
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {

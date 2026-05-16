@@ -266,6 +266,24 @@ func (e ReviewsListResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for SetAvailabilityResponseStatus.
+const (
+	SetAvailabilityResponseStatusError   SetAvailabilityResponseStatus = "error"
+	SetAvailabilityResponseStatusSuccess SetAvailabilityResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the SetAvailabilityResponseStatus enum.
+func (e SetAvailabilityResponseStatus) Valid() bool {
+	switch e {
+	case SetAvailabilityResponseStatusError:
+		return true
+	case SetAvailabilityResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SuccessResponseStatus.
 const (
 	SuccessResponseStatusError   SuccessResponseStatus = "error"
@@ -539,6 +557,21 @@ type AuthUser struct {
 // AuthUserUserType defines model for AuthUser.UserType.
 type AuthUserUserType string
 
+// AvailabilitySlot defines model for AvailabilitySlot.
+type AvailabilitySlot struct {
+	// DayOfWeek Day of week: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+	DayOfWeek int `json:"day_of_week"`
+
+	// EndTime End time in HH:MM format (24-hour)
+	EndTime string `json:"end_time"`
+
+	// StartTime Start time in HH:MM format (24-hour)
+	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone string
+	Timezone string `json:"timezone"`
+}
+
 // BaseResponse defines model for BaseResponse.
 type BaseResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -793,6 +826,27 @@ type ReviewsListResponse struct {
 
 // ReviewsListResponseStatus defines model for ReviewsListResponse.Status.
 type ReviewsListResponseStatus string
+
+// SetAvailabilityRequest defines model for SetAvailabilityRequest.
+type SetAvailabilityRequest struct {
+	// Availability List of weekly availability slots. Empty array clears all slots.
+	Availability []AvailabilitySlot `json:"availability"`
+}
+
+// SetAvailabilityResponse defines model for SetAvailabilityResponse.
+type SetAvailabilityResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string              `json:"code"`
+	Data    *[]AvailabilitySlot `json:"data,omitempty"`
+	Message string              `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                  `json:"meta,omitempty"`
+	Status SetAvailabilityResponseStatus `json:"status"`
+}
+
+// SetAvailabilityResponseStatus defines model for SetAvailabilityResponse.Status.
+type SetAvailabilityResponseStatus string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -1086,6 +1140,9 @@ type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 // CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
 type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
+// PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
+type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
@@ -1196,6 +1253,9 @@ type ServerInterface interface {
 	// Add trainer (admin only)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
+	// Set trainer weekly availability
+	// (PUT /trainers/me/availability)
+	PutTrainersMeAvailability(c *gin.Context)
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1896,6 +1956,21 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
+// PutTrainersMeAvailability operation middleware
+func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutTrainersMeAvailability(c)
+}
+
 // DeleteTrainer operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 
@@ -2153,6 +2228,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
+	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
