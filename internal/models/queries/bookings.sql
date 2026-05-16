@@ -79,3 +79,25 @@ FROM bookings
 WHERE id = $1
 LIMIT 1
 FOR UPDATE;
+
+-- name: GetUpcomingPaidSessions :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  u.name           AS trainer_name,
+  t.specialization AS trainer_specialization,
+  t.display_picture AS trainer_photo
+FROM bookings b
+JOIN trainers t ON t.id = b.trainer_id
+JOIN users u ON u.id = t.user_id
+WHERE b.client_id = sqlc.arg(client_id)
+  AND b.scheduled_start > NOW()
+  AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
+ORDER BY b.scheduled_start ASC;
