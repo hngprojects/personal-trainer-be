@@ -713,6 +713,29 @@ components:
           type: string
           description: Client IANA timezone
           example: America/New_York
+<<<<<<< HEAD
+=======
+
+    DiscoveryBookingResponse:
+      type: object
+      properties:
+        ID:
+          type: string
+          example:
+        SelectedDatetime:
+          type: string
+          format: date-time
+          example: "2026-05-20T10:00:00Z"
+        PhoneNumber:
+          type: string
+          example: "+2348012345678"
+        ZoomMeetingLink:
+          type: string
+          example: "https://zoom.us/j/123456789"
+        ZoomMeetingID:
+          type: string
+          example: "123456789"
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
     BookingSlotRequest:
       type: object
       required: [day_of_week, start_time, end_time]
@@ -1321,6 +1344,7 @@ paths:
           application/json:
             schema:
               type: object
+<<<<<<< HEAD
               required:
                 [
                   trainer_id,
@@ -1330,10 +1354,14 @@ paths:
                   session_platform,
                   timezone,
                 ]
+=======
+              required: [trainer_id, subscription_id, booking_slot, timezone]
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
               properties:
                 trainer_id:
                   type: string
                   format: uuid
+<<<<<<< HEAD
                 subscription_id:
                   type: string
                   format: uuid
@@ -1346,6 +1374,22 @@ paths:
                 session_platform:
                   type: string
                   enum: ["whatsapp", "google_meet", "zoom"]
+=======
+                client_id:
+                  type: string
+                  format: uuid
+                subscription_id:
+                  type: string
+                  format: uuid
+                booking_slot:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                session_platform:
+                  type: string
+                  enum: [zoom, google_meet, in_person]
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
                 timezone:
                   type: string
       responses:
@@ -1365,8 +1409,15 @@ paths:
                   client_id: "550e8400-e29b-41d4-a716-446655440000"
                   trainer_id: "550e8400-e29b-41d4-a716-446655440000"
                   subscription_id: "550e8400-e29b-41d4-a716-446655440000"
+<<<<<<< HEAD
                   scheduled_start: "2026-05-16 10:30:40.067585+00"
                   scheduled_end: "2026-05-16 10:30:40.067585+00"
+=======
+                  booking_slot:
+                    id: "550e8400-e29b-41d4-a716-446655440000"
+                    start_time: "2026-05-17 10:30:40.067585+00"
+                    end_time: "2026-05-17 11:30:40.067585+00"
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
                   timezone: "London"
                   booking_status: "pending"
                   session_platform: "zoom"
@@ -2742,11 +2793,19 @@ paths:
       parameters:
         - name: trainerId
           in: path
+<<<<<<< HEAD
           required: true
           schema:
             type: string
             format: uuid
           description: ID of the trainer to retrieve booking slots for
+=======
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: IANA timezone to convert slots into (e.g. America/New_York)
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
       responses:
         "200":
           description: Booking slots retrieved

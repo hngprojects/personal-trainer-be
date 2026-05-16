@@ -5,7 +5,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+<<<<<<< HEAD
 	"time"
+=======
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,16 +39,26 @@ func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *
 
 type bookingHandler struct {
 	service BookingService
+<<<<<<< HEAD
 	// redis   redis.Client
 	log *slog.Logger
+=======
+	redis   redis.Client
+	log     *slog.Logger
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 }
 
 type BookingHandler interface {
 	HandleCreateBookingSession(c *gin.Context)
 }
 
+<<<<<<< HEAD
 func NewBookingHandler(service BookingService, log *slog.Logger) *bookingHandler {
 	return &bookingHandler{service: service, log: log}
+=======
+func NewBookingHandler(service BookingService, redis redis.Client, log *slog.Logger) *bookingHandler {
+	return &bookingHandler{service: service, redis: redis, log: log}
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 }
 
 func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
@@ -88,6 +101,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("subscription id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription id is required"})
 	}
+<<<<<<< HEAD
 	// Check if booking slot is available
 	if !common.IsNotEmpty(request.ScheduledStart.String()) {
 		h.log.Error("select a booking start time")
@@ -104,6 +118,22 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	if !request.SessionPlatform.Valid() {
 		h.log.Error("select a valid session platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
+=======
+	// check if subscription is active
+	isActive, err := h.service.CheckActiveSubscriptions(c.Request.Context(), request.SubscriptionId)
+	if err != nil {
+		h.log.Error("failed to check subscription", "error", err)
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "failed to check subscription"})
+	}
+	if !isActive {
+		h.log.Error("subscription is not active")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription is not active"})
+	}
+	// Check if booking slot is available
+	if !common.IsNotEmpty(request.BookingSlot.String()) {
+		h.log.Error("booking slot id is required")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking slot is required"})
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
@@ -122,11 +152,18 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
+<<<<<<< HEAD
 		SubscriptionID:  uuid.NullUUID{Valid: true, UUID: request.SubscriptionId},
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
 		SessionPlatform: sql.NullString{Valid: true, String: defaultSessionPlatform},
+=======
+		SubscriptionID:  request.SubscriptionId,
+		BookingSlot:     request.BookingSlot,
+		BookingStatus:   defaultBookingStatus,
+		SessionPlatform: defaultSessionPlatform,
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 
@@ -141,6 +178,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 }
 
 func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
+<<<<<<< HEAD
 	type BookingSessionResponse struct {
 		ID                 uuid.UUID  `json:"id"`
 		TrainerID          uuid.UUID  `json:"trainer_id"`
@@ -186,6 +224,27 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 	}
 	if data.CancelledAt.Valid {
 		response.CancelledAt = &data.CancelledAt.Time
+=======
+	response := &db.CreateBookingParams{
+		TrainerID:       data.TrainerID,
+		ClientID:        userID,
+		SubscriptionID:  data.SubscriptionID,
+		BookingSlot:     data.BookingSlot,
+		BookingStatus:   defaultBookingStatus,
+		SessionPlatform: defaultSessionPlatform,
+	}
+	if data.Timezone.Valid {
+		response.Timezone = data.Timezone
+	}
+	if data.CancellationReason.Valid {
+		response.CancellationReason = data.CancellationReason
+	}
+	if data.CreatedAt.Valid {
+		response.CreatedAt = data.CreatedAt
+	}
+	if data.CancelledAt.Valid {
+		response.CancelledAt = data.CancelledAt
+>>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 	}
 	var responseInterface interface{} = response
 	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil, Status: "success"}
