@@ -172,7 +172,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
-			impl.booking = bookings.BookingHandler(bookingService, s.log)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)

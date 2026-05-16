@@ -415,19 +415,19 @@ func (e UpdateProfileRequestFitnessLevel) Valid() bool {
 
 // Defines values for UpdateProfileRequestGender.
 const (
-	UpdateProfileRequestGenderFemale UpdateProfileRequestGender = "female"
-	UpdateProfileRequestGenderMale   UpdateProfileRequestGender = "male"
-	UpdateProfileRequestGenderOther  UpdateProfileRequestGender = "other"
+	Female UpdateProfileRequestGender = "female"
+	Male   UpdateProfileRequestGender = "male"
+	Other  UpdateProfileRequestGender = "other"
 )
 
 // Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
 func (e UpdateProfileRequestGender) Valid() bool {
 	switch e {
-	case UpdateProfileRequestGenderFemale:
+	case Female:
 		return true
-	case UpdateProfileRequestGenderMale:
+	case Male:
 		return true
-	case UpdateProfileRequestGenderOther:
+	case Other:
 		return true
 	default:
 		return false
@@ -491,12 +491,7 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
-<<<<<<< HEAD
 // Defines values for CreateBookingJSONBodySessionPlatform.
-=======
-<<<<<<< HEAD
-// Defines values for GetUpcomingBookingsParamsType.
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 const (
 	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
 	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
@@ -508,25 +503,7 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
 	case GoogleMeet:
 		return true
-<<<<<<< HEAD
 	case Whatsapp:
-=======
-	case PaidSession:
-=======
-// Defines values for CreateBookingJSONBodySessionPlatform.
-const (
-	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
-	InPerson   CreateBookingJSONBodySessionPlatform = "in_person"
-	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
-)
-
-// Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
-func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
-	switch e {
-	case GoogleMeet:
-		return true
-	case InPerson:
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 		return true
 	case Zoom:
 		return true
@@ -547,10 +524,6 @@ func (e RescheduleDiscoveryCall200JSONResponseBodyStatus) Valid() bool {
 	case RescheduleDiscoveryCall200JSONResponseBodyStatusError:
 		return true
 	case RescheduleDiscoveryCall200JSONResponseBodyStatusSuccess:
-<<<<<<< HEAD
-=======
->>>>>>> ded81e4 (feat(booking): Added booking creation endpoint)
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 		return true
 	default:
 		return false
@@ -577,16 +550,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
+	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UpdateUserProfile200JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -740,22 +713,12 @@ type CursorPaginationMeta struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
-<<<<<<< HEAD
 // DiscoveryBookingResponse Booking details response
 type DiscoveryBookingResponse struct {
 	Id             *openapi_types.UUID `json:"id,omitempty"`
 	ScheduledEnd   *time.Time          `json:"scheduled_end,omitempty"`
 	ScheduledStart *time.Time          `json:"scheduled_start,omitempty"`
 	Status         *string             `json:"status,omitempty"`
-=======
-// DiscoveryBookingResponse defines model for DiscoveryBookingResponse.
-type DiscoveryBookingResponse struct {
-	ID               *string    `json:"ID,omitempty"`
-	PhoneNumber      *string    `json:"PhoneNumber,omitempty"`
-	SelectedDatetime *time.Time `json:"SelectedDatetime,omitempty"`
-	ZoomMeetingID    *string    `json:"ZoomMeetingID,omitempty"`
-	ZoomMeetingLink  *string    `json:"ZoomMeetingLink,omitempty"`
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -1097,7 +1060,6 @@ type GetBookingSlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
-<<<<<<< HEAD
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
 	ScheduledEnd    time.Time                            `json:"scheduled_end"`
@@ -1108,43 +1070,11 @@ type CreateBookingJSONBody struct {
 	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
 }
 
-=======
-<<<<<<< HEAD
-// GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
-type GetUpcomingBookingsParams struct {
-	// Timezone IANA timezone for displaying times (e.g. America/New_York)
-	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
-
-	// Type Filter by booking type
-	Type  *GetUpcomingBookingsParamsType `form:"type,omitempty" json:"type,omitempty"`
-	Page  *int                           `form:"page,omitempty" json:"page,omitempty"`
-	Limit *int                           `form:"limit,omitempty" json:"limit,omitempty"`
-}
-
-// GetUpcomingBookingsParamsType defines parameters for GetUpcomingBookings.
-type GetUpcomingBookingsParamsType string
-=======
-// CreateBookingJSONBody defines parameters for CreateBooking.
-type CreateBookingJSONBody struct {
-	BookingSlot     openapi_types.UUID                    `json:"booking_slot"`
-	ClientId        *openapi_types.UUID                   `json:"client_id,omitempty"`
-	SessionPlatform *CreateBookingJSONBodySessionPlatform `json:"session_platform,omitempty"`
-	Status          *string                               `json:"status,omitempty"`
-	SubscriptionId  openapi_types.UUID                    `json:"subscription_id"`
-	Timezone        string                                `json:"timezone"`
-	TrainerId       openapi_types.UUID                    `json:"trainer_id"`
-}
-
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 // CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
 type CreateBookingJSONBodySessionPlatform string
 
 // RescheduleDiscoveryCall200JSONResponseBodyStatus defines parameters for RescheduleDiscoveryCall.
 type RescheduleDiscoveryCall200JSONResponseBodyStatus string
-<<<<<<< HEAD
-=======
->>>>>>> ded81e4 (feat(booking): Added booking creation endpoint)
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 
 // HandleContactUsJSONBody defines parameters for HandleContactUs.
 type HandleContactUsJSONBody struct {
@@ -1226,12 +1156,9 @@ type CreateBookingJSONRequestBody CreateBookingJSONBody
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
 
-<<<<<<< HEAD
 // CancelBookingJSONRequestBody defines body for CancelBooking for application/json ContentType.
 type CancelBookingJSONRequestBody = CancelBookingRequest
 
-=======
->>>>>>> ded81e4 (feat(booking): Added booking creation endpoint)
 // RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall for application/json ContentType.
 type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
 
@@ -1730,11 +1657,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 	// ------------- Path parameter "trainerId" -------------
 	var trainerId openapi_types.UUID
 
-<<<<<<< HEAD
 	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-=======
-	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
->>>>>>> 13d9b00 (feat(booking): Added booking creation endpoint)
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
 		return
