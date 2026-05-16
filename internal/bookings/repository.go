@@ -19,7 +19,6 @@ var (
 type BookingsRepository interface {
 	FindBookingSlotByTrainerID(ctx context.Context, trainerID uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
-	CheckSubscription(ctx context.Context, subscriptionID uuid.UUID) (db.GetSubscriptionRow, error)
 }
 
 type bookingRepo struct {
@@ -51,15 +50,4 @@ func (r *bookingRepo) CreateBooking(ctx context.Context, args db.CreateBookingPa
 		return nil, err
 	}
 	return &booking, nil
-}
-
-func (r *bookingRepo) CheckSubscription(ctx context.Context, subscriptionID uuid.UUID) (db.GetSubscriptionRow, error) {
-	subscription, err := r.q.GetSubscription(ctx, subscriptionID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return db.GetSubscriptionRow{}, ErrNotFound
-		}
-		return db.GetSubscriptionRow{}, err
-	}
-	return subscription, nil
 }

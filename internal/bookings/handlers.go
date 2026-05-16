@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,16 +36,16 @@ func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *
 
 type bookingHandler struct {
 	service BookingService
-	redis   redis.Client
-	log     *slog.Logger
+	// redis   redis.Client
+	log *slog.Logger
 }
 
 type BookingHandler interface {
 	HandleCreateBookingSession(c *gin.Context)
 }
 
-func NewBookingHandler(service BookingService, redis redis.Client, log *slog.Logger) *bookingHandler {
-	return &bookingHandler{service: service, redis: redis, log: log}
+func NewBookingHandler(service BookingService, log *slog.Logger) *bookingHandler {
+	return &bookingHandler{service: service, log: log}
 }
 
 func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
@@ -87,20 +88,22 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("subscription id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription id is required"})
 	}
-	// check if subscription is active
-	isActive, err := h.service.CheckActiveSubscriptions(c.Request.Context(), request.SubscriptionId)
-	if err != nil {
-		h.log.Error("failed to check subscription", "error", err)
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "failed to check subscription"})
-	}
-	if !isActive {
-		h.log.Error("subscription is not active")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription is not active"})
-	}
 	// Check if booking slot is available
-	if !common.IsNotEmpty(request.BookingSlot.String()) {
-		h.log.Error("booking slot id is required")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking slot is required"})
+	if !common.IsNotEmpty(request.ScheduledStart.String()) {
+		h.log.Error("select a booking start time")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking start time"})
+	}
+	if !common.IsNotEmpty(request.ScheduledEnd.String()) {
+		h.log.Error("select a booking end time")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking end time"})
+	}
+	if !common.IsNotEmpty(string(request.SessionPlatform)) {
+		h.log.Error("select a session platform")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
+	}
+	if !request.SessionPlatform.Valid() {
+		h.log.Error("select a valid session platform")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
 	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
@@ -119,10 +122,11 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
-		SubscriptionID:  request.SubscriptionId,
-		BookingSlot:     request.BookingSlot,
-		BookingStatus:   defaultBookingStatus,
-		SessionPlatform: defaultSessionPlatform,
+		SubscriptionID:  uuid.NullUUID{Valid: true, UUID: request.SubscriptionId},
+		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
+		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
+		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
+		SessionPlatform: sql.NullString{Valid: true, String: defaultSessionPlatform},
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 
@@ -137,25 +141,51 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 }
 
 func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
-	response := &db.CreateBookingParams{
-		TrainerID:       data.TrainerID,
-		ClientID:        userID,
-		SubscriptionID:  data.SubscriptionID,
-		BookingSlot:     data.BookingSlot,
-		BookingStatus:   defaultBookingStatus,
-		SessionPlatform: defaultSessionPlatform,
+	type BookingSessionResponse struct {
+		ID                 uuid.UUID  `json:"id"`
+		TrainerID          uuid.UUID  `json:"trainer_id"`
+		ClientID           uuid.UUID  `json:"client_id"`
+		SubscriptionID     uuid.UUID  `json:"subscription_id"`
+		ScheduledStart     *time.Time `json:"scheduled_start"`
+		ScheduledEnd       *time.Time `json:"scheduled_end"`
+		Timezone           *string    `json:"timezone"`
+		BookingStatus      *string    `json:"booking_status"`
+		SessionPlatform    *string    `json:"session_platform"`
+		CancellationReason *string    `json:"cancellation_reason"`
+		CreatedAt          *time.Time `json:"created_at"`
+		CancelledAt        *time.Time `json:"cancelled_at"`
+	}
+
+	response := BookingSessionResponse{
+		TrainerID: data.TrainerID,
+		ClientID:  userID,
+	}
+	if data.SubscriptionID.Valid {
+		response.SubscriptionID = data.SubscriptionID.UUID
+	}
+	if data.ScheduledStart.Valid {
+		response.ScheduledStart = &data.ScheduledStart.Time
+	}
+	if data.ScheduledEnd.Valid {
+		response.ScheduledEnd = &data.ScheduledEnd.Time
 	}
 	if data.Timezone.Valid {
-		response.Timezone = data.Timezone
+		response.Timezone = &data.Timezone.String
+	}
+	if data.BookingStatus.Valid {
+		response.BookingStatus = &data.BookingStatus.String
+	}
+	if data.SessionPlatform.Valid {
+		response.SessionPlatform = &data.SessionPlatform.String
 	}
 	if data.CancellationReason.Valid {
-		response.CancellationReason = data.CancellationReason
+		response.CancellationReason = &data.CancellationReason.String
 	}
 	if data.CreatedAt.Valid {
-		response.CreatedAt = data.CreatedAt
+		response.CreatedAt = &data.CreatedAt.Time
 	}
 	if data.CancelledAt.Valid {
-		response.CancelledAt = data.CancelledAt
+		response.CancelledAt = &data.CancelledAt.Time
 	}
 	var responseInterface interface{} = response
 	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil, Status: "success"}

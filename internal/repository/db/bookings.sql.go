@@ -13,12 +13,60 @@ import (
 	"github.com/google/uuid"
 )
 
+const cancelBooking = `-- name: CancelBooking :one
+UPDATE bookings
+SET
+  booking_status = 'cancelled',
+  cancellation_reason = $1,
+  cancelled_at = NOW()
+WHERE id = $2
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at
+`
+
+type CancelBookingParams struct {
+	CancellationReason sql.NullString
+	ID                 uuid.UUID
+}
+
+func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, cancelBooking, arg.CancellationReason, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
   trainer_id,
   client_id,
   subscription_id,
-  booking_slot,
+  scheduled_start,
+  scheduled_end,
   timezone,
   booking_status,
   session_platform,
@@ -35,14 +83,16 @@ INSERT INTO bookings (
   $7,
   $8,
   $9,
-  $10
+  $10,
+  $11
 )
 RETURNING
   id,
   trainer_id,
   client_id,
   subscription_id,
-  booking_slot,
+  scheduled_start,
+  scheduled_end,
   timezone,
   booking_status,
   session_platform,
@@ -54,11 +104,12 @@ RETURNING
 type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.UUID
-	BookingSlot        uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
-	BookingStatus      string
-	SessionPlatform    string
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -69,7 +120,8 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.TrainerID,
 		arg.ClientID,
 		arg.SubscriptionID,
-		arg.BookingSlot,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
 		arg.Timezone,
 		arg.BookingStatus,
 		arg.SessionPlatform,
@@ -83,7 +135,8 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.BookingSlot,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
@@ -100,7 +153,8 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  booking_slot,
+  scheduled_start,
+  scheduled_end,
   timezone,
   booking_status,
   session_platform,
@@ -120,7 +174,8 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.BookingSlot,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
@@ -137,7 +192,8 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  booking_slot,
+  scheduled_start,
+  scheduled_end,
   timezone,
   booking_status,
   session_platform,
@@ -158,7 +214,8 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.BookingSlot,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
 		&i.Timezone,
 		&i.BookingStatus,
 		&i.SessionPlatform,
@@ -169,7 +226,7 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 	return i, err
 }
 
-const getSubscription = `-- name: GetSubscription :one
+const getUpcomingPaidSessions = `-- name: GetUpcomingPaidSessions :many
 SELECT
     id,
     client_id,
@@ -182,7 +239,7 @@ AND status = 'active'
 LIMIT 1
 `
 
-type GetSubscriptionRow struct {
+type GetUpcomingPaidSessionsRow struct {
 	ID        uuid.UUID
 	ClientID  uuid.UUID
 	TrainerID uuid.UUID
@@ -190,15 +247,66 @@ type GetSubscriptionRow struct {
 	CreatedAt time.Time
 }
 
-func (q *Queries) GetSubscription(ctx context.Context, id uuid.UUID) (GetSubscriptionRow, error) {
-	row := q.db.QueryRowContext(ctx, getSubscription, id)
-	var i GetSubscriptionRow
-	err := row.Scan(
-		&i.ID,
-		&i.ClientID,
-		&i.TrainerID,
-		&i.Status,
-		&i.CreatedAt,
+func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, id uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUpcomingPaidSessions, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUpcomingPaidSessionsRow
+	for rows.Next() {
+		var i GetUpcomingPaidSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.Status,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const releaseBookingSlot = `-- name: ReleaseBookingSlot :execrows
+UPDATE booking_slots
+SET
+  is_active = true,
+  updated_at = NOW()
+WHERE
+  trainer_id = $1
+  AND day_of_week = EXTRACT(DOW FROM $3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::SMALLINT
+  AND start_time = ($3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND end_time = ($4::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND timezone = $2
+`
+
+type ReleaseBookingSlotParams struct {
+	TrainerID      uuid.UUID
+	Timezone       string
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+}
+
+// Release a booking slot by marking it as available again
+// This updates the booking_slots table to set is_active = true for the slot used by this booking
+func (q *Queries) ReleaseBookingSlot(ctx context.Context, arg ReleaseBookingSlotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseBookingSlot,
+		arg.TrainerID,
+		arg.Timezone,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
 	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

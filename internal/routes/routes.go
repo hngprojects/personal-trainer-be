@@ -84,6 +84,7 @@ type routerImpl struct {
 	booking        bookings.BookingHandler
 	bookingSlot    bookings.BookingSlotHandler
 	bookingSession booking_session.SessionHandler
+	bookings       *bookingsStore
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -166,9 +167,11 @@ func (s *Router) Routes() *gin.Engine {
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 
-			impl.booking = bookings.NewBookingHandler(bookingService, *s.redis, s.log)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
+			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up
 			// instead of returning 503 across the board. Real Redis-Allow errors

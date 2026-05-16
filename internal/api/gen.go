@@ -74,6 +74,72 @@ func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	}
 }
 
+// Defines values for CancelBookingRequestReason.
+const (
+	CancelBookingRequestReasonClientRequest     CancelBookingRequestReason = "client_request"
+	CancelBookingRequestReasonFeelingUnwell     CancelBookingRequestReason = "feeling_unwell"
+	CancelBookingRequestReasonOther             CancelBookingRequestReason = "other"
+	CancelBookingRequestReasonPersonalEmergency CancelBookingRequestReason = "personal_emergency"
+	CancelBookingRequestReasonScheduleConflict  CancelBookingRequestReason = "schedule_conflict"
+	CancelBookingRequestReasonTrainerRequest    CancelBookingRequestReason = "trainer_request"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingRequestReason enum.
+func (e CancelBookingRequestReason) Valid() bool {
+	switch e {
+	case CancelBookingRequestReasonClientRequest:
+		return true
+	case CancelBookingRequestReasonFeelingUnwell:
+		return true
+	case CancelBookingRequestReasonOther:
+		return true
+	case CancelBookingRequestReasonPersonalEmergency:
+		return true
+	case CancelBookingRequestReasonScheduleConflict:
+		return true
+	case CancelBookingRequestReasonTrainerRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelBookingResponseDataRefundReason.
+const (
+	After12Hours  CancelBookingResponseDataRefundReason = "after_12_hours"
+	Within12Hours CancelBookingResponseDataRefundReason = "within_12_hours"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingResponseDataRefundReason enum.
+func (e CancelBookingResponseDataRefundReason) Valid() bool {
+	switch e {
+	case After12Hours:
+		return true
+	case Within12Hours:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelBookingResponseStatus.
+const (
+	CancelBookingResponseStatusError   CancelBookingResponseStatus = "error"
+	CancelBookingResponseStatusSuccess CancelBookingResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the CancelBookingResponseStatus enum.
+func (e CancelBookingResponseStatus) Valid() bool {
+	switch e {
+	case CancelBookingResponseStatusError:
+		return true
+	case CancelBookingResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestOnboardingStatus.
 const (
 	CreateTrainerRequestOnboardingStatusApproved  CreateTrainerRequestOnboardingStatus = "approved"
@@ -331,19 +397,19 @@ func (e UpdateProfileRequestFitnessLevel) Valid() bool {
 
 // Defines values for UpdateProfileRequestGender.
 const (
-	UpdateProfileRequestGenderFemale UpdateProfileRequestGender = "female"
-	UpdateProfileRequestGenderMale   UpdateProfileRequestGender = "male"
-	UpdateProfileRequestGenderOther  UpdateProfileRequestGender = "other"
+	Female UpdateProfileRequestGender = "female"
+	Male   UpdateProfileRequestGender = "male"
+	Other  UpdateProfileRequestGender = "other"
 )
 
 // Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
 func (e UpdateProfileRequestGender) Valid() bool {
 	switch e {
-	case UpdateProfileRequestGenderFemale:
+	case Female:
 		return true
-	case UpdateProfileRequestGenderMale:
+	case Male:
 		return true
-	case UpdateProfileRequestGenderOther:
+	case Other:
 		return true
 	default:
 		return false
@@ -410,7 +476,7 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
-	InPerson   CreateBookingJSONBodySessionPlatform = "in_person"
+	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
 	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
@@ -419,7 +485,7 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
 	case GoogleMeet:
 		return true
-	case InPerson:
+	case Whatsapp:
 		return true
 	case Zoom:
 		return true
@@ -466,16 +532,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -540,6 +606,49 @@ type BookingSlotRequest struct {
 	Timezone *string `json:"timezone,omitempty"`
 }
 
+// CancelBookingRequest defines model for CancelBookingRequest.
+type CancelBookingRequest struct {
+	// Notes Optional additional details about cancellation
+	Notes *string `json:"notes,omitempty"`
+
+	// Reason Reason for cancellation
+	Reason CancelBookingRequestReason `json:"reason"`
+}
+
+// CancelBookingRequestReason Reason for cancellation
+type CancelBookingRequestReason string
+
+// CancelBookingResponse defines model for CancelBookingResponse.
+type CancelBookingResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code string `json:"code"`
+	Data *struct {
+		BookingId   openapi_types.UUID `json:"booking_id"`
+		CancelledAt time.Time          `json:"cancelled_at"`
+
+		// NotificationSent Whether cancellation notification was sent to both parties
+		NotificationSent bool `json:"notification_sent"`
+
+		// RefundAmount Number of session credits refunded (0 if forfeited within 12 hours)
+		RefundAmount int `json:"refund_amount"`
+
+		// RefundReason Why the refund amount was calculated this way
+		RefundReason CancelBookingResponseDataRefundReason `json:"refund_reason"`
+		Status       string                                `json:"status"`
+	} `json:"data,omitempty"`
+	Message string `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                `json:"meta,omitempty"`
+	Status CancelBookingResponseStatus `json:"status"`
+}
+
+// CancelBookingResponseDataRefundReason Why the refund amount was calculated this way
+type CancelBookingResponseDataRefundReason string
+
+// CancelBookingResponseStatus defines model for CancelBookingResponse.Status.
+type CancelBookingResponseStatus string
+
 // CreateReviewRequest defines model for CreateReviewRequest.
 type CreateReviewRequest struct {
 	BookingId openapi_types.UUID `json:"booking_id"`
@@ -571,13 +680,12 @@ type CursorPaginationMeta struct {
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
-// DiscoveryBookingResponse defines model for DiscoveryBookingResponse.
+// DiscoveryBookingResponse Booking details response
 type DiscoveryBookingResponse struct {
-	ID               *string    `json:"ID,omitempty"`
-	PhoneNumber      *string    `json:"PhoneNumber,omitempty"`
-	SelectedDatetime *time.Time `json:"SelectedDatetime,omitempty"`
-	ZoomMeetingID    *string    `json:"ZoomMeetingID,omitempty"`
-	ZoomMeetingLink  *string    `json:"ZoomMeetingLink,omitempty"`
+	Id             *openapi_types.UUID `json:"id,omitempty"`
+	ScheduledEnd   *time.Time          `json:"scheduled_end,omitempty"`
+	ScheduledStart *time.Time          `json:"scheduled_start,omitempty"`
+	Status         *string             `json:"status,omitempty"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -900,13 +1008,12 @@ type GetBookingSlotsParams struct {
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
-	BookingSlot     openapi_types.UUID                    `json:"booking_slot"`
-	ClientId        *openapi_types.UUID                   `json:"client_id,omitempty"`
-	SessionPlatform *CreateBookingJSONBodySessionPlatform `json:"session_platform,omitempty"`
-	Status          *string                               `json:"status,omitempty"`
-	SubscriptionId  openapi_types.UUID                    `json:"subscription_id"`
-	Timezone        string                                `json:"timezone"`
-	TrainerId       openapi_types.UUID                    `json:"trainer_id"`
+	ScheduledEnd    time.Time                            `json:"scheduled_end"`
+	ScheduledStart  time.Time                            `json:"scheduled_start"`
+	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
+	SubscriptionId  openapi_types.UUID                   `json:"subscription_id"`
+	Timezone        string                               `json:"timezone"`
+	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
 }
 
 // CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
@@ -994,6 +1101,9 @@ type CreateBookingJSONRequestBody CreateBookingJSONBody
 
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
+
+// CancelBookingJSONRequestBody defines body for CancelBooking for application/json ContentType.
+type CancelBookingJSONRequestBody = CancelBookingRequest
 
 // RescheduleDiscoveryCallJSONRequestBody defines body for RescheduleDiscoveryCall for application/json ContentType.
 type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
@@ -1084,6 +1194,9 @@ type ServerInterface interface {
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// Cancel a confirmed booking
+	// (PUT /bookings/{id}/cancel)
+	CancelBooking(c *gin.Context, id openapi_types.UUID)
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
@@ -1528,6 +1641,33 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	}
 
 	siw.Handler.BookDiscoveryCall(c)
+}
+
+// CancelBooking operation middleware
+func (siw *ServerInterfaceWrapper) CancelBooking(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelBooking(c, id)
 }
 
 // RescheduleDiscoveryCall operation middleware
@@ -2025,6 +2165,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)

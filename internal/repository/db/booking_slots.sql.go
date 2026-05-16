@@ -26,15 +26,27 @@ SELECT
 FROM booking_slots
 `
 
-func (q *Queries) GetBookingSlots(ctx context.Context) ([]BookingSlot, error) {
+type GetBookingSlotsRow struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetBookingSlots(ctx context.Context) ([]GetBookingSlotsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getBookingSlots)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []BookingSlot
+	var items []GetBookingSlotsRow
 	for rows.Next() {
-		var i BookingSlot
+		var i GetBookingSlotsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TrainerID,

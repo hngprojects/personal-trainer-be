@@ -2,7 +2,6 @@ package bookings
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -14,7 +13,6 @@ type BookingSlotService interface {
 }
 type BookingService interface {
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
-	CheckActiveSubscriptions(ctx context.Context, subscriptionID uuid.UUID) (bool, error)
 }
 
 type bookingService struct {
@@ -50,15 +48,4 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		return nil, err
 	}
 	return booking, nil
-}
-
-func (s *bookingService) CheckActiveSubscriptions(ctx context.Context, subscriptionID uuid.UUID) (bool, error) {
-	_, err := s.repo.CheckSubscription(ctx, subscriptionID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
 }

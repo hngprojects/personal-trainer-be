@@ -15,11 +15,12 @@ type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.UUID
-	BookingSlot        uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
-	BookingStatus      string
-	SessionPlatform    string
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -50,7 +51,6 @@ type BookingSession struct {
 
 type BookingSlot struct {
 	ID        uuid.UUID
-	TrainerID uuid.UUID
 	DayOfWeek int16
 	StartTime time.Time
 	EndTime   time.Time
@@ -58,6 +58,7 @@ type BookingSlot struct {
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	TrainerID uuid.UUID
 }
 
 type ContactMessage struct {
