@@ -2298,7 +2298,7 @@ paths:
         - Booking
       summary: Cancel a confirmed booking
       description: |
-        Allows a client or trainer to cancel a confirmed booking.
+        Allows a client or trainer to cancel a confirmed booking (PUT /bookings/:id/cancel).
         Enforces cancellation policy based on time until session:
         - Within 12 hours: No credit refund (credits forfeited)
         - After 12 hours: Full credit refund
