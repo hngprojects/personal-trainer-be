@@ -225,6 +225,109 @@ func (q *Queries) GetTrainerByID(ctx context.Context, id uuid.UUID) (Trainer, er
 	return i, err
 }
 
+const getTrainers = `-- name: GetTrainers :many
+SELECT
+  id,
+  user_id,
+  specialization,
+  bio,
+  years_of_experience,
+  intro_video_url,
+  display_picture,
+  calendly_connected,         
+  calendly_link,
+  onboarding_status,
+  average_rating, 
+  total_reviews,
+  created_at,
+  updated_at
+FROM trainers
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetTrainers(ctx context.Context) ([]Trainer, error) {
+	rows, err := q.db.QueryContext(ctx, getTrainers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Trainer
+	for rows.Next() {
+		var i Trainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Specialization,
+			&i.Bio,
+			&i.YearsOfExperience,
+			&i.IntroVideoUrl,
+			&i.DisplayPicture,
+			&i.CalendlyConnected,
+			&i.CalendlyLink,
+			&i.OnboardingStatus,
+			&i.AverageRating,
+			&i.TotalReviews,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingTrainers = `-- name: ListPendingTrainers :many
+SELECT id, user_id, specialization, bio, years_of_experience, intro_video_url, display_picture, calendly_connected, calendly_link, onboarding_status, average_rating, total_reviews, created_at, updated_at 
+FROM trainers 
+WHERE onboarding_status = 'pending' 
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListPendingTrainers(ctx context.Context) ([]Trainer, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingTrainers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Trainer
+	for rows.Next() {
+		var i Trainer
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Specialization,
+			&i.Bio,
+			&i.YearsOfExperience,
+			&i.IntroVideoUrl,
+			&i.DisplayPicture,
+			&i.CalendlyConnected,
+			&i.CalendlyLink,
+			&i.OnboardingStatus,
+			&i.AverageRating,
+			&i.TotalReviews,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTrainerByUserID = `-- name: GetTrainerByUserID :one
 SELECT
   id,

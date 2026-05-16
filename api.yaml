@@ -223,32 +223,6 @@ components:
             data:
               $ref: "#/components/schemas/Trainer"
 
-    CreateTrainerRequest:
-      type: object
-      required:
-        - specialization
-        - bio
-        - years_of_experience
-        - intro_video_url
-        - display_picture
-        - calendly_connected
-        - calendly_link
-      properties:
-        specialization:
-          type: string
-        bio:
-          type: string
-        years_of_experience:
-          type: integer
-        intro_video_url:
-          type: string
-        display_picture:
-          type: string
-        calendly_connected:
-          type: boolean
-          default: false
-        calendly_link:
-          type: string
     TrainersListResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -751,24 +725,6 @@ components:
           type: string
           description: Client IANA timezone
           example: America/New_York
-
-    UpdateTrainerRequest:
-      type: object
-      properties:
-        specialization:
-          type: string
-        bio:
-          type: string
-        years_of_experience:
-          type: integer
-        intro_video_url:
-          type: string
-        display_picture:
-          type: string
-        calendly_connected:
-          type: boolean
-        calendly_link:
-          type: string
 
     BookingSlotRequest:
       type: object
