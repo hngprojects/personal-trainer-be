@@ -1597,7 +1597,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 	// ------------- Path parameter "trainerId" -------------
 	var trainerId openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
 		return
@@ -1766,6 +1766,8 @@ func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1790,6 +1792,8 @@ func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1816,6 +1820,8 @@ func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1841,6 +1847,8 @@ func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1865,6 +1873,8 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
