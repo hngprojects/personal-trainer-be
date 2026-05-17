@@ -7,12 +7,17 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-const getActiveSubscriptionForClient = `-- name: GetActiveSubscriptionForClient :one
-SELECT
+const activateSubscription = `-- name: ActivateSubscription :one
+UPDATE subscriptions
+SET status = 'active'
+WHERE id = $1
+RETURNING
   id,
   client_id,
   trainer_id,
@@ -24,23 +29,13 @@ SELECT
   status,
   current_period_start,
   current_period_end,
+  cancelled_at_period_end,
   created_at,
   cancelled_at
-FROM subscriptions
-WHERE client_id = $1
-  AND trainer_id = $2
-  AND status = 'active'
-  AND current_period_end > NOW()
-LIMIT 1
 `
 
-type GetActiveSubscriptionForClientParams struct {
-	ClientID  uuid.UUID
-	TrainerID uuid.UUID
-}
-
-func (q *Queries) GetActiveSubscriptionForClient(ctx context.Context, arg GetActiveSubscriptionForClientParams) (Subscription, error) {
-	row := q.db.QueryRowContext(ctx, getActiveSubscriptionForClient, arg.ClientID, arg.TrainerID)
+func (q *Queries) ActivateSubscription(ctx context.Context, id uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, activateSubscription, id)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
@@ -54,8 +49,249 @@ func (q *Queries) GetActiveSubscriptionForClient(ctx context.Context, arg GetAct
 		&i.Status,
 		&i.CurrentPeriodStart,
 		&i.CurrentPeriodEnd,
+		&i.CancelledAtPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const cancelSubscription = `-- name: CancelSubscription :one
+UPDATE subscriptions
+SET cancelled_at_period_end = true
+WHERE id = $1
+RETURNING
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  cancelled_at_period_end,
+  created_at,
+  cancelled_at
+`
+
+func (q *Queries) CancelSubscription(ctx context.Context, id uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, cancelSubscription, id)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelledAtPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const countSubscriptionUsage = `-- name: CountSubscriptionUsage :one
+SELECT COUNT(*)
+FROM subscription_usage
+WHERE subscription_id = $1
+`
+
+func (q *Queries) CountSubscriptionUsage(ctx context.Context, subscriptionID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSubscriptionUsage, subscriptionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createSubscription = `-- name: CreateSubscription :one
+INSERT INTO subscriptions (
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  cancelled_at_period_end
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  0,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  false
+)
+RETURNING
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  cancelled_at_period_end,
+  created_at,
+  cancelled_at
+`
+
+type CreateSubscriptionParams struct {
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	SessionsPerMonth   int32
+	Amount             int64
+	Currency           string
+	Status             string
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+}
+
+func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, createSubscription,
+		arg.ClientID,
+		arg.TrainerID,
+		arg.PlanType,
+		arg.SessionsPerMonth,
+		arg.Amount,
+		arg.Currency,
+		arg.Status,
+		arg.CurrentPeriodStart,
+		arg.CurrentPeriodEnd,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelledAtPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const getPaymentByIdempotencyKey = `-- name: GetPaymentByIdempotencyKey :one
+SELECT
+  id,
+  subscription_id,
+  booking_id,
+  payer_id,
+  provider,
+  provider_transaction_id,
+  idempotency_key,
+  currency,
+  total_amount,
+  trainer_earning,
+  platform_fee,
+  payment_type,
+  payment_status,
+  paid_at,
+  created_at
+FROM payments
+WHERE idempotency_key = $1
+LIMIT 1
+`
+
+type GetPaymentByIdempotencyKeyRow struct {
+	ID                    uuid.UUID
+	SubscriptionID        uuid.NullUUID
+	BookingID             uuid.NullUUID
+	PayerID               uuid.UUID
+	Provider              string
+	ProviderTransactionID sql.NullString
+	IdempotencyKey        string
+	Currency              string
+	TotalAmount           int64
+	TrainerEarning        int64
+	PlatformFee           int64
+	PaymentType           string
+	PaymentStatus         string
+	PaidAt                sql.NullTime
+	CreatedAt             time.Time
+}
+
+func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, idempotencyKey string) (GetPaymentByIdempotencyKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, getPaymentByIdempotencyKey, idempotencyKey)
+	var i GetPaymentByIdempotencyKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.SubscriptionID,
+		&i.BookingID,
+		&i.PayerID,
+		&i.Provider,
+		&i.ProviderTransactionID,
+		&i.IdempotencyKey,
+		&i.Currency,
+		&i.TotalAmount,
+		&i.TrainerEarning,
+		&i.PlatformFee,
+		&i.PaymentType,
+		&i.PaymentStatus,
+		&i.PaidAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPlanByType = `-- name: GetPlanByType :one
+SELECT
+  id,
+  plan_type,
+  display_name,
+  sessions_total,
+  amount,
+  currency,
+  is_active,
+  created_at,
+  updated_at
+FROM subscription_plans
+WHERE plan_type = $1
+  AND is_active = true
+LIMIT 1
+`
+
+func (q *Queries) GetPlanByType(ctx context.Context, planType string) (SubscriptionPlan, error) {
+	row := q.db.QueryRowContext(ctx, getPlanByType, planType)
+	var i SubscriptionPlan
+	err := row.Scan(
+		&i.ID,
+		&i.PlanType,
+		&i.DisplayName,
+		&i.SessionsTotal,
+		&i.Amount,
+		&i.Currency,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -73,6 +309,7 @@ SELECT
   status,
   current_period_start,
   current_period_end,
+  cancelled_at_period_end,
   created_at,
   cancelled_at
 FROM subscriptions
@@ -95,10 +332,70 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscr
 		&i.Status,
 		&i.CurrentPeriodStart,
 		&i.CurrentPeriodEnd,
+		&i.CancelledAtPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
 	)
 	return i, err
+}
+
+const listSubscriptions = `-- name: ListSubscriptions :many
+SELECT
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  cancelled_at_period_end,
+  created_at,
+  cancelled_at
+FROM subscriptions
+WHERE client_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListSubscriptions(ctx context.Context, clientID uuid.UUID) ([]Subscription, error) {
+	rows, err := q.db.QueryContext(ctx, listSubscriptions, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Subscription
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.SessionsPerMonth,
+			&i.SessionsUsedThisMonth,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CancelledAtPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const refundSessionCredit = `-- name: RefundSessionCredit :one
@@ -121,8 +418,74 @@ RETURNING
   cancelled_at
 `
 
-func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscription, error) {
+type RefundSessionCreditRow struct {
+	ID                    uuid.UUID
+	ClientID              uuid.UUID
+	TrainerID             uuid.UUID
+	PlanType              string
+	SessionsPerMonth      int32
+	SessionsUsedThisMonth int32
+	Amount                int64
+	Currency              string
+	Status                string
+	CurrentPeriodStart    time.Time
+	CurrentPeriodEnd      time.Time
+	CreatedAt             time.Time
+	CancelledAt           sql.NullTime
+}
+
+func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (RefundSessionCreditRow, error) {
 	row := q.db.QueryRowContext(ctx, refundSessionCredit, id)
+	var i RefundSessionCreditRow
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const getActiveSubscriptionForClient = `-- name: getActiveSubscriptionForClient :one
+SELECT
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  cancelled_at_period_end,
+  created_at,
+  cancelled_at
+FROM subscriptions
+WHERE client_id = $1
+  AND trainer_id = $2
+  AND status = 'active'
+  AND current_period_end > NOW()
+LIMIT 1
+`
+
+type getActiveSubscriptionForClientParams struct {
+	ClientID  uuid.UUID
+	TrainerID uuid.UUID
+}
+
+func (q *Queries) getActiveSubscriptionForClient(ctx context.Context, arg getActiveSubscriptionForClientParams) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, getActiveSubscriptionForClient, arg.ClientID, arg.TrainerID)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
@@ -136,6 +499,7 @@ func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscr
 		&i.Status,
 		&i.CurrentPeriodStart,
 		&i.CurrentPeriodEnd,
+		&i.CancelledAtPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
 	)
