@@ -12,20 +12,22 @@ tags:
     description: Base URL endpoints.
   - name: Health
     description: Health endpoints to verify application health status.
-  - name: Auth — Local
-    description: OTP verification and password recovery.
-  - name: Auth — OAuth
-    description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
-  - name: Auth — Session
-    description: Session lifecycle endpoints (logout / token revocation).
-  - name: Admin
-    description: Admin-only operations including admin login and user invitation.
-  - name: Trainer
-    description: Trainer endpoints to manage all trainer activities.
-  - name: Waitlist
-    description: Endpoints to handle waitlist data.
+  - name: Authentication
+    description: Handles user identity and access management, including local and OAuth login, registration, email verification, password reset, and JWT session management.
   - name: User
     description: User profile and onboarding endpoints.
+  - name: Trainer
+    description: Trainer endpoints to manage all trainer activities.
+  - name: Bookings
+    description: Endpoints to handle bookings and booking management.
+  - name: Booking slots
+    description: Endpoints to handle booking slots and booking slots management.
+  - name: Sessions
+    description: Endpoints to handle trainer/client sessions.
+  - name: Admin
+    description: Admin-only operations including admin login and user invitation.
+  - name: Waitlist
+    description: Endpoints to handle waitlist data.
 
 components:
   securitySchemes:
@@ -791,7 +793,6 @@ paths:
         - bearerAuth: []
       operationId: HandleLogout
       tags:
-        - Auth - Session
         - Authentication
       summary: Logs out the authenticated user
       requestBody:
@@ -852,7 +853,7 @@ paths:
         - bearerAuth: []
       operationId: HandleRefresh
       tags:
-        - Auth - Session
+        - Authentication
       summary: Refresh access token
       description: >-
         Invalidates the current access token by adding it to the blocklist (via cache)
@@ -1094,7 +1095,6 @@ paths:
       security: []
       operationId: HandleVerifyEmail
       tags:
-        - Auth - Local
         - Authentication
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
@@ -1804,7 +1804,6 @@ paths:
       security: []
       operationId: HandleForgotPassword
       tags:
-        - Auth — Local
         - Authentication
       summary: Request a password reset code
       description: >-
@@ -1872,7 +1871,6 @@ paths:
       security: []
       operationId: HandleResetPassword
       tags:
-        - Auth — Local
         - Authentication
       summary: Reset password using a previously emailed code
       description: >-
@@ -2035,7 +2033,6 @@ paths:
       security: []
       operationId: HandleAdminLogin
       tags:
-        - Auth - Local
         - Authentication
       summary: Log Administrators into the application with email and password
       requestBody:
@@ -2276,7 +2273,7 @@ paths:
     get:
       operationId: GetUpcomingBookings
       tags:
-        - Booking
+        - Bookings
       summary: Get upcoming bookings for the authenticated client
       description: |
         Returns a paginated list of all upcoming bookings for the authenticated client.
@@ -2343,7 +2340,7 @@ paths:
   /bookings/discovery:
     post:
       tags:
-        - Booking
+        - Bookings
       security:
         - bearerAuth: []
       operationId: BookDiscoveryCall
@@ -2384,7 +2381,7 @@ paths:
     put:
       operationId: RescheduleDiscoveryCall
       tags:
-        - Booking
+        - Bookings
       summary: Reschedule an existing discovery call booking
       description: |
         Allows a client to reschedule their discovery call to a new date and time.
@@ -2455,7 +2452,7 @@ paths:
     put:
       operationId: CancelBooking
       tags:
-        - Booking
+        - Bookings
       summary: Cancel a confirmed booking
       description: |
         Allows a client or trainer to cancel a confirmed booking (PUT /bookings/:id/cancel).
@@ -2526,7 +2523,6 @@ paths:
   /booking-slots:
     get:
       tags:
-        - Booking
         - Booking slots
       security: []
       operationId: GetBookingSlots
@@ -2553,7 +2549,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
       tags:
-        - Booking
         - Booking slots
       security:
         - bearerAuth: []
@@ -2600,7 +2595,6 @@ paths:
   /booking-slots/{id}:
     put:
       tags:
-        - Booking
         - Booking slots
       security:
         - bearerAuth: []
@@ -2658,7 +2652,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags:
-        - Booking
         - Booking slots
       security:
         - bearerAuth: []
@@ -2710,12 +2703,11 @@ paths:
   /sessions/{id}:
     get:
       security:
-        []
-        # - bearerAuth: []
+        - bearerAuth: []
       operationId: HandleGetSessionById
       summary: Takes the Id of a session and returns data concerning the session
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -2766,12 +2758,11 @@ paths:
   /sessions/{id}/start:
     put:
       security:
-        []
-        # - bearerAuth: []
+        - bearerAuth: []
       operationId: HandleStartSession
       summary: A trainer starts a session via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -2832,12 +2823,11 @@ paths:
   /sessions/{id}/join:
     put:
       security:
-        []
-        # - bearerAuth: []
+        - bearerAuth: []
       operationId: HandleJoinSession
       summary: A client joined a session via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -2898,12 +2888,11 @@ paths:
   /sessions/{id}/complete:
     put:
       security:
-        []
-        # - bearerAuth: []
+        - bearerAuth: []
       operationId: HandleCompleteSession
       summary: The session is completed via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -2964,12 +2953,11 @@ paths:
   /sessions/{id}/notes:
     put:
       security:
-        []
-        # - bearerAuth: []
+        - bearerAuth: []
       operationId: HandleTrainersNote
       summary: Trainers submit notes for client.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
