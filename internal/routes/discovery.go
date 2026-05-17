@@ -48,3 +48,24 @@ func (s *routerImpl) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
 	}
 	s.discovery.DeleteBookingSlot(c, id)
 }
+
+// RescheduleDiscoveryCall is the unified handler for PUT /bookings/{id}/reschedule.
+// Paid sessions are handled first; discovery calls are the fallback.
+func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID) {
+	if s.paidReschedule != nil && s.paidReschedule.TryReschedulePaidSession(c, id) {
+		return
+	}
+	if s.discovery == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.RescheduleDiscoveryCall(c, id)
+}
+
+func (s *routerImpl) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBookingsParams) {
+	if s.discovery == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.GetUpcomingBookings(c, params)
+}

@@ -3,6 +3,7 @@
 package admin
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
@@ -77,8 +79,16 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 
 	user, err := h.users.UpsertAdminUser(c.Request.Context(), emailAddr, name, hash)
 	if err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
+			return
+		}
 		h.log.Error("admin add: upsert admin failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
 		return
 	}
 

@@ -1,5 +1,6 @@
 -- name: CreateDiscoveryBooking :one
 INSERT INTO discovery_bookings (
+    user_id,
     name,
     email,
     contact_mode,
@@ -10,6 +11,7 @@ INSERT INTO discovery_bookings (
     zoom_meeting_id,
     status
 ) VALUES (
+    sqlc.arg(user_id),
     sqlc.arg(name),
     sqlc.arg(email),
     sqlc.arg(contact_mode),
@@ -74,7 +76,67 @@ DELETE FROM booking_slots
 WHERE id = $1;
 
 -- name: CheckSlotConflict :one
+-- NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
 SELECT COUNT(*) FROM discovery_bookings
-WHERE selected_datetime > $1 - INTERVAL '30 minutes'
-  AND selected_datetime < $1 + INTERVAL '30 minutes'
-  AND status NOT IN ('cancelled');
+WHERE selected_datetime > sqlc.arg(selected_datetime)::timestamptz - INTERVAL '30 minutes'
+  AND selected_datetime < sqlc.arg(selected_datetime)::timestamptz + INTERVAL '30 minutes'
+  AND status NOT IN ('cancelled', 'completed');
+
+-- name: UpdateDiscoveryBookingZoom :one
+UPDATE discovery_bookings
+SET
+    zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+    zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    updated_at        = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
+-- name: GetDiscoveryBookingByUserID :one
+SELECT * FROM discovery_bookings
+WHERE user_id = sqlc.arg(user_id)
+  AND status NOT IN ('cancelled')
+LIMIT 1;
+
+-- name: RescheduleDiscoveryBooking :one
+UPDATE discovery_bookings
+SET
+    selected_datetime = sqlc.arg(selected_datetime)::timestamptz,
+    phone_number      = sqlc.arg(phone_number),
+    zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+    zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    reschedule_count  = reschedule_count + 1,
+    updated_at        = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
+-- name: CreateRescheduleHistory :exec
+INSERT INTO booking_reschedule_history (
+    discovery_booking_id,
+    previous_datetime,
+    new_datetime,
+    rescheduled_by,
+    reason,
+    notes
+) VALUES (
+    sqlc.arg(discovery_booking_id),
+    sqlc.arg(previous_datetime)::timestamptz,
+    sqlc.arg(new_datetime)::timestamptz,
+    sqlc.arg(rescheduled_by),
+    sqlc.arg(reason),
+    sqlc.arg(notes)
+);
+
+-- name: CheckSlotConflictExcluding :one
+-- NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
+SELECT COUNT(*) FROM discovery_bookings
+WHERE selected_datetime > sqlc.arg(selected_datetime)::timestamptz - INTERVAL '30 minutes'
+  AND selected_datetime < sqlc.arg(selected_datetime)::timestamptz + INTERVAL '30 minutes'
+  AND status NOT IN ('cancelled', 'completed')
+  AND id != sqlc.arg(exclude_id);
+
+-- name: GetUpcomingDiscoveryBookings :many
+SELECT * FROM discovery_bookings
+WHERE user_id = sqlc.arg(user_id)
+  AND selected_datetime > NOW()
+  AND status NOT IN ('cancelled', 'completed')
+ORDER BY selected_datetime ASC;

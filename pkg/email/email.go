@@ -1,6 +1,7 @@
 package email
 
 import (
+	"time"
 	"bytes"
 	"fmt"
 	"html/template"
@@ -16,7 +17,11 @@ type Mailer interface {
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
 	SendContactConfirmation(to, name string) error
-	SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error
+	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
+	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
+	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -101,7 +106,7 @@ type LogMailer struct{}
 
 func NewLogMailer() *LogMailer { return &LogMailer{} }
 
-func (m *LogMailer) SendVerificationCode(to, _ string, expiryMinutes int) error {
+func (m *LogMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
 	slog.Info("email (verification code redacted)",
 		"to", to,
 		"subject", verificationCodeSubject,
@@ -138,8 +143,32 @@ func (m *LogMailer) SendWaitlistConfirmation(to string) error {
 	return nil
 }
 
-func (m *LogMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
-	slog.Info("email", "to", to, "subject", discoveryBookingConfirmationSubject, "name", name, "zoom_link", zoomLink)
+func (m *LogMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	subject := zoomMeetingConfirmationSubject
+	if contactMode == "phone_callback" {
+		subject = phoneCallConfirmationSubject
+	}
+	slog.Info("email", "to", to, "subject", subject, "name", name, "contact_mode", contactMode)
+	return nil
+}
+
+func (m *LogMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	slog.Info("email (admin discovery notification)", "to", to, "client", clientName)
+	return nil
+}
+
+func (m *LogMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	slog.Info("email (discovery reschedule)", "to", to, "name", name, "new_time", newTime)
+	return nil
+}
+
+func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	slog.Info("email (paid session reschedule)", "to", to, "name", name, "new_time", newTime)
+	return nil
+}
+
+func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	slog.Info("email (paid session reschedule trainer notification)", "to", to, "client", clientName, "new_time", newTime)
 	return nil
 }
 
@@ -148,11 +177,200 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	return nil
 }
 
-const discoveryBookingConfirmationSubject = "Your FitCall discovery call is confirmed!"
+const phoneCallConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
 
-func (m *SMTPMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt interface{}, timezone, zoomLink string) error {
-	slog.Info("smtp: discovery booking confirmation", "to", to, "name", name)
-	return nil
+var phoneCallConfirmationTemplate = template.Must(template.New("phone-call-confirmation").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td style="padding-bottom:24px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Discovery Call Confirmed</h2>
+        </td></tr>
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:#374151;">Hello <strong>{{ .Name }}</strong>,</p>
+        </td></tr>
+        <tr><td style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">Your phone discovery call has been successfully scheduled.</p>
+        </td></tr>
+        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;">📅 <strong>Date:</strong> {{ .Date }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;">🕒 <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
+          <p style="margin:0;font-size:14px;color:#374151;">📞 <strong>Phone Number:</strong> {{ .PhoneNumber }}</p>
+        </td></tr>
+        <tr><td style="padding-top:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">A member of our team will call you at the scheduled time.</p>
+        </td></tr>
+        <tr><td style="padding-top:16px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">If you need to make any changes to your booking, simply reply to this email.</p>
+        </td></tr>
+        <tr><td style="padding-top:24px;">
+          <p style="margin:0;font-size:14px;color:#374151;">Best regards,<br><strong>The FitCall Team</strong></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+const zoomMeetingConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
+
+var zoomMeetingConfirmationTemplate = template.Must(template.New("zoom-meeting-confirmation").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td style="padding-bottom:24px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Discovery Call Confirmed</h2>
+        </td></tr>
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:#374151;">Hello <strong>{{ .Name }}</strong>,</p>
+        </td></tr>
+        <tr><td style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">Your Zoom discovery call has been successfully scheduled.</p>
+        </td></tr>
+        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;">📅 <strong>Date:</strong> {{ .Date }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;">🕒 <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
+          <p style="margin:0;font-size:14px;color:#374151;">🔗 <strong>Zoom Link:</strong> <a href="{{ .ZoomLink }}" style="color:#2563eb;">{{ .ZoomLink }}</a></p>
+        </td></tr>
+        <tr><td style="padding-top:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">If you need to make any changes to your booking, simply reply to this email.</p>
+        </td></tr>
+        <tr><td style="padding-top:24px;">
+          <p style="margin:0;font-size:14px;color:#374151;">Best regards,<br><strong>The FitCall Team</strong></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+const discoveryBookingAdminNotificationSubject = "New Discovery Call Booking"
+
+var discoveryBookingAdminTemplate = template.Must(template.New("discovery-admin-notification").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td style="padding-bottom:24px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">New Discovery Call Booked</h2>
+        </td></tr>
+        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Client:</strong> {{ .ClientName }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Email:</strong> {{ .ClientEmail }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Contact Mode:</strong> {{ .ContactMode }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Date:</strong> {{ .Date }}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
+          {{ if .PhoneNumber }}<p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Phone:</strong> {{ .PhoneNumber }}</p>{{ end }}
+          {{ if .ZoomLink }}<p style="margin:0;font-size:14px;color:#374151;"><strong>Zoom Link:</strong> <a href="{{ .ZoomLink }}" style="color:#2563eb;">{{ .ZoomLink }}</a></p>{{ end }}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func discoveryBookingAdminHTML(clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	local := scheduledAt.In(loc)
+	var buf bytes.Buffer
+	err = discoveryBookingAdminTemplate.Execute(&buf, struct {
+		ClientName, ClientEmail, ContactMode, Date, Time, Timezone, PhoneNumber, ZoomLink string
+	}{clientName, clientEmail, contactMode, local.Format("Monday, January 2, 2006"), local.Format("3:04 PM"), timezone, phoneNumber, zoomLink})
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func discoveryBookingHTML(name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	local := scheduledAt.In(loc)
+	date := local.Format("Monday, January 2, 2006")
+	t := local.Format("3:04 PM")
+
+	var buf bytes.Buffer
+	if contactMode == "phone_callback" {
+		err = phoneCallConfirmationTemplate.Execute(&buf, struct {
+			Name, Date, Time, Timezone, PhoneNumber string
+		}{name, date, t, timezone, phoneNumber})
+	} else {
+		err = zoomMeetingConfirmationTemplate.Execute(&buf, struct {
+			Name, Date, Time, Timezone, ZoomLink string
+		}{name, date, t, timezone, zoomLink})
+	}
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func (m *SMTPMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	body, err := discoveryBookingHTML(name, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("build discovery booking email body: %w", err)
+	}
+	subject := zoomMeetingConfirmationSubject
+	if contactMode == "phone_callback" {
+		subject = phoneCallConfirmationSubject
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, subject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	body, err := discoveryBookingAdminHTML(clientName, clientEmail, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("build discovery booking admin email body: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryBookingAdminNotificationSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
 func sanitizeAddress(value string) (string, error) {
@@ -422,3 +640,197 @@ func contactConfirmationHTML(name string) (string, error) {
 	}
 	return body.String(), nil
 }
+
+func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build reschedule email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, discoveryRescheduleSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const discoveryRescheduleSubject = "Your Discovery Call Has Been Rescheduled"
+
+func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	oldLocal := oldTime.In(loc)
+	newLocal := newTime.In(loc)
+
+	t, err := template.New("reschedule").Parse(discoveryRescheduleTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"Name":        name,
+		"OldTime":     oldLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":     newLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone":    timezone,
+		"ContactMode": contactMode,
+		"ZoomLink":    zoomLink,
+		"PhoneNumber": phoneNumber,
+	})
+	return buf.String(), err
+}
+
+const discoveryRescheduleTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Discovery Call Rescheduled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Your Discovery Call Has Been Rescheduled</h2>
+  <p>Hi {{.Name}},</p>
+  <p>Your discovery call has been successfully rescheduled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if eq .ContactMode "zoom_meeting" }}{{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
+  <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
+  <p>See you soon!</p>
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`
+
+func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, paidRescheduleClientSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build paid session reschedule trainer notification email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, paidRescheduleTrainerSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const paidRescheduleClientSubject = "Your Training Session Has Been Rescheduled"
+
+const paidRescheduleTrainerSubject = "Client Rescheduled Training Session"
+
+func paidRescheduleClientHTML(name string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t, err := template.New("paid-client-reschedule").Parse(paidRescheduleClientTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"Name":     name,
+		"OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone": timezone,
+		"ZoomLink": zoomLink,
+	})
+	return buf.String(), err
+}
+
+func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t, err := template.New("paid-trainer-reschedule").Parse(paidRescheduleTrainerTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"ClientName": clientName,
+		"OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":    newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Timezone":   timezone,
+		"ZoomLink":   zoomLink,
+	})
+	return buf.String(), err
+}
+
+const paidRescheduleClientTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Training Session Rescheduled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Your Training Session Has Been Rescheduled</h2>
+  <p>Hi {{.Name}},</p>
+  <p>Your training session has been successfully rescheduled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
+  <p>If you need to make any further changes, please do so at least 12 hours before the session.</p>
+  <p>See you soon!</p>
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`
+
+const paidRescheduleTrainerTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Client Rescheduled Training Session</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Client Rescheduled Training Session</h2>
+  <p>Your client <strong>{{.ClientName}}</strong> has rescheduled their training session.</p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr>
+      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
+      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
+    </tr>
+  </table>
+  <p><strong>Timezone:</strong> {{.Timezone}}</p>
+  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
+  <p style="color:#666;font-size:12px;">FitCall Team</p>
+</body>
+</html>`

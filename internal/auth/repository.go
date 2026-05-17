@@ -31,6 +31,7 @@ type UserRepository interface {
 // AdminUserRepository defines admin-specific user operations.
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -60,7 +61,6 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	// return r.q.UserHasRole(ctx, userID, roleName)
 	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 

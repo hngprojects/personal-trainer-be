@@ -25,6 +25,9 @@ type Booking struct {
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	RescheduleCount    int32
 }
 
 type BookingRescheduleHistory struct {
@@ -35,6 +38,19 @@ type BookingRescheduleHistory struct {
 	RescheduledBy      string
 	Reason             sql.NullString
 	CreatedAt          time.Time
+	Notes              sql.NullString
+}
+
+type BookingSession struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	ActualStart   sql.NullTime
+	ActualEnd     sql.NullTime
+	TrainerJoined sql.NullBool
+	ClientJoined  sql.NullBool
+	Status        string
+	TrainerNotes  sql.NullString
+	CreatedAt     time.Time
 }
 
 type BookingSlot struct {
@@ -46,6 +62,7 @@ type BookingSlot struct {
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	TrainerID uuid.UUID
 }
 
 type ContactMessage struct {
@@ -70,6 +87,26 @@ type DiscoveryBooking struct {
 	Status           string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	UserID           uuid.NullUUID
+	RescheduleCount  int32
+}
+
+type FailedAvatarUpload struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+}
+
+type PaidBookingRescheduleHistory struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	PreviousStart time.Time
+	NewStart      time.Time
+	Reason        sql.NullString
+	CreatedAt     time.Time
 }
 
 type PasswordResetCode struct {
@@ -136,6 +173,17 @@ type Trainer struct {
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+type TrainerAvailability struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type User struct {
