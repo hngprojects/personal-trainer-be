@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"os"
@@ -24,11 +25,13 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/hngprojects/personal-trainer-be/pkg/storage"
 	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
@@ -42,6 +45,11 @@ type Router struct {
 	db            *sql.DB
 	redis         *appredis.Client
 	globalLimiter ratelimit.RateLimiter
+
+	// avatarUploader is the background worker pool for profile-picture
+	// uploads. nil if MinIO env vars weren't supplied — handlers return 503.
+	// Held here (not just on routerImpl) so Close() can drain it on shutdown.
+	avatarUploader *uploads.AvatarUploader
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -57,13 +65,20 @@ func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis
 	return r
 }
 
-// Close performs cleanup for the router.
-// Currently a no-op as Redis connection lifecycle is managed by the caller.
+// Close performs cleanup for the router. The Redis client itself is owned by
+// cmd/server/main.go, but background workers we constructed during Routes()
+// are ours to drain.
 func (s *Router) Close() {
-	// No cleanup needed - Redis connection is managed by cmd/server/main.go
+	if s.avatarUploader != nil {
+		// Closes the job channel, waits for in-flight uploads to land.
+		// Bounded by per-attempt timeout × max attempts × workers — at most
+		// a few minutes worst case.
+		s.avatarUploader.Stop()
+	}
 }
 
 type routerImpl struct {
+	cfg           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
 	google        *auth.GoogleHandler
 	googleMobile  *auth.MobileGoogleHandler
 	local         *auth.LocalHandler
@@ -85,6 +100,7 @@ type routerImpl struct {
 	availability   *availabilityStore
 	dev            *dev.Handler
 	bookingSession booking_session.SessionHandler
+	uploader       *uploads.AvatarUploader // nil if MinIO env vars are missing → upload endpoint 503s
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -122,6 +138,7 @@ func (s *Router) Routes() *gin.Engine {
 	{
 
 		impl := &routerImpl{
+			cfg:    s.cfg,
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 		}
@@ -167,6 +184,26 @@ func (s *Router) Routes() *gin.Engine {
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+
+			// Avatar upload pipeline. Storage is built lazily — missing env
+			// vars just leave impl.uploader nil and the handler returns 503,
+			// rather than failing the whole server boot.
+			if s.cfg.MinioEndpoint != "" {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				store, err := storage.NewMinioStorage(ctx, s.cfg.MinioEndpoint, s.cfg.MinioAccessKey, s.cfg.MinioSecretKey, s.cfg.MinioBucket, s.cfg.MinioUseSSL)
+				cancel()
+				if err != nil {
+					s.log.Error("minio init failed — avatar upload endpoint will return 503", "err", err)
+				} else {
+					uploader := uploads.NewAvatarUploader(store, q, s.log, 100)
+					uploader.Start(4)
+					s.avatarUploader = uploader // stored on Router so Close() can drain
+					impl.uploader = uploader
+					s.log.Info("avatar upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
+				}
+			} else {
+				s.log.Warn("MINIO_ENDPOINT not set — avatar upload endpoint will return 503")
+			}
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire
 			// in AllowAllLimiter (always-allow) so the auth endpoints stay up

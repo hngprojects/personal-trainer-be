@@ -40,6 +40,15 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        updated_at = NOW()
 RETURNING *;
 
+-- name: UpdateUserAvatar :exec
+-- Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
+-- background avatar worker can't race a concurrent profile edit and clobber
+-- name/gender/etc with stale values.
+UPDATE users
+SET avatar_url = sqlc.arg(avatar_url),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id);
+
 -- name: UpdateUserOnboarding :one
 UPDATE users
 SET

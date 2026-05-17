@@ -151,6 +151,26 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
+const updateUserAvatar = `-- name: UpdateUserAvatar :exec
+UPDATE users
+SET avatar_url = $1,
+    updated_at = NOW()
+WHERE id = $2
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl sql.NullString
+	ID        uuid.UUID
+}
+
+// Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
+// background avatar worker can't race a concurrent profile edit and clobber
+// name/gender/etc with stale values.
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
+	return err
+}
+
 const updateUserOnboarding = `-- name: UpdateUserOnboarding :one
 UPDATE users
 SET

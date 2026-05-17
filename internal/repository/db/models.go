@@ -91,6 +91,15 @@ type DiscoveryBooking struct {
 	RescheduleCount  int32
 }
 
+type FailedAvatarUpload struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+}
+
 type PaidBookingRescheduleHistory struct {
 	ID            uuid.UUID
 	BookingID     uuid.UUID
