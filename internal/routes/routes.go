@@ -78,17 +78,17 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	cfg           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
-	google        *auth.GoogleHandler
-	googleMobile  *auth.MobileGoogleHandler
-	local         *auth.LocalHandler
-	root          *root.RootHandler
-	adminLogin    *handlers.AdminLoginHandler
-	health        *health.HealthHandler
-	waitlist      *waitlist.WaitlistHandler
-	logout        *auth.LogoutHandler
-	refresh       *auth.RefreshHandler
-	passwordReset *auth.PasswordResetHandler
+	cfg            *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
+	google         *auth.GoogleHandler
+	googleMobile   *auth.MobileGoogleHandler
+	local          *auth.LocalHandler
+	root           *root.RootHandler
+	adminLogin     *handlers.AdminLoginHandler
+	health         *health.HealthHandler
+	waitlist       *waitlist.WaitlistHandler
+	logout         *auth.LogoutHandler
+	refresh        *auth.RefreshHandler
+	passwordReset  *auth.PasswordResetHandler
 	trainers       *trainersStore
 	users          *usersStore
 	reviews        *reviewsvc.Service
@@ -99,6 +99,8 @@ type routerImpl struct {
 	discovery      *discovery.Handler
 	availability   *availabilityStore
 	dev            *dev.Handler
+	booking        bookings.BookingHandler
+	bookingSlot    bookings.BookingSlotHandler
 	bookingSession booking_session.SessionHandler
 	uploader       *uploads.AvatarUploader // nil if MinIO env vars are missing → upload endpoint 503s
 }
@@ -160,6 +162,8 @@ func (s *Router) Routes() *gin.Engine {
 			localAuthRepo := auth.NewPostgresLocalAuthRepo(s.db)
 			passwordResetRepo := auth.NewPostgresPasswordResetRepo(s.db)
 
+			bookingRepo := bookings.NewPostgresRepo(q)
+
 			bookingSessionRepo := booking_session.NewPostgresBookingSessionRepo(q)
 			bookingSessionService := booking_session.NewSessionService(bookingSessionRepo, s.log)
 			mailer := s.buildMailer()
@@ -177,9 +181,13 @@ func (s *Router) Routes() *gin.Engine {
 			if s.cfg.ZoomAccountID != "" {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
 			}
+			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
+			bookingService := bookings.NewBookingService(bookingRepo, meetingProvider, mailer, s.log)
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
+			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}

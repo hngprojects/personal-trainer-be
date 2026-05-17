@@ -1,7 +1,6 @@
 package email
 
 import (
-	"time"
 	"bytes"
 	"fmt"
 	"html/template"
@@ -9,6 +8,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"strings"
+	"time"
 )
 
 type Mailer interface {
@@ -22,6 +22,7 @@ type Mailer interface {
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
+	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -174,6 +175,11 @@ func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName 
 
 func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	slog.Info("email", "to", to, "subject", contactConfirmationSubject)
+	return nil
+}
+
+func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
+	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "zoom_link", zoomLink)
 	return nil
 }
 
@@ -834,3 +840,74 @@ const paidRescheduleTrainerTemplate = `<!DOCTYPE html>
   <p style="color:#666;font-size:12px;">FitCall Team</p>
 </body>
 </html>`
+
+const bookingConfirmationSubject = "You've successfully booked a session with us"
+const bookingConfirmationTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Booked</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">
+  Hi {{.ClientName}},
+  </h2>
+  <p>Your FitCall session has been successfully booked</p>
+  Session Details:
+  <ul>
+    <li>Trainer: Coach {{.TrainerName}}.</li>
+    <li>Date: {{.Date}}.</li>
+    <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
+    <li>Location: Zoom</li>
+    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
+  </ul>
+  <p> Your trainer will check in before the session to help keep you accountable and ready. </p>
+  <p>We’re excited to help you stay consistent. </p>
+
+  — Team FitCall
+
+</body>
+</html>`
+
+func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) (string, error) {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	localScheduledStartTime := scheduledStartTime.In(loc)
+	localScheduledEndTime := scheduledEndTime.In(loc)
+
+	t, err := template.New("booking-confirmation").Parse(bookingConfirmationTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"ClientName":  name,
+		"TrainerName": trainerName,
+		"Date":        localScheduledStartTime.Format("Monday, January 2, 2006"),
+		"StartTime":   localScheduledStartTime.Format("3:04 PM"),
+		"EndTime":     localScheduledEndTime.Format("3:04 PM"),
+		"Timezone":    timezone,
+		"ZoomLink":    zoomLink,
+	})
+	return buf.String(), err
+}
+
+func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
+	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build booking confirmation email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, bookingConfirmationSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
