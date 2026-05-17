@@ -38,6 +38,13 @@ type Config struct {
 
 	NotificationEmail string
 	StripeSecretKey   string
+
+	MinioEndpoint      string // e.g. "localhost:9000" or "minio.staging.fitcall.me"
+	MinioAccessKey     string
+	MinioSecretKey     string
+	MinioBucket        string // bucket for avatar storage
+	MinioUseSSL        bool
+	MinioPublicBaseURL string // public URL prefix used to build avatar URLs returned to clients
 }
 
 func Load() (*Config, error) {
@@ -75,6 +82,13 @@ func Load() (*Config, error) {
 
 		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
 		StripeSecretKey:   os.Getenv("STRIPE_SECRET_KEY"),
+
+		MinioEndpoint:      os.Getenv("MINIO_ENDPOINT"),
+		MinioAccessKey:     os.Getenv("MINIO_ACCESS_KEY"),
+		MinioSecretKey:     os.Getenv("MINIO_SECRET_KEY"),
+		MinioBucket:        getenv("MINIO_BUCKET", "fitcall-avatars"),
+		MinioUseSSL:        getenv("MINIO_USE_SSL", "false") == "true",
+		MinioPublicBaseURL: os.Getenv("MINIO_PUBLIC_BASE_URL"),
 	}
 
 	if cfg.DatabaseURL == "" {

@@ -1376,6 +1376,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /users/me/profile/picture:
+    post:
+      operationId: UploadProfilePicture
+      tags:
+        - User
+      summary: Upload an avatar image
+      description: |
+        Upload a profile picture for the authenticated user. The request must be
+        `multipart/form-data` with a single `picture` part containing the image
+        bytes. Accepted formats: JPEG, PNG, WebP, HEIC.
+
+        Files up to 5 MiB are stored as uploaded. Files over 5 MiB are
+        re-encoded as JPEG with progressively lower quality until they fit
+        under 5 MiB (final format will be JPEG regardless of input).
+
+        The actual upload to object storage happens **asynchronously** in a
+        background worker — this endpoint returns 202 immediately with the
+        URL the avatar will be available at once the worker completes. Clients
+        can optimistically display that URL; on failure the URL will 404 and
+        the user's `avatar_url` field will not be updated.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [picture]
+              properties:
+                picture:
+                  type: string
+                  format: binary
+                  description: Image file (jpeg/png/webp/heic). Hard cap 50 MiB at the multipart boundary; anything between 5 MiB and 50 MiB is recompressed server-side.
+      responses:
+        "202":
+          description: Upload accepted and queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [avatar_url, status]
+                        properties:
+                          avatar_url:
+                            type: string
+                            format: uri
+                            description: URL the avatar will be available at once the background worker completes.
+                          status:
+                            type: string
+                            enum: [processing]
+              example:
+                status: success
+                message: Avatar upload accepted
+                code: ACCEPTED
+                data:
+                  avatar_url: "https://cdn.fitcall.me/fitcall-avatars/avatars/550e8400-e29b-41d4-a716-446655440000/8f14e45f-ceea-467a-9575-d8d6e80b9f4a.jpg"
+                  status: processing
+        "400":
+          description: Missing/invalid multipart, unsupported MIME, or unreadable image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: "Unsupported image format. Accepted: jpeg, png, webp, heic"
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File exceeds 50 MiB multipart boundary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Storage backend not configured, or upload queue is full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Upload service is busy, please retry shortly
+                code: SERVER_ERROR
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers:
     get:
       operationId: GetTrainers
