@@ -151,7 +151,7 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
-const updateUserAvatar = `-- name: UpdateUserAvatar :exec
+const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
 UPDATE users
 SET avatar_url = $1,
     updated_at = NOW()
@@ -165,10 +165,16 @@ type UpdateUserAvatarParams struct {
 
 // Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
 // background avatar worker can't race a concurrent profile edit and clobber
-// name/gender/etc with stale values.
-func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
-	return err
+// name/gender/etc with stale values. Returns affected row count so the worker
+// can distinguish "updated cleanly" from "user was deleted between upload and
+// DB write" — the latter must be persisted as a terminal failure or we silently
+// orphan the object in storage.
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateUserOnboarding = `-- name: UpdateUserOnboarding :one

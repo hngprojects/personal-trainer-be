@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -23,9 +24,17 @@ import (
 // AvatarJob carries everything the worker needs to upload one avatar.
 // Bytes are held in memory until the job is drained — the queue is bounded to
 // keep total memory usage predictable (see Enqueue / ErrQueueFull below).
+//
+// ObjectKey and PublicURL are deliberately separate: ObjectKey is the
+// bucket-relative path passed to PutObject (e.g. "avatars/{uid}/{uuid}.jpg"),
+// while PublicURL is the fully-qualified URL the client will fetch and the
+// value we write to users.avatar_url. Conflating the two led to a bug where
+// the URL was used as the key, creating objects with paths like
+// "https://cdn.example.com/avatars/.../foo.jpg" inside the bucket.
 type AvatarJob struct {
 	UserID      uuid.UUID
-	ObjectKey   string // e.g. "avatars/{uid}/{uuid}.jpg" — the final path inside the bucket
+	ObjectKey   string // bucket-relative path, passed verbatim to Storage.PutObject
+	PublicURL   string // what gets written to users.avatar_url on success
 	ContentType string // MIME of the bytes
 	Bytes       []byte // the actual file content
 }
@@ -34,6 +43,12 @@ type AvatarJob struct {
 // Handlers should map this to 503 with a retry hint — backpressure is what
 // keeps MinIO and the DB from being overwhelmed by a burst.
 var ErrQueueFull = errors.New("uploads: queue is full")
+
+// ErrUploaderClosed is returned by Enqueue when the uploader has already been
+// stopped (server shutdown in progress). Without this guard, a request that
+// arrives during the gap between Stop() acquiring its lock and close(jobs)
+// happening would panic with "send on closed channel".
+var ErrUploaderClosed = errors.New("uploads: uploader is closed")
 
 const (
 	// retry budget for a single job. Total worst-case time per job before
@@ -55,6 +70,13 @@ type AvatarUploader struct {
 	jobs   chan AvatarJob
 	wg     sync.WaitGroup
 	stopCh chan struct{}
+
+	// mu guards `closed`. Enqueue takes the read lock to check the flag
+	// before sending; Stop takes the write lock to set the flag and close
+	// the channel atomically. This prevents Enqueue from racing close(jobs)
+	// and panicking with "send on closed channel".
+	mu     sync.RWMutex
+	closed bool
 }
 
 // NewAvatarUploader returns a configured uploader. bufferSize bounds in-flight
@@ -81,16 +103,36 @@ func (u *AvatarUploader) Start(workers int) {
 // Stop closes the channel, waits for in-flight jobs to finish, and returns.
 // Wired into Router.Close() for graceful shutdown — pending uploads at the
 // moment of SIGTERM still get a chance to land.
+//
+// Safe to call concurrently with Enqueue (sync.RWMutex serialises the close
+// with any in-flight Enqueue) and safe to call multiple times (the closed
+// flag prevents double-close).
 func (u *AvatarUploader) Stop() {
+	u.mu.Lock()
+	if u.closed {
+		u.mu.Unlock()
+		return
+	}
+	u.closed = true
 	close(u.jobs)
+	u.mu.Unlock()
+
 	u.wg.Wait()
 	close(u.stopCh)
 }
 
-// Enqueue submits a job non-blockingly. Returns ErrQueueFull if the buffer is
-// saturated, in which case the caller should reject the request (503) rather
-// than block the HTTP handler.
+// Enqueue submits a job non-blockingly. Returns:
+//   - ErrUploaderClosed if Stop() has been called (server shutting down)
+//   - ErrQueueFull if the buffer is saturated
+//
+// Callers should map both to 503 with a retry hint — backpressure protects
+// MinIO/DB during bursts, and serving 503 during a shutdown window is correct.
 func (u *AvatarUploader) Enqueue(job AvatarJob) error {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	if u.closed {
+		return ErrUploaderClosed
+	}
 	select {
 	case u.jobs <- job:
 		return nil
@@ -119,25 +161,38 @@ func (u *AvatarUploader) process(workerID int, job AvatarJob) {
 		cancel()
 
 		if err == nil {
-			if err := u.updateAvatar(job); err != nil {
-				// Storage succeeded but DB failed. The object IS uploaded —
-				// log loudly so ops can either retry the DB write or
-				// reconcile, but DON'T mark as a terminal failure (the
-				// object is in the bucket, just orphaned from any user row).
+			// Storage write succeeded. Now update the DB. Three outcomes:
+			//   1. rows == 1 — clean success.
+			//   2. rows == 0 — user was deleted between the upload and the
+			//      DB write. The object exists but no row points to it; record
+			//      the failure so ops can clean up the orphan.
+			//   3. err != nil — DB error. Object is uploaded but link failed;
+			//      same treatment — record the failure.
+			rows, dbErr := u.updateAvatar(job)
+			switch {
+			case dbErr != nil:
 				u.log.Error("avatar uploaded to storage but DB update failed",
 					"worker", workerID,
 					"user_id", job.UserID.String(),
 					"object_key", job.ObjectKey,
-					"err", err,
+					"err", dbErr,
 				)
-				return
+				u.recordFailure(job, attempt, fmt.Errorf("storage ok; db update failed: %w", dbErr))
+			case rows == 0:
+				u.log.Error("avatar uploaded to storage but no user row matched — orphaned object",
+					"worker", workerID,
+					"user_id", job.UserID.String(),
+					"object_key", job.ObjectKey,
+				)
+				u.recordFailure(job, attempt, errors.New("storage ok; user row not found (deleted between upload and db write?)"))
+			default:
+				u.log.Info("avatar uploaded",
+					"worker", workerID,
+					"user_id", job.UserID.String(),
+					"object_key", job.ObjectKey,
+					"attempt", attempt,
+				)
 			}
-			u.log.Info("avatar uploaded",
-				"worker", workerID,
-				"user_id", job.UserID.String(),
-				"object_key", job.ObjectKey,
-				"attempt", attempt,
-			)
 			return
 		}
 
@@ -162,38 +217,38 @@ func (u *AvatarUploader) process(workerID int, job AvatarJob) {
 	}
 
 	// All retries exhausted. Persist the failure so it's visible.
-	u.recordFailure(job, lastErr)
+	u.recordFailure(job, maxAttempts, lastErr)
 }
 
-// updateAvatar writes the public URL into users.avatar_url. The URL is built
-// by the caller (handler) and stored verbatim in ObjectKey here — but since
-// the DB stores the public URL, the handler embeds it via a path scheme we
-// reconstruct: caller passes ObjectKey, we expect the public-URL piece to be
-// already present in the job. Simpler: store ObjectKey as-is; handler chose
-// the URL it wants the client to see.
+// updateAvatar writes the public URL into users.avatar_url. Returns the number
+// of rows affected so the caller can distinguish "user gone" from "updated".
 //
 // NOTE: We use a fresh context (not derived from the HTTP request) because by
 // the time the worker runs, the HTTP request that enqueued the job has long
 // since returned a 202 to the client and its context has been canceled.
-func (u *AvatarUploader) updateAvatar(job AvatarJob) error {
+func (u *AvatarUploader) updateAvatar(job AvatarJob) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return u.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		ID:        job.UserID,
-		AvatarUrl: sql.NullString{String: job.ObjectKey, Valid: true},
+		AvatarUrl: sql.NullString{String: job.PublicURL, Valid: true},
 	})
 }
 
-// recordFailure persists the terminal-failure marker. If the DB write itself
-// fails, log it — there's nothing else we can do, and silently dropping
-// would defeat the "don't drop" guarantee.
-func (u *AvatarUploader) recordFailure(job AvatarJob, lastErr error) {
+// recordFailure persists the terminal-failure marker. attempts is the number
+// of upload tries actually performed (1..maxAttempts) — passed in so DB-link
+// failures after a successful storage upload record their real attempt count
+// (often 1) rather than always maxAttempts.
+//
+// If the DB write itself fails, log it loudly — there's nothing else we can
+// do, but silently dropping would defeat the "don't drop" guarantee.
+func (u *AvatarUploader) recordFailure(job AvatarJob, attempts int, lastErr error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := u.q.RecordFailedAvatarUpload(ctx, db.RecordFailedAvatarUploadParams{
 		UserID:    job.UserID,
 		ObjectKey: job.ObjectKey,
-		Attempts:  int32(maxAttempts),
+		Attempts:  int32(attempts),
 		LastError: lastErr.Error(),
 	}); err != nil {
 		u.log.Error("FAILED to record failed avatar upload — dropping silently",
@@ -204,10 +259,10 @@ func (u *AvatarUploader) recordFailure(job AvatarJob, lastErr error) {
 		)
 		return
 	}
-	u.log.Error("avatar upload failed after all retries — recorded for ops",
+	u.log.Error("avatar upload failed — recorded for ops",
 		"user_id", job.UserID.String(),
 		"object_key", job.ObjectKey,
-		"attempts", maxAttempts,
+		"attempts", attempts,
 		"err", lastErr,
 	)
 }

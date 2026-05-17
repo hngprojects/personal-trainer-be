@@ -8,7 +8,11 @@ CREATE TABLE IF NOT EXISTS failed_avatar_uploads (
     id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     object_key  TEXT         NOT NULL,
-    attempts    INTEGER      NOT NULL,
+    -- attempts is the number of upload tries the worker made before recording
+    -- this row. A 0 here would mean a logical bug in the worker pipeline, so
+    -- guard against ever inserting one — better to fail loud at the DB layer
+    -- than to ship misleading telemetry to ops.
+    attempts    INTEGER      NOT NULL CHECK (attempts > 0),
     last_error  TEXT         NOT NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

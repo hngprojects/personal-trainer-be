@@ -131,15 +131,21 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 	objectKey := path.Join("avatars", userID.String(), uuid.NewString()+ext)
 	publicURL := strings.TrimRight(s.cfg.MinioPublicBaseURL, "/") + "/" + objectKey
 
-	// Enqueue the upload. Bytes are passed by value (slice header copy);
-	// the underlying array stays alive until the worker drops the job.
+	// Enqueue the upload. ObjectKey is the bucket-relative path (passed to
+	// Storage.PutObject); PublicURL is what gets written to users.avatar_url.
+	// Keep them distinct — conflating them creates objects with full HTTP URLs
+	// as keys inside the bucket.
+	//
+	// Bytes are passed by value (slice header copy); the underlying array
+	// stays alive until the worker drops the job.
 	if err := s.uploader.Enqueue(uploads.AvatarJob{
 		UserID:      userID,
-		ObjectKey:   publicURL, // worker writes this to users.avatar_url verbatim
+		ObjectKey:   objectKey,
+		PublicURL:   publicURL,
 		ContentType: finalMIME,
 		Bytes:       bodyBytes,
 	}); err != nil {
-		if errors.Is(err, uploads.ErrQueueFull) {
+		if errors.Is(err, uploads.ErrQueueFull) || errors.Is(err, uploads.ErrUploaderClosed) {
 			c.JSON(http.StatusServiceUnavailable, api.NewError("upload service is busy, please retry shortly", api.CodeServerError))
 			return
 		}

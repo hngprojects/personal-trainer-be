@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -34,12 +35,29 @@ func NewMinioStorage(ctx context.Context, endpoint, accessKey, secretKey, bucket
 		return nil, fmt.Errorf("storage: bucket exists check: %w", err)
 	}
 	if !exists {
-		if err := client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil {
+		// Between the BucketExists check above and this MakeBucket call, a
+		// concurrent server instance (or the same instance restarting) may
+		// have created the bucket. MinIO surfaces this as
+		// BucketAlreadyOwnedByYou (we already own it) or BucketAlreadyExists
+		// (another tenant created it — only possible on shared MinIO clusters
+		// with overlapping bucket namespaces). Both mean "the bucket is
+		// there, you can proceed" — don't fail startup over a benign race.
+		if err := client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil && !isBucketAlreadyExistsErr(err) {
 			return nil, fmt.Errorf("storage: create bucket %q: %w", bucket, err)
 		}
 	}
 
 	return &MinioStorage{client: client, bucket: bucket}, nil
+}
+
+// isBucketAlreadyExistsErr returns true for the two MinIO/S3 error codes that
+// indicate the bucket was created between our exists-check and our create.
+func isBucketAlreadyExistsErr(err error) bool {
+	var respErr minio.ErrorResponse
+	if !errors.As(err, &respErr) {
+		return false
+	}
+	return respErr.Code == "BucketAlreadyOwnedByYou" || respErr.Code == "BucketAlreadyExists"
 }
 
 // PutObject streams body into MinIO under the given key with the supplied

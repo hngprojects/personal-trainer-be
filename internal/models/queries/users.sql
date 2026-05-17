@@ -40,10 +40,13 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        updated_at = NOW()
 RETURNING *;
 
--- name: UpdateUserAvatar :exec
+-- name: UpdateUserAvatar :execrows
 -- Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
 -- background avatar worker can't race a concurrent profile edit and clobber
--- name/gender/etc with stale values.
+-- name/gender/etc with stale values. Returns affected row count so the worker
+-- can distinguish "updated cleanly" from "user was deleted between upload and
+-- DB write" — the latter must be persisted as a terminal failure or we silently
+-- orphan the object in storage.
 UPDATE users
 SET avatar_url = sqlc.arg(avatar_url),
     updated_at = NOW()
