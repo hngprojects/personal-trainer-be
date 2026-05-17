@@ -519,6 +519,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 	return i, err
 }
 
+<<<<<<< HEAD
 const updateBookingZoom = `-- name: UpdateBookingZoom :one
 UPDATE bookings
 SET zoom_meeting_link = $1,
@@ -555,4 +556,22 @@ func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomPa
 		&i.RescheduleCount,
 	)
 	return i, err
+=======
+const updateMeetingLink = `-- name: UpdateMeetingLink :exec
+UPDATE bookings
+SET zoom_meeting_id = $1,
+    zoom_meeting_link = $2
+WHERE id = $3
+`
+
+type UpdateMeetingLinkParams struct {
+	ZoomMeetingID   sql.NullString
+	ZoomMeetingLink sql.NullString
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateMeetingLink(ctx context.Context, arg UpdateMeetingLinkParams) error {
+	_, err := q.db.ExecContext(ctx, updateMeetingLink, arg.ZoomMeetingID, arg.ZoomMeetingLink, arg.ID)
+	return err
+>>>>>>> 3ea0151 (feat(booking): added zoom meeting creation)
 }

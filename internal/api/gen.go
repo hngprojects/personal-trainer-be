@@ -679,16 +679,49 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyDataStatus.
+const (
+	Processing UploadProfilePicture202JSONResponseBodyDataStatus = "processing"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyDataStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case Processing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyStatus.
+const (
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case UploadProfilePicture202JSONResponseBodyStatusError:
+		return true
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false

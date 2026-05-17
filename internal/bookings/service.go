@@ -61,6 +61,7 @@ func (s *bookingService) GetTrainersBookingSlots(ctx context.Context, trainerId 
 }
 
 func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookingParams, client db.User, trainer db.GetTrainerUserDetailsRow) (*db.Booking, error) {
+	var meetingURL string
 	booking, err := s.repo.CreateBooking(ctx, args)
 	if err != nil {
 		return nil, err
@@ -73,7 +74,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		s.log.Error("failed to create booking session record", "booking_id", booking.ID, "err", sessErr)
 	}
 
-	meetingURL := ""
+	meetingURL = ""
 	if args.SessionPlatform.String == zoomSessionPlatform {
 		if !s.meetingProvider.IsConfigured() {
 			return nil, fmt.Errorf("zoom is not configured")

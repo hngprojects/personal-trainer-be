@@ -183,6 +183,8 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		Timezone           *string    `json:"timezone"`
 		BookingStatus      *string    `json:"booking_status"`
 		SessionPlatform    *string    `json:"session_platform"`
+		ZoomMeetingLink    *string    `json:"zoom_meeting_link"`
+		ZoomMeetingID      *string    `json:"zoom_meeting_id"`
 		CancellationReason *string    `json:"cancellation_reason"`
 		ZoomMeetingLink    *string    `json:"zoom_meeting_link"`
 		ZoomMeetingID      *string    `json:"zoom_meeting_id"`
