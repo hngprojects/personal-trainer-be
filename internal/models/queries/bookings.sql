@@ -8,6 +8,8 @@ INSERT INTO bookings (
   timezone,
   booking_status,
   session_platform,
+  zoom_meeting_link,
+  zoom_meeting_id,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -20,6 +22,8 @@ INSERT INTO bookings (
   sqlc.arg(timezone),
   sqlc.arg(booking_status),
   sqlc.arg(session_platform),
+  sqlc.arg(zoom_meeting_link),
+  sqlc.arg(zoom_meeting_id),
   sqlc.arg(cancellation_reason),
   sqlc.arg(created_at),
   sqlc.arg(cancelled_at)

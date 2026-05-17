@@ -114,6 +114,8 @@ INSERT INTO bookings (
   timezone,
   booking_status,
   session_platform,
+  zoom_meeting_link,
+  zoom_meeting_id,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -128,7 +130,9 @@ INSERT INTO bookings (
   $8,
   $9,
   $10,
-  $11
+  $11,
+  $12,
+  $13
 )
 RETURNING
   id,
@@ -157,6 +161,8 @@ type CreateBookingParams struct {
 	Timezone           sql.NullString
 	BookingStatus      sql.NullString
 	SessionPlatform    sql.NullString
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -172,6 +178,8 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.Timezone,
 		arg.BookingStatus,
 		arg.SessionPlatform,
+		arg.ZoomMeetingLink,
+		arg.ZoomMeetingID,
 		arg.CancellationReason,
 		arg.CreatedAt,
 		arg.CancelledAt,

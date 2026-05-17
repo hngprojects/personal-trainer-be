@@ -213,6 +213,12 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 	if data.SessionPlatform.Valid {
 		response.SessionPlatform = &data.SessionPlatform.String
 	}
+	if data.ZoomMeetingLink.Valid {
+		response.ZoomMeetingLink = &data.ZoomMeetingLink.String
+	}
+	if data.ZoomMeetingID.Valid {
+		response.ZoomMeetingID = &data.ZoomMeetingID.String
+	}
 	if data.CancellationReason.Valid {
 		response.CancellationReason = &data.CancellationReason.String
 	}
