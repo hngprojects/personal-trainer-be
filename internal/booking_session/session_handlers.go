@@ -157,7 +157,7 @@ func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 	}
 	var fieldErrors []api.FieldError
 	if notes.Note == "" {
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "notes", Message: "Notes cannot be empty"})
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "note", Message: "Notes cannot be empty"})
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
 	}

@@ -630,7 +630,6 @@ components:
           type: string
           maxLength: 200
           description: Optional additional details about cancellation
-
     DiscoveryBookingResponse:
       type: object
       description: Booking details response
@@ -655,7 +654,15 @@ components:
           properties:
             data:
               type: object
-              required: [booking_id, status, cancelled_at, refund_amount, refund_reason, notification_sent]
+              required:
+                [
+                  booking_id,
+                  status,
+                  cancelled_at,
+                  refund_amount,
+                  refund_reason,
+                  notification_sent,
+                ]
               properties:
                 booking_id:
                   type: string
@@ -705,11 +712,37 @@ components:
           type: string
           description: Client IANA timezone
           example: America/New_York
-
     BookingSlotRequest:
       type: object
       required: [day_of_week, start_time, end_time]
       properties:
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0=Sunday, 6=Saturday
+          example: 1
+        start_time:
+          type: string
+          description: 24h time HH:MM
+          example: "09:00"
+        end_time:
+          type: string
+          description: 24h time HH:MM
+          example: "17:00"
+        timezone:
+          type: string
+          description: IANA timezone for the slot
+          example: Africa/Lagos
+        is_active:
+          type: boolean
+          default: true
+    BookingSlotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example:
         day_of_week:
           type: integer
           minimum: 0
@@ -1001,7 +1034,7 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth — OAuth
+        - Auth - OAuth
         - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
@@ -1079,7 +1112,6 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
-
   /auth/google/mobile:
     post:
       security: []
@@ -1149,7 +1181,7 @@ paths:
       security: []
       operationId: HandleRegister
       tags:
-        - Auth — Local
+        - Auth - Local
         - Authentication
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
@@ -1274,6 +1306,71 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /bookings:
+    post:
+      operationId: CreateBooking
+      tags:
+        - Booking
+      summary: Clients creates a booking session with preferred trainer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                [
+                  trainer_id,
+                  subscription_id,
+                  scheduled_start,
+                  scheduled_end,
+                  session_platform,
+                  timezone,
+                ]
+              properties:
+                trainer_id:
+                  type: string
+                  format: uuid
+                subscription_id:
+                  type: string
+                  format: uuid
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+                session_platform:
+                  type: string
+                  enum: ["whatsapp", "google_meet", "zoom"]
+                timezone:
+                  type: string
+      responses:
+        "200":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Booking created successfully
+                code: OK
+                data:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  client_id: "550e8400-e29b-41d4-a716-446655440000"
+                  trainer_id: "550e8400-e29b-41d4-a716-446655440000"
+                  subscription_id: "550e8400-e29b-41d4-a716-446655440000"
+                  scheduled_start: "2026-05-16 10:30:40.067585+00"
+                  scheduled_end: "2026-05-16 10:30:40.067585+00"
+                  timezone: "London"
+                  booking_status: "pending"
+                  session_platform: "zoom"
+                  created_at: "2026-05-16 10:30:40.067585+00"
+
   /users/me/profile:
     patch:
       operationId: UpdateUserProfile
@@ -2799,6 +2896,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  # Get booking slot by trainer id
+  /booking-slots/{trainerId}:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: GetTrainersBookingSlots
+      summary: List all active booking slots (public)
+      parameters:
+        - name: trainerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the trainer to retrieve booking slots for
+      responses:
+        "200":
+          description: Booking slots retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/BookingSlotResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /dev/token:
     get:
       security: []
@@ -2808,8 +2946,8 @@ paths:
           description: Token generated
   /sessions/{id}:
     get:
-      security: []
-        # - bearerAuth: []
+      security:
+        - bearerAuth: []
       operationId: HandleGetSessionById
       summary: Takes the Id of a session and returns data concerning the session
       tags:
@@ -2863,8 +3001,8 @@ paths:
                 code: SERVER_ERROR
   /sessions/{id}/start:
     put:
-      security: []
-        # - bearerAuth: []
+      security:
+        - bearerAuth: []
       operationId: HandleStartSession
       summary: A trainer starts a session via this endpoint.
       tags:
@@ -2928,8 +3066,8 @@ paths:
                 code: SERVER_ERROR
   /sessions/{id}/join:
     put:
-      security: []
-        # - bearerAuth: []
+      security:
+        - bearerAuth: []
       operationId: HandleJoinSession
       summary: A client joined a session via this endpoint.
       tags:
@@ -2993,8 +3131,8 @@ paths:
                 code: SERVER_ERROR
   /sessions/{id}/complete:
     put:
-      security: []
-        # - bearerAuth: []
+      security:
+        - bearerAuth: []
       operationId: HandleCompleteSession
       summary: The session is completed via this endpoint.
       tags:
@@ -3058,8 +3196,8 @@ paths:
                 code: SERVER_ERROR
   /sessions/{id}/notes:
     put:
-      security: []
-        # - bearerAuth: []
+      security:
+        - bearerAuth: []
       operationId: HandleTrainersNote
       summary: Trainers submit notes for client.
       tags:

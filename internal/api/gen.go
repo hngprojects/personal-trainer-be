@@ -491,6 +491,45 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
+const (
+	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
+	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
+func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
+		return true
+	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateBookingJSONBodySessionPlatform.
+const (
+	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
+	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
+)
+
+// Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
+func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
+	switch e {
+	case GoogleMeet:
+		return true
+	case Whatsapp:
+		return true
+	case Zoom:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetUpcomingBookingsParamsType.
 const (
 	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
@@ -613,6 +652,23 @@ type BookingSlotRequest struct {
 
 	// StartTime 24h time HH:MM
 	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone for the slot
+	Timezone *string `json:"timezone,omitempty"`
+}
+
+// BookingSlotResponse defines model for BookingSlotResponse.
+type BookingSlotResponse struct {
+	// DayOfWeek 0=Sunday, 6=Saturday
+	DayOfWeek *int `json:"day_of_week,omitempty"`
+
+	// EndTime 24h time HH:MM
+	EndTime  *string `json:"end_time,omitempty"`
+	Id       *string `json:"id,omitempty"`
+	IsActive *bool   `json:"is_active,omitempty"`
+
+	// StartTime 24h time HH:MM
+	StartTime *string `json:"start_time,omitempty"`
 
 	// Timezone IANA timezone for the slot
 	Timezone *string `json:"timezone,omitempty"`
@@ -1031,6 +1087,22 @@ type GetBookingSlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
+// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlots200JSONResponseBodyStatus string
+
+// CreateBookingJSONBody defines parameters for CreateBooking.
+type CreateBookingJSONBody struct {
+	ScheduledEnd    time.Time                            `json:"scheduled_end"`
+	ScheduledStart  time.Time                            `json:"scheduled_start"`
+	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
+	SubscriptionId  openapi_types.UUID                   `json:"subscription_id"`
+	Timezone        string                               `json:"timezone"`
+	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
+}
+
+// CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
+type CreateBookingJSONBodySessionPlatform string
+
 // GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
 type GetUpcomingBookingsParams struct {
 	// Timezone IANA timezone for displaying times (e.g. America/New_York)
@@ -1118,6 +1190,9 @@ type CreateBookingSlotJSONRequestBody = BookingSlotRequest
 
 // UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
 type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
+
+// CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
+type CreateBookingJSONRequestBody CreateBookingJSONBody
 
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
@@ -1208,6 +1283,12 @@ type ServerInterface interface {
 	// Update a booking slot (admin or customer_care only)
 	// (PUT /booking-slots/{id})
 	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// List all active booking slots (public)
+	// (GET /booking-slots/{trainerId})
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
+	// Clients creates a booking session with preferred trainer
+	// (POST /bookings)
+	CreateBooking(c *gin.Context)
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
@@ -1611,6 +1692,48 @@ func (siw *ServerInterfaceWrapper) UpdateBookingSlot(c *gin.Context) {
 	siw.Handler.UpdateBookingSlot(c, id)
 }
 
+// GetTrainersBookingSlots operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "trainerId" -------------
+	var trainerId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersBookingSlots(c, trainerId)
+}
+
+// CreateBooking operation middleware
+func (siw *ServerInterfaceWrapper) CreateBooking(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBooking(c)
+}
+
 // BookDiscoveryCall operation middleware
 func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 
@@ -1802,6 +1925,8 @@ func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1826,6 +1951,8 @@ func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1852,6 +1979,8 @@ func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1877,6 +2006,8 @@ func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1901,6 +2032,8 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2213,6 +2346,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/booking-slots", wrapper.CreateBookingSlot)
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
+	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
+	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)

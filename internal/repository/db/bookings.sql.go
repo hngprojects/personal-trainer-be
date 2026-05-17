@@ -25,7 +25,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -46,7 +45,6 @@ type CancelBookingRow struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
 	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -65,7 +63,6 @@ func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (C
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -111,7 +108,6 @@ INSERT INTO bookings (
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -131,15 +127,13 @@ INSERT INTO bookings (
   $8,
   $9,
   $10,
-  $11,
-  $12
+  $11
 )
 RETURNING
   id,
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -157,7 +151,6 @@ type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
 	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -173,7 +166,6 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.TrainerID,
 		arg.ClientID,
 		arg.SubscriptionID,
-		arg.CalendlyEventID,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 		arg.Timezone,
@@ -189,7 +181,6 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -238,7 +229,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -263,7 +253,6 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -285,7 +274,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -311,7 +299,6 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -323,6 +310,36 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+	)
+	return i, err
+}
+
+const getTrainerUserDetails = `-- name: GetTrainerUserDetails :one
+SELECT
+    u.id AS id,
+    u.name AS name,
+    u.email AS email,
+    t.id AS trainer_id
+FROM users u
+JOIN trainers t ON u.id = t.user_id
+WHERE t.id = $1
+`
+
+type GetTrainerUserDetailsRow struct {
+	ID        uuid.UUID
+	Name      string
+	Email     string
+	TrainerID uuid.UUID
+}
+
+func (q *Queries) GetTrainerUserDetails(ctx context.Context, id uuid.UUID) (GetTrainerUserDetailsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTrainerUserDetails, id)
+	var i GetTrainerUserDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.TrainerID,
 	)
 	return i, err
 }
@@ -451,7 +468,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -487,7 +503,6 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
