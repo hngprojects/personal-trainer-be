@@ -188,7 +188,17 @@ func (s *Router) Routes() *gin.Engine {
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
 			// rather than failing the whole server boot.
-			if s.cfg.MinioEndpoint != "" {
+			//
+			// MINIO_PUBLIC_BASE_URL is part of the required set: without it
+			// the handler would still 202 but return a useless relative URI
+			// (e.g. "/avatars/<uuid>/...") as the avatar_url. Better to refuse
+			// to start the pipeline than to ship broken URLs to clients.
+			switch {
+			case s.cfg.MinioEndpoint == "":
+				s.log.Warn("MINIO_ENDPOINT not set — avatar upload endpoint will return 503")
+			case s.cfg.MinioPublicBaseURL == "":
+				s.log.Warn("MINIO_PUBLIC_BASE_URL not set — avatar upload endpoint will return 503 to avoid handing clients relative URIs")
+			default:
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				store, err := storage.NewMinioStorage(ctx, s.cfg.MinioEndpoint, s.cfg.MinioAccessKey, s.cfg.MinioSecretKey, s.cfg.MinioBucket, s.cfg.MinioUseSSL)
 				cancel()
@@ -201,8 +211,6 @@ func (s *Router) Routes() *gin.Engine {
 					impl.uploader = uploader
 					s.log.Info("avatar upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
 				}
-			} else {
-				s.log.Warn("MINIO_ENDPOINT not set — avatar upload endpoint will return 503")
 			}
 
 			// Rate limiters are Redis-backed. When Redis is unavailable we wire

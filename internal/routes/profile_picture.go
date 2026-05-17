@@ -51,6 +51,13 @@ const (
 	// at quality=30, the user has to send a smaller file.
 	jpegQualityFloor = 30
 
+	// maxPixelCount caps the decoded image dimensions. A pathological PNG/WebP
+	// can be tiny on the wire (e.g. a few MiB of zeros that decompress to a
+	// 20000x20000 bitmap = ~1.6 GiB of RGBA in memory). Refuse to decode
+	// anything that would exceed this pixel budget; ~20 million pixels covers
+	// all real-world phone-camera and 4K-screen sources (8K is ~33M, blocked).
+	maxPixelCount = 20_000_000
+
 	multipartFieldName = "picture"
 )
 
@@ -220,6 +227,21 @@ func compressToFit(raw []byte, sourceMIME string, targetSize int) ([]byte, error
 		// Surface a clear ask to convert client-side rather than a generic
 		// "decode failed" so the mobile team knows exactly what to fix.
 		return nil, errors.New("HEIC files larger than 5MB are not supported — please convert to JPEG before uploading")
+	}
+
+	// Read header-only to validate dimensions BEFORE allocating the full
+	// pixel buffer. A small-on-wire-but-huge-when-decoded image (PNG of
+	// repeating zeros decoding to 20000x20000) can OOM the worker; cheap
+	// DecodeConfig parse rejects it before any allocation happens.
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("decode source image config: %w", err)
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 {
+		return nil, errors.New("image has invalid dimensions")
+	}
+	if cfg.Width*cfg.Height > maxPixelCount {
+		return nil, fmt.Errorf("image dimensions exceed limit (%dx%d > %d total pixels)", cfg.Width, cfg.Height, maxPixelCount)
 	}
 
 	img, _, err := image.Decode(bytes.NewReader(raw))
