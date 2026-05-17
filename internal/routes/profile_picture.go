@@ -139,7 +139,7 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 		ContentType: finalMIME,
 		Bytes:       bodyBytes,
 	}); err != nil {
-		if errors.Is(err, uploads.QueueFull) {
+		if errors.Is(err, uploads.ErrQueueFull) {
 			c.JSON(http.StatusServiceUnavailable, api.NewError("upload service is busy, please retry shortly", api.CodeServerError))
 			return
 		}

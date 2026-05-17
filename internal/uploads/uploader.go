@@ -22,7 +22,7 @@ import (
 
 // AvatarJob carries everything the worker needs to upload one avatar.
 // Bytes are held in memory until the job is drained — the queue is bounded to
-// keep total memory usage predictable (see Enqueue / QueueFull below).
+// keep total memory usage predictable (see Enqueue / ErrQueueFull below).
 type AvatarJob struct {
 	UserID      uuid.UUID
 	ObjectKey   string // e.g. "avatars/{uid}/{uuid}.jpg" — the final path inside the bucket
@@ -30,10 +30,10 @@ type AvatarJob struct {
 	Bytes       []byte // the actual file content
 }
 
-// QueueFull is returned by Enqueue when the worker channel is at capacity.
+// ErrQueueFull is returned by Enqueue when the worker channel is at capacity.
 // Handlers should map this to 503 with a retry hint — backpressure is what
 // keeps MinIO and the DB from being overwhelmed by a burst.
-var QueueFull = errors.New("uploads: queue is full")
+var ErrQueueFull = errors.New("uploads: queue is full")
 
 const (
 	// retry budget for a single job. Total worst-case time per job before
@@ -87,7 +87,7 @@ func (u *AvatarUploader) Stop() {
 	close(u.stopCh)
 }
 
-// Enqueue submits a job non-blockingly. Returns QueueFull if the buffer is
+// Enqueue submits a job non-blockingly. Returns ErrQueueFull if the buffer is
 // saturated, in which case the caller should reject the request (503) rather
 // than block the HTTP handler.
 func (u *AvatarUploader) Enqueue(job AvatarJob) error {
@@ -95,7 +95,7 @@ func (u *AvatarUploader) Enqueue(job AvatarJob) error {
 	case u.jobs <- job:
 		return nil
 	default:
-		return QueueFull
+		return ErrQueueFull
 	}
 }
 
