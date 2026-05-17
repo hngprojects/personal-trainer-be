@@ -34,8 +34,6 @@ type fakeLocalUserRepo struct {
 	findErr         error
 	createUserErr   error
 	markVerifiedErr error
-	findUserRole    *db.UserRole
-	findUserRoleErr error
 }
 
 func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
@@ -44,10 +42,6 @@ func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ strin
 
 func (f *fakeLocalUserRepo) FindByEmail(_ context.Context, _ string) (*db.User, error) {
 	return f.findUser, f.findErr
-}
-
-func (f *fakeLocalUserRepo) GetUserRole(_ context.Context, _ string) (*db.UserRole, error) {
-	return f.findUserRole, f.findUserRoleErr
 }
 
 func (f *fakeLocalUserRepo) Create(_ context.Context, email, name, provider string) (*db.User, error) {
@@ -137,7 +131,11 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 
 func (m *fakeMailer) SendWaitlistConfirmation(_ string) error   { return m.err }
 func (m *fakeMailer) SendContactConfirmation(_, _ string) error                              { return m.err }
-func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ interface{}, _, _ string) error { return m.err }
+func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error { return m.err }
+func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ time.Time, _, _, _, _ string) error { return m.err }
+func (m *fakeMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error { return m.err }
+func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ time.Time, _, _ string) error { return m.err }
+func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error { return m.err }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {

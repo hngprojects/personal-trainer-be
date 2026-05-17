@@ -1,18 +1,4 @@
 services:
-  db:
-    image: postgres:17
-    container_name: personal_trainer_db
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_DB: ${DATABASE_NAME}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env_file:
-      - .env
-
   redis:
     image: redis:7-alpine
     container_name: personal_trainer_redis
@@ -42,6 +28,26 @@ services:
       retries: 10
     restart: unless-stopped
 
+  minio:
+    image: minio/minio:latest
+    container_name: personal_trainer_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"  # S3 API — points to MINIO_ENDPOINT in .env
+      - "9001:9001"  # Web console — http://localhost:9001 (login: minioadmin / minioadmin)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   redis_data:
   postgres_data:
+  minio_data:

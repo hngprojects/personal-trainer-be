@@ -35,6 +35,15 @@ type Config struct {
 	ZoomAccountID    string
 	ZoomClientID     string
 	ZoomClientSecret string
+
+	NotificationEmail string
+
+	MinioEndpoint      string // e.g. "localhost:9000" or "minio.staging.fitcall.me"
+	MinioAccessKey     string
+	MinioSecretKey     string
+	MinioBucket        string // bucket for avatar storage
+	MinioUseSSL        bool
+	MinioPublicBaseURL string // public URL prefix used to build avatar URLs returned to clients
 }
 
 func Load() (*Config, error) {
@@ -69,6 +78,15 @@ func Load() (*Config, error) {
 		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
 		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
+
+		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
+
+		MinioEndpoint:      os.Getenv("MINIO_ENDPOINT"),
+		MinioAccessKey:     os.Getenv("MINIO_ACCESS_KEY"),
+		MinioSecretKey:     os.Getenv("MINIO_SECRET_KEY"),
+		MinioBucket:        getenv("MINIO_BUCKET", "fitcall-avatars"),
+		MinioUseSSL:        getenv("MINIO_USE_SSL", "false") == "true",
+		MinioPublicBaseURL: os.Getenv("MINIO_PUBLIC_BASE_URL"),
 	}
 
 	if cfg.DatabaseURL == "" {

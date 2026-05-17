@@ -15,13 +15,35 @@ import (
 
 const checkSlotConflict = `-- name: CheckSlotConflict :one
 SELECT COUNT(*) FROM discovery_bookings
-WHERE selected_datetime > $1 - INTERVAL '30 minutes'
-  AND selected_datetime < $1 + INTERVAL '30 minutes'
-  AND status NOT IN ('cancelled')
+WHERE selected_datetime > $1::timestamptz - INTERVAL '30 minutes'
+  AND selected_datetime < $1::timestamptz + INTERVAL '30 minutes'
+  AND status NOT IN ('cancelled', 'completed')
 `
 
-func (q *Queries) CheckSlotConflict(ctx context.Context, dollar_1 interface{}) (int64, error) {
-	row := q.db.QueryRowContext(ctx, checkSlotConflict, dollar_1)
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
+func (q *Queries) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkSlotConflict, selectedDatetime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const checkSlotConflictExcluding = `-- name: CheckSlotConflictExcluding :one
+SELECT COUNT(*) FROM discovery_bookings
+WHERE selected_datetime > $1::timestamptz - INTERVAL '30 minutes'
+  AND selected_datetime < $1::timestamptz + INTERVAL '30 minutes'
+  AND status NOT IN ('cancelled', 'completed')
+  AND id != $2
+`
+
+type CheckSlotConflictExcludingParams struct {
+	SelectedDatetime time.Time
+	ExcludeID        uuid.UUID
+}
+
+// NOTE: assumes all discovery calls are 30 minutes; adjust interval if duration changes
+func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotConflictExcludingParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkSlotConflictExcluding, arg.SelectedDatetime, arg.ExcludeID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -41,7 +63,7 @@ INSERT INTO booking_slots (
     $4,
     true
 )
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id
 `
 
 type CreateBookingSlotParams struct {
@@ -68,12 +90,14 @@ func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }
 
 const createDiscoveryBooking = `-- name: CreateDiscoveryBooking :one
 INSERT INTO discovery_bookings (
+    user_id,
     name,
     email,
     contact_mode,
@@ -92,12 +116,14 @@ INSERT INTO discovery_bookings (
     $6,
     $7,
     $8,
+    $9,
     'confirmed'
 )
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
 `
 
 type CreateDiscoveryBookingParams struct {
+	UserID           uuid.NullUUID
 	Name             string
 	Email            string
 	ContactMode      string
@@ -110,6 +136,7 @@ type CreateDiscoveryBookingParams struct {
 
 func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscoveryBookingParams) (DiscoveryBooking, error) {
 	row := q.db.QueryRowContext(ctx, createDiscoveryBooking,
+		arg.UserID,
 		arg.Name,
 		arg.Email,
 		arg.ContactMode,
@@ -133,8 +160,49 @@ func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscover
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
+		&i.RescheduleCount,
 	)
 	return i, err
+}
+
+const createRescheduleHistory = `-- name: CreateRescheduleHistory :exec
+INSERT INTO booking_reschedule_history (
+    discovery_booking_id,
+    previous_datetime,
+    new_datetime,
+    rescheduled_by,
+    reason,
+    notes
+) VALUES (
+    $1,
+    $2::timestamptz,
+    $3::timestamptz,
+    $4,
+    $5,
+    $6
+)
+`
+
+type CreateRescheduleHistoryParams struct {
+	DiscoveryBookingID uuid.UUID
+	PreviousDatetime   time.Time
+	NewDatetime        time.Time
+	RescheduledBy      string
+	Reason             sql.NullString
+	Notes              sql.NullString
+}
+
+func (q *Queries) CreateRescheduleHistory(ctx context.Context, arg CreateRescheduleHistoryParams) error {
+	_, err := q.db.ExecContext(ctx, createRescheduleHistory,
+		arg.DiscoveryBookingID,
+		arg.PreviousDatetime,
+		arg.NewDatetime,
+		arg.RescheduledBy,
+		arg.Reason,
+		arg.Notes,
+	)
+	return err
 }
 
 const deleteBookingSlot = `-- name: DeleteBookingSlot :exec
@@ -148,7 +216,7 @@ func (q *Queries) DeleteBookingSlot(ctx context.Context, id uuid.UUID) error {
 }
 
 const getActiveBookingSlots = `-- name: GetActiveBookingSlots :many
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC
 `
@@ -171,6 +239,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TrainerID,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +255,7 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 }
 
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
-SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at FROM booking_slots
+SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE id = $1
 LIMIT 1
 `
@@ -203,12 +272,13 @@ func (q *Queries) GetBookingSlotByID(ctx context.Context, id uuid.UUID) (Booking
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }
 
 const getDiscoveryBookingByID = `-- name: GetDiscoveryBookingByID :one
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
 WHERE id = $1
 LIMIT 1
 `
@@ -229,12 +299,89 @@ func (q *Queries) GetDiscoveryBookingByID(ctx context.Context, id uuid.UUID) (Di
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
+		&i.RescheduleCount,
 	)
 	return i, err
 }
 
+const getDiscoveryBookingByUserID = `-- name: GetDiscoveryBookingByUserID :one
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+WHERE user_id = $1
+  AND status NOT IN ('cancelled')
+LIMIT 1
+`
+
+func (q *Queries) GetDiscoveryBookingByUserID(ctx context.Context, userID uuid.NullUUID) (DiscoveryBooking, error) {
+	row := q.db.QueryRowContext(ctx, getDiscoveryBookingByUserID, userID)
+	var i DiscoveryBooking
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.ContactMode,
+		&i.PhoneNumber,
+		&i.SelectedDatetime,
+		&i.ClientTimezone,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
+		&i.RescheduleCount,
+	)
+	return i, err
+}
+
+const getUpcomingDiscoveryBookings = `-- name: GetUpcomingDiscoveryBookings :many
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+WHERE user_id = $1
+  AND selected_datetime > NOW()
+  AND status NOT IN ('cancelled', 'completed')
+ORDER BY selected_datetime ASC
+`
+
+func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.NullUUID) ([]DiscoveryBooking, error) {
+	rows, err := q.db.QueryContext(ctx, getUpcomingDiscoveryBookings, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryBooking
+	for rows.Next() {
+		var i DiscoveryBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.ContactMode,
+			&i.PhoneNumber,
+			&i.SelectedDatetime,
+			&i.ClientTimezone,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDiscoveryBookings = `-- name: ListDiscoveryBookings :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
 ORDER BY selected_datetime ASC
 `
 
@@ -260,6 +407,8 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
 		); err != nil {
 			return nil, err
 		}
@@ -274,6 +423,55 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 	return items, nil
 }
 
+const rescheduleDiscoveryBooking = `-- name: RescheduleDiscoveryBooking :one
+UPDATE discovery_bookings
+SET
+    selected_datetime = $1::timestamptz,
+    phone_number      = $2,
+    zoom_meeting_link = $3,
+    zoom_meeting_id   = $4,
+    reschedule_count  = reschedule_count + 1,
+    updated_at        = NOW()
+WHERE id = $5
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
+`
+
+type RescheduleDiscoveryBookingParams struct {
+	SelectedDatetime time.Time
+	PhoneNumber      sql.NullString
+	ZoomMeetingLink  sql.NullString
+	ZoomMeetingID    sql.NullString
+	ID               uuid.UUID
+}
+
+func (q *Queries) RescheduleDiscoveryBooking(ctx context.Context, arg RescheduleDiscoveryBookingParams) (DiscoveryBooking, error) {
+	row := q.db.QueryRowContext(ctx, rescheduleDiscoveryBooking,
+		arg.SelectedDatetime,
+		arg.PhoneNumber,
+		arg.ZoomMeetingLink,
+		arg.ZoomMeetingID,
+		arg.ID,
+	)
+	var i DiscoveryBooking
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.ContactMode,
+		&i.PhoneNumber,
+		&i.SelectedDatetime,
+		&i.ClientTimezone,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
+		&i.RescheduleCount,
+	)
+	return i, err
+}
+
 const updateBookingSlot = `-- name: UpdateBookingSlot :one
 UPDATE booking_slots
 SET
@@ -284,7 +482,7 @@ SET
     is_active   = $5,
     updated_at  = NOW()
 WHERE id = $6
-RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at
+RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id
 `
 
 type UpdateBookingSlotParams struct {
@@ -315,6 +513,45 @@ func (q *Queries) UpdateBookingSlot(ctx context.Context, arg UpdateBookingSlotPa
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrainerID,
+	)
+	return i, err
+}
+
+const updateDiscoveryBookingZoom = `-- name: UpdateDiscoveryBookingZoom :one
+UPDATE discovery_bookings
+SET
+    zoom_meeting_link = $1,
+    zoom_meeting_id   = $2,
+    updated_at        = NOW()
+WHERE id = $3
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
+`
+
+type UpdateDiscoveryBookingZoomParams struct {
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateDiscoveryBookingZoom(ctx context.Context, arg UpdateDiscoveryBookingZoomParams) (DiscoveryBooking, error) {
+	row := q.db.QueryRowContext(ctx, updateDiscoveryBookingZoom, arg.ZoomMeetingLink, arg.ZoomMeetingID, arg.ID)
+	var i DiscoveryBooking
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.ContactMode,
+		&i.PhoneNumber,
+		&i.SelectedDatetime,
+		&i.ClientTimezone,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
+		&i.RescheduleCount,
 	)
 	return i, err
 }

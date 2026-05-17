@@ -2,6 +2,8 @@ package discovery
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,14 +12,22 @@ import (
 
 type Repository interface {
 	CreateBooking(ctx context.Context, arg db.CreateDiscoveryBookingParams) (db.DiscoveryBooking, error)
+	UpdateBookingZoom(ctx context.Context, arg db.UpdateDiscoveryBookingZoomParams) (db.DiscoveryBooking, error)
 	GetBookingByID(ctx context.Context, id uuid.UUID) (db.DiscoveryBooking, error)
+	HasExistingBooking(ctx context.Context, userID uuid.UUID) (bool, error)
 	CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error)
+	CheckSlotConflictExcluding(ctx context.Context, arg db.CheckSlotConflictExcludingParams) (int64, error)
+	RescheduleBooking(ctx context.Context, arg db.RescheduleDiscoveryBookingParams) (db.DiscoveryBooking, error)
+	CreateRescheduleHistory(ctx context.Context, arg db.CreateRescheduleHistoryParams) error
 
 	GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error)
 	GetSlotByID(ctx context.Context, id uuid.UUID) (db.BookingSlot, error)
 	CreateSlot(ctx context.Context, arg db.CreateBookingSlotParams) (db.BookingSlot, error)
 	UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotParams) (db.BookingSlot, error)
 	DeleteSlot(ctx context.Context, id uuid.UUID) error
+
+	GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error)
+	GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error)
 }
 
 type postgresRepo struct {
@@ -32,12 +42,39 @@ func (r *postgresRepo) CreateBooking(ctx context.Context, arg db.CreateDiscovery
 	return r.q.CreateDiscoveryBooking(ctx, arg)
 }
 
+func (r *postgresRepo) UpdateBookingZoom(ctx context.Context, arg db.UpdateDiscoveryBookingZoomParams) (db.DiscoveryBooking, error) {
+	return r.q.UpdateDiscoveryBookingZoom(ctx, arg)
+}
+
 func (r *postgresRepo) GetBookingByID(ctx context.Context, id uuid.UUID) (db.DiscoveryBooking, error) {
 	return r.q.GetDiscoveryBookingByID(ctx, id)
 }
 
+func (r *postgresRepo) HasExistingBooking(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, err := r.q.GetDiscoveryBookingByUserID(ctx, uuid.NullUUID{UUID: userID, Valid: true})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *postgresRepo) CheckSlotConflict(ctx context.Context, selectedDatetime time.Time) (int64, error) {
 	return r.q.CheckSlotConflict(ctx, selectedDatetime)
+}
+
+func (r *postgresRepo) CheckSlotConflictExcluding(ctx context.Context, arg db.CheckSlotConflictExcludingParams) (int64, error) {
+	return r.q.CheckSlotConflictExcluding(ctx, arg)
+}
+
+func (r *postgresRepo) RescheduleBooking(ctx context.Context, arg db.RescheduleDiscoveryBookingParams) (db.DiscoveryBooking, error) {
+	return r.q.RescheduleDiscoveryBooking(ctx, arg)
+}
+
+func (r *postgresRepo) CreateRescheduleHistory(ctx context.Context, arg db.CreateRescheduleHistoryParams) error {
+	return r.q.CreateRescheduleHistory(ctx, arg)
 }
 
 func (r *postgresRepo) GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error) {
@@ -58,4 +95,12 @@ func (r *postgresRepo) UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotP
 
 func (r *postgresRepo) DeleteSlot(ctx context.Context, id uuid.UUID) error {
 	return r.q.DeleteBookingSlot(ctx, id)
+}
+
+func (r *postgresRepo) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error) {
+	return r.q.GetUpcomingDiscoveryBookings(ctx, uuid.NullUUID{UUID: userID, Valid: true})
+}
+
+func (r *postgresRepo) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error) {
+	return r.q.GetUpcomingPaidSessions(ctx, clientID)
 }
