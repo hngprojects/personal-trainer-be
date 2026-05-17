@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	defaultBookingStatus   = "pending"
-	defaultSessionPlatform = "zoom"
+	defaultBookingStatus = "pending"
 )
 
 type bookingSlotHandler struct {
