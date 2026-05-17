@@ -16,7 +16,6 @@ type Booking struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
 	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString

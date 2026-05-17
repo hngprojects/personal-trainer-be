@@ -491,6 +491,45 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
+const (
+	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
+	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
+func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
+		return true
+	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateBookingJSONBodySessionPlatform.
+const (
+	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
+	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
+)
+
+// Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
+func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
+	switch e {
+	case GoogleMeet:
+		return true
+	case Whatsapp:
+		return true
+	case Zoom:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetUpcomingBookingsParamsType.
 const (
 	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
@@ -529,16 +568,49 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UpdateUserProfile200JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyDataStatus.
+const (
+	Processing UploadProfilePicture202JSONResponseBodyDataStatus = "processing"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyDataStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case Processing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyStatus.
+const (
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case UploadProfilePicture202JSONResponseBodyStatusError:
+		return true
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -613,6 +685,23 @@ type BookingSlotRequest struct {
 
 	// StartTime 24h time HH:MM
 	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone for the slot
+	Timezone *string `json:"timezone,omitempty"`
+}
+
+// BookingSlotResponse defines model for BookingSlotResponse.
+type BookingSlotResponse struct {
+	// DayOfWeek 0=Sunday, 6=Saturday
+	DayOfWeek *int `json:"day_of_week,omitempty"`
+
+	// EndTime 24h time HH:MM
+	EndTime  *string `json:"end_time,omitempty"`
+	Id       *string `json:"id,omitempty"`
+	IsActive *bool   `json:"is_active,omitempty"`
+
+	// StartTime 24h time HH:MM
+	StartTime *string `json:"start_time,omitempty"`
 
 	// Timezone IANA timezone for the slot
 	Timezone *string `json:"timezone,omitempty"`
@@ -1031,6 +1120,22 @@ type GetBookingSlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
+// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlots200JSONResponseBodyStatus string
+
+// CreateBookingJSONBody defines parameters for CreateBooking.
+type CreateBookingJSONBody struct {
+	ScheduledEnd    time.Time                            `json:"scheduled_end"`
+	ScheduledStart  time.Time                            `json:"scheduled_start"`
+	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
+	SubscriptionId  openapi_types.UUID                   `json:"subscription_id"`
+	Timezone        string                               `json:"timezone"`
+	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
+}
+
+// CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
+type CreateBookingJSONBodySessionPlatform string
+
 // GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
 type GetUpcomingBookingsParams struct {
 	// Timezone IANA timezone for displaying times (e.g. America/New_York)
@@ -1078,6 +1183,18 @@ type GetUserProfile200JSONResponseBodyStatus string
 // UpdateUserProfile200JSONResponseBodyStatus defines parameters for UpdateUserProfile.
 type UpdateUserProfile200JSONResponseBodyStatus string
 
+// UploadProfilePictureMultipartBody defines parameters for UploadProfilePicture.
+type UploadProfilePictureMultipartBody struct {
+	// Picture Image file (jpeg/png/webp/heic). Hard cap 50 MiB at the multipart boundary; anything between 5 MiB and 50 MiB is recompressed server-side.
+	Picture openapi_types.File `json:"picture"`
+}
+
+// UploadProfilePicture202JSONResponseBodyDataStatus defines parameters for UploadProfilePicture.
+type UploadProfilePicture202JSONResponseBodyDataStatus string
+
+// UploadProfilePicture202JSONResponseBodyStatus defines parameters for UploadProfilePicture.
+type UploadProfilePicture202JSONResponseBodyStatus string
+
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -1119,6 +1236,9 @@ type CreateBookingSlotJSONRequestBody = BookingSlotRequest
 // UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
 type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
 
+// CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
+type CreateBookingJSONRequestBody CreateBookingJSONBody
+
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
 
@@ -1148,6 +1268,9 @@ type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateProfileRequest
+
+// UploadProfilePictureMultipartRequestBody defines body for UploadProfilePicture for multipart/form-data ContentType.
+type UploadProfilePictureMultipartRequestBody UploadProfilePictureMultipartBody
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
@@ -1208,6 +1331,12 @@ type ServerInterface interface {
 	// Update a booking slot (admin or customer_care only)
 	// (PUT /booking-slots/{id})
 	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// List all active booking slots (public)
+	// (GET /booking-slots/{trainerId})
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
+	// Clients creates a booking session with preferred trainer
+	// (POST /bookings)
+	CreateBooking(c *gin.Context)
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
@@ -1274,6 +1403,9 @@ type ServerInterface interface {
 	// Update the authenticated user's profile (onboarding)
 	// (PATCH /users/me/profile)
 	UpdateUserProfile(c *gin.Context)
+	// Upload an avatar image
+	// (POST /users/me/profile/picture)
+	UploadProfilePicture(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -1611,6 +1743,48 @@ func (siw *ServerInterfaceWrapper) UpdateBookingSlot(c *gin.Context) {
 	siw.Handler.UpdateBookingSlot(c, id)
 }
 
+// GetTrainersBookingSlots operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "trainerId" -------------
+	var trainerId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersBookingSlots(c, trainerId)
+}
+
+// CreateBooking operation middleware
+func (siw *ServerInterfaceWrapper) CreateBooking(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBooking(c)
+}
+
 // BookDiscoveryCall operation middleware
 func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 
@@ -1802,6 +1976,8 @@ func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1826,6 +2002,8 @@ func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1852,6 +2030,8 @@ func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1877,6 +2057,8 @@ func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1901,6 +2083,8 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2126,6 +2310,21 @@ func (siw *ServerInterfaceWrapper) UpdateUserProfile(c *gin.Context) {
 	siw.Handler.UpdateUserProfile(c)
 }
 
+// UploadProfilePicture operation middleware
+func (siw *ServerInterfaceWrapper) UploadProfilePicture(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadProfilePicture(c)
+}
+
 // HandleGetWaitlist operation middleware
 func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
 
@@ -2213,6 +2412,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/booking-slots", wrapper.CreateBookingSlot)
 	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
+	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
+	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
@@ -2235,6 +2436,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
+	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }

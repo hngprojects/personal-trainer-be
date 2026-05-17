@@ -3,7 +3,6 @@ INSERT INTO bookings (
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -16,7 +15,6 @@ INSERT INTO bookings (
   sqlc.arg(trainer_id),
   sqlc.arg(client_id),
   sqlc.arg(subscription_id),
-  sqlc.arg(calendly_event_id),
   sqlc.arg(scheduled_start),
   sqlc.arg(scheduled_end),
   sqlc.arg(timezone),
@@ -31,7 +29,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -50,7 +47,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -72,7 +68,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -101,7 +96,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -110,6 +104,18 @@ RETURNING
   cancellation_reason,
   created_at,
   cancelled_at;
+
+  -- name: GetSubscription :one
+  SELECT
+      id,
+      client_id,
+      trainer_id,
+      status,
+      created_at
+  FROM subscriptions
+  WHERE id = $1
+  AND status = 'active'
+  LIMIT 1;
 
 -- name: ReleaseBookingSlot :execrows
 -- Release a booking slot by marking it as available again
@@ -162,7 +168,6 @@ RETURNING
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -191,3 +196,14 @@ VALUES (
   sqlc.arg(new_start)::timestamptz,
   sqlc.arg(reason)
 );
+
+-- name: GetTrainerUserDetails :one
+SELECT
+    u.id AS id,
+    u.name AS name,
+    u.email AS email,
+    t.id AS trainer_id
+FROM users u
+JOIN trainers t ON u.id = t.user_id
+WHERE t.id = $1
+;
