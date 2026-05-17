@@ -147,7 +147,7 @@ func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _
 	return m.err
 }
 func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
-	return nil
+	return m.err
 }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).

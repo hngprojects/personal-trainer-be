@@ -855,7 +855,8 @@ const bookingConfirmationTemplate = `<!DOCTYPE html>
     <li>Trainer: Coach {{.TrainerName}}.</li>
     <li>Date: {{.Date}}.</li>
     <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
-    <li>Location: Zoom.</li>
+    <li>Location: Zoom</li>
+    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
   </ul>
   <p> Your trainer will check in before the session to help keep you accountable and ready. </p>
   <p>We’re excited to help you stay consistent. </p>
@@ -893,7 +894,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
 	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink)
 	if err != nil {
-		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
+		return fmt.Errorf("smtp: build booking confirmation email: %w", err)
 	}
 	fromAddr, err := sanitizeAddress(m.from)
 	if err != nil {

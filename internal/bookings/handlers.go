@@ -76,7 +76,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	// if trainer is not provided
 	var fieldErrors []api.FieldError
-	if !common.IsNotEmpty(request.TrainerId.String()) {
+	if request.TrainerId == uuid.Nil {
 		h.log.Error("trainer id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "trainers", Message: "please provide a trainer to be booked"})
 	}
@@ -84,18 +84,22 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("timezone is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "timezone", Message: "please provide current timezone"})
 	}
-	if !common.IsNotEmpty(request.SubscriptionId.String()) {
+	if request.SubscriptionId == uuid.Nil {
 		h.log.Error("subscription id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription id is required"})
 	}
 	// Check if booking slot is available
-	if !common.IsNotEmpty(request.ScheduledStart.String()) {
+	if request.ScheduledStart.IsZero() {
 		h.log.Error("select a booking start time")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking start time"})
 	}
-	if !common.IsNotEmpty(request.ScheduledEnd.String()) {
+	if request.ScheduledEnd.IsZero() {
 		h.log.Error("select a booking end time")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking end time"})
+	}
+	if !request.ScheduledStart.IsZero() && !request.ScheduledEnd.IsZero() && request.ScheduledEnd.Before(request.ScheduledStart) {
+		h.log.Error("booking end time must be after start time")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking end time must be after start time"})
 	}
 	if !common.IsNotEmpty(string(request.SessionPlatform)) {
 		h.log.Error("select a session platform")
@@ -136,18 +140,26 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
-		SessionPlatform: sql.NullString{Valid: true, String: defaultSessionPlatform},
+		SessionPlatform: sql.NullString{Valid: true, String: string(request.SessionPlatform)},
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		h.log.Error("failed to get user by id", "err", err)
+		if err == ErrNotFound {
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "user not found"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
 		h.log.Error("failed to get trainer by id", "err", err)
+		if err == ErrNotFound {
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "trainer not found"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
 		return
 	}

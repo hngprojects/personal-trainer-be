@@ -491,6 +491,24 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
+const (
+	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
+	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
+func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
+		return true
+	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
@@ -550,16 +568,16 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
+	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UpdateUserProfile200JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -634,6 +652,23 @@ type BookingSlotRequest struct {
 
 	// StartTime 24h time HH:MM
 	StartTime string `json:"start_time"`
+
+	// Timezone IANA timezone for the slot
+	Timezone *string `json:"timezone,omitempty"`
+}
+
+// BookingSlotResponse defines model for BookingSlotResponse.
+type BookingSlotResponse struct {
+	// DayOfWeek 0=Sunday, 6=Saturday
+	DayOfWeek *int `json:"day_of_week,omitempty"`
+
+	// EndTime 24h time HH:MM
+	EndTime  *string `json:"end_time,omitempty"`
+	Id       *string `json:"id,omitempty"`
+	IsActive *bool   `json:"is_active,omitempty"`
+
+	// StartTime 24h time HH:MM
+	StartTime *string `json:"start_time,omitempty"`
 
 	// Timezone IANA timezone for the slot
 	Timezone *string `json:"timezone,omitempty"`
@@ -1051,6 +1086,9 @@ type GetBookingSlotsParams struct {
 	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
+
+// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlots200JSONResponseBodyStatus string
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
@@ -1668,6 +1706,8 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)

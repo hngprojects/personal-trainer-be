@@ -630,7 +630,6 @@ components:
           type: string
           maxLength: 200
           description: Optional additional details about cancellation
-
     DiscoveryBookingResponse:
       type: object
       description: Booking details response
@@ -2824,7 +2823,13 @@ paths:
                       data:
                         type: array
                         items:
-                          $ref: "`#/components/schemas/BookingSlotResponse`"
+                          $ref: "#/components/schemas/BookingSlotResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
