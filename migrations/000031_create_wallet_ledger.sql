@@ -6,6 +6,7 @@ CREATE TABLE trainer_wallet_ledger (
     reference_type   VARCHAR NOT NULL,
     reference_id     UUID NOT NULL,
     amount           BIGINT NOT NULL,
+    CONSTRAINT chk_wallet_ledger_amount_positive CHECK (amount > 0),
     balance_before   BIGINT NOT NULL,
     balance_after    BIGINT NOT NULL,
     CONSTRAINT chk_balance_calculation CHECK (
