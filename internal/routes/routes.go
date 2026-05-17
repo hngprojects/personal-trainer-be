@@ -78,17 +78,17 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	cfg           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
-	google        *auth.GoogleHandler
-	googleMobile  *auth.MobileGoogleHandler
-	local         *auth.LocalHandler
-	root          *root.RootHandler
-	adminLogin    *handlers.AdminLoginHandler
-	health        *health.HealthHandler
-	waitlist      *waitlist.WaitlistHandler
-	logout        *auth.LogoutHandler
-	refresh       *auth.RefreshHandler
-	passwordReset *auth.PasswordResetHandler
+	cfg            *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
+	google         *auth.GoogleHandler
+	googleMobile   *auth.MobileGoogleHandler
+	local          *auth.LocalHandler
+	root           *root.RootHandler
+	adminLogin     *handlers.AdminLoginHandler
+	health         *health.HealthHandler
+	waitlist       *waitlist.WaitlistHandler
+	logout         *auth.LogoutHandler
+	refresh        *auth.RefreshHandler
+	passwordReset  *auth.PasswordResetHandler
 	trainers       *trainersStore
 	users          *usersStore
 	reviews        *reviewsvc.Service
@@ -186,6 +186,8 @@ func (s *Router) Routes() *gin.Engine {
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
+			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
