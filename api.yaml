@@ -947,7 +947,6 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth — OAuth
         - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
@@ -959,7 +958,6 @@ paths:
       security: []
       operationId: HandleGoogleCallback
       tags:
-        - Auth — OAuth
         - Authentication
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
@@ -1031,7 +1029,7 @@ paths:
       security: []
       operationId: HandleGoogleMobileSignIn
       tags:
-        - Auth — OAuth
+        - Authentication
       summary: Sign in via Google ID token (mobile clients)
       description: >-
         Accepts a Google-signed ID token from a native Android/iOS client and
