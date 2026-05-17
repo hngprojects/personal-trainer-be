@@ -145,6 +145,9 @@ func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ tim
 func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
 	return m.err
 }
+func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
+	return m.err
+}
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
