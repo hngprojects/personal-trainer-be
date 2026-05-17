@@ -13,7 +13,7 @@ tags:
   - name: Health
     description: Health endpoints to verify application health status.
   - name: Authentication
-    description: Handles user identity and access management, including local and OAuth login, registration, email verification, password reset, and JWT session management.
+    description: Handles user identity and access management, including OAuth login, registration, email verification, password reset, and JWT session management.
   - name: User
     description: User profile and onboarding endpoints.
   - name: Trainer
