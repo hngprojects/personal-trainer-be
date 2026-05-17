@@ -183,7 +183,7 @@ func newLocalTestHandler(t *testing.T, users auth.UserRepository, sessions auth.
 	)
 }
 
-func doLocalRequest(t *testing.T, h *auth.LocalHandler, method, path, body string, handlerFn func(*gin.Context)) *httptest.ResponseRecorder {
+func doLocalRequest(t *testing.T, method, path, body string, handlerFn func(*gin.Context)) *httptest.ResponseRecorder {
 	t.Helper()
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
@@ -221,7 +221,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 	users := &fakeLocalUserRepo{}
 	h := newLocalTestHandler(t, users, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusOK {
@@ -245,7 +245,7 @@ func TestVerifyEmail_Success(t *testing.T) {
 func TestVerifyEmail_InvalidCode(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: auth.ErrNotFound}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"000000"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
@@ -256,7 +256,7 @@ func TestVerifyEmail_InvalidCode(t *testing.T) {
 func TestVerifyEmail_MissingCode(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
@@ -267,7 +267,7 @@ func TestVerifyEmail_MissingCode(t *testing.T) {
 func TestVerifyEmail_CodeTooShort(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
@@ -278,7 +278,7 @@ func TestVerifyEmail_CodeTooShort(t *testing.T) {
 func TestVerifyEmail_CodeNotDigits(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"abc123"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
@@ -289,7 +289,7 @@ func TestVerifyEmail_CodeNotDigits(t *testing.T) {
 func TestVerifyEmail_InvalidEmail(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"notanemail","code":"123456"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
@@ -300,7 +300,7 @@ func TestVerifyEmail_InvalidEmail(t *testing.T) {
 func TestVerifyEmail_InvalidJSON(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email", `not json`, h.VerifyEmail)
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email", `not json`, h.VerifyEmail)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
@@ -310,7 +310,7 @@ func TestVerifyEmail_InvalidJSON(t *testing.T) {
 func TestVerifyEmail_MarkVerifiedError(t *testing.T) {
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, &fakeLocalSessionRepo{}, &fakeCodeRepo{}, &fakeLocalAuthRepo{err: errors.New("db error")}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusInternalServerError {
@@ -324,7 +324,7 @@ func TestVerifyEmail_SessionError(t *testing.T) {
 	sessions := &fakeLocalSessionRepo{err: errors.New("session error")}
 	h := newLocalTestHandler(t, &fakeLocalUserRepo{}, sessions, &fakeCodeRepo{}, &fakeLocalAuthRepo{}, &fakeMailer{})
 
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"john@example.com","code":"123456"}`, h.VerifyEmail)
 
 	if w.Code != http.StatusInternalServerError {
@@ -341,7 +341,7 @@ func TestVerifyEmail_RateLimited(t *testing.T) {
 
 	// Exhaust the 5 allowed attempts
 	for i := 0; i < 5; i++ {
-		w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+		w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 			`{"email":"victim@example.com","code":"000000"}`, h.VerifyEmail)
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("attempt %d: expected 400, got %d", i+1, w.Code)
@@ -349,15 +349,9 @@ func TestVerifyEmail_RateLimited(t *testing.T) {
 	}
 
 	// 6th attempt should be rate limited
-	w := doLocalRequest(t, h, http.MethodPost, "/auth/verify-email",
+	w := doLocalRequest(t, http.MethodPost, "/auth/verify-email",
 		`{"email":"victim@example.com","code":"000000"}`, h.VerifyEmail)
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("expected 429 after exceeding attempts, got %d: %s", w.Code, w.Body.String())
 	}
-}
-
-// ── SignIn tests ─────────────────────────────────────────────────────────────
-
-func signinBody(email, password string) string {
-	return `{"email":"` + email + `","password":"` + password + `"}`
 }
