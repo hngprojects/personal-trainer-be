@@ -491,24 +491,6 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
-// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
-const (
-	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
-	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
-func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
-		return true
-	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
@@ -524,6 +506,24 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	case Whatsapp:
 		return true
 	case Zoom:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
+const (
+	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
+	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
+func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
+		return true
+	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -601,16 +601,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UploadProfilePicture202JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1104,15 +1104,6 @@ type HandleRefresh200JSONResponseBodyStatus string
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
-// GetBookingSlotsParams defines parameters for GetBookingSlots.
-type GetBookingSlotsParams struct {
-	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
-	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
-}
-
-// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
-type GetTrainersBookingSlots200JSONResponseBodyStatus string
-
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
 	ScheduledEnd    time.Time                            `json:"scheduled_end"`
@@ -1125,6 +1116,15 @@ type CreateBookingJSONBody struct {
 
 // CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
 type CreateBookingJSONBodySessionPlatform string
+
+// GetBookingSlotsParams defines parameters for GetBookingSlots.
+type GetBookingSlotsParams struct {
+	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+}
+
+// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlots200JSONResponseBodyStatus string
 
 // GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
 type GetUpcomingBookingsParams struct {
@@ -1214,17 +1214,17 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
 
-// CreateBookingSlotJSONRequestBody defines body for CreateBookingSlot for application/json ContentType.
-type CreateBookingSlotJSONRequestBody = BookingSlotRequest
-
-// UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
-type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
-
 // CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
 type CreateBookingJSONRequestBody CreateBookingJSONBody
 
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
+
+// CreateBookingSlotJSONRequestBody defines body for CreateBookingSlot for application/json ContentType.
+type CreateBookingSlotJSONRequestBody = BookingSlotRequest
+
+// UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
+type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
 
 // CancelBookingJSONRequestBody defines body for CancelBooking for application/json ContentType.
 type CancelBookingJSONRequestBody = CancelBookingRequest
@@ -1297,27 +1297,27 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
-	// List all active booking slots (public)
-	// (GET /booking-slots)
-	GetBookingSlots(c *gin.Context, params GetBookingSlotsParams)
-	// Create a booking slot (admin or customer_care only)
-	// (POST /booking-slots)
-	CreateBookingSlot(c *gin.Context)
-	// Delete a booking slot (admin or customer_care only)
-	// (DELETE /booking-slots/{id})
-	DeleteBookingSlot(c *gin.Context, id openapi_types.UUID)
-	// Update a booking slot (admin or customer_care only)
-	// (PUT /booking-slots/{id})
-	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
-	// List all active booking slots (public)
-	// (GET /booking-slots/{trainerId})
-	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
 	// Clients creates a booking session with preferred trainer
 	// (POST /bookings)
 	CreateBooking(c *gin.Context)
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
+	// List all active booking slots (public)
+	// (GET /bookings/slots)
+	GetBookingSlots(c *gin.Context, params GetBookingSlotsParams)
+	// Create a booking slot (admin or customer_care only)
+	// (POST /bookings/slots)
+	CreateBookingSlot(c *gin.Context)
+	// Delete a booking slot (admin or customer_care only)
+	// (DELETE /bookings/slots/{id})
+	DeleteBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// Update a booking slot (admin or customer_care only)
+	// (PUT /bookings/slots/{id})
+	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
+	// List all active booking slots (public)
+	// (GET /bookings/slots/{trainerId})
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
 	// Get upcoming bookings for the authenticated client
 	// (GET /bookings/upcoming)
 	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
@@ -1599,6 +1599,36 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	siw.Handler.HandleVerifyEmail(c)
 }
 
+// CreateBooking operation middleware
+func (siw *ServerInterfaceWrapper) CreateBooking(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBooking(c)
+}
+
+// BookDiscoveryCall operation middleware
+func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.BookDiscoveryCall(c)
+}
+
 // GetBookingSlots operation middleware
 func (siw *ServerInterfaceWrapper) GetBookingSlots(c *gin.Context) {
 
@@ -1720,36 +1750,6 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainersBookingSlots(c, trainerId)
-}
-
-// CreateBooking operation middleware
-func (siw *ServerInterfaceWrapper) CreateBooking(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateBooking(c)
-}
-
-// BookDiscoveryCall operation middleware
-func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.BookDiscoveryCall(c)
 }
 
 // GetUpcomingBookings operation middleware
@@ -2358,13 +2358,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
-	router.GET(options.BaseURL+"/booking-slots", wrapper.GetBookingSlots)
-	router.POST(options.BaseURL+"/booking-slots", wrapper.CreateBookingSlot)
-	router.DELETE(options.BaseURL+"/booking-slots/:id", wrapper.DeleteBookingSlot)
-	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
-	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
+	router.GET(options.BaseURL+"/bookings/slots", wrapper.GetBookingSlots)
+	router.POST(options.BaseURL+"/bookings/slots", wrapper.CreateBookingSlot)
+	router.DELETE(options.BaseURL+"/bookings/slots/:id", wrapper.DeleteBookingSlot)
+	router.PUT(options.BaseURL+"/bookings/slots/:id", wrapper.UpdateBookingSlot)
+	router.GET(options.BaseURL+"/bookings/slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancellation", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
