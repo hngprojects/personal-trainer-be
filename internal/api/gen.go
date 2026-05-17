@@ -1805,6 +1805,8 @@ func (siw *ServerInterfaceWrapper) HandleGetSessionById(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1829,6 +1831,8 @@ func (siw *ServerInterfaceWrapper) HandleCompleteSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -1855,6 +1859,8 @@ func (siw *ServerInterfaceWrapper) HandleJoinSession(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1880,6 +1886,8 @@ func (siw *ServerInterfaceWrapper) HandleTrainersNote(c *gin.Context) {
 		return
 	}
 
+	c.Set(string(BearerAuthScopes), []string{})
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -1904,6 +1912,8 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
 	}
+
+	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
