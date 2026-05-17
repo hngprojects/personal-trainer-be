@@ -9,6 +9,7 @@ INSERT INTO discovery_bookings (
     client_timezone,
     zoom_meeting_link,
     zoom_meeting_id,
+    zoom_passcode,
     status
 ) VALUES (
     sqlc.arg(user_id),
@@ -20,6 +21,7 @@ INSERT INTO discovery_bookings (
     sqlc.arg(client_timezone),
     sqlc.arg(zoom_meeting_link),
     sqlc.arg(zoom_meeting_id),
+    sqlc.arg(zoom_passcode),
     'confirmed'
 )
 RETURNING *;
@@ -87,8 +89,10 @@ UPDATE discovery_bookings
 SET
     zoom_meeting_link = sqlc.arg(zoom_meeting_link),
     zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    zoom_passcode     = sqlc.arg(zoom_passcode),
     updated_at        = NOW()
 WHERE id = sqlc.arg(id)
+  AND zoom_meeting_id IS NULL
 RETURNING *;
 
 -- name: GetDiscoveryBookingByUserID :one
@@ -104,6 +108,7 @@ SET
     phone_number      = sqlc.arg(phone_number),
     zoom_meeting_link = sqlc.arg(zoom_meeting_link),
     zoom_meeting_id   = sqlc.arg(zoom_meeting_id),
+    zoom_passcode     = sqlc.arg(zoom_passcode),
     reschedule_count  = reschedule_count + 1,
     updated_at        = NOW()
 WHERE id = sqlc.arg(id)

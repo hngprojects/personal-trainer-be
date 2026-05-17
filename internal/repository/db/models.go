@@ -28,6 +28,7 @@ type Booking struct {
 	ZoomMeetingLink    sql.NullString
 	ZoomMeetingID      sql.NullString
 	RescheduleCount    int32
+	ZoomPasscode       sql.NullString
 }
 
 type BookingRescheduleHistory struct {
@@ -89,6 +90,7 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
+	ZoomPasscode     sql.NullString
 }
 
 type PaidBookingRescheduleHistory struct {

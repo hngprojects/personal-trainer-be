@@ -3,7 +3,6 @@ package middleware
 import (
 	"database/sql"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +11,13 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/config"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 // TrainersAdminOnly protects /api/v1/trainers* routes.
 // It does not affect other OpenAPI endpoints (auth, health, root).
-func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
+func TrainersAdminOnly(q *db.Queries, cfg *config.Config) api.MiddlewareFunc {
 	return func(c *gin.Context) {
 		// FullPath() is preferred, but can be empty depending on when middleware runs.
 		path := c.FullPath()
@@ -51,7 +51,7 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			}
 		}
 
-		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
+		if cfg.EnableMockAuth && (cfg.Env == "test" || cfg.Env == "development") {
 			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
 			if mockID != "" {

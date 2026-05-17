@@ -164,6 +164,24 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for CreateZoomMeetingRequestBookingType.
+const (
+	CreateZoomMeetingRequestBookingTypeDiscovery   CreateZoomMeetingRequestBookingType = "discovery"
+	CreateZoomMeetingRequestBookingTypePaidSession CreateZoomMeetingRequestBookingType = "paid_session"
+)
+
+// Valid indicates whether the value is a known member of the CreateZoomMeetingRequestBookingType enum.
+func (e CreateZoomMeetingRequestBookingType) Valid() bool {
+	switch e {
+	case CreateZoomMeetingRequestBookingTypeDiscovery:
+		return true
+	case CreateZoomMeetingRequestBookingTypePaidSession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorResponseStatus.
 const (
 	ErrorResponseStatusError   ErrorResponseStatus = "error"
@@ -493,16 +511,16 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for GetUpcomingBookingsParamsType.
 const (
-	DiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
-	PaidSession   GetUpcomingBookingsParamsType = "paid_session"
+	GetUpcomingBookingsParamsTypeDiscoveryCall GetUpcomingBookingsParamsType = "discovery_call"
+	GetUpcomingBookingsParamsTypePaidSession   GetUpcomingBookingsParamsType = "paid_session"
 )
 
 // Valid indicates whether the value is a known member of the GetUpcomingBookingsParamsType enum.
 func (e GetUpcomingBookingsParamsType) Valid() bool {
 	switch e {
-	case DiscoveryCall:
+	case GetUpcomingBookingsParamsTypeDiscoveryCall:
 		return true
-	case PaidSession:
+	case GetUpcomingBookingsParamsTypePaidSession:
 		return true
 	default:
 		return false
@@ -683,6 +701,18 @@ type CreateTrainerRequest struct {
 
 // CreateTrainerRequestOnboardingStatus defines model for CreateTrainerRequest.OnboardingStatus.
 type CreateTrainerRequestOnboardingStatus string
+
+// CreateZoomMeetingRequest defines model for CreateZoomMeetingRequest.
+type CreateZoomMeetingRequest struct {
+	// BookingId ID of the booking to create a Zoom meeting for
+	BookingId openapi_types.UUID `json:"booking_id"`
+
+	// BookingType Type of booking
+	BookingType CreateZoomMeetingRequestBookingType `json:"booking_type"`
+}
+
+// CreateZoomMeetingRequestBookingType Type of booking
+type CreateZoomMeetingRequestBookingType string
 
 // CursorPaginationMeta defines model for CursorPaginationMeta.
 type CursorPaginationMeta struct {
@@ -1131,6 +1161,9 @@ type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
+// CreateZoomMeetingJSONRequestBody defines body for CreateZoomMeeting for application/json ContentType.
+type CreateZoomMeetingJSONRequestBody = CreateZoomMeetingRequest
+
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
@@ -1229,6 +1262,9 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// Create a Zoom meeting for a booking (internal)
+	// (POST /integrations/zoom/create-meeting)
+	CreateZoomMeeting(c *gin.Context)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -1772,6 +1808,21 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	siw.Handler.HealthCheck(c)
 }
 
+// CreateZoomMeeting operation middleware
+func (siw *ServerInterfaceWrapper) CreateZoomMeeting(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateZoomMeeting(c)
+}
+
 // CreateReview operation middleware
 func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 
@@ -2220,6 +2271,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.POST(options.BaseURL+"/integrations/zoom/create-meeting", wrapper.CreateZoomMeeting)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)

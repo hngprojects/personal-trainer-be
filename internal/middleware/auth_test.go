@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -18,10 +19,8 @@ import (
 )
 
 func init() {
+	auth.Configure("test-secret")
 	gin.SetMode(gin.TestMode)
-	if err := os.Setenv("JWT_SECRET", "test-secret"); err != nil {
-		panic(err)
-	}
 }
 
 type fakeRedis struct {

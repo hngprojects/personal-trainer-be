@@ -106,6 +106,7 @@ INSERT INTO discovery_bookings (
     client_timezone,
     zoom_meeting_link,
     zoom_meeting_id,
+    zoom_passcode,
     status
 ) VALUES (
     $1,
@@ -117,9 +118,10 @@ INSERT INTO discovery_bookings (
     $7,
     $8,
     $9,
+    $10,
     'confirmed'
 )
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode
 `
 
 type CreateDiscoveryBookingParams struct {
@@ -132,6 +134,7 @@ type CreateDiscoveryBookingParams struct {
 	ClientTimezone   string
 	ZoomMeetingLink  sql.NullString
 	ZoomMeetingID    sql.NullString
+	ZoomPasscode     sql.NullString
 }
 
 func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscoveryBookingParams) (DiscoveryBooking, error) {
@@ -145,6 +148,7 @@ func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscover
 		arg.ClientTimezone,
 		arg.ZoomMeetingLink,
 		arg.ZoomMeetingID,
+		arg.ZoomPasscode,
 	)
 	var i DiscoveryBooking
 	err := row.Scan(
@@ -162,6 +166,7 @@ func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscover
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.RescheduleCount,
+		&i.ZoomPasscode,
 	)
 	return i, err
 }
@@ -278,7 +283,7 @@ func (q *Queries) GetBookingSlotByID(ctx context.Context, id uuid.UUID) (Booking
 }
 
 const getDiscoveryBookingByID = `-- name: GetDiscoveryBookingByID :one
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode FROM discovery_bookings
 WHERE id = $1
 LIMIT 1
 `
@@ -301,12 +306,13 @@ func (q *Queries) GetDiscoveryBookingByID(ctx context.Context, id uuid.UUID) (Di
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.RescheduleCount,
+		&i.ZoomPasscode,
 	)
 	return i, err
 }
 
 const getDiscoveryBookingByUserID = `-- name: GetDiscoveryBookingByUserID :one
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode FROM discovery_bookings
 WHERE user_id = $1
   AND status NOT IN ('cancelled')
 LIMIT 1
@@ -330,12 +336,13 @@ func (q *Queries) GetDiscoveryBookingByUserID(ctx context.Context, userID uuid.N
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.RescheduleCount,
+		&i.ZoomPasscode,
 	)
 	return i, err
 }
 
 const getUpcomingDiscoveryBookings = `-- name: GetUpcomingDiscoveryBookings :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode FROM discovery_bookings
 WHERE user_id = $1
   AND selected_datetime > NOW()
   AND status NOT IN ('cancelled', 'completed')
@@ -366,6 +373,7 @@ func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.
 			&i.UpdatedAt,
 			&i.UserID,
 			&i.RescheduleCount,
+			&i.ZoomPasscode,
 		); err != nil {
 			return nil, err
 		}
@@ -381,7 +389,7 @@ func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.
 }
 
 const listDiscoveryBookings = `-- name: ListDiscoveryBookings :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode FROM discovery_bookings
 ORDER BY selected_datetime ASC
 `
 
@@ -409,6 +417,7 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 			&i.UpdatedAt,
 			&i.UserID,
 			&i.RescheduleCount,
+			&i.ZoomPasscode,
 		); err != nil {
 			return nil, err
 		}
@@ -430,10 +439,11 @@ SET
     phone_number      = $2,
     zoom_meeting_link = $3,
     zoom_meeting_id   = $4,
+    zoom_passcode     = $5,
     reschedule_count  = reschedule_count + 1,
     updated_at        = NOW()
-WHERE id = $5
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
+WHERE id = $6
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode
 `
 
 type RescheduleDiscoveryBookingParams struct {
@@ -441,6 +451,7 @@ type RescheduleDiscoveryBookingParams struct {
 	PhoneNumber      sql.NullString
 	ZoomMeetingLink  sql.NullString
 	ZoomMeetingID    sql.NullString
+	ZoomPasscode     sql.NullString
 	ID               uuid.UUID
 }
 
@@ -450,6 +461,7 @@ func (q *Queries) RescheduleDiscoveryBooking(ctx context.Context, arg Reschedule
 		arg.PhoneNumber,
 		arg.ZoomMeetingLink,
 		arg.ZoomMeetingID,
+		arg.ZoomPasscode,
 		arg.ID,
 	)
 	var i DiscoveryBooking
@@ -468,6 +480,7 @@ func (q *Queries) RescheduleDiscoveryBooking(ctx context.Context, arg Reschedule
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.RescheduleCount,
+		&i.ZoomPasscode,
 	)
 	return i, err
 }
@@ -523,19 +536,27 @@ UPDATE discovery_bookings
 SET
     zoom_meeting_link = $1,
     zoom_meeting_id   = $2,
+    zoom_passcode     = $3,
     updated_at        = NOW()
-WHERE id = $3
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count
+WHERE id = $4
+  AND zoom_meeting_id IS NULL
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, zoom_passcode
 `
 
 type UpdateDiscoveryBookingZoomParams struct {
 	ZoomMeetingLink sql.NullString
 	ZoomMeetingID   sql.NullString
+	ZoomPasscode    sql.NullString
 	ID              uuid.UUID
 }
 
 func (q *Queries) UpdateDiscoveryBookingZoom(ctx context.Context, arg UpdateDiscoveryBookingZoomParams) (DiscoveryBooking, error) {
-	row := q.db.QueryRowContext(ctx, updateDiscoveryBookingZoom, arg.ZoomMeetingLink, arg.ZoomMeetingID, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateDiscoveryBookingZoom,
+		arg.ZoomMeetingLink,
+		arg.ZoomMeetingID,
+		arg.ZoomPasscode,
+		arg.ID,
+	)
 	var i DiscoveryBooking
 	err := row.Scan(
 		&i.ID,
@@ -552,6 +573,7 @@ func (q *Queries) UpdateDiscoveryBookingZoom(ctx context.Context, arg UpdateDisc
 		&i.UpdatedAt,
 		&i.UserID,
 		&i.RescheduleCount,
+		&i.ZoomPasscode,
 	)
 	return i, err
 }

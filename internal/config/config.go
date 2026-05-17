@@ -37,6 +37,8 @@ type Config struct {
 	ZoomClientSecret string
 
 	NotificationEmail string
+
+	EnableMockAuth bool
 }
 
 func Load() (*Config, error) {
@@ -73,6 +75,8 @@ func Load() (*Config, error) {
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
 
 		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
+
+		EnableMockAuth: os.Getenv("ENABLE_MOCK_AUTH") == "1",
 	}
 
 	if cfg.DatabaseURL == "" {

@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 
 func init() {
 	gin.SetMode(gin.TestMode)
-	_ = os.Setenv("JWT_SECRET", "test-secret") // init() context — t.Setenv unavailable
+	auth.Configure("test-secret")
 }
 
 type fakeRedis struct {

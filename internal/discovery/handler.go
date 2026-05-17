@@ -143,13 +143,15 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
+	var zoomPasscode string
 	if req.ContactMode == api.ZoomMeeting {
-		zoomLink, zoomMeetingID = h.createMeetingWithRetry(ctx, selectedTime)
+		zoomLink, zoomMeetingID, zoomPasscode = h.createMeeting(ctx, selectedTime)
 		if zoomLink != "" {
 			if updated, err := h.repo.UpdateBookingZoom(ctx, db.UpdateDiscoveryBookingZoomParams{
 				ID:              booking.ID,
 				ZoomMeetingLink: sql.NullString{String: zoomLink, Valid: true},
 				ZoomMeetingID:   sql.NullString{String: zoomMeetingID, Valid: true},
+				ZoomPasscode:    sql.NullString{String: zoomPasscode, Valid: zoomPasscode != ""},
 			}); err == nil {
 				booking = updated
 			} else {
@@ -444,14 +446,16 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	newZoomLink := booking.ZoomMeetingLink
 	newZoomMeetingID := booking.ZoomMeetingID
 	oldZoomMeetingID := ""
+	var newZoomPasscode sql.NullString
 	if booking.ContactMode == "zoom_meeting" {
-		link, meetID := h.createMeetingWithRetry(ctx, newTime)
+		link, meetID, pass := h.createMeeting(ctx, newTime)
 		if link != "" {
 			if booking.ZoomMeetingID.Valid {
 				oldZoomMeetingID = booking.ZoomMeetingID.String
 			}
 			newZoomLink = sql.NullString{String: link, Valid: true}
 			newZoomMeetingID = sql.NullString{String: meetID, Valid: true}
+			newZoomPasscode = sql.NullString{String: pass, Valid: pass != ""}
 		}
 	}
 
@@ -473,6 +477,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		PhoneNumber:      phoneNumber,
 		ZoomMeetingLink:  newZoomLink,
 		ZoomMeetingID:    newZoomMeetingID,
+		ZoomPasscode:     newZoomPasscode,
 	})
 	if err != nil {
 		// Clean up the newly created Zoom meeting to avoid orphaned state.
@@ -567,33 +572,17 @@ func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Ti
 	return fmt.Errorf("selected time is outside available booking hours")
 }
 
-func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Time) (link, meetingID string) {
+func (h *Handler) createMeeting(ctx context.Context, startTime time.Time) (link, meetingID, passcode string) {
 	if !h.meeting.IsConfigured() {
 		h.log.Warn("meeting provider not configured — skipping meeting creation")
-		return "", ""
+		return "", "", ""
 	}
-	const maxAttempts = 3
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		select {
-		case <-ctx.Done():
-			return "", ""
-		default:
-		}
-		l, id, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
-		if err == nil {
-			return l, id
-		}
-		h.log.Warn("zoom meeting creation failed, retrying", "attempt", attempt, "err", err)
-		if attempt < maxAttempts {
-			select {
-			case <-time.After(time.Duration(attempt) * time.Second):
-			case <-ctx.Done():
-				return "", ""
-			}
-		}
+	l, id, pass, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
+	if err != nil {
+		h.log.Error("zoom meeting creation failed", "err", err)
+		return "", "", ""
 	}
-	h.log.Error("zoom meeting creation failed after all retries")
-	return "", ""
+	return l, id, pass
 }
 
 func nullString(s *string) sql.NullString {
@@ -714,7 +703,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	}
 
 	// Fetch discovery calls
-	if filterType == "" || filterType == string(api.DiscoveryCall) {
+	if filterType == "" || filterType == string(api.GetUpcomingBookingsParamsTypeDiscoveryCall) {
 		discovery, err := h.repo.GetUpcomingDiscoveryBookings(ctx, userID)
 		if err != nil {
 			h.log.Error("failed to get upcoming discovery bookings", "err", err, "user_id", userID)
@@ -746,7 +735,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	}
 
 	// Fetch paid sessions
-	if filterType == "" || filterType == string(api.PaidSession) {
+	if filterType == "" || filterType == string(api.GetUpcomingBookingsParamsTypePaidSession) {
 		sessions, err := h.repo.GetUpcomingPaidSessions(ctx, userID)
 		if err != nil {
 			h.log.Error("failed to get upcoming paid sessions", "err", err, "user_id", userID)

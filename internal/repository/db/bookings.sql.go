@@ -150,6 +150,7 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count
 `
 
@@ -168,7 +169,27 @@ type CreateBookingParams struct {
 	CancelledAt        sql.NullTime
 }
 
-func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
+type CreateBookingRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	ZoomPasscode       sql.NullString
+	RescheduleCount    int32
+}
+
+func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (CreateBookingRow, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
 		arg.ClientID,
@@ -183,7 +204,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.CreatedAt,
 		arg.CancelledAt,
 	)
-	var i Booking
+	var i CreateBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -200,6 +221,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.CancelledAt,
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
+		&i.ZoomPasscode,
 		&i.RescheduleCount,
 	)
 	return i, err
@@ -249,15 +271,36 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count
 FROM bookings
 WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, error) {
+type GetBookingByIDRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	ZoomPasscode       sql.NullString
+	RescheduleCount    int32
+}
+
+func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (GetBookingByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByID, id)
-	var i Booking
+	var i GetBookingByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -274,6 +317,7 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.CancelledAt,
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
+		&i.ZoomPasscode,
 		&i.RescheduleCount,
 	)
 	return i, err
@@ -303,9 +347,28 @@ LIMIT 1
 FOR UPDATE
 `
 
-func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Booking, error) {
+type GetBookingByIDForUpdateRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	RescheduleCount    int32
+}
+
+func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (GetBookingByIDForUpdateRow, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByIDForUpdate, id)
-	var i Booking
+	var i GetBookingByIDForUpdateRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -325,6 +388,55 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.RescheduleCount,
 	)
 	return i, err
+}
+
+const getBookingZoomInfo = `-- name: GetBookingZoomInfo :one
+SELECT
+  id,
+  scheduled_start,
+  scheduled_end,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  zoom_passcode
+FROM bookings
+WHERE id = $1
+LIMIT 1
+`
+
+type GetBookingZoomInfoRow struct {
+	ID              uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ZoomPasscode    sql.NullString
+}
+
+func (q *Queries) GetBookingZoomInfo(ctx context.Context, id uuid.UUID) (GetBookingZoomInfoRow, error) {
+	row := q.db.QueryRowContext(ctx, getBookingZoomInfo, id)
+	var i GetBookingZoomInfoRow
+	err := row.Scan(
+		&i.ID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.ZoomPasscode,
+	)
+	return i, err
+}
+
+const getBookingZoomMeetingID = `-- name: GetBookingZoomMeetingID :one
+SELECT zoom_meeting_id FROM bookings
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetBookingZoomMeetingID(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getBookingZoomMeetingID, id)
+	var zoom_meeting_id sql.NullString
+	err := row.Scan(&zoom_meeting_id)
+	return zoom_meeting_id, err
 }
 
 const getUpcomingPaidSessions = `-- name: GetUpcomingPaidSessions :many
@@ -462,6 +574,7 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
+  zoom_passcode,
   reschedule_count
 `
 
@@ -473,7 +586,27 @@ type ReschedulePaidBookingParams struct {
 	ID              uuid.UUID
 }
 
-func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidBookingParams) (Booking, error) {
+type ReschedulePaidBookingRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	CalendlyEventID    sql.NullString
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	ZoomPasscode       sql.NullString
+	RescheduleCount    int32
+}
+
+func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidBookingParams) (ReschedulePaidBookingRow, error) {
 	row := q.db.QueryRowContext(ctx, reschedulePaidBooking,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
@@ -481,7 +614,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		arg.ZoomMeetingID,
 		arg.ID,
 	)
-	var i Booking
+	var i ReschedulePaidBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -498,7 +631,57 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.CancelledAt,
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
+		&i.ZoomPasscode,
 		&i.RescheduleCount,
+	)
+	return i, err
+}
+
+const updateBookingZoom = `-- name: UpdateBookingZoom :one
+UPDATE bookings
+SET
+  zoom_meeting_link = $1,
+  zoom_meeting_id   = $2,
+  zoom_passcode     = $3
+WHERE id = $4
+  AND zoom_meeting_id IS NULL
+RETURNING
+  id,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  zoom_passcode,
+  booking_status
+`
+
+type UpdateBookingZoomParams struct {
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ZoomPasscode    sql.NullString
+	ID              uuid.UUID
+}
+
+type UpdateBookingZoomRow struct {
+	ID              uuid.UUID
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ZoomPasscode    sql.NullString
+	BookingStatus   sql.NullString
+}
+
+func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomParams) (UpdateBookingZoomRow, error) {
+	row := q.db.QueryRowContext(ctx, updateBookingZoom,
+		arg.ZoomMeetingLink,
+		arg.ZoomMeetingID,
+		arg.ZoomPasscode,
+		arg.ID,
+	)
+	var i UpdateBookingZoomRow
+	err := row.Scan(
+		&i.ID,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.ZoomPasscode,
+		&i.BookingStatus,
 	)
 	return i, err
 }

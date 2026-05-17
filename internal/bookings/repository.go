@@ -8,9 +8,9 @@ import (
 )
 
 type Repository interface {
-	GetBookingByID(ctx context.Context, id uuid.UUID) (db.Booking, error)
+	GetBookingByID(ctx context.Context, id uuid.UUID) (db.GetBookingByIDRow, error)
 	CheckPaidBookingConflict(ctx context.Context, arg db.CheckPaidBookingConflictParams) (int64, error)
-	ReschedulePaidBooking(ctx context.Context, arg db.ReschedulePaidBookingParams) (db.Booking, error)
+	ReschedulePaidBooking(ctx context.Context, arg db.ReschedulePaidBookingParams) (db.ReschedulePaidBookingRow, error)
 	CreatePaidRescheduleHistory(ctx context.Context, arg db.CreatePaidRescheduleHistoryParams) error
 	GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error)
 	GetTrainerByID(ctx context.Context, id uuid.UUID) (db.Trainer, error)
@@ -24,7 +24,7 @@ func NewPostgresRepo(q *db.Queries) Repository {
 	return &postgresRepo{q: q}
 }
 
-func (r *postgresRepo) GetBookingByID(ctx context.Context, id uuid.UUID) (db.Booking, error) {
+func (r *postgresRepo) GetBookingByID(ctx context.Context, id uuid.UUID) (db.GetBookingByIDRow, error) {
 	return r.q.GetBookingByID(ctx, id)
 }
 
@@ -32,7 +32,7 @@ func (r *postgresRepo) CheckPaidBookingConflict(ctx context.Context, arg db.Chec
 	return r.q.CheckPaidBookingConflict(ctx, arg)
 }
 
-func (r *postgresRepo) ReschedulePaidBooking(ctx context.Context, arg db.ReschedulePaidBookingParams) (db.Booking, error) {
+func (r *postgresRepo) ReschedulePaidBooking(ctx context.Context, arg db.ReschedulePaidBookingParams) (db.ReschedulePaidBookingRow, error) {
 	return r.q.ReschedulePaidBooking(ctx, arg)
 }
 

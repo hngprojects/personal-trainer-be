@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -17,11 +16,7 @@ const (
 	RefreshToken TokenType = "refresh"
 )
 
-// jwtSecret is set once at process startup via Configure. Production callers
-// invoke Configure from main.go after config.Load() succeeds. Tests that don't
-// call Configure fall back to the JWT_SECRET env var (see resolveSecret),
-// preserving the older test fixture pattern without requiring every test to
-// thread Configure through.
+// jwtSecret is set once at process startup via Configure.
 var jwtSecret []byte
 
 // Configure stores the JWT signing secret loaded from config. Call once at
@@ -35,10 +30,7 @@ func Configure(s string) {
 }
 
 func resolveSecret() []byte {
-	if len(jwtSecret) > 0 {
-		return jwtSecret
-	}
-	return []byte(os.Getenv("JWT_SECRET"))
+	return jwtSecret
 }
 
 func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {

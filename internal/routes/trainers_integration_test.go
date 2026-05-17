@@ -88,11 +88,7 @@ RETURNING id
 
 func tokenFor(t *testing.T, userID string) string {
 	t.Helper()
-
-	if os.Getenv("JWT_SECRET") == "" {
-		_ = os.Setenv("JWT_SECRET", "test-secret")
-	}
-
+	auth.Configure("test-secret")
 	tok, err := auth.GenerateJWTToken(userID, auth.AccessToken)
 	require.NoError(t, err)
 	return tok
