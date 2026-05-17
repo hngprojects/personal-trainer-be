@@ -107,6 +107,12 @@ func (u *AvatarUploader) Start(workers int) {
 // Safe to call concurrently with Enqueue (sync.RWMutex serialises the close
 // with any in-flight Enqueue) and safe to call multiple times (the closed
 // flag prevents double-close).
+//
+// stopCh is closed BEFORE wg.Wait() so workers parked in retry-backoff
+// (`time.After(backoff)` inside process()) can short-circuit via the
+// `<-u.stopCh` select branch and exit immediately. If we closed stopCh after
+// the wait, a worker mid-backoff would sleep the full 1s/2s/4s before
+// noticing shutdown — extending termination by up to 7 seconds per worker.
 func (u *AvatarUploader) Stop() {
 	u.mu.Lock()
 	if u.closed {
@@ -115,10 +121,10 @@ func (u *AvatarUploader) Stop() {
 	}
 	u.closed = true
 	close(u.jobs)
+	close(u.stopCh)
 	u.mu.Unlock()
 
 	u.wg.Wait()
-	close(u.stopCh)
 }
 
 // Enqueue submits a job non-blockingly. Returns:
