@@ -45,6 +45,41 @@ jobs:
         with:
           version: v2.12.2
 
+      # Catches the most painful recurring issue in this repo: two PRs both
+      # picking the same migration version number, which makes goose panic on
+      # the next deploy. Has happened repeatedly — failing the PR here costs
+      # the author 30 seconds to rebase + renumber; finding it on a staging
+      # deploy costs an hour of unwinding orphan files.
+      - name: migrations have unique version numbers
+        run: |
+          dupes=$(ls migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration version numbers detected:"
+            for v in $dupes; do
+              echo "::error::  v$v ->"
+              ls migrations/${v}_*.sql | sed 's/^/    /'
+            done
+            echo "::error::Renumber the later-merged migration to the next free slot."
+            exit 1
+          fi
+
+      # Sibling guard: same goose-panic cause but for ALTER-style migrations
+      # that get duplicated under different version numbers (e.g. three files
+      # named *_add_trainer_id_to_booking_slots.sql at versions 13, 24, 27).
+      # The first one runs fine; subsequent ones error "column already exists".
+      - name: migrations have unique intent (no duplicate filenames after the version prefix)
+        run: |
+          dupes=$(ls migrations/*.sql | xargs -n1 basename | sed 's/^[0-9]*_//' | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration intent (same name suffix in multiple files):"
+            for name in $dupes; do
+              echo "::error::  $name ->"
+              ls migrations/*_${name} 2>/dev/null | sed 's/^/    /'
+            done
+            echo "::error::Delete the redundant migration(s); a column can only be added once."
+            exit 1
+          fi
+
   test:
     name: Test
     runs-on: ubuntu-latest
