@@ -529,12 +529,45 @@ func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for UpdateUserProfile200JSONResponseBodyStatus.
 const (
-	Error   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	Success UpdateUserProfile200JSONResponseBodyStatus = "success"
+	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
+	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
 func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case UpdateUserProfile200JSONResponseBodyStatusError:
+		return true
+	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyDataStatus.
+const (
+	Processing UploadProfilePicture202JSONResponseBodyDataStatus = "processing"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyDataStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case Processing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadProfilePicture202JSONResponseBodyStatus.
+const (
+	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
+func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
 	case Error:
 		return true
@@ -754,11 +787,6 @@ type LocalAuthData struct {
 	ExpiresIn    int      `json:"expires_in"`
 	RefreshToken string   `json:"refresh_token"`
 	User         AuthUser `json:"user"`
-}
-
-// RegisterRequest defines model for RegisterRequest.
-type RegisterRequest struct {
-	Email openapi_types.Email `json:"email"`
 }
 
 // RescheduleBookingRequest defines model for RescheduleBookingRequest.
@@ -1003,11 +1031,6 @@ type HandleGoogleCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
-// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
-type HandleLocalAuthJSONBody struct {
-	Email openapi_types.Email `json:"email"`
-}
-
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
@@ -1078,6 +1101,18 @@ type GetUserProfile200JSONResponseBodyStatus string
 // UpdateUserProfile200JSONResponseBodyStatus defines parameters for UpdateUserProfile.
 type UpdateUserProfile200JSONResponseBodyStatus string
 
+// UploadProfilePictureMultipartBody defines parameters for UploadProfilePicture.
+type UploadProfilePictureMultipartBody struct {
+	// Picture Image file (jpeg/png/webp/heic). Hard cap 50 MiB at the multipart boundary; anything between 5 MiB and 50 MiB is recompressed server-side.
+	Picture openapi_types.File `json:"picture"`
+}
+
+// UploadProfilePicture202JSONResponseBodyDataStatus defines parameters for UploadProfilePicture.
+type UploadProfilePicture202JSONResponseBodyDataStatus string
+
+// UploadProfilePicture202JSONResponseBodyStatus defines parameters for UploadProfilePicture.
+type UploadProfilePicture202JSONResponseBodyStatus string
+
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
@@ -1095,17 +1130,11 @@ type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 // HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
 type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
-// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
-type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
-
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
 // HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
 type HandleRefreshJSONRequestBody HandleRefreshJSONBody
-
-// HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
-type HandleRegisterJSONRequestBody = RegisterRequest
 
 // HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
 type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
@@ -1149,6 +1178,9 @@ type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateProfileRequest
 
+// UploadProfilePictureMultipartRequestBody defines body for UploadProfilePicture for multipart/form-data ContentType.
+type UploadProfilePictureMultipartRequestBody UploadProfilePictureMultipartBody
+
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
@@ -1158,10 +1190,10 @@ type ServerInterface interface {
 	// (GET /)
 	Root(c *gin.Context)
 	// Create an admin account (super_admin only)
-	// (POST /admin/add)
+	// (POST /admin)
 	AdminAdd(c *gin.Context)
 	// Approve a trainer
-	// (PUT /admin/trainers/{id}/approve)
+	// (PUT /admin/trainers/{id}/approval)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
@@ -1178,18 +1210,12 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
-	// Login with email
-	// (POST /auth/login)
-	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
 	// Refresh access token
 	// (POST /auth/refresh)
 	HandleRefresh(c *gin.Context)
-	// Register or request a new OTP — sends a 6-digit verification code to the email
-	// (POST /auth/register)
-	HandleRegister(c *gin.Context)
 	// Reset password using a previously emailed code
 	// (POST /auth/reset-password)
 	HandleResetPassword(c *gin.Context)
@@ -1215,13 +1241,13 @@ type ServerInterface interface {
 	// (GET /bookings/upcoming)
 	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
 	// Cancel a confirmed booking
-	// (PUT /bookings/{id}/cancel)
+	// (PUT /bookings/{id}/cancellation)
 	CancelBooking(c *gin.Context, id openapi_types.UUID)
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// Handle taking user feedback
-	// (POST /contact-us)
+	// (POST /contact)
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
@@ -1247,7 +1273,7 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
-	// Get trainers (admin only)
+	// Get trainers
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
 	// Add trainer (admin only)
@@ -1259,7 +1285,7 @@ type ServerInterface interface {
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
-	// Get trainer by ID (admin only)
+	// Get trainer by ID
 	// (GET /trainers/{id})
 	GetTrainerByID(c *gin.Context, id openapi_types.UUID)
 	// Update trainer (admin only)
@@ -1274,6 +1300,9 @@ type ServerInterface interface {
 	// Update the authenticated user's profile (onboarding)
 	// (PATCH /users/me/profile)
 	UpdateUserProfile(c *gin.Context)
+	// Upload an avatar image
+	// (POST /users/me/profile-picture)
+	UploadProfilePicture(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -1433,19 +1462,6 @@ func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
 	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
-// HandleLocalAuth operation middleware
-func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleLocalAuth(c)
-}
-
 // HandleLogout operation middleware
 func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
@@ -1474,19 +1490,6 @@ func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
 	}
 
 	siw.Handler.HandleRefresh(c)
-}
-
-// HandleRegister operation middleware
-func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HandleRegister(c)
 }
 
 // HandleResetPassword operation middleware
@@ -2126,6 +2129,21 @@ func (siw *ServerInterfaceWrapper) UpdateUserProfile(c *gin.Context) {
 	siw.Handler.UpdateUserProfile(c)
 }
 
+// UploadProfilePicture operation middleware
+func (siw *ServerInterfaceWrapper) UploadProfilePicture(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadProfilePicture(c)
+}
+
 // HandleGetWaitlist operation middleware
 func (siw *ServerInterfaceWrapper) HandleGetWaitlist(c *gin.Context) {
 
@@ -2196,17 +2214,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
-	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
-	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.POST(options.BaseURL+"/admin", wrapper.AdminAdd)
+	router.PUT(options.BaseURL+"/admin/trainers/:id/approval", wrapper.AdminApproveTrainer)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
-	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
-	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
 	router.GET(options.BaseURL+"/booking-slots", wrapper.GetBookingSlots)
@@ -2215,9 +2231,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/booking-slots/:id", wrapper.UpdateBookingSlot)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
-	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
+	router.PUT(options.BaseURL+"/bookings/:id/cancellation", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
-	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
+	router.POST(options.BaseURL+"/contact", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
@@ -2235,6 +2251,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
+	router.POST(options.BaseURL+"/users/me/profile-picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }
