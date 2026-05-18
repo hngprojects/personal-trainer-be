@@ -143,7 +143,7 @@ func main() {
 			DisplayPicture:    sql.NullString{Valid: false},
 			CalendlyConnected: false,
 			CalendlyLink:      sql.NullString{Valid: false},
-			OnboardingStatus:  "completed",
+			OnboardingStatus:  "approved",
 		})
 		if err != nil {
 			log.Printf("warning: failed to create trainer record for %s: %v", t.name, err)
