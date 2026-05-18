@@ -1793,6 +1793,363 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/{id}/images:
+    post:
+      operationId: UploadTrainerImages
+      tags:
+        - Trainer
+      summary: Upload gallery images for a trainer (admin only)
+      description: |
+        Upload one or more images to a trainer's gallery. Each request can carry
+        up to 5 images in a single multipart `images` field; the server caps
+        the total stored per trainer at 5 (existing + incoming). If the cap
+        would be exceeded, the request is rejected entirely — no partial
+        success.
+
+        Accepted formats: JPEG, PNG, WebP, HEIC. Each image up to 5 MiB
+        (matches the avatar size policy). Uploads are async (workers), the
+        202 response includes the URLs the images will appear at once the
+        workers complete.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  minItems: 1
+                  maxItems: 5
+      responses:
+        "202":
+          description: Upload(s) accepted and queued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [image_urls, status]
+                        properties:
+                          image_urls:
+                            type: array
+                            items:
+                              type: string
+                              format: uri
+                          status:
+                            type: string
+                            enum: [processing]
+        "400":
+          description: Missing/invalid multipart, unsupported MIME, or 5-image cap exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: One or more files exceed the size limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Storage backend not configured or queue full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: ListTrainerImages
+      tags:
+        - Trainer
+      summary: List the gallery images for a trainer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Image list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, image_url, position]
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            image_url:
+                              type: string
+                              format: uri
+                            position:
+                              type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/images/{image_id}:
+    delete:
+      operationId: DeleteTrainerImage
+      tags:
+        - Trainer
+      summary: Delete one gallery image (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: image_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Image deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Image not found (or doesn't belong to this trainer)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/intro-video/stream:
+    get:
+      operationId: StreamTrainerIntroVideo
+      tags:
+        - Trainer
+      summary: Stream the trainer's intro video
+      description: |
+        Returns a 302 redirect to the trainer's intro video in object storage.
+        Clients (HTML5 `<video>` tags, mobile players) follow the redirect
+        and the byte stream is served directly by MinIO/nginx — our Go
+        server is not on the data path, so there is no buffering overhead
+        and Range requests for seeking work natively. The transcoded MP4
+        has `moov` at the start (faststart) so playback begins as soon as
+        the player has the first few hundred KB.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "302":
+          description: Redirect to the underlying video URL
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found, or trainer has no intro video
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/intro-video:
+    post:
+      operationId: UploadTrainerIntroVideo
+      tags:
+        - Trainer
+      summary: Upload an intro video for a trainer (admin only)
+      description: |
+        Upload a trainer's intro video. The request must be `multipart/form-data`
+        with a single `video` part. Accepted formats: anything ffmpeg recognises
+        (mp4, mov, mkv, webm, etc.).
+
+        Hard limits:
+          - 500 MiB on the wire
+          - 10 minutes duration
+
+        The upload is **asynchronous**: the handler streams the file to a temp
+        location, validates with ffprobe, queues a background job, and returns
+        202 immediately. The job transcodes to H.264/720p MP4 (CRF 28), uploads
+        to MinIO, and updates `trainers.intro_video_url`. The endpoint returns
+        the URL the video will be available at once the worker completes —
+        clients can optimistically display it.
+
+        On failure the URL will 404 and the trainer row is not updated; a row
+        is written to `failed_video_uploads` for ops visibility.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [video]
+              properties:
+                video:
+                  type: string
+                  format: binary
+                  description: Video file (any ffmpeg-readable codec). Hard cap 500 MiB; transcoded to H.264 MP4 server-side regardless of input.
+      responses:
+        "202":
+          description: Upload accepted and queued for transcoding
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [intro_video_url, status]
+                        properties:
+                          intro_video_url:
+                            type: string
+                            format: uri
+                          status:
+                            type: string
+                            enum: [processing]
+              example:
+                status: success
+                message: Video upload accepted
+                code: ACCEPTED
+                data:
+                  intro_video_url: "https://cdn.fitcall.me/fitcall-avatars/videos/trainers/550e8400-e29b-41d4-a716-446655440000/8f14e45f-ceea-467a-9575-d8d6e80b9f4a.mp4"
+                  status: processing
+        "400":
+          description: Missing/invalid multipart, unreadable video, or duration > 10 min
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not an admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: File exceeds 500 MiB wire limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Transcoding backend not configured (ffmpeg missing), storage not configured, or queue full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/me/availability:
     put:
       operationId: PutTrainersMeAvailability
