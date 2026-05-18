@@ -100,13 +100,6 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("booking end time must be after start time")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking end time must be after start time"})
 	}
-		h.log.Error("select a booking start time")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking start time"})
-	}
-	if request.ScheduledEnd.IsZero() {
-		h.log.Error("select a booking end time")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking end time"})
-	}
 	if !common.IsNotEmpty(string(request.SessionPlatform)) {
 		h.log.Error("select a session platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
