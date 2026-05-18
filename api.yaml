@@ -1369,6 +1369,9 @@ paths:
                   timezone: "London"
                   booking_status: "pending"
                   session_platform: "zoom"
+                  zoom_meeting_link: "link.com"
+                  zoom_meeting_id: "1234"
+                  cancellation_reason: ""
                   created_at: "2026-05-16 10:30:40.067585+00"
 
   /users/me/profile:
@@ -2913,6 +2916,8 @@ paths:
     post:
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -3094,6 +3099,8 @@ paths:
     get:
       security: []
       operationId: GetBookingSlots
+      tags:
+        - Booking
       summary: List all active booking slots (public)
       parameters:
         - name: timezone
@@ -3162,6 +3169,8 @@ paths:
     put:
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: UpdateBookingSlot
       summary: Update a booking slot (admin or customer_care only)
       parameters:
@@ -3258,6 +3267,8 @@ paths:
     get:
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: GetTrainersBookingSlots
       summary: List all active booking slots (public)
       parameters:
