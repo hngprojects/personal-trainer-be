@@ -207,3 +207,11 @@ FROM users u
 JOIN trainers t ON u.id = t.user_id
 WHERE t.id = $1
 ;
+
+-- name: UpdateBookingZoom :one
+UPDATE bookings
+SET zoom_meeting_link = sqlc.arg(zoom_meeting_link),
+    zoom_meeting_id   = sqlc.arg(zoom_meeting_id)
+WHERE id = sqlc.arg(id)
+  AND zoom_meeting_id IS NULL
+RETURNING *;

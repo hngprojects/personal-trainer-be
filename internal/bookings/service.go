@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
@@ -63,9 +65,54 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 	if err != nil {
 		return nil, err
 	}
-	if args.SessionPlatform.String == zoomSessionPlatform && s.meetingProvider.IsConfigured() {
-		s.log.Info("connecting to zoom.")
+
+	if _, sessErr := s.repo.CreateBookingSession(ctx, db.CreateBookingSessionParams{
+		BookingID:   booking.ID,
+		ActualStart: sql.NullTime{},
+	}); sessErr != nil {
+		s.log.Error("failed to create booking session record", "booking_id", booking.ID, "err", sessErr)
 	}
+
+	meetingURL := ""
+	if args.SessionPlatform.String == zoomSessionPlatform {
+		if !s.meetingProvider.IsConfigured() {
+			return nil, fmt.Errorf("zoom is not configured")
+		}
+
+		durationMins := 60
+		if args.ScheduledStart.Valid && args.ScheduledEnd.Valid {
+			computed := int(args.ScheduledEnd.Time.Sub(args.ScheduledStart.Time).Minutes())
+			if computed > 0 {
+				durationMins = computed
+			}
+		}
+
+		topic := fmt.Sprintf("Training session with %s", trainer.Name)
+		joinURL, meetingID, zoomErr := s.meetingProvider.CreateMeeting(ctx, topic, args.ScheduledStart.Time, durationMins)
+		if zoomErr != nil {
+			s.log.Error("failed to create zoom meeting", "booking_id", booking.ID, "err", zoomErr)
+			return nil, fmt.Errorf("failed to create zoom meeting: %w", zoomErr)
+		}
+
+		if _, dbErr := s.repo.UpdateBookingZoom(ctx, db.UpdateBookingZoomParams{
+			ID:              booking.ID,
+			ZoomMeetingLink: sql.NullString{String: joinURL, Valid: true},
+			ZoomMeetingID:   sql.NullString{String: meetingID, Valid: true},
+		}); dbErr != nil {
+			cleanCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if delErr := s.meetingProvider.DeleteMeeting(cleanCtx, meetingID); delErr != nil {
+				s.log.Error("orphaned zoom meeting — manual cleanup required",
+					"meeting_id", meetingID, "booking_id", booking.ID, "err", delErr)
+			}
+			cancel()
+			return nil, fmt.Errorf("failed to persist zoom meeting: %w", dbErr)
+		}
+
+		meetingURL = joinURL
+		booking.ZoomMeetingLink = sql.NullString{String: joinURL, Valid: true}
+		booking.ZoomMeetingID = sql.NullString{String: meetingID, Valid: true}
+	}
+
 	if err := s.mailer.SendBookingConfirmation(
 		client.Email,
 		client.Name,
@@ -73,10 +120,11 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledStart.Time,
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
-		"https://us05web.zoom.us/j/83136258594?pwd=lvaAdOGQl3oDOYbKRq9mQtkF4WD76j.1",
+		meetingURL,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
 	}
+
 	return booking, nil
 }
 
