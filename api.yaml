@@ -239,21 +239,25 @@ components:
 
     CreateTrainerRequest:
       type: object
-      required: [user_id]
+      description: |
+        Multipart form body for POST /trainers. The trainer's user_id is taken
+        from the caller's JWT — not the body — so a trainer can only create
+        their own profile. The intro video is uploaded separately via
+        POST /trainers/{id}/intro-video. The optional display_picture file is
+        uploaded asynchronously; the trainer row is created immediately and
+        the display_picture column is populated once the worker lands the
+        object in storage.
       properties:
-        user_id:
-          type: string
-          format: uuid
         specialization:
           type: string
         bio:
           type: string
         years_of_experience:
           type: integer
-        intro_video_url:
-          type: string
         display_picture:
           type: string
+          format: binary
+          description: Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Async upload.
         calendly_connected:
           type: boolean
         calendly_link:
@@ -1616,34 +1620,54 @@ paths:
       operationId: CreateTrainer
       tags:
         - Trainer
-      summary: Add trainer (admin only)
+      summary: Create the caller's trainer profile
+      description: |
+        Creates a trainer row owned by the authenticated caller (user_id is
+        taken from the JWT, not the body). Accepts `multipart/form-data` so
+        the optional `display_picture` file can be uploaded in the same
+        request. The picture upload is async — the trainer row is returned
+        immediately with `display_picture: null` and the column is populated
+        by a background worker once the object lands in storage. The intro
+        video is uploaded separately via POST /trainers/{id}/intro-video.
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/CreateTrainerRequest"
       responses:
         "201":
-          description: Trainer created
+          description: Trainer created (display_picture may briefly 404 while the worker uploads)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TrainerResponse"
         "400":
-          description: Bad request
+          description: Bad request (invalid multipart, unsupported image format, etc)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
-          description: Unauthorized
+          description: Unauthorized (missing or invalid JWT)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Caller already has a trainer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: display_picture exceeds the 5 MiB limit
           content:
             application/json:
               schema:

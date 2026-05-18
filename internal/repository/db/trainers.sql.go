@@ -401,6 +401,31 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 	return i, err
 }
 
+const updateTrainerDisplayPicture = `-- name: UpdateTrainerDisplayPicture :execrows
+UPDATE trainers
+SET display_picture = $1,
+    updated_at      = NOW()
+WHERE id = $2
+`
+
+type UpdateTrainerDisplayPictureParams struct {
+	DisplayPicture sql.NullString
+	ID             uuid.UUID
+}
+
+// Partial display-picture-only update written by the background picture
+// worker on successful MinIO upload. Same separation rationale as
+// UpdateTrainerIntroVideo — the worker can't clobber a concurrent profile
+// edit, and the rowcount distinguishes "trainer deleted before worker
+// finished" from "updated cleanly".
+func (q *Queries) UpdateTrainerDisplayPicture(ctx context.Context, arg UpdateTrainerDisplayPictureParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateTrainerDisplayPicture, arg.DisplayPicture, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateTrainerIntroVideo = `-- name: UpdateTrainerIntroVideo :execrows
 UPDATE trainers
 SET intro_video_url = $1,
