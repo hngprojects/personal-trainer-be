@@ -16,7 +16,6 @@ type Booking struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
 	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -89,6 +88,15 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
+}
+
+type FailedAvatarUpload struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
 }
 
 type PaidBookingRescheduleHistory struct {

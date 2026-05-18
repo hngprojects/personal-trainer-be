@@ -49,12 +49,12 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 
 	// Validate cancellation reason is one of the allowed enum values
 	validReasons := map[string]bool{
-		"schedule_conflict":   true,
-		"feeling_unwell":      true,
-		"personal_emergency":  true,
-		"trainer_request":     true,
-		"client_request":      true,
-		"other":               true,
+		"schedule_conflict":  true,
+		"feeling_unwell":     true,
+		"personal_emergency": true,
+		"trainer_request":    true,
+		"client_request":     true,
+		"other":              true,
 	}
 	if req.Reason == "" || !validReasons[string(req.Reason)] {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid cancellation reason", api.CodeBadRequest))
@@ -189,12 +189,12 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		Code:    "OK",
 		Message: "booking cancelled successfully",
 		Data: &struct {
-			BookingId        openapi_types.UUID `json:"booking_id"`
-			CancelledAt      time.Time          `json:"cancelled_at"`
-			NotificationSent bool               `json:"notification_sent"`
-			RefundAmount     int                `json:"refund_amount"`
+			BookingId        openapi_types.UUID                        `json:"booking_id"`
+			CancelledAt      time.Time                                 `json:"cancelled_at"`
+			NotificationSent bool                                      `json:"notification_sent"`
+			RefundAmount     int                                       `json:"refund_amount"`
 			RefundReason     api.CancelBookingResponseDataRefundReason `json:"refund_reason"`
-			Status           string             `json:"status"`
+			Status           string                                    `json:"status"`
 		}{
 			BookingId:        openapi_types.UUID(cancelledBooking.ID),
 			CancelledAt:      cancelledBooking.CancelledAt.Time,
