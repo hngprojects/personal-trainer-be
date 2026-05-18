@@ -29,6 +29,10 @@ var sensitiveParams = []string{
 
 func Logger(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.URL.Path == "/api/v1/health" {
+			c.Next()
+			return
+		}
 		start := time.Now()
 
 		c.Next()
@@ -42,6 +46,7 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 		// FullPath returns "" when no route matched (404) — fall back to the
 		// raw path in that case, still scrubbing query strings.
 		path := c.FullPath()
+
 		if path == "" {
 			path = c.Request.URL.Path
 		}
