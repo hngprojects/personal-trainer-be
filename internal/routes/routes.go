@@ -32,6 +32,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 	"github.com/hngprojects/personal-trainer-be/pkg/storage"
+	"github.com/hngprojects/personal-trainer-be/pkg/video"
 	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 )
 
@@ -50,6 +51,16 @@ type Router struct {
 	// uploads. nil if MinIO env vars weren't supplied — handlers return 503.
 	// Held here (not just on routerImpl) so Close() can drain it on shutdown.
 	avatarUploader *uploads.AvatarUploader
+
+	// videoUploader is the background worker pool for trainer-intro-video
+	// uploads. nil if MinIO env vars or ffmpeg are missing — handler 503s.
+	// Held here so Close() can drain it on shutdown.
+	videoUploader *uploads.VideoUploader
+
+	// trainerImageUploader is the background worker pool for trainer
+	// gallery images (up to 5 per trainer). Same nil-if-misconfigured
+	// behaviour as the others.
+	trainerImageUploader *uploads.TrainerImageUploader
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -74,6 +85,14 @@ func (s *Router) Close() {
 		// Bounded by per-attempt timeout × max attempts × workers — at most
 		// a few minutes worst case.
 		s.avatarUploader.Stop()
+	}
+	if s.videoUploader != nil {
+		// Same drain semantics. Video transcodes can take minutes per job
+		// so worst-case shutdown is correspondingly longer.
+		s.videoUploader.Stop()
+	}
+	if s.trainerImageUploader != nil {
+		s.trainerImageUploader.Stop()
 	}
 }
 
@@ -102,7 +121,10 @@ type routerImpl struct {
 	booking        bookings.BookingHandler
 	bookingSlot    bookings.BookingSlotHandler
 	bookingSession booking_session.SessionHandler
-	uploader       *uploads.AvatarUploader // nil if MinIO env vars are missing → upload endpoint 503s
+	uploader             *uploads.AvatarUploader       // nil if MinIO env vars are missing → upload endpoint 503s
+	videoUploader        *uploads.VideoUploader        // nil if MinIO env vars or ffmpeg are missing → upload endpoint 503s
+	videoTranscoder      video.Transcoder              // nil if ffmpeg is missing → upload endpoint 503s
+	trainerImageUploader *uploads.TrainerImageUploader // nil if MinIO env vars are missing → upload endpoint 503s
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -218,6 +240,30 @@ func (s *Router) Routes() *gin.Engine {
 					s.avatarUploader = uploader // stored on Router so Close() can drain
 					impl.uploader = uploader
 					s.log.Info("avatar upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
+
+					// Video pipeline reuses the same MinIO client (different
+					// path prefix inside the bucket). Requires ffmpeg on the
+					// host; if missing, the video endpoint 503s but the rest
+					// of the app keeps running.
+					if transcoder, terr := video.NewFFmpegTranscoder(); terr != nil {
+						s.log.Warn("ffmpeg not available - trainer-intro-video upload endpoint will return 503", "err", terr)
+					} else {
+						vUploader := uploads.NewVideoUploader(store, transcoder, q, s.log, 20)
+						vUploader.Start(2)
+						s.videoUploader = vUploader
+						impl.videoUploader = vUploader
+						impl.videoTranscoder = transcoder
+						s.log.Info("video upload pipeline started", "workers", 2, "queue", 20, "bucket", s.cfg.MinioBucket)
+					}
+
+					// Trainer image gallery pipeline — same in-memory shape
+					// as the avatar uploader (images are small enough to
+					// hold in channel without disk overflow).
+					tiUploader := uploads.NewTrainerImageUploader(store, q, s.log, 100)
+					tiUploader.Start(4)
+					s.trainerImageUploader = tiUploader
+					impl.trainerImageUploader = tiUploader
+					s.log.Info("trainer image upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
 				}
 			}
 
