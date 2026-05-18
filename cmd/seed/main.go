@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -20,24 +20,34 @@ import (
 
 func main() {
 	_ = godotenv.Load()
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to load configuration: %v", err)
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
 	auth.Configure(cfg.JwtSecret)
 
 	database, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
 	}
-	defer database.Close()
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			slog.Error("failed to close database", "error", err)
+			os.Exit(1)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := database.PingContext(ctx); err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
 	reader := bufio.NewReader(os.Stdin)
@@ -46,12 +56,14 @@ func main() {
 	adminPassword = strings.TrimSpace(adminPassword)
 
 	if adminPassword == "" {
-		log.Fatal("admin password cannot be empty")
+		slog.Error("admin password cannot be empty")
+		os.Exit(1)
 	}
 
 	hashedPassword, err := auth.HashPassword(adminPassword)
 	if err != nil {
-		log.Fatalf("failed to hash password: %v", err)
+		slog.Error("failed to hash password", "error", err)
+		os.Exit(1)
 	}
 
 	queries := dbpkg.New(database)
@@ -105,8 +117,10 @@ func main() {
 		Password: sql.NullString{String: hashedPassword, Valid: true},
 	})
 	if err != nil {
-		log.Fatalf("failed to create admin user: %v", err)
+		slog.Error("failed to create admin user", "error", err)
+		os.Exit(1)
 	}
+
 	fmt.Printf("✓ Created admin user: %s (%s)\n", adminUser.Name, adminUser.Email)
 
 	for _, u := range seedData.users {
@@ -116,9 +130,10 @@ func main() {
 			AuthProvider: u.provider,
 		})
 		if err != nil {
-			log.Printf("warning: failed to create user %s: %v", u.email, err)
+			slog.Error("failed to create user", "email", u.email, "error", err)
 			continue
 		}
+
 		fmt.Printf("✓ Created user: %s (%s)\n", user.Name, user.Email)
 	}
 
@@ -129,7 +144,7 @@ func main() {
 			AuthProvider: "local",
 		})
 		if err != nil {
-			log.Printf("warning: failed to create trainer user %s: %v", t.email, err)
+			slog.Error("failed to create trainer user", "email", t.email, "error", err)
 			continue
 		}
 
@@ -146,9 +161,10 @@ func main() {
 			OnboardingStatus:  "approved",
 		})
 		if err != nil {
-			log.Printf("warning: failed to create trainer record for %s: %v", t.name, err)
+			slog.Error("failed to create trainer record", "name", t.name, "error", err)
 			continue
 		}
+
 		fmt.Printf("✓ Created trainer: %s - specializations: %s\n", trainer.ID, specializations)
 	}
 
