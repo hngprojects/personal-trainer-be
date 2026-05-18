@@ -145,20 +145,12 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		h.log.Error("failed to get user by id", "err", err)
-		if err == ErrNotFound {
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "user not found"))
-			return
-		}
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
 		h.log.Error("failed to get trainer by id", "err", err)
-		if err == ErrNotFound {
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "trainer not found"))
-			return
-		}
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
 		return
 	}
@@ -185,6 +177,8 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		BookingStatus      *string    `json:"booking_status"`
 		SessionPlatform    *string    `json:"session_platform"`
 		CancellationReason *string    `json:"cancellation_reason"`
+		ZoomMeetingLink    *string    `json:"zoom_meeting_link"`
+		ZoomMeetingID      *string    `json:"zoom_meeting_id"`
 		CreatedAt          *time.Time `json:"created_at"`
 		CancelledAt        *time.Time `json:"cancelled_at"`
 	}
@@ -211,6 +205,12 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 	}
 	if data.SessionPlatform.Valid {
 		response.SessionPlatform = &data.SessionPlatform.String
+	}
+	if data.ZoomMeetingLink.Valid {
+		response.ZoomMeetingLink = &data.ZoomMeetingLink.String
+	}
+	if data.ZoomMeetingID.Valid {
+		response.ZoomMeetingID = &data.ZoomMeetingID.String
 	}
 	if data.CancellationReason.Valid {
 		response.CancellationReason = &data.CancellationReason.String
