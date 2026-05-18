@@ -165,3 +165,16 @@ SELECT
 FROM trainers
 WHERE user_id = $1
 LIMIT 1;
+
+-- name: UpdateTrainerIntroVideo :execrows
+-- Partial intro-video-only update written by the background video worker on
+-- successful transcode + upload. Kept separate from any future
+-- UpdateTrainer-everything query so the worker can't race a concurrent
+-- profile edit and clobber other fields. Returns row count so the worker
+-- can distinguish "updated cleanly" from "trainer was deleted between
+-- upload start and DB write" — the latter is recorded as a terminal
+-- failure rather than silently orphaning the object in MinIO.
+UPDATE trainers
+SET intro_video_url = sqlc.arg(intro_video_url),
+    updated_at      = NOW()
+WHERE id = sqlc.arg(id);
