@@ -548,6 +548,90 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for ListTrainerImages200JSONResponseBodyStatus.
+const (
+	ListTrainerImages200JSONResponseBodyStatusError   ListTrainerImages200JSONResponseBodyStatus = "error"
+	ListTrainerImages200JSONResponseBodyStatusSuccess ListTrainerImages200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ListTrainerImages200JSONResponseBodyStatus enum.
+func (e ListTrainerImages200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case ListTrainerImages200JSONResponseBodyStatusError:
+		return true
+	case ListTrainerImages200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadTrainerImages202JSONResponseBodyDataStatus.
+const (
+	UploadTrainerImages202JSONResponseBodyDataStatusProcessing UploadTrainerImages202JSONResponseBodyDataStatus = "processing"
+)
+
+// Valid indicates whether the value is a known member of the UploadTrainerImages202JSONResponseBodyDataStatus enum.
+func (e UploadTrainerImages202JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case UploadTrainerImages202JSONResponseBodyDataStatusProcessing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadTrainerImages202JSONResponseBodyStatus.
+const (
+	UploadTrainerImages202JSONResponseBodyStatusError   UploadTrainerImages202JSONResponseBodyStatus = "error"
+	UploadTrainerImages202JSONResponseBodyStatusSuccess UploadTrainerImages202JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UploadTrainerImages202JSONResponseBodyStatus enum.
+func (e UploadTrainerImages202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case UploadTrainerImages202JSONResponseBodyStatusError:
+		return true
+	case UploadTrainerImages202JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadTrainerIntroVideo202JSONResponseBodyDataStatus.
+const (
+	UploadTrainerIntroVideo202JSONResponseBodyDataStatusProcessing UploadTrainerIntroVideo202JSONResponseBodyDataStatus = "processing"
+)
+
+// Valid indicates whether the value is a known member of the UploadTrainerIntroVideo202JSONResponseBodyDataStatus enum.
+func (e UploadTrainerIntroVideo202JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case UploadTrainerIntroVideo202JSONResponseBodyDataStatusProcessing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadTrainerIntroVideo202JSONResponseBodyStatus.
+const (
+	UploadTrainerIntroVideo202JSONResponseBodyStatusError   UploadTrainerIntroVideo202JSONResponseBodyStatus = "error"
+	UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess UploadTrainerIntroVideo202JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the UploadTrainerIntroVideo202JSONResponseBodyStatus enum.
+func (e UploadTrainerIntroVideo202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case UploadTrainerIntroVideo202JSONResponseBodyStatusError:
+		return true
+	case UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetUserProfile200JSONResponseBodyStatus.
 const (
 	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
@@ -601,16 +685,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -1159,6 +1243,32 @@ type GetTrainersParams struct {
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
 }
 
+// ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
+type ListTrainerImages200JSONResponseBodyStatus string
+
+// UploadTrainerImagesMultipartBody defines parameters for UploadTrainerImages.
+type UploadTrainerImagesMultipartBody struct {
+	Images []openapi_types.File `json:"images"`
+}
+
+// UploadTrainerImages202JSONResponseBodyDataStatus defines parameters for UploadTrainerImages.
+type UploadTrainerImages202JSONResponseBodyDataStatus string
+
+// UploadTrainerImages202JSONResponseBodyStatus defines parameters for UploadTrainerImages.
+type UploadTrainerImages202JSONResponseBodyStatus string
+
+// UploadTrainerIntroVideoMultipartBody defines parameters for UploadTrainerIntroVideo.
+type UploadTrainerIntroVideoMultipartBody struct {
+	// Video Video file (any ffmpeg-readable codec). Hard cap 500 MiB; transcoded to H.264 MP4 server-side regardless of input.
+	Video openapi_types.File `json:"video"`
+}
+
+// UploadTrainerIntroVideo202JSONResponseBodyDataStatus defines parameters for UploadTrainerIntroVideo.
+type UploadTrainerIntroVideo202JSONResponseBodyDataStatus string
+
+// UploadTrainerIntroVideo202JSONResponseBodyStatus defines parameters for UploadTrainerIntroVideo.
+type UploadTrainerIntroVideo202JSONResponseBodyStatus string
+
 // GetTrainerReviewsParams defines parameters for GetTrainerReviews.
 type GetTrainerReviewsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -1249,6 +1359,12 @@ type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
+
+// UploadTrainerImagesMultipartRequestBody defines body for UploadTrainerImages for multipart/form-data ContentType.
+type UploadTrainerImagesMultipartRequestBody UploadTrainerImagesMultipartBody
+
+// UploadTrainerIntroVideoMultipartRequestBody defines body for UploadTrainerIntroVideo for multipart/form-data ContentType.
+type UploadTrainerIntroVideoMultipartRequestBody UploadTrainerIntroVideoMultipartBody
 
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateProfileRequest
@@ -1372,6 +1488,21 @@ type ServerInterface interface {
 	// Update trainer (admin only)
 	// (PATCH /trainers/{id})
 	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
+	// List the gallery images for a trainer
+	// (GET /trainers/{id}/images)
+	ListTrainerImages(c *gin.Context, id openapi_types.UUID)
+	// Upload gallery images for a trainer (admin only)
+	// (POST /trainers/{id}/images)
+	UploadTrainerImages(c *gin.Context, id openapi_types.UUID)
+	// Delete one gallery image (admin only)
+	// (DELETE /trainers/{id}/images/{image_id})
+	DeleteTrainerImage(c *gin.Context, id openapi_types.UUID, imageId openapi_types.UUID)
+	// Upload an intro video for a trainer (admin only)
+	// (POST /trainers/{id}/intro-video)
+	UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UUID)
+	// Stream the trainer's intro video
+	// (GET /trainers/{id}/intro-video/stream)
+	StreamTrainerIntroVideo(c *gin.Context, id openapi_types.UUID)
 	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
@@ -2188,6 +2319,150 @@ func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
 	siw.Handler.UpdateTrainer(c, id)
 }
 
+// ListTrainerImages operation middleware
+func (siw *ServerInterfaceWrapper) ListTrainerImages(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListTrainerImages(c, id)
+}
+
+// UploadTrainerImages operation middleware
+func (siw *ServerInterfaceWrapper) UploadTrainerImages(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadTrainerImages(c, id)
+}
+
+// DeleteTrainerImage operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainerImage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "image_id" -------------
+	var imageId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "image_id", c.Param("image_id"), &imageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter image_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTrainerImage(c, id, imageId)
+}
+
+// UploadTrainerIntroVideo operation middleware
+func (siw *ServerInterfaceWrapper) UploadTrainerIntroVideo(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadTrainerIntroVideo(c, id)
+}
+
+// StreamTrainerIntroVideo operation middleware
+func (siw *ServerInterfaceWrapper) StreamTrainerIntroVideo(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StreamTrainerIntroVideo(c, id)
+}
+
 // GetTrainerReviews operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
 
@@ -2383,6 +2658,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
+	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
+	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)
+	router.DELETE(options.BaseURL+"/trainers/:id/images/:image_id", wrapper.DeleteTrainerImage)
+	router.POST(options.BaseURL+"/trainers/:id/intro-video", wrapper.UploadTrainerIntroVideo)
+	router.GET(options.BaseURL+"/trainers/:id/intro-video/stream", wrapper.StreamTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)

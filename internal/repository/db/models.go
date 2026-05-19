@@ -99,6 +99,15 @@ type FailedAvatarUpload struct {
 	CreatedAt time.Time
 }
 
+type FailedVideoUpload struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+}
+
 type PaidBookingRescheduleHistory struct {
 	ID            uuid.UUID
 	BookingID     uuid.UUID
@@ -183,6 +192,14 @@ type TrainerAvailability struct {
 	Timezone  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type TrainerImage struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	ImageUrl  string
+	Position  int32
+	CreatedAt time.Time
 }
 
 type User struct {

@@ -41,9 +41,14 @@ type Config struct {
 	MinioEndpoint      string // e.g. "localhost:9000" or "minio.staging.fitcall.me"
 	MinioAccessKey     string
 	MinioSecretKey     string
-	MinioBucket        string // bucket for avatar storage
+	MinioBucket        string // bucket for avatar and video storage
 	MinioUseSSL        bool
-	MinioPublicBaseURL string // public URL prefix used to build avatar URLs returned to clients
+	MinioPublicBaseURL string // public URL prefix used to build asset URLs returned to clients
+
+	// VideoTempDir is where the video-upload handler writes incoming files
+	// before the worker transcodes them. Empty = os.TempDir. Set this to a
+	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
+	VideoTempDir string
 }
 
 func Load() (*Config, error) {
@@ -87,6 +92,12 @@ func Load() (*Config, error) {
 		MinioBucket:        getenv("MINIO_BUCKET", "fitcall-avatars"),
 		MinioUseSSL:        getenv("MINIO_USE_SSL", "false") == "true",
 		MinioPublicBaseURL: os.Getenv("MINIO_PUBLIC_BASE_URL"),
+
+		// Default to os.TempDir() so consumers can rely on the field
+		// always being a usable path rather than empty-equals-default.
+		// Matches the comment on the field and the previous behaviour in
+		// streamUploadToTemp (which still defends if the value is empty).
+		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
 	}
 
 	if cfg.DatabaseURL == "" {

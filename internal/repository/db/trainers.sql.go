@@ -400,3 +400,30 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 	)
 	return i, err
 }
+
+const updateTrainerIntroVideo = `-- name: UpdateTrainerIntroVideo :execrows
+UPDATE trainers
+SET intro_video_url = $1,
+    updated_at      = NOW()
+WHERE id = $2
+`
+
+type UpdateTrainerIntroVideoParams struct {
+	IntroVideoUrl sql.NullString
+	ID            uuid.UUID
+}
+
+// Partial intro-video-only update written by the background video worker on
+// successful transcode + upload. Kept separate from any future
+// UpdateTrainer-everything query so the worker can't race a concurrent
+// profile edit and clobber other fields. Returns row count so the worker
+// can distinguish "updated cleanly" from "trainer was deleted between
+// upload start and DB write" — the latter is recorded as a terminal
+// failure rather than silently orphaning the object in MinIO.
+func (q *Queries) UpdateTrainerIntroVideo(ctx context.Context, arg UpdateTrainerIntroVideoParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateTrainerIntroVideo, arg.IntroVideoUrl, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
