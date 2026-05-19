@@ -131,7 +131,9 @@ func TestBookingIntegration(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodPost, apiBase+"/bookings", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
@@ -148,7 +150,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -166,7 +170,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -184,7 +190,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
@@ -199,7 +207,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
@@ -212,7 +222,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+trainerToken) // trainer != client
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 
@@ -225,7 +237,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -241,7 +255,7 @@ func TestBookingIntegration(t *testing.T) {
 			bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
-		doReq(t, httpClient, req).Body.Close()
+		_ = doReq(t, httpClient, req).Body.Close()
 
 		// cancel again → conflict
 		req2, _ := http.NewRequest(http.MethodPut,
@@ -250,7 +264,9 @@ func TestBookingIntegration(t *testing.T) {
 		req2.Header.Set("Authorization", "Bearer "+clientToken)
 		req2.Header.Set("Content-Type", "application/json")
 		res2 := doReq(t, httpClient, req2)
-		defer res2.Body.Close()
+		defer func() {
+			_ = res2.Body.Close()
+		}()
 		require.Equal(t, http.StatusConflict, res2.StatusCode)
 	})
 
@@ -269,7 +285,9 @@ func TestBookingIntegration(t *testing.T) {
 			bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
@@ -286,7 +304,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -304,7 +324,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s", apiBase, uuid.New()), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
@@ -313,7 +335,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -325,7 +349,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/join", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -334,7 +360,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/complete", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -346,7 +374,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -355,7 +385,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/start", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -368,7 +400,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/start", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -377,7 +411,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/join", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -390,7 +426,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/sessions/%s/complete", apiBase, sessionID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		var resp map[string]interface{}
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
@@ -408,7 +446,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
@@ -420,7 +460,9 @@ func TestBookingIntegration(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
@@ -432,7 +474,9 @@ func TestBookingIntegration(t *testing.T) {
 			fmt.Sprintf("%s/booking-slots/%s", apiBase, trainerID), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
-		defer res.Body.Close()
+		defer func() {
+			_ = res.Body.Close()
+		}()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }
