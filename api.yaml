@@ -179,7 +179,11 @@ components:
         id:
           type: string
           format: uuid
-          description: Server-assigned; absent in request bodies.
+          readOnly: true
+          description: |
+            Server-assigned. Marked `readOnly` so Swagger UI hides it in the
+            request example for POST /trainers — clients never supply it.
+            Always present in responses.
         title:
           type: string
           description: Short benefit headline (e.g. "Personalized plans").
@@ -188,7 +192,11 @@ components:
           description: Supporting copy displayed beneath the title.
         position:
           type: integer
-          description: 1-indexed display order. Server-assigned on create.
+          readOnly: true
+          description: |
+            1-indexed display order. Server-assigned from the submitted
+            order at create time. Marked `readOnly` so Swagger UI hides it
+            from request examples. Always present in responses.
 
     Trainer:
       type: object
