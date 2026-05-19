@@ -30,11 +30,6 @@ func main() {
 		log.Fatalf("failed to load configuration variable %v", err)
 	}
 
-	if cfg.Env != "development" {
-		slog.Error("seed script can only run in development")
-		os.Exit(1)
-	}
-
 	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
 	slog.SetDefault(log)
 
