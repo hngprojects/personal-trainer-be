@@ -124,6 +124,10 @@ func (m *fakeMailer) SendAdminCredentials(_, _ string) error {
 	return m.err
 }
 
+func (m *fakeMailer) SendTrainerCredentials(_, _ string) error {
+	return m.err
+}
+
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }

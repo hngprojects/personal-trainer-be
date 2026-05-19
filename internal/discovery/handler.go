@@ -712,7 +712,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 		PhoneNumber      *string   `json:"phone_number,omitempty"`
 		TrainerName      *string   `json:"trainer_name,omitempty"`
 		TrainerPhoto     *string   `json:"trainer_photo,omitempty"`
-		Specialization   *string   `json:"specialization,omitempty"`
+		Specializations  []string  `json:"specializations,omitempty"`
 		SortKey          time.Time `json:"-"`
 	}
 
@@ -793,9 +793,11 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 				v := s.TrainerName
 				item.TrainerName = &v
 			}
-			if s.TrainerSpecialization.Valid {
-				v := s.TrainerSpecialization.String
-				item.Specialization = &v
+			if len(s.TrainerSpecializations) > 0 {
+				// Trainer specializations are now multi-valued (see migration
+				// 033). Copy the slice so the response retains the full set
+				// rather than the previous single-string field.
+				item.Specializations = append([]string(nil), s.TrainerSpecializations...)
 			}
 			if s.TrainerPhoto.Valid {
 				v := s.TrainerPhoto.String

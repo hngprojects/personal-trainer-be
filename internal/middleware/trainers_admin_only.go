@@ -61,7 +61,8 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				}
 			}
 			if mockRole != "" {
-				if mockRole != "admin" {
+				// Mirror the real-auth path: both admin and super_admin pass.
+				if mockRole != "admin" && mockRole != "super_admin" {
 					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 					return
 				}
@@ -128,7 +129,11 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		if role != "admin" {
+		// Both 'admin' and 'super_admin' satisfy this gate. super_admin is a
+		// strict superset of admin privileges everywhere else (see the
+		// dedicated SuperAdminOnly middleware), so it would be a bug for a
+		// super_admin to be rejected by a route that any admin can use.
+		if role != "admin" && role != "super_admin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 			return
 		}
