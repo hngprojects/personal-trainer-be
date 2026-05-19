@@ -10,6 +10,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const approveTrainer = `-- name: ApproveTrainer :one
@@ -21,18 +22,17 @@ WHERE id = $1
 RETURNING
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 `
 
 func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -41,18 +41,17 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }
@@ -60,82 +59,77 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 const createTrainer = `-- name: CreateTrainer :one
 INSERT INTO trainers (
   user_id,
-  specialization,
-  bio,
+  specializations,
+  training_styles,
   years_of_experience,
-  intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status
 ) VALUES (
   $1,
-  $2,
-  $3,
+  $2::text[],
+  $3::text[],
   $4,
   $5,
-  $6,
-  COALESCE($7::boolean, false),
-  $8,
-  COALESCE($9::text, 'pending')
+  COALESCE($6::text, 'pending')
 )
 RETURNING
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 `
 
 type CreateTrainerParams struct {
 	UserID            uuid.UUID
-	Specialization    sql.NullString
-	Bio               sql.NullString
+	Specializations   []string
+	TrainingStyles    []string
 	YearsOfExperience sql.NullInt32
-	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	CalendlyConnected bool
-	CalendlyLink      sql.NullString
 	OnboardingStatus  string
 }
 
+// Admin-only create. Inserts the trainer row whose user_id was just provisioned
+// by UpsertTrainerUser (see users.sql). bio, intro_video_url stay NULL at
+// create time — trainers fill those in themselves once they log in with the
+// credentials emailed to them.
+//
+// Field order matches the physical column order of the trainers table (see
+// migrations 005, 037, 038, 040) so sqlc reuses the db.Trainer struct rather
+// than minting per-query Row structs; the alternative breaks every helper
+// that already returns *db.Trainer.
 func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (Trainer, error) {
 	row := q.db.QueryRowContext(ctx, createTrainer,
 		arg.UserID,
-		arg.Specialization,
-		arg.Bio,
+		pq.Array(arg.Specializations),
+		pq.Array(arg.TrainingStyles),
 		arg.YearsOfExperience,
-		arg.IntroVideoUrl,
 		arg.DisplayPicture,
-		arg.CalendlyConnected,
-		arg.CalendlyLink,
 		arg.OnboardingStatus,
 	)
 	var i Trainer
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }
@@ -146,18 +140,17 @@ WHERE id = $1
 RETURNING
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 `
 
 func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -166,18 +159,17 @@ func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, err
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }
@@ -186,18 +178,17 @@ const getTrainerByID = `-- name: GetTrainerByID :one
 SELECT
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 FROM trainers
 WHERE id = $1
 LIMIT 1
@@ -209,18 +200,17 @@ func (q *Queries) GetTrainerByID(ctx context.Context, id uuid.UUID) (Trainer, er
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }
@@ -229,18 +219,17 @@ const getTrainerByUserID = `-- name: GetTrainerByUserID :one
 SELECT
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 FROM trainers
 WHERE user_id = $1
 LIMIT 1
@@ -252,18 +241,17 @@ func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Tra
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }
@@ -272,23 +260,24 @@ const listTrainers = `-- name: ListTrainers :many
 SELECT
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 FROM trainers
-WHERE ($1::text = '' OR specialization = $1)
+WHERE ($1::text = '' OR specializations @> ARRAY[$1]::text[])
 ORDER BY created_at DESC
 `
 
+// Filter by a single specialization. The empty-string sentinel means "no
+// filter". Containment uses the GIN index on specializations.
 func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer, error) {
 	rows, err := q.db.QueryContext(ctx, listTrainers, dollar_1)
 	if err != nil {
@@ -301,18 +290,17 @@ func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer,
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Specialization,
 			&i.Bio,
 			&i.YearsOfExperience,
 			&i.IntroVideoUrl,
 			&i.DisplayPicture,
-			&i.CalendlyConnected,
-			&i.CalendlyLink,
 			&i.OnboardingStatus,
 			&i.AverageRating,
 			&i.TotalReviews,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			pq.Array(&i.Specializations),
+			pq.Array(&i.TrainingStyles),
 		); err != nil {
 			return nil, err
 		}
@@ -330,54 +318,53 @@ func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer,
 const updateTrainer = `-- name: UpdateTrainer :one
 UPDATE trainers
 SET
-  specialization      = COALESCE($1, specialization),
-  bio                 = COALESCE($2, bio),
-  years_of_experience = COALESCE($3, years_of_experience),
-  intro_video_url     = COALESCE($4, intro_video_url),
-  display_picture     = COALESCE($5, display_picture),
-  calendly_connected  = COALESCE($6::boolean, calendly_connected),
-  calendly_link       = COALESCE($7, calendly_link),
-  onboarding_status   = COALESCE($8::text, onboarding_status),
+  specializations     = COALESCE($1::text[], specializations),
+  training_styles     = COALESCE($2::text[], training_styles),
+  bio                 = COALESCE($3, bio),
+  years_of_experience = COALESCE($4, years_of_experience),
+  intro_video_url     = COALESCE($5, intro_video_url),
+  display_picture     = COALESCE($6, display_picture),
+  onboarding_status   = COALESCE($7::text, onboarding_status),
   updated_at          = NOW()
-WHERE id = $9
+WHERE id = $8
 RETURNING
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 `
 
 type UpdateTrainerParams struct {
-	Specialization    sql.NullString
+	Specializations   []string
+	TrainingStyles    []string
 	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	CalendlyConnected bool
-	CalendlyLink      sql.NullString
-	OnboardingStatus  string
+	OnboardingStatus  sql.NullString
 	ID                uuid.UUID
 }
 
+// Partial update. Pass NULL to leave a column unchanged. specializations and
+// training_styles use COALESCE on the array argument — pass NULL to keep
+// existing values, an empty array to clear them.
 func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (Trainer, error) {
 	row := q.db.QueryRowContext(ctx, updateTrainer,
-		arg.Specialization,
+		pq.Array(arg.Specializations),
+		pq.Array(arg.TrainingStyles),
 		arg.Bio,
 		arg.YearsOfExperience,
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
-		arg.CalendlyConnected,
-		arg.CalendlyLink,
 		arg.OnboardingStatus,
 		arg.ID,
 	)
@@ -385,18 +372,17 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }

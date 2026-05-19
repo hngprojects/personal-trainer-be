@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createReview = `-- name: CreateReview :one
@@ -200,18 +201,17 @@ WHERE id = $1
 RETURNING
   id,
   user_id,
-  specialization,
   bio,
   years_of_experience,
   intro_video_url,
   display_picture,
-  calendly_connected,
-  calendly_link,
   onboarding_status,
   average_rating,
   total_reviews,
   created_at,
-  updated_at
+  updated_at,
+  specializations,
+  training_styles
 `
 
 func (q *Queries) RefreshTrainerReviewStats(ctx context.Context, trainerID uuid.UUID) (Trainer, error) {
@@ -220,18 +220,17 @@ func (q *Queries) RefreshTrainerReviewStats(ctx context.Context, trainerID uuid.
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Specialization,
 		&i.Bio,
 		&i.YearsOfExperience,
 		&i.IntroVideoUrl,
 		&i.DisplayPicture,
-		&i.CalendlyConnected,
-		&i.CalendlyLink,
 		&i.OnboardingStatus,
 		&i.AverageRating,
 		&i.TotalReviews,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
 }

@@ -344,6 +344,33 @@ func (e TrainerResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for TrainerSpecialization.
+const (
+	Cardio    TrainerSpecialization = "cardio"
+	Endurance TrainerSpecialization = "endurance"
+	Speed     TrainerSpecialization = "speed"
+	Strength  TrainerSpecialization = "strength"
+	Yoga      TrainerSpecialization = "yoga"
+)
+
+// Valid indicates whether the value is a known member of the TrainerSpecialization enum.
+func (e TrainerSpecialization) Valid() bool {
+	switch e {
+	case Cardio:
+		return true
+	case Endurance:
+		return true
+	case Speed:
+		return true
+	case Strength:
+		return true
+	case Yoga:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainersListResponseStatus.
 const (
 	TrainersListResponseStatusError   TrainersListResponseStatus = "error"
@@ -844,26 +871,45 @@ type CreateReviewRequest struct {
 	Review    *string            `json:"review,omitempty"`
 }
 
-// CreateTrainerRequest Multipart form body for POST /trainers. The trainer's user_id is taken
-// from the caller's JWT — not the body — so a trainer can only create
-// their own profile. The intro video is uploaded separately via
-// POST /trainers/{id}/intro-video. The optional display_picture file is
-// uploaded asynchronously; the trainer row is created immediately and
-// the display_picture column is populated once the worker lands the
-// object in storage.
+// CreateTrainerRequest Multipart form body for POST /trainers. An admin (admin or super_admin
+// role) provisions a new trainer: we create the underlying user account
+// with role='trainer' and a generated password, insert the trainer row,
+// write the benefits rows, optionally enqueue the display_picture upload,
+// and email the credentials to the supplied email address.
+//
+// bio and intro_video_url are NOT set here — the trainer fills
+// those in themselves after they log in with the emailed credentials.
 type CreateTrainerRequest struct {
-	Bio               *string `json:"bio,omitempty"`
-	CalendlyConnected *bool   `json:"calendly_connected,omitempty"`
-	CalendlyLink      *string `json:"calendly_link,omitempty"`
+	// Benefits Marketing copy displayed on the trainer's public profile. Each
+	// benefit is a title+subtext pair. Insertion order is preserved as
+	// the display position; client can reorder/edit individual benefits
+	// later via dedicated endpoints.
+	Benefits *[]TrainerBenefit `json:"benefits,omitempty"`
 
-	// DisplayPicture Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Async upload.
-	DisplayPicture    *openapi_types.File                   `json:"display_picture,omitempty"`
-	OnboardingStatus  *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
-	Specialization    *string                               `json:"specialization,omitempty"`
-	YearsOfExperience *int                                  `json:"years_of_experience,omitempty"`
+	// DisplayPicture Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Uploaded asynchronously by a background worker — column is null on the 201 response and populated when the worker lands the object.
+	DisplayPicture *openapi_types.File `json:"display_picture,omitempty"`
+
+	// Email Trainer's login email. Used to create the user account and to mail the generated credentials.
+	Email openapi_types.Email `json:"email"`
+
+	// Name Display name for the trainer.
+	Name string `json:"name"`
+
+	// OnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
+	OnboardingStatus *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
+
+	// Specializations One or more specializations from the fixed catalog
+	// (yoga, speed, cardio, endurance, strength). At least one is required
+	// on create; admin can edit later via PATCH.
+	Specializations []TrainerSpecialization `json:"specializations"`
+
+	// TrainingStyles Up to 4 free-text single-word tags (no enum). The server normalises
+	// to lowercase and rejects anything containing whitespace.
+	TrainingStyles    *[]string `json:"training_styles,omitempty"`
+	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
 }
 
-// CreateTrainerRequestOnboardingStatus defines model for CreateTrainerRequest.OnboardingStatus.
+// CreateTrainerRequestOnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 type CreateTrainerRequestOnboardingStatus string
 
 // CursorPaginationMeta defines model for CursorPaginationMeta.
@@ -1045,24 +1091,47 @@ type SuccessResponseStatus string
 // Trainer defines model for Trainer.
 type Trainer struct {
 	// AverageRating Average rating from client reviews. Null if no reviews yet.
-	AverageRating     *float32                `json:"average_rating"`
-	Bio               *string                 `json:"bio,omitempty"`
-	CalendlyConnected bool                    `json:"calendly_connected"`
-	CalendlyLink      *string                 `json:"calendly_link,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	DisplayPicture    *string                 `json:"display_picture,omitempty"`
-	Id                openapi_types.UUID      `json:"id"`
-	IntroVideoUrl     *string                 `json:"intro_video_url,omitempty"`
-	OnboardingStatus  TrainerOnboardingStatus `json:"onboarding_status"`
-	Specialization    *string                 `json:"specialization,omitempty"`
-	TotalReviews      int                     `json:"total_reviews"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-	UserId            openapi_types.UUID      `json:"user_id"`
-	YearsOfExperience *int                    `json:"years_of_experience,omitempty"`
+	AverageRating *float32 `json:"average_rating"`
+
+	// Benefits Marketing-style "what you get working with this trainer" copy.
+	// Populated on Trainer responses that join the trainer_benefits
+	// table; absent when the source query doesn't fetch them.
+	Benefits         *[]TrainerBenefit       `json:"benefits,omitempty"`
+	Bio              *string                 `json:"bio,omitempty"`
+	CreatedAt        time.Time               `json:"created_at"`
+	DisplayPicture   *string                 `json:"display_picture,omitempty"`
+	Id               openapi_types.UUID      `json:"id"`
+	IntroVideoUrl    *string                 `json:"intro_video_url,omitempty"`
+	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
+
+	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
+	Specializations []TrainerSpecialization `json:"specializations"`
+	TotalReviews    int                     `json:"total_reviews"`
+
+	// TrainingStyles Up to 4 free-text single-word tags chosen by the admin.
+	TrainingStyles    []string           `json:"training_styles"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	UserId            openapi_types.UUID `json:"user_id"`
+	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
 }
 
 // TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
 type TrainerOnboardingStatus string
+
+// TrainerBenefit defines model for TrainerBenefit.
+type TrainerBenefit struct {
+	// Id Server-assigned; absent in request bodies.
+	Id *openapi_types.UUID `json:"id,omitempty"`
+
+	// Position 1-indexed display order. Server-assigned on create.
+	Position *int `json:"position,omitempty"`
+
+	// Subtext Supporting copy displayed beneath the title.
+	Subtext string `json:"subtext"`
+
+	// Title Short benefit headline (e.g. "Personalized plans").
+	Title string `json:"title"`
+}
 
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {
@@ -1078,6 +1147,12 @@ type TrainerResponse struct {
 
 // TrainerResponseStatus defines model for TrainerResponse.Status.
 type TrainerResponseStatus string
+
+// TrainerSpecialization Canonical specialization tag. A trainer can hold multiple — the set
+// is fixed (yoga, speed, cardio, endurance, strength) and enforced
+// by both an API enum and a Postgres CHECK constraint. Adding a new
+// value requires a migration plus an api.yaml bump.
+type TrainerSpecialization string
 
 // TrainersListResponse defines model for TrainersListResponse.
 type TrainersListResponse struct {
@@ -1112,16 +1187,28 @@ type UpdateProfileRequestFitnessLevel string
 // UpdateProfileRequestGender defines model for UpdateProfileRequest.Gender.
 type UpdateProfileRequestGender string
 
-// UpdateTrainerRequest defines model for UpdateTrainerRequest.
+// UpdateTrainerRequest Partial update. Any field omitted is left unchanged. Pass an empty
+// array to clear specializations/training_styles. Used both by the
+// admin (any field) and by the trainer themselves (subset of fields)
+// depending on the calling role.
 type UpdateTrainerRequest struct {
-	Bio               *string                               `json:"bio,omitempty"`
-	CalendlyConnected *bool                                 `json:"calendly_connected,omitempty"`
-	CalendlyLink      *string                               `json:"calendly_link,omitempty"`
-	DisplayPicture    *string                               `json:"display_picture,omitempty"`
-	IntroVideoUrl     *string                               `json:"intro_video_url,omitempty"`
-	OnboardingStatus  *UpdateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
-	Specialization    *string                               `json:"specialization,omitempty"`
-	YearsOfExperience *int                                  `json:"years_of_experience,omitempty"`
+	Bio              *string                               `json:"bio,omitempty"`
+	DisplayPicture   *string                               `json:"display_picture,omitempty"`
+	IntroVideoUrl    *string                               `json:"intro_video_url,omitempty"`
+	OnboardingStatus *UpdateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
+
+	// Specializations Pass an empty array to clear all specializations. Cardinality is
+	// allowed to be 0..5 here — admin and trainer-self-edit flows may
+	// legitimately want a trainer with no specializations momentarily
+	// (e.g. during a reorganisation). The DB CHECK still enforces the
+	// 0..5 range; the 1..5 minimum is enforced only at the CreateTrainer
+	// boundary where a fresh profile without any specialization would be
+	// meaningless.
+	Specializations *[]TrainerSpecialization `json:"specializations,omitempty"`
+
+	// TrainingStyles Pass an empty array to clear all training styles.
+	TrainingStyles    *[]string `json:"training_styles,omitempty"`
+	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
 }
 
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.
@@ -1482,7 +1569,7 @@ type ServerInterface interface {
 	// Get trainers
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
-	// Create the caller's trainer profile
+	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
 	// Set trainer weekly availability
