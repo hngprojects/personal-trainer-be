@@ -121,6 +121,12 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		phoneNumber = *req.PhoneNumber
 	}
 
+	trainerID, err := uuid.Parse(*req.TrainerId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid trainer id", api.CodeBadRequest))
+		return
+	}
+
 	// Insert booking first; create Zoom meeting after so no orphaned meeting on DB failure.
 	booking, err := h.repo.CreateBooking(ctx, db.CreateDiscoveryBookingParams{
 		UserID:           uuid.NullUUID{UUID: userID, Valid: true},
@@ -130,6 +136,10 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		PhoneNumber:      nullString(req.PhoneNumber),
 		SelectedDatetime: selectedTime,
 		ClientTimezone:   req.Timezone,
+		TrainerID: uuid.NullUUID{
+			UUID:  trainerID,
+			Valid: true,
+		},
 	})
 	if err != nil {
 		// Unique index violation means a concurrent request won the race for this slot.
