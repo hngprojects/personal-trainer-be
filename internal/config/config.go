@@ -12,6 +12,10 @@ type Config struct {
 	LogLevel    string
 	LogFormat   string
 	FrontendURL string
+	ServiceName string
+
+	OTelEnabled  bool
+	OTelEndpoint string
 
 	SMTPHost     string
 	SMTPPort     string
@@ -58,6 +62,10 @@ func Load() (*Config, error) {
 		LogLevel:    getenv("LOG_LEVEL", "info"),
 		LogFormat:   os.Getenv("LOG_FORMAT"),
 		FrontendURL: getenv("FRONTEND_URL", "http://localhost:3000"),
+		ServiceName: getenv("SERVICE_NAME", "personal-trainer-be"),
+
+		OTelEnabled:  getenv("OTEL_ENABLED", "true") != "false",
+		OTelEndpoint: getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 

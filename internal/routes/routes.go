@@ -22,6 +22,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
+	"github.com/hngprojects/personal-trainer-be/internal/observability"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
@@ -34,6 +35,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/storage"
 	"github.com/hngprojects/personal-trainer-be/pkg/video"
 	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 // Router holds the wrapped Redis client (*appredis.Client) — its method set
@@ -149,11 +151,17 @@ func (s *Router) Routes() *gin.Engine {
 
 	r.Use(
 		common.RequestIDMiddleware(),
+		otelgin.Middleware(s.cfg.ServiceName),
 		middleware.CORS(s.cfg.FrontendURL),
 		middleware.SecurityHeaders(),
 		middleware.Logger(s.log),
 		middleware.Recover(s.log),
 	)
+
+	metrics := observability.NewMetrics(s.cfg.ServiceName)
+	r.Use(metrics.Middleware())
+	r.GET("/metrics", metrics.Handler())
+
 	if s.globalLimiter != nil {
 		r.Use(middleware.RateLimit(s.globalLimiter, s.log))
 	} else {
