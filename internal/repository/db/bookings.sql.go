@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const cancelBooking = `-- name: CancelBooking :one
@@ -355,9 +356,9 @@ SELECT
   b.booking_status,
   b.session_platform,
   b.created_at,
-  u.name           AS trainer_name,
-  t.specialization AS trainer_specialization,
-  t.display_picture AS trainer_photo
+  u.name             AS trainer_name,
+  t.specializations  AS trainer_specializations,
+  t.display_picture  AS trainer_photo
 FROM bookings b
 JOIN trainers t ON t.id = b.trainer_id
 JOIN users u ON u.id = t.user_id
@@ -368,18 +369,18 @@ ORDER BY b.scheduled_start ASC
 `
 
 type GetUpcomingPaidSessionsRow struct {
-	ID                    uuid.UUID
-	TrainerID             uuid.UUID
-	ClientID              uuid.UUID
-	ScheduledStart        sql.NullTime
-	ScheduledEnd          sql.NullTime
-	Timezone              sql.NullString
-	BookingStatus         sql.NullString
-	SessionPlatform       sql.NullString
-	CreatedAt             sql.NullTime
-	TrainerName           string
-	TrainerSpecialization sql.NullString
-	TrainerPhoto          sql.NullString
+	ID                     uuid.UUID
+	TrainerID              uuid.UUID
+	ClientID               uuid.UUID
+	ScheduledStart         sql.NullTime
+	ScheduledEnd           sql.NullTime
+	Timezone               sql.NullString
+	BookingStatus          sql.NullString
+	SessionPlatform        sql.NullString
+	CreatedAt              sql.NullTime
+	TrainerName            string
+	TrainerSpecializations []string
+	TrainerPhoto           sql.NullString
 }
 
 func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
@@ -402,7 +403,7 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 			&i.SessionPlatform,
 			&i.CreatedAt,
 			&i.TrainerName,
-			&i.TrainerSpecialization,
+			pq.Array(&i.TrainerSpecializations),
 			&i.TrainerPhoto,
 		); err != nil {
 			return nil, err
