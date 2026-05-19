@@ -707,6 +707,10 @@ components:
           type: string
           description: Required when contact_mode is phone_callback
           example: "+2348012345678"
+        trainer_id:
+          type: string
+          description: Required trainer id
+          example: "550e8400-e29b-41d4-a716-446655440000"
         selected_datetime:
           type: string
           format: date-time
