@@ -9,7 +9,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.37.0"
+	// Must match the schema URL that resource.Default() returns from the
+	// installed OTel SDK (v1.43.0 → v1.40.0 semconv). resource.Merge errors
+	// with "conflicting Schema URL" if these diverge — that crash took down
+	// the staging service for ~12 minutes before this was caught.
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
