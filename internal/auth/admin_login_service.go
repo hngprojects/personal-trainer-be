@@ -10,6 +10,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	superAdminRoleName = "super_admin"
+)
+
 type AdminAuthService interface {
 	Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error)
 }
@@ -31,8 +35,15 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		return nil, errors.New("invalid email or password")
 	}
 	isUserAdmin, err := r.role.UserHasRole(ctx, user.ID, adminRoleName)
-
-	if err != nil || !isUserAdmin {
+	if err != nil {
+		r.log.Error("error getting user role", "err", err)
+	}
+	isUserSuperAdmin, err := r.role.UserHasRole(ctx, user.ID, superAdminRoleName)
+	if err != nil {
+		r.log.Error("error getting user role", "err", err)
+		return nil, errors.New("invalid email or password")
+	}
+	if !isUserAdmin && !isUserSuperAdmin {
 		r.log.Error("error getting user role", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
@@ -54,12 +65,18 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		r.log.Error("error generating refresh token", "err", err)
 		return nil, err
 	}
+	var userType string
+	if !isUserSuperAdmin {
+		userType = adminRoleName
+	} else {
+		userType = superAdminRoleName
+	}
 	tokenData := map[string]interface{}{
 		"user": map[string]interface{}{
 			"id":               user.ID.String(),
 			"email":            user.Email,
 			"name":             user.Name,
-			"user_type":        adminRoleName,
+			"user_type":        userType,
 			"profile_complete": true,
 		},
 		"access_token":  accessToken,

@@ -142,3 +142,7 @@ WHERE user_id = sqlc.arg(user_id)
   AND selected_datetime > NOW()
   AND status NOT IN ('cancelled', 'completed')
 ORDER BY selected_datetime ASC;
+
+-- name: GetAllDiscovery :many
+SELECT * FROM discovery_bookings
+ORDER BY selected_datetime ASC;

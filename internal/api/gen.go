@@ -1255,6 +1255,12 @@ type AdminAddJSONBody struct {
 	Name  string              `json:"name"`
 }
 
+// AdminGetAllDiscoveryBookingsParams defines parameters for AdminGetAllDiscoveryBookings.
+type AdminGetAllDiscoveryBookingsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -1479,6 +1485,9 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin)
 	AdminAdd(c *gin.Context)
+	// Get all discovery bookings (admin only)
+	// (GET /admin/bookings/discovery)
+	AdminGetAllDiscoveryBookings(c *gin.Context, params AdminGetAllDiscoveryBookingsParams)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approval)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1654,6 +1663,43 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	}
 
 	siw.Handler.AdminAdd(c)
+}
+
+// AdminGetAllDiscoveryBookings operation middleware
+func (siw *ServerInterfaceWrapper) AdminGetAllDiscoveryBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminGetAllDiscoveryBookingsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminGetAllDiscoveryBookings(c, params)
 }
 
 // AdminApproveTrainer operation middleware
@@ -2719,6 +2765,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin", wrapper.AdminAdd)
+	router.GET(options.BaseURL+"/admin/bookings/discovery", wrapper.AdminGetAllDiscoveryBookings)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approval", wrapper.AdminApproveTrainer)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)

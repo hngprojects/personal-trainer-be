@@ -259,6 +259,50 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 	return items, nil
 }
 
+const getAllDiscovery = `-- name: GetAllDiscovery :many
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+ORDER BY selected_datetime ASC
+`
+
+func (q *Queries) GetAllDiscovery(ctx context.Context) ([]DiscoveryBooking, error) {
+	rows, err := q.db.QueryContext(ctx, getAllDiscovery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryBooking
+	for rows.Next() {
+		var i DiscoveryBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.ContactMode,
+			&i.PhoneNumber,
+			&i.SelectedDatetime,
+			&i.ClientTimezone,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
+			&i.TrainerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
 SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE id = $1

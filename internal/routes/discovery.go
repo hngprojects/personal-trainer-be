@@ -69,3 +69,11 @@ func (s *routerImpl) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingB
 	}
 	s.discovery.GetUpcomingBookings(c, params)
 }
+
+func (s *routerImpl) AdminGetAllDiscoveryBookings(c *gin.Context, params api.AdminGetAllDiscoveryBookingsParams) {
+	if s.discovery == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.AdminGetAllDiscoveryBookings(c, params)
+}

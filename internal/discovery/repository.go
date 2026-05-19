@@ -28,6 +28,7 @@ type Repository interface {
 
 	GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error)
 	GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error)
+	GetAllBookingDiscoveries(ctx context.Context) ([]db.DiscoveryBooking, error)
 }
 
 type postgresRepo struct {
@@ -103,4 +104,8 @@ func (r *postgresRepo) GetUpcomingDiscoveryBookings(ctx context.Context, userID 
 
 func (r *postgresRepo) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error) {
 	return r.q.GetUpcomingPaidSessions(ctx, clientID)
+}
+
+func (r *postgresRepo) GetAllBookingDiscoveries(ctx context.Context) ([]db.DiscoveryBooking, error) {
+	return r.q.GetAllDiscovery(ctx)
 }

@@ -837,3 +837,73 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Upcoming bookings retrieved", api.CodeOK, paged, meta))
 }
+
+func (h *Handler) AdminGetAllDiscoveryBookings(c *gin.Context, params api.AdminGetAllDiscoveryBookingsParams) {
+	ctx := c.Request.Context()
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	// Validate and apply pagination params
+	page := 1
+	if params.Page != nil {
+		if *params.Page < 1 {
+			c.JSON(http.StatusBadRequest, api.NewError("page must be >= 1", api.CodeBadRequest))
+			return
+		}
+		page = *params.Page
+	}
+	limit := 10
+	if params.Limit != nil {
+		if *params.Limit < 1 || *params.Limit > 100 {
+			c.JSON(http.StatusBadRequest, api.NewError("limit must be between 1 and 100", api.CodeBadRequest))
+			return
+		}
+		limit = *params.Limit
+	}
+
+	bookings, err := h.repo.GetAllBookingDiscoveries(ctx)
+	if err != nil {
+		h.log.Error("failed to get all discovery bookings", "err", err, "user_id", userID)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	total := len(bookings)
+	totalPages := (total + limit - 1) / limit
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	offset := (page - 1) * limit
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	paged := make([]map[string]interface{}, 0, limit)
+	for _, b := range bookings[offset:end] {
+		paged = append(paged, bookingToMap(b))
+	}
+
+	meta := map[string]int{
+		"page":        page,
+		"per_page":    limit,
+		"total":       total,
+		"total_pages": totalPages,
+	}
+
+	h.log.Info("admin retrieved all discovery bookings", "user_id", userID, "total", total)
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Discovery bookings retrieved", api.CodeOK, paged, meta))
+}
