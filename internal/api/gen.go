@@ -841,16 +841,22 @@ type CreateReviewRequest struct {
 	Review    *string            `json:"review,omitempty"`
 }
 
-// CreateTrainerRequest defines model for CreateTrainerRequest.
+// CreateTrainerRequest Multipart form body for POST /trainers. The trainer's user_id is taken
+// from the caller's JWT — not the body — so a trainer can only create
+// their own profile. The intro video is uploaded separately via
+// POST /trainers/{id}/intro-video. The optional display_picture file is
+// uploaded asynchronously; the trainer row is created immediately and
+// the display_picture column is populated once the worker lands the
+// object in storage.
 type CreateTrainerRequest struct {
-	Bio               *string                               `json:"bio,omitempty"`
-	CalendlyConnected *bool                                 `json:"calendly_connected,omitempty"`
-	CalendlyLink      *string                               `json:"calendly_link,omitempty"`
-	DisplayPicture    *string                               `json:"display_picture,omitempty"`
-	IntroVideoUrl     *string                               `json:"intro_video_url,omitempty"`
+	Bio               *string `json:"bio,omitempty"`
+	CalendlyConnected *bool   `json:"calendly_connected,omitempty"`
+	CalendlyLink      *string `json:"calendly_link,omitempty"`
+
+	// DisplayPicture Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Async upload.
+	DisplayPicture    *openapi_types.File                   `json:"display_picture,omitempty"`
 	OnboardingStatus  *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
 	Specialization    *string                               `json:"specialization,omitempty"`
-	UserId            openapi_types.UUID                    `json:"user_id"`
 	YearsOfExperience *int                                  `json:"years_of_experience,omitempty"`
 }
 
@@ -1351,8 +1357,8 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
-// CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
-type CreateTrainerJSONRequestBody = CreateTrainerRequest
+// CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
+type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1473,7 +1479,7 @@ type ServerInterface interface {
 	// Get trainers
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
-	// Add trainer (admin only)
+	// Create the caller's trainer profile
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
 	// Set trainer weekly availability
