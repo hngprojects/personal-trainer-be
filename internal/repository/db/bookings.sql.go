@@ -517,3 +517,41 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 	)
 	return i, err
 }
+
+const updateBookingZoom = `-- name: UpdateBookingZoom :one
+UPDATE bookings
+SET zoom_meeting_link = $1,
+    zoom_meeting_id   = $2
+WHERE id = $3
+  AND zoom_meeting_id IS NULL
+RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count
+`
+
+type UpdateBookingZoomParams struct {
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, updateBookingZoom, arg.ZoomMeetingLink, arg.ZoomMeetingID, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+	)
+	return i, err
+}

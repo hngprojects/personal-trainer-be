@@ -12,20 +12,20 @@ tags:
     description: Base URL endpoints.
   - name: Health
     description: Health endpoints to verify application health status.
-  - name: Auth — Local
-    description: Email/password sign-up, login, OTP verification, and password recovery.
-  - name: Auth — OAuth
-    description: Third-party identity providers — Google web flow and Google mobile (ID-token) sign-in.
-  - name: Auth — Session
-    description: Session lifecycle endpoints (logout / token revocation).
-  - name: Admin
-    description: Admin-only operations including admin login and user invitation.
-  - name: Trainer
-    description: Trainer endpoints to manage all trainer activities.
-  - name: Waitlist
-    description: Endpoints to handle waitlist data.
+  - name: Authentication
+    description: Handles user identity and access management, including OAuth login, registration, email verification, password reset, and JWT session management.
   - name: User
     description: User profile and onboarding endpoints.
+  - name: Trainer
+    description: Trainer endpoints to manage all trainer activities.
+  - name: Bookings
+    description: Endpoints to handle bookings and booking slots management.
+  - name: Sessions
+    description: Endpoints to handle trainer/client sessions.
+  - name: Admin
+    description: Admin-only operations including admin login and user invitation.
+  - name: Waitlist
+    description: Endpoints to handle waitlist data.
 
 components:
   securitySchemes:
@@ -810,76 +810,12 @@ paths:
                 data:
                   timestamp: "2026-05-07T10:00:00Z"
 
-  /auth/login:
-    post:
-      security: []
-      operationId: HandleLocalAuth
-      tags:
-        - Auth — Local
-        - Authentication
-      summary: Login with email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Login successful
-                code: OK
-                data:
-                  user:
-                    id: "550e8400-e29b-41d4-a716-446655440000"
-                    email: "jane@example.com"
-                    name: "Jane Doe"
-                    user_type: client
-                    profile_complete: true
-                  access_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  refresh_token: "eyJhbGciOiJIzI1NiIsInR5cCI6IkpXVCJ9..."
-                  expires_in: 600
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: Email is required
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Invalid email
-                code: UNAUTHORIZED
   /auth/logout:
     post:
       security:
         - bearerAuth: []
       operationId: HandleLogout
       tags:
-        - Auth — Session
         - Authentication
       summary: Logs out the authenticated user
       requestBody:
@@ -940,7 +876,7 @@ paths:
         - bearerAuth: []
       operationId: HandleRefresh
       tags:
-        - Auth — Session
+        - Authentication
       summary: Refresh access token
       description: >-
         Invalidates the current access token by adding it to the blocklist (via cache)
@@ -1034,7 +970,6 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth - OAuth
         - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
@@ -1046,7 +981,6 @@ paths:
       security: []
       operationId: HandleGoogleCallback
       tags:
-        - Auth — OAuth
         - Authentication
       summary: Handle Google OAuth callback and return JWT tokens
       parameters:
@@ -1117,7 +1051,7 @@ paths:
       security: []
       operationId: HandleGoogleMobileSignIn
       tags:
-        - Auth — OAuth
+        - Authentication
       summary: Sign in via Google ID token (mobile clients)
       description: >-
         Accepts a Google-signed ID token from a native Android/iOS client and
@@ -1176,72 +1110,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /auth/register:
-    post:
-      security: []
-      operationId: HandleRegister
-      tags:
-        - Auth - Local
-        - Authentication
-      summary: Register or request a new OTP — sends a 6-digit verification code to the email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterRequest"
-      responses:
-        "201":
-          description: Verification code sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-              example:
-                status: success
-                message: Verification code sent to your email
-                code: CREATED
-                data: null
-        "400":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Validation error
-                code: BAD_REQUEST
-                errors:
-                  - field: email
-                    message: invalid email format
-        "429":
-          description: Too many requests
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: too many requests, please try again later
-                code: TOO_MANY_REQUESTS
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                status: error
-                message: Internal server error
-                code: SERVER_ERROR
-
   /auth/verify-email:
     post:
       security: []
       operationId: HandleVerifyEmail
       tags:
-        - Auth — Local
         - Authentication
       summary: Verify email with OTP — completes signup/login and returns JWT tokens
       requestBody:
@@ -1369,6 +1242,9 @@ paths:
                   timezone: "London"
                   booking_status: "pending"
                   session_platform: "zoom"
+                  zoom_meeting_link: "link.com"
+                  zoom_meeting_id: "1234"
+                  cancellation_reason: ""
                   created_at: "2026-05-16 10:30:40.067585+00"
 
   /users/me/profile:
@@ -1469,7 +1345,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /users/me/profile/picture:
+  /users/me/profile-picture:
     post:
       operationId: UploadProfilePicture
       tags:
@@ -1575,7 +1451,7 @@ paths:
       operationId: GetTrainers
       tags:
         - Trainer
-      summary: Get trainers (admin only)
+      summary: Get trainers
       parameters:
         - name: category
           in: query
@@ -1657,7 +1533,7 @@ paths:
       operationId: GetTrainerByID
       tags:
         - Trainer
-      summary: Get trainer by ID (admin only)
+      summary: Get trainer by ID
       parameters:
         - name: id
           in: path
@@ -2373,7 +2249,6 @@ paths:
       security: []
       operationId: HandleForgotPassword
       tags:
-        - Auth — Local
         - Authentication
       summary: Request a password reset code
       description: >-
@@ -2441,7 +2316,6 @@ paths:
       security: []
       operationId: HandleResetPassword
       tags:
-        - Auth — Local
         - Authentication
       summary: Reset password using a previously emailed code
       description: >-
@@ -2502,7 +2376,7 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
-  /admin/add:
+  /admin:
     post:
       operationId: AdminAdd
       tags:
@@ -2551,7 +2425,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /admin/trainers/{id}/approve:
+  /admin/trainers/{id}/approval:
     put:
       operationId: AdminApproveTrainer
       tags:
@@ -2604,7 +2478,6 @@ paths:
       security: []
       operationId: HandleAdminLogin
       tags:
-        - Admin
         - Authentication
       summary: Log Administrators into the application with email and password
       requestBody:
@@ -2785,7 +2658,7 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
-  /contact-us:
+  /contact:
     post:
       security: []
       operationId: HandleContactUs
@@ -2845,7 +2718,7 @@ paths:
     get:
       operationId: GetUpcomingBookings
       tags:
-        - Booking
+        - Bookings
       summary: Get upcoming bookings for the authenticated client
       description: |
         Returns a paginated list of all upcoming bookings for the authenticated client.
@@ -2911,8 +2784,12 @@ paths:
 
   /bookings/discovery:
     post:
+      tags:
+        - Bookings
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -2951,7 +2828,7 @@ paths:
     put:
       operationId: RescheduleDiscoveryCall
       tags:
-        - Booking
+        - Bookings
       summary: Reschedule an existing discovery call booking
       description: |
         Allows a client to reschedule their discovery call to a new date and time.
@@ -3018,11 +2895,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /bookings/{id}/cancel:
+  /bookings/{id}/cancellation:
     put:
       operationId: CancelBooking
       tags:
-        - Booking
+        - Bookings
       summary: Cancel a confirmed booking
       description: |
         Allows a client or trainer to cancel a confirmed booking (PUT /bookings/:id/cancel).
@@ -3090,10 +2967,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /booking-slots:
+  /bookings/slots:
     get:
+      tags:
+        - Bookings
       security: []
       operationId: GetBookingSlots
+      tags:
+        - Booking
       summary: List all active booking slots (public)
       parameters:
         - name: timezone
@@ -3116,6 +2997,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      tags:
+        - Bookings
       security:
         - bearerAuth: []
       operationId: CreateBookingSlot
@@ -3158,10 +3041,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /booking-slots/{id}:
+  /bookings/slots/{id}:
     put:
+      tags:
+        - Bookings
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: UpdateBookingSlot
       summary: Update a booking slot (admin or customer_care only)
       parameters:
@@ -3215,6 +3102,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      tags:
+        - Bookings
       security:
         - bearerAuth: []
       operationId: DeleteBookingSlot
@@ -3254,10 +3143,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   # Get booking slot by trainer id
-  /booking-slots/{trainerId}:
+  /bookings/slots/{trainerId}:
     get:
       security:
         - bearerAuth: []
+      tags:
+        - Booking
       operationId: GetTrainersBookingSlots
       summary: List all active booking slots (public)
       parameters:
@@ -3296,6 +3187,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /dev/token:
     get:
+      tags:
+        - Development
       security: []
       operationId: HandleCreateDevToken
       responses:
@@ -3308,7 +3201,7 @@ paths:
       operationId: HandleGetSessionById
       summary: Takes the Id of a session and returns data concerning the session
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -3363,7 +3256,7 @@ paths:
       operationId: HandleStartSession
       summary: A trainer starts a session via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -3428,7 +3321,7 @@ paths:
       operationId: HandleJoinSession
       summary: A client joined a session via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -3493,7 +3386,7 @@ paths:
       operationId: HandleCompleteSession
       summary: The session is completed via this endpoint.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path
@@ -3558,7 +3451,7 @@ paths:
       operationId: HandleTrainersNote
       summary: Trainers submit notes for client.
       tags:
-        - Booking Session
+        - Sessions
       parameters:
         - name: id
           in: path

@@ -46,9 +46,13 @@ func (c *Client) getAccessToken(ctx context.Context) (string, error) {
 
 	var result struct {
 		AccessToken string `json:"access_token"`
+		Error       string `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
+	}
+	if result.Error != "" {
+		return "", fmt.Errorf("zoom: %s", result.Error)
 	}
 	if result.AccessToken == "" {
 		return "", fmt.Errorf("zoom: empty access token in response")
@@ -85,6 +89,7 @@ func (c *Client) CreateMeeting(ctx context.Context, topic string, startTime time
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

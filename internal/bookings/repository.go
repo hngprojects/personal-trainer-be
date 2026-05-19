@@ -26,6 +26,8 @@ type Repository interface {
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
 	GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error)
 	GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error)
+	UpdateBookingZoom(ctx context.Context, arg db.UpdateBookingZoomParams) (db.Booking, error)
+	CreateBookingSession(ctx context.Context, arg db.CreateBookingSessionParams) (db.BookingSession, error)
 }
 
 type postgresRepo struct {
@@ -89,4 +91,12 @@ func (r *postgresRepo) GetTrainerDetails(ctx context.Context, trainerID uuid.UUI
 
 func (r *postgresRepo) GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error) {
 	return r.q.GetSubscriptionByID(ctx, subID)
+}
+
+func (r *postgresRepo) UpdateBookingZoom(ctx context.Context, arg db.UpdateBookingZoomParams) (db.Booking, error) {
+	return r.q.UpdateBookingZoom(ctx, arg)
+}
+
+func (r *postgresRepo) CreateBookingSession(ctx context.Context, arg db.CreateBookingSessionParams) (db.BookingSession, error) {
+	return r.q.CreateBookingSession(ctx, arg)
 }
