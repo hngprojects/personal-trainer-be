@@ -88,6 +88,7 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
+	TrainerID        uuid.NullUUID
 }
 
 type FailedAvatarUpload struct {
