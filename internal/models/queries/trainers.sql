@@ -178,3 +178,14 @@ UPDATE trainers
 SET intro_video_url = sqlc.arg(intro_video_url),
     updated_at      = NOW()
 WHERE id = sqlc.arg(id);
+
+-- name: UpdateTrainerDisplayPicture :execrows
+-- Partial display-picture-only update written by the background picture
+-- worker on successful MinIO upload. Same separation rationale as
+-- UpdateTrainerIntroVideo — the worker can't clobber a concurrent profile
+-- edit, and the rowcount distinguishes "trainer deleted before worker
+-- finished" from "updated cleanly".
+UPDATE trainers
+SET display_picture = sqlc.arg(display_picture),
+    updated_at      = NOW()
+WHERE id = sqlc.arg(id);

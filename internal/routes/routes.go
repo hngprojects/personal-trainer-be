@@ -63,6 +63,12 @@ type Router struct {
 	// gallery images (up to 5 per trainer). Same nil-if-misconfigured
 	// behaviour as the others.
 	trainerImageUploader *uploads.TrainerImageUploader
+
+	// trainerDisplayPictureUploader handles the optional display picture
+	// uploaded as part of POST /trainers. Distinct from avatarUploader
+	// (which writes users.avatar_url) so a trainer's client-facing display
+	// picture can differ from their personal user avatar.
+	trainerDisplayPictureUploader *uploads.TrainerDisplayPictureUploader
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -96,37 +102,41 @@ func (s *Router) Close() {
 	if s.trainerImageUploader != nil {
 		s.trainerImageUploader.Stop()
 	}
+	if s.trainerDisplayPictureUploader != nil {
+		s.trainerDisplayPictureUploader.Stop()
+	}
 }
 
 type routerImpl struct {
-	cfg                  *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
-	google               *auth.GoogleHandler
-	googleMobile         *auth.MobileGoogleHandler
-	local                *auth.LocalHandler
-	root                 *root.RootHandler
-	adminLogin           *handlers.AdminLoginHandler
-	health               *health.HealthHandler
-	waitlist             *waitlist.WaitlistHandler
-	logout               *auth.LogoutHandler
-	refresh              *auth.RefreshHandler
-	passwordReset        *auth.PasswordResetHandler
-	trainers             *trainersStore
-	users                *usersStore
-	reviews              *reviewsvc.Service
-	admin                *admin.Handler
-	contact              *contact.Handler
-	bookings             *bookingsStore
-	paidReschedule       *bookings.Handler
-	discovery            *discovery.Handler
-	availability         *availabilityStore
-	dev                  *dev.Handler
-	booking              bookings.BookingHandler
-	bookingSlot          bookings.BookingSlotHandler
-	bookingSession       booking_session.SessionHandler
-	uploader             *uploads.AvatarUploader       // nil if MinIO env vars are missing → upload endpoint 503s
-	videoUploader        *uploads.VideoUploader        // nil if MinIO env vars or ffmpeg are missing → upload endpoint 503s
-	videoTranscoder      video.Transcoder              // nil if ffmpeg is missing → upload endpoint 503s
-	trainerImageUploader *uploads.TrainerImageUploader // nil if MinIO env vars are missing → upload endpoint 503s
+	cfg            *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
+	google         *auth.GoogleHandler
+	googleMobile   *auth.MobileGoogleHandler
+	local          *auth.LocalHandler
+	root           *root.RootHandler
+	adminLogin     *handlers.AdminLoginHandler
+	health         *health.HealthHandler
+	waitlist       *waitlist.WaitlistHandler
+	logout         *auth.LogoutHandler
+	refresh        *auth.RefreshHandler
+	passwordReset  *auth.PasswordResetHandler
+	trainers       *trainersStore
+	users          *usersStore
+	reviews        *reviewsvc.Service
+	admin          *admin.Handler
+	contact        *contact.Handler
+	bookings       *bookingsStore
+	paidReschedule *bookings.Handler
+	discovery      *discovery.Handler
+	availability   *availabilityStore
+	dev            *dev.Handler
+	booking        bookings.BookingHandler
+	bookingSlot    bookings.BookingSlotHandler
+	bookingSession booking_session.SessionHandler
+	uploader                      *uploads.AvatarUploader                // nil if MinIO env vars are missing → upload endpoint 503s
+	videoUploader                 *uploads.VideoUploader                 // nil if MinIO env vars or ffmpeg are missing → upload endpoint 503s
+	videoTranscoder               video.Transcoder                       // nil if ffmpeg is missing → upload endpoint 503s
+	trainerImageUploader          *uploads.TrainerImageUploader          // nil if MinIO env vars are missing → upload endpoint 503s
+	trainerDisplayPictureUploader *uploads.TrainerDisplayPictureUploader // nil if MinIO env vars are missing → POST /trainers with picture returns 503
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -272,6 +282,16 @@ func (s *Router) Routes() *gin.Engine {
 					s.trainerImageUploader = tiUploader
 					impl.trainerImageUploader = tiUploader
 					s.log.Info("trainer image upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
+
+					// Trainer display-picture pipeline. One file per
+					// trainer profile, capped at 5 MiB by the handler, so
+					// a small queue is fine; this is light traffic compared
+					// to the avatar endpoint.
+					tdpUploader := uploads.NewTrainerDisplayPictureUploader(store, q, s.log, 50)
+					tdpUploader.Start(2)
+					s.trainerDisplayPictureUploader = tdpUploader
+					impl.trainerDisplayPictureUploader = tdpUploader
+					s.log.Info("trainer display-picture upload pipeline started", "workers", 2, "queue", 50, "bucket", s.cfg.MinioBucket)
 				}
 			}
 
