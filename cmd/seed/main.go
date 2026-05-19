@@ -27,6 +27,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if cfg.Env != "development" {
+		slog.Error("seed script can only run in development")
+		os.Exit(1)
+	}
+
 	auth.Configure(cfg.JwtSecret)
 
 	database, err := sql.Open("postgres", cfg.DatabaseURL)
@@ -169,7 +174,6 @@ func main() {
 	}
 
 	fmt.Println("\n✓ Database seeding completed successfully!")
-	fmt.Printf("Admin credentials:\n  Email: %s\n  Password: %s\n", seedData.adminEmail, adminPassword)
 }
 
 type seedUser struct {
