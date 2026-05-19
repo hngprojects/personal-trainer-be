@@ -188,6 +188,7 @@ func (nullMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _
 func (nullMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
 	return nil
 }
+func (nullMailer) SendTrainerCredentials(_, _ string) error { return nil }
 
 // ---------------------------------------------------------------------------
 // Helpers
