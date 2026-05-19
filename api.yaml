@@ -2788,8 +2788,6 @@ paths:
         - Bookings
       security:
         - bearerAuth: []
-      tags:
-        - Booking
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -2973,8 +2971,6 @@ paths:
         - Bookings
       security: []
       operationId: GetBookingSlots
-      tags:
-        - Booking
       summary: List all active booking slots (public)
       parameters:
         - name: timezone
@@ -3047,8 +3043,6 @@ paths:
         - Bookings
       security:
         - bearerAuth: []
-      tags:
-        - Booking
       operationId: UpdateBookingSlot
       summary: Update a booking slot (admin or customer_care only)
       parameters:
