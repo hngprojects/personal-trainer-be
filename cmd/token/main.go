@@ -9,15 +9,22 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/config"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
+	_ = godotenv.Load()
+	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
+	if cfg.Env == "production" {
+		slog.Error("seed script can only run in development and staging")
+		os.Exit(1)
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter user Id: ")
 	userId, _ := reader.ReadString('\n')

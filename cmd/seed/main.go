@@ -27,8 +27,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.Env != "development" {
-		slog.Error("seed script can only run in development")
+	if cfg.Env == "production" {
+		slog.Error("seed script can only run in development and staging")
 		os.Exit(1)
 	}
 
