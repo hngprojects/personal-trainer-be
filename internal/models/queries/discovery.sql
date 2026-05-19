@@ -1,7 +1,6 @@
 -- name: CreateDiscoveryBooking :one
 INSERT INTO discovery_bookings (
     user_id,
-    trainer_id,
     name,
     email,
     contact_mode,
@@ -13,7 +12,6 @@ INSERT INTO discovery_bookings (
     status
 ) VALUES (
     sqlc.arg(user_id),
-    sqlc.arg(trainer_id),
     sqlc.arg(name),
     sqlc.arg(email),
     sqlc.arg(contact_mode),

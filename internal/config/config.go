@@ -12,10 +12,6 @@ type Config struct {
 	LogLevel    string
 	LogFormat   string
 	FrontendURL string
-	ServiceName string
-
-	OTelEnabled  bool
-	OTelEndpoint string
 
 	SMTPHost     string
 	SMTPPort     string
@@ -53,6 +49,9 @@ type Config struct {
 	// before the worker transcodes them. Empty = os.TempDir. Set this to a
 	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
 	VideoTempDir string
+
+	StripeSecretKey string
+	ServiceName     string
 }
 
 func Load() (*Config, error) {
@@ -62,10 +61,6 @@ func Load() (*Config, error) {
 		LogLevel:    getenv("LOG_LEVEL", "info"),
 		LogFormat:   os.Getenv("LOG_FORMAT"),
 		FrontendURL: getenv("FRONTEND_URL", "http://localhost:3000"),
-		ServiceName: getenv("SERVICE_NAME", "personal-trainer-be"),
-
-		OTelEnabled:  getenv("OTEL_ENABLED", "true") != "false",
-		OTelEndpoint: getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
@@ -106,6 +101,9 @@ func Load() (*Config, error) {
 		// Matches the comment on the field and the previous behaviour in
 		// streamUploadToTemp (which still defends if the value is empty).
 		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
+
+		StripeSecretKey: os.Getenv("STRIPE_SECRET_KEY"),
+		ServiceName:     getenv("SERVICE_NAME", "personal-trainer-be"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -113,6 +111,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.JwtSecret == "" {
 		return nil, errors.New("JWT_SECRET is required")
+	}
+	if cfg.StripeSecretKey == "" {
+		return nil, errors.New("STRIPE_SECRET_KEY is required")
 	}
 
 	return cfg, nil

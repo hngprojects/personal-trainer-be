@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +17,8 @@ type RedisClient interface {
 type Client struct {
 	rdb *redis.Client
 }
+
+var errNoRedis = errors.New("redis not configured")
 
 func New(redisURL string) (*Client, error) {
 	opts, err := redis.ParseURL(redisURL)
@@ -37,23 +40,42 @@ func New(redisURL string) (*Client, error) {
 }
 
 func (c *Client) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	if c.rdb == nil {
+		return errNoRedis
+	}
 	return c.rdb.Set(ctx, key, value, ttl).Err()
 }
 
 func (c *Client) Exists(ctx context.Context, key string) (bool, error) {
+	if c.rdb == nil {
+		return false, errNoRedis
+	}
 	n, err := c.rdb.Exists(ctx, key).Result()
 	return n > 0, err
 }
 
 func (c *Client) Get(ctx context.Context, key string) *redis.StringCmd {
+	if c.rdb == nil {
+		cmd := redis.NewStringCmd(ctx, "GET", key)
+		cmd.SetErr(errNoRedis)
+		return cmd
+	}
 	return c.rdb.Get(ctx, key)
 }
 
 func (c *Client) Delete(ctx context.Context, key string) *redis.IntCmd {
+	if c.rdb == nil {
+		cmd := redis.NewIntCmd(ctx, "DEL", key)
+		cmd.SetErr(errNoRedis)
+		return cmd
+	}
 	return c.rdb.Del(ctx, key)
 }
 
 func (c *Client) Close() error {
+	if c.rdb == nil {
+		return nil
+	}
 	return c.rdb.Close()
 }
 

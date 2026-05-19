@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -46,7 +46,7 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 		t.Fatalf("refusing to run destructive integration test against database %q (DATABASE_URL); use a dedicated test DB (name should contain 'test'/'_it'/'integration')", dbName)
 	}
 
-	db, err := sql.Open("pgx", dsn)
+	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -146,14 +146,14 @@ func TestTrainersEndpoints(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	}
 
-	// 2) Forbidden for non-admin
+	// 2) Authenticated clients can list trainers (GET is public to any valid token)
 	{
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/trainers", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
 
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	}
 
 	// 3) OK for admin list
