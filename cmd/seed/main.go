@@ -153,16 +153,20 @@ func main() {
 			continue
 		}
 
-		specializations := strings.Join(t.specializations, ", ")
+		// Trainer specializations are now multi-valued from a fixed catalog
+		// (yoga, speed, cardio, endurance, strength). The seed data may pre-
+		// date the catalog, so feed t.specializations through verbatim — the
+		// DB CHECK constraint will reject anything outside the allowed set
+		// at INSERT time, which is the right failure for a misconfigured
+		// fixture rather than silent acceptance. Bio + intro_video_url are
+		// not part of the new admin-create signature; trainers fill those in
+		// via PATCH /trainers/me after they log in.
 		trainer, err := queries.CreateTrainer(ctx, dbpkg.CreateTrainerParams{
 			UserID:            trainerUser.ID,
-			Specialization:    sql.NullString{String: specializations, Valid: true},
-			Bio:               sql.NullString{String: t.bio, Valid: true},
+			Specializations:   t.specializations,
+			TrainingStyles:    []string{},
 			YearsOfExperience: sql.NullInt32{Int32: int32(t.yearsExperience), Valid: true},
-			IntroVideoUrl:     sql.NullString{Valid: false},
 			DisplayPicture:    sql.NullString{Valid: false},
-			CalendlyConnected: false,
-			CalendlyLink:      sql.NullString{Valid: false},
 			OnboardingStatus:  "approved",
 		})
 		if err != nil {
@@ -170,7 +174,7 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("✓ Created trainer: %s - specializations: %s\n", trainer.ID, specializations)
+		fmt.Printf("✓ Created trainer: %s - specializations: %s\n", trainer.ID, strings.Join(t.specializations, ", "))
 	}
 
 	fmt.Println("\n✓ Database seeding completed successfully!")

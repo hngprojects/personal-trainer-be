@@ -40,6 +40,24 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        updated_at = NOW()
 RETURNING *;
 
+-- name: UpsertTrainerUser :one
+-- Mirror of UpsertAdminUser, used by POST /trainers (admin-creates-trainer).
+-- The admin enters the trainer's email + name; we provision a local-auth user
+-- with role='trainer' and a generated password (hashed). Re-inviting the same
+-- email is idempotent — the password rotates, the name is overwritten, and
+-- the role is forced back to 'trainer' so a previously-suspended account is
+-- reactivated cleanly. The plaintext password is mailed exactly once by the
+-- caller and never persisted.
+INSERT INTO users (email, name, password, auth_provider, role, is_active)
+VALUES ($1, $2, $3, 'local', 'trainer', true)
+ON CONFLICT (email, auth_provider) DO UPDATE
+   SET password   = EXCLUDED.password,
+       name       = EXCLUDED.name,
+       role       = 'trainer',
+       is_active  = true,
+       updated_at = NOW()
+RETURNING *;
+
 -- name: UpdateUserAvatar :execrows
 -- Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
 -- background avatar worker can't race a concurrent profile edit and clobber

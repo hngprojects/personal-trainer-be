@@ -163,12 +163,40 @@ components:
             claim matches one of the configured client IDs.
           example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ij..."
 
+    TrainerSpecialization:
+      type: string
+      enum: [yoga, speed, cardio, endurance, strength]
+      description: |
+        Canonical specialization tag. A trainer can hold multiple — the set
+        is fixed (yoga, speed, cardio, endurance, strength) and enforced
+        by both an API enum and a Postgres CHECK constraint. Adding a new
+        value requires a migration plus an api.yaml bump.
+
+    TrainerBenefit:
+      type: object
+      required: [title, subtext]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Server-assigned; absent in request bodies.
+        title:
+          type: string
+          description: Short benefit headline (e.g. "Personalized plans").
+        subtext:
+          type: string
+          description: Supporting copy displayed beneath the title.
+        position:
+          type: integer
+          description: 1-indexed display order. Server-assigned on create.
+
     Trainer:
       type: object
       required:
         - id
         - user_id
-        - calendly_connected
+        - specializations
+        - training_styles
         - onboarding_status
         - average_rating
         - total_reviews
@@ -181,9 +209,27 @@ components:
         user_id:
           type: string
           format: uuid
-        specialization:
-          type: string
-          nullable: true
+        specializations:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerSpecialization"
+          minItems: 0
+          maxItems: 5
+          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+        training_styles:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+          description: Up to 4 free-text single-word tags chosen by the admin.
+        benefits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerBenefit"
+          description: |
+            Marketing-style "what you get working with this trainer" copy.
+            Populated on Trainer responses that join the trainer_benefits
+            table; absent when the source query doesn't fetch them.
         bio:
           type: string
           nullable: true
@@ -194,11 +240,6 @@ components:
           type: string
           nullable: true
         display_picture:
-          type: string
-          nullable: true
-        calendly_connected:
-          type: boolean
-        calendly_link:
           type: string
           nullable: true
         onboarding_status:
@@ -239,49 +280,101 @@ components:
 
     CreateTrainerRequest:
       type: object
+      required:
+        - email
+        - name
+        - specializations
       description: |
-        Multipart form body for POST /trainers. The trainer's user_id is taken
-        from the caller's JWT — not the body — so a trainer can only create
-        their own profile. The intro video is uploaded separately via
-        POST /trainers/{id}/intro-video. The optional display_picture file is
-        uploaded asynchronously; the trainer row is created immediately and
-        the display_picture column is populated once the worker lands the
-        object in storage.
+        Multipart form body for POST /trainers. An admin (admin or super_admin
+        role) provisions a new trainer: we create the underlying user account
+        with role='trainer' and a generated password, insert the trainer row,
+        write the benefits rows, optionally enqueue the display_picture upload,
+        and email the credentials to the supplied email address.
+
+        bio and intro_video_url are NOT set here — the trainer fills
+        those in themselves after they log in with the emailed credentials.
       properties:
-        specialization:
+        email:
           type: string
-        bio:
+          format: email
+          description: Trainer's login email. Used to create the user account and to mail the generated credentials.
+        name:
           type: string
+          description: Display name for the trainer.
+        specializations:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerSpecialization"
+          minItems: 1
+          maxItems: 5
+          description: |
+            One or more specializations from the fixed catalog
+            (yoga, speed, cardio, endurance, strength). At least one is required
+            on create; admin can edit later via PATCH.
+        training_styles:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+          description: |
+            Up to 4 free-text single-word tags (no enum). The server normalises
+            to lowercase and rejects anything containing whitespace.
+        benefits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerBenefit"
+          description: |
+            Marketing copy displayed on the trainer's public profile. Each
+            benefit is a title+subtext pair. Insertion order is preserved as
+            the display position; client can reorder/edit individual benefits
+            later via dedicated endpoints.
         years_of_experience:
           type: integer
-        display_picture:
-          type: string
-          format: binary
-          description: Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Async upload.
-        calendly_connected:
-          type: boolean
-        calendly_link:
-          type: string
+          minimum: 0
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
+          description: Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
+        display_picture:
+          type: string
+          format: binary
+          description: Optional profile image (JPEG/PNG/WebP/HEIC, ≤ 5 MiB). Uploaded asynchronously by a background worker — column is null on the 201 response and populated when the worker lands the object.
 
     UpdateTrainerRequest:
       type: object
+      description: |
+        Partial update. Any field omitted is left unchanged. Pass an empty
+        array to clear specializations/training_styles. Used both by the
+        admin (any field) and by the trainer themselves (subset of fields)
+        depending on the calling role.
       properties:
-        specialization:
-          type: string
+        specializations:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerSpecialization"
+          maxItems: 5
+          description: |
+            Pass an empty array to clear all specializations. Cardinality is
+            allowed to be 0..5 here — admin and trainer-self-edit flows may
+            legitimately want a trainer with no specializations momentarily
+            (e.g. during a reorganisation). The DB CHECK still enforces the
+            0..5 range; the 1..5 minimum is enforced only at the CreateTrainer
+            boundary where a fresh profile without any specialization would be
+            meaningless.
+        training_styles:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+          description: Pass an empty array to clear all training styles.
         bio:
           type: string
         years_of_experience:
           type: integer
+          minimum: 0
         intro_video_url:
           type: string
         display_picture:
-          type: string
-        calendly_connected:
-          type: boolean
-        calendly_link:
           type: string
         onboarding_status:
           type: string
@@ -1497,15 +1590,28 @@ paths:
       operationId: CreateTrainer
       tags:
         - Trainer
-      summary: Create the caller's trainer profile
+      summary: Admin creates a trainer (admin or super_admin)
       description: |
-        Creates a trainer row owned by the authenticated caller (user_id is
-        taken from the JWT, not the body). Accepts `multipart/form-data` so
-        the optional `display_picture` file can be uploaded in the same
-        request. The picture upload is async — the trainer row is returned
-        immediately with `display_picture: null` and the column is populated
-        by a background worker once the object lands in storage. The intro
-        video is uploaded separately via POST /trainers/{id}/intro-video.
+        Admin-only. Provisions a new trainer end-to-end in a single multipart
+        request:
+          1. Creates the underlying user account (role='trainer') with a
+             server-generated 16-char password.
+          2. Inserts the trainer row with the admin-supplied specializations,
+             training styles, years of experience, and onboarding_status.
+          3. Inserts each benefit (title + subtext) preserving submitted order.
+          4. Optionally enqueues the display_picture file for async upload —
+             the trainer row is returned immediately with display_picture=null
+             and the column is populated by the background worker once the
+             object lands in storage.
+          5. Emails the generated credentials to the trainer's email address.
+             The plaintext password is never persisted; it leaves the server
+             exactly once via that email.
+
+        Re-inviting the same email rotates the password (no duplicate user is
+        created). bio and intro_video_url are NOT set here — the
+        trainer fills those in themselves once they log in.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1514,13 +1620,13 @@ paths:
               $ref: "#/components/schemas/CreateTrainerRequest"
       responses:
         "201":
-          description: Trainer created (display_picture may briefly 404 while the worker uploads)
+          description: Trainer provisioned; credentials emailed. display_picture may briefly 404 while the worker uploads.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TrainerResponse"
         "400":
-          description: Bad request (invalid multipart, unsupported image format, etc)
+          description: Bad request (invalid multipart, invalid email, specializations not in catalog, etc)
           content:
             application/json:
               schema:
@@ -1532,13 +1638,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden
+          description: Forbidden (caller is authenticated but not admin or super_admin)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Caller already has a trainer profile
+          description: A trainer profile already exists for the supplied email
           content:
             application/json:
               schema:
