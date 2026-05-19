@@ -753,9 +753,6 @@ type BookDiscoveryCallRequest struct {
 
 	// Timezone Client IANA timezone
 	Timezone string `json:"timezone"`
-
-	// TrainerId Required trainer id
-	TrainerId *string `json:"trainer_id,omitempty"`
 }
 
 // BookDiscoveryCallRequestContactMode defines model for BookDiscoveryCallRequest.ContactMode.
