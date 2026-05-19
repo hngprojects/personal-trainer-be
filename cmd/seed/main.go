@@ -1,3 +1,20 @@
+// Command seed populates a local development database with a baseline
+// admin account and a handful of client users. It is intentionally NOT
+// part of any deploy artifact and refuses to run anywhere except the
+// development environment — see the env check below.
+//
+// Trainer accounts are deliberately NOT seeded by this script. Trainers
+// are provisioned end-to-end by an admin via POST /trainers (which
+// generates a password, sends the credentials email, and writes the
+// specializations / training styles / benefits with full schema-level
+// validation). Duplicating that flow here would mean keeping the seed
+// script in lockstep with every future change to the trainer schema —
+// it's safer to have one source of truth.
+//
+// Usage (local dev only):
+//
+//	go run ./cmd/seed
+//	# enter the desired admin password at the prompt
 package main
 
 import (
@@ -27,8 +44,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.Env == "production" {
-		slog.Error("seed script can only run in development and staging")
+	// Strict: development only. Staging and production must never run this
+	// script — any seeded data on those environments has to go through the
+	// real admin endpoints so it's auditable. Without this guard, a
+	// misconfigured systemd unit (or a copy-pasted scp from a dev box) can
+	// leave the seed binary in a restart loop trying to insert fixtures
+	// against the wrong database.
+	if cfg.Env != "development" {
+		slog.Error("seed script can only run in the development environment",
+			"got_env", cfg.Env,
+			"hint", "set APP_ENV=development if you really mean to run this against your local DB",
+		)
 		os.Exit(1)
 	}
 
@@ -77,7 +103,6 @@ func main() {
 		adminEmail string
 		adminName  string
 		users      []seedUser
-		trainers   []seedTrainer
 	}{
 		adminEmail: "admin@trainer.com",
 		adminName:  "Admin User",
@@ -87,29 +112,6 @@ func main() {
 			{email: "client3@example.com", name: "Bob Johnson", provider: "google"},
 			{email: "client4@example.com", name: "Alice Brown", provider: "google"},
 			{email: "client5@example.com", name: "Charlie Wilson", provider: "local"},
-		},
-		trainers: []seedTrainer{
-			{
-				name:            "Sarah Connor",
-				email:           "trainer1@example.com",
-				bio:             "Certified personal trainer with 8 years of experience in strength training",
-				specializations: []string{"strength", "weight loss"},
-				yearsExperience: 8,
-			},
-			{
-				name:            "Mike Johnson",
-				email:           "trainer2@example.com",
-				bio:             "Yoga instructor and wellness coach specializing in flexibility and mindfulness",
-				specializations: []string{"yoga", "flexibility"},
-				yearsExperience: 5,
-			},
-			{
-				name:            "Emma Davis",
-				email:           "trainer3@example.com",
-				bio:             "HIIT and cardio specialist with certification in sports nutrition",
-				specializations: []string{"cardio", "HIIT", "nutrition"},
-				yearsExperience: 6,
-			},
 		},
 	}
 
@@ -142,54 +144,12 @@ func main() {
 		fmt.Printf("✓ Created user: %s (%s)\n", user.Name, user.Email)
 	}
 
-	for _, t := range seedData.trainers {
-		trainerUser, err := queries.CreateUser(ctx, dbpkg.CreateUserParams{
-			Email:        t.email,
-			Name:         t.name,
-			AuthProvider: "local",
-		})
-		if err != nil {
-			slog.Error("failed to create trainer user", "email", t.email, "error", err)
-			continue
-		}
-
-		// Trainer specializations are now multi-valued from a fixed catalog
-		// (yoga, speed, cardio, endurance, strength). The seed data may pre-
-		// date the catalog, so feed t.specializations through verbatim — the
-		// DB CHECK constraint will reject anything outside the allowed set
-		// at INSERT time, which is the right failure for a misconfigured
-		// fixture rather than silent acceptance. Bio + intro_video_url are
-		// not part of the new admin-create signature; trainers fill those in
-		// via PATCH /trainers/me after they log in.
-		trainer, err := queries.CreateTrainer(ctx, dbpkg.CreateTrainerParams{
-			UserID:            trainerUser.ID,
-			Specializations:   t.specializations,
-			TrainingStyles:    []string{},
-			YearsOfExperience: sql.NullInt32{Int32: int32(t.yearsExperience), Valid: true},
-			DisplayPicture:    sql.NullString{Valid: false},
-			OnboardingStatus:  "approved",
-		})
-		if err != nil {
-			slog.Error("failed to create trainer record", "name", t.name, "error", err)
-			continue
-		}
-
-		fmt.Printf("✓ Created trainer: %s - specializations: %s\n", trainer.ID, strings.Join(t.specializations, ", "))
-	}
-
 	fmt.Println("\n✓ Database seeding completed successfully!")
+	fmt.Println("  Trainer accounts are NOT seeded here — provision them via POST /trainers as an admin.")
 }
 
 type seedUser struct {
 	email    string
 	name     string
 	provider string
-}
-
-type seedTrainer struct {
-	email           string
-	name            string
-	bio             string
-	specializations []string
-	yearsExperience int
 }
