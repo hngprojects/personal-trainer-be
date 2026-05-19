@@ -1,14 +1,13 @@
 name: Deploy Backend
 
 on:
-  pull_request:
+  push:
     branches:
       - staging
       - main
-    types: [closed]
 
 concurrency:
-  group: backend-${{ github.event.pull_request.base.ref }}
+  group: backend-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -16,19 +15,20 @@ jobs:
   # job runs. Implemented as a reusable workflow call so the deploy jobs can
   # express the dependency with a normal `needs:` clause.
   ci:
-    if: github.event.pull_request.merged == true
     name: CI
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
-      security-events: write # CI's Trivy job uploads SARIF
+      security-events: write   # CI's Trivy job uploads SARIF
 
   deploy-staging:
-    if: github.event.pull_request.base.ref == 'staging' && github.event.pull_request.merged == true
+    if: github.ref == 'refs/heads/staging'
     name: Deploy Backend Staging
     needs: ci
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout backend repo
@@ -37,7 +37,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: '1.25'
           cache: true
 
       - name: Build backend binary
@@ -85,11 +85,13 @@ jobs:
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
 
   deploy-production:
-    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true
+    if: github.ref == 'refs/heads/main'
     name: Deploy Backend Production
     needs: ci
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout backend repo
@@ -98,7 +100,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: '1.25'
           cache: true
 
       - name: Build backend binary

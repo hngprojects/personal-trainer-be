@@ -11,8 +11,6 @@ on:
   # Allow other workflows (deploy-backend.yml) to call this one as a job
   # dependency. This is what implements "deploy depends on CI passing".
   workflow_call:
-  merge_group:
-    branches: [dev]
 
 # Cancel previous runs of the same workflow on the same ref when a new one starts.
 # Saves Actions minutes when devs push rapidly to a PR.
@@ -114,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write # required to upload SARIF to GitHub Security tab
+      security-events: write   # required to upload SARIF to GitHub Security tab
     steps:
       - uses: actions/checkout@v4
 

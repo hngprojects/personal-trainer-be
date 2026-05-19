@@ -88,7 +88,6 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
-	TrainerID        uuid.NullUUID
 }
 
 type FailedAvatarUpload struct {
@@ -165,6 +164,7 @@ type Subscription struct {
 	CurrentPeriodEnd      sql.NullTime
 	CreatedAt             time.Time
 	CancelledAt           sql.NullTime
+	CancelledAtPeriodEnd  bool
 }
 
 type Trainer struct {
@@ -240,4 +240,36 @@ type Waitlist struct {
 	PhoneNumber string
 	Location    string
 	Name        string
+}
+
+type SubscriptionPlan struct {
+	ID            uuid.UUID
+	PlanType      string
+	DisplayName   string
+	SessionsTotal int32
+	Amount        int64
+	Currency      string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type TrainerWallet struct {
+	TrainerID      uuid.UUID
+	CurrentBalance int64
+	TotalEarned    int64
+	TotalPaidOut   int64
+	UpdatedAt      time.Time
+}
+
+type TrainerWalletLedger struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	TransactionType string
+	ReferenceType   string
+	ReferenceID     uuid.UUID
+	Amount          int64
+	BalanceBefore   int64
+	BalanceAfter    int64
+	CreatedAt       time.Time
 }
