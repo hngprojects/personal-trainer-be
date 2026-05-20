@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -22,21 +23,15 @@ type availabilityStore struct {
 	q  *db.Queries
 }
 
-// PutTrainersMeAvailability handles PUT /trainers/me/availability
-// Sets trainer weekly availability, replacing all existing slots.
+// PutTrainersMeAvailability handles PUT /trainers/me/availability — trainer
+// updates their own schedule. Looks up trainer.id via JWT user_id, then
+// delegates to the shared replace-availability core.
 func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 	if s.availability == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	var req api.SetAvailabilityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
-		return
-	}
-
-	// Extract authenticated user ID
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
@@ -48,10 +43,7 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
-	// Lookup trainer by user ID
-	trainer, err := s.availability.q.GetTrainerByUserID(ctx, userID)
+	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
@@ -61,7 +53,63 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	// Validate and convert availability slots
+	s.replaceTrainerAvailability(c, trainer.ID)
+}
+
+// PutTrainerAvailability handles PUT /trainers/{id}/availability — admin (or
+// super_admin) sets availability on behalf of a specific trainer. The
+// TrainersAdminOnly middleware gates non-GET /trainers/{id}/* routes to
+// admin roles, so we don't need a manual role check here. We still verify
+// the trainer row exists so a typo in the URL returns 404 rather than
+// silently creating availability rows pointing at a non-existent trainer
+// (which would also fail the FK, but the 404 is clearer).
+func (s *routerImpl) PutTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID := uuid.UUID(id)
+	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	s.replaceTrainerAvailability(c, trainerID)
+}
+
+// replaceTrainerAvailability is the shared body of the two PUT handlers
+// (me + admin). Parses the request, validates each slot, rejects overlaps,
+// then runs the delete-then-insert in a single TX. Lives as a method on
+// routerImpl so we don't have to thread `s.availability` through as an
+// extra arg.
+func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
+	var req api.SetAvailabilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	// The OpenAPI schema marks `availability` required, but gin's JSON
+	// binder doesn't enforce that — a missing field or an explicit `null`
+	// both decode to a nil slice, indistinguishable from one another in
+	// Go. We MUST distinguish "field absent" (mistake — reject) from
+	// "field is []" (deliberate — clear the schedule). Since encoding/json
+	// produces a non-nil empty slice for `[]` and a nil slice for both
+	// missing-field and `null`, gating on `== nil` handles both
+	// reject-able cases. Without this check a payload like `{}` silently
+	// wipes the trainer's schedule.
+	if req.Availability == nil {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "availability", Message: "availability is required (use [] to clear the schedule)"},
+		}))
+		return
+	}
+
 	parsedSlots := make([]*parsedSlot, 0, len(req.Availability))
 	for i, slot := range req.Availability {
 		parsed, validationErr := validateAndParseSlot(slot)
@@ -69,36 +117,107 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, api.NewError(validationErr.Error(), api.CodeBadRequest))
 			return
 		}
-		// Add index for error reporting in case of overlaps
 		parsed.index = i
 		parsedSlots = append(parsedSlots, parsed)
 	}
 
-	// Check for overlaps
 	if err := checkOverlaps(parsedSlots); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
-	// Save slots (delete old, insert new) in transaction
-	savedSlots, err := saveAvailabilitySlots(ctx, s.availability, trainer.ID, parsedSlots)
+	savedSlots, err := saveAvailabilitySlots(c.Request.Context(), s.availability, trainerID, parsedSlots)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to save availability", api.CodeServerError))
 		return
 	}
 
-	// Convert saved slots to response format
-	responseSlots := make([]api.AvailabilitySlot, len(savedSlots))
-	for i, slot := range savedSlots {
-		responseSlots[i] = api.AvailabilitySlot{
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_SET", api.CodeOK, availabilitySlotsToResponse(savedSlots)))
+}
+
+// GetTrainersMeAvailability handles GET /trainers/me/availability —
+// the calling trainer fetches their own schedule. Useful for the dashboard
+// to populate the editor before the trainer makes changes.
+func (s *routerImpl) GetTrainersMeAvailability(c *gin.Context) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer profile", api.CodeServerError))
+		return
+	}
+
+	s.fetchTrainerAvailability(c, trainer.ID)
+}
+
+// GetTrainerAvailability handles GET /trainers/{id}/availability — any
+// authenticated user (clients shopping for a trainer, admins inspecting
+// the schedule, the trainer themselves via their public id) reads a
+// trainer's weekly slots. Gated only by the global bearer-auth middleware
+// — TrainersAdminOnly admits all GETs on /trainers/{id}/*.
+func (s *routerImpl) GetTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID := uuid.UUID(id)
+	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	s.fetchTrainerAvailability(c, trainerID)
+}
+
+// fetchTrainerAvailability is the shared body of the two GET handlers (me
+// + by-id). Returns an empty array (not null) when the trainer has no
+// slots saved yet — matches the SetAvailabilityResponse shape.
+func (s *routerImpl) fetchTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
+	slots, err := s.availability.q.GetTrainerAvailabilitySlots(c.Request.Context(), trainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load availability", api.CodeServerError))
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_FETCHED", api.CodeOK, availabilitySlotsToResponse(slots)))
+}
+
+// availabilitySlotsToResponse renders DB rows in the API's
+// AvailabilitySlot shape. Always returns a non-nil slice so JSON encodes
+// as `[]` rather than `null` for trainers with no schedule.
+func availabilitySlotsToResponse(slots []db.TrainerAvailability) []api.AvailabilitySlot {
+	out := make([]api.AvailabilitySlot, len(slots))
+	for i, slot := range slots {
+		out[i] = api.AvailabilitySlot{
 			DayOfWeek: int(slot.DayOfWeek),
 			StartTime: slot.StartTime.Format("15:04"),
 			EndTime:   slot.EndTime.Format("15:04"),
 			Timezone:  slot.Timezone,
 		}
 	}
-
-	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_SET", api.CodeOK, responseSlots))
+	return out
 }
 
 type parsedSlot struct {
