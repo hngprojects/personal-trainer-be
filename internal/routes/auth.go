@@ -31,14 +31,6 @@ func (s *routerImpl) HandleGoogleMobileSignIn(c *gin.Context) {
 	s.googleMobile.SignIn(c)
 }
 
-func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
-	if s.local == nil {
-		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
-		return
-	}
-	s.local.SignIn(c)
-}
-
 func (s *routerImpl) HandleLogout(c *gin.Context) {
 	if s.logout == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -47,12 +39,12 @@ func (s *routerImpl) HandleLogout(c *gin.Context) {
 	s.logout.HandleLogout(c)
 }
 
-func (s *routerImpl) HandleRegister(c *gin.Context) {
-	if s.local == nil {
+func (s *routerImpl) HandleRefresh(c *gin.Context) {
+	if s.refresh == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.local.Register(c)
+	s.refresh.HandleRefresh(c)
 }
 
 func (s *routerImpl) HandleVerifyEmail(c *gin.Context) {
@@ -85,4 +77,20 @@ func (s *routerImpl) HandleAdminLogin(c *gin.Context) {
 		return
 	}
 	s.adminLogin.Login(c)
+}
+
+func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.SignIn(c)
+}
+
+func (s *routerImpl) HandleRegister(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.Register(c)
 }

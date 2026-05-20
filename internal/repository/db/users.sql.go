@@ -10,6 +10,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -17,7 +18,7 @@ INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
 ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 `
 
 type CreateUserParams struct {
@@ -39,12 +40,16 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 FROM users
 WHERE email = $1
 LIMIT 1
@@ -63,12 +68,16 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 FROM users
 WHERE email = $1 AND auth_provider = $2
 LIMIT 1
@@ -92,12 +101,16 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 FROM users
 WHERE id = $1
 LIMIT 1
@@ -116,6 +129,10 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
 	)
 	return i, err
 }
@@ -134,6 +151,82 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
+const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
+UPDATE users
+SET avatar_url = $1,
+    updated_at = NOW()
+WHERE id = $2
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl sql.NullString
+	ID        uuid.UUID
+}
+
+// Partial avatar-only update. Kept separate from UpdateUserOnboarding so the
+// background avatar worker can't race a concurrent profile edit and clobber
+// name/gender/etc with stale values. Returns affected row count so the worker
+// can distinguish "updated cleanly" from "user was deleted between upload and
+// DB write" — the latter must be persisted as a terminal failure or we silently
+// orphan the object in storage.
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserAvatar, arg.AvatarUrl, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateUserOnboarding = `-- name: UpdateUserOnboarding :one
+UPDATE users
+SET
+    name           = COALESCE(NULLIF($1::text, ''), name),
+    gender         = COALESCE(NULLIF($2::text, ''), gender),
+    fitness_goals  = CASE WHEN $3::text[] IS NULL THEN fitness_goals ELSE $3::text[] END,
+    fitness_level  = COALESCE(NULLIF($4::text, ''), fitness_level),
+    avatar_url     = COALESCE(NULLIF($5::text, ''), avatar_url),
+    updated_at     = NOW()
+WHERE id = $6
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+`
+
+type UpdateUserOnboardingParams struct {
+	Name         string
+	Gender       string
+	FitnessGoals []string
+	FitnessLevel string
+	AvatarUrl    string
+	ID           uuid.UUID
+}
+
+func (q *Queries) UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboardingParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserOnboarding,
+		arg.Name,
+		arg.Gender,
+		pq.Array(arg.FitnessGoals),
+		arg.FitnessLevel,
+		arg.AvatarUrl,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+	)
+	return i, err
+}
+
 const upsertAdminUser = `-- name: UpsertAdminUser :one
 INSERT INTO users (email, name, password, auth_provider, role, is_active)
 VALUES ($1, $2, $3, 'local', 'admin', true)
@@ -143,7 +236,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role       = 'admin',
        is_active  = true,
        updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 `
 
 type UpsertAdminUserParams struct {
@@ -165,6 +258,56 @@ func (q *Queries) UpsertAdminUser(ctx context.Context, arg UpsertAdminUserParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+	)
+	return i, err
+}
+
+const upsertTrainerUser = `-- name: UpsertTrainerUser :one
+INSERT INTO users (email, name, password, auth_provider, role, is_active)
+VALUES ($1, $2, $3, 'local', 'trainer', true)
+ON CONFLICT (email, auth_provider) DO UPDATE
+   SET password   = EXCLUDED.password,
+       name       = EXCLUDED.name,
+       role       = 'trainer',
+       is_active  = true,
+       updated_at = NOW()
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+`
+
+type UpsertTrainerUserParams struct {
+	Email    string
+	Name     string
+	Password sql.NullString
+}
+
+// Mirror of UpsertAdminUser, used by POST /trainers (admin-creates-trainer).
+// The admin enters the trainer's email + name; we provision a local-auth user
+// with role='trainer' and a generated password (hashed). Re-inviting the same
+// email is idempotent — the password rotates, the name is overwritten, and
+// the role is forced back to 'trainer' so a previously-suspended account is
+// reactivated cleanly. The plaintext password is mailed exactly once by the
+// caller and never persisted.
+func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, upsertTrainerUser, arg.Email, arg.Name, arg.Password)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
 	)
 	return i, err
 }

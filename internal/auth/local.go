@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
@@ -24,7 +26,7 @@ import (
 const (
 	codeExpiry         = 15 * time.Minute
 	refreshTokenExpiry = 7 * 24 * time.Hour
-	accessTokenTTL     = 10 * time.Minute
+	accessTokenTTL     = 15 * time.Minute
 )
 
 type LocalHandler struct {
@@ -132,7 +134,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.mailer.SendVerificationCode(emailAddr, code, int(codeExpiry.Minutes())); err != nil {
-		h.log.Error("failed to send verification email", "email", emailAddr, "err", err)
+		h.log.Error("failed to send verification email", "email_domain", emailDomain(emailAddr), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
@@ -267,16 +269,27 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			c.JSON(http.StatusUnauthorized, api.NewError("Invalid email address", api.CodeUnauthorized))
+			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 			return
 		}
-		h.log.Error("sign-in: failed to find user", "email", emailAddr, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("Invalid email address", api.CodeServerError))
+		h.log.Error("sign-in: failed to find user", "email_domain", emailDomain(emailAddr), "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
 	if !user.IsActive {
-		c.JSON(http.StatusUnauthorized, api.NewError("account not verified — please complete email verification first", api.CodeUnauthorized))
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+
+	// Verify password credential.
+	if !user.Password.Valid || user.Password.String == "" {
+		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 
@@ -340,3 +353,11 @@ func (h *LocalHandler) hashOTP(code string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+
+// emailDomain returns only the domain part of an email for safe logging.
+func emailDomain(email string) string {
+	if i := strings.LastIndex(email, "@"); i >= 0 {
+		return email[i:]
+	}
+	return "[unknown]"
+}

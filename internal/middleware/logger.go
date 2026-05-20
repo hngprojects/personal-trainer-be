@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var sensitiveParams = []string{
@@ -29,6 +30,10 @@ var sensitiveParams = []string{
 
 func Logger(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.URL.Path == "/api/v1/health" {
+			c.Next()
+			return
+		}
 		start := time.Now()
 
 		c.Next()
@@ -36,12 +41,14 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 		latency := time.Since(start)
 		status := c.Writer.Status()
 		requestID := c.GetString("request_id")
+		spanContext := trace.SpanContextFromContext(c.Request.Context())
 
 		// Prefer the matched route pattern (e.g. /admin/invites/:token) over
 		// the raw path so secret path segments aren't leaked to log pipelines.
 		// FullPath returns "" when no route matched (404) — fall back to the
 		// raw path in that case, still scrubbing query strings.
 		path := c.FullPath()
+
 		if path == "" {
 			path = c.Request.URL.Path
 		}
@@ -56,6 +63,8 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 				slog.Int("status", status),
 				slog.Int64("latency", latency.Milliseconds()),
 				slog.String("request_id", requestID),
+				slog.String("trace_id", spanContext.TraceID().String()),
+				slog.String("span_id", spanContext.SpanID().String()),
 			)
 		} else if status >= 400 {
 			log.Warn("client error",
@@ -64,6 +73,8 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 				slog.Int("status", status),
 				slog.Int64("latency", latency.Milliseconds()),
 				slog.String("request_id", requestID),
+				slog.String("trace_id", spanContext.TraceID().String()),
+				slog.String("span_id", spanContext.SpanID().String()),
 			)
 		} else {
 			log.Info("request completed",
@@ -72,6 +83,8 @@ func Logger(log *slog.Logger) gin.HandlerFunc {
 				slog.Int("status", status),
 				slog.Int64("latency", latency.Milliseconds()),
 				slog.String("request_id", requestID),
+				slog.String("trace_id", spanContext.TraceID().String()),
+				slog.String("span_id", spanContext.SpanID().String()),
 			)
 		}
 	}

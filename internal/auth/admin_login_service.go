@@ -31,7 +31,7 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		return nil, errors.New("invalid email or password")
 	}
 	isUserAdmin, err := r.role.UserHasRole(ctx, user.ID, adminRoleName)
-	// r.log.Error("admin is => ", "user role", isUserAdmin)
+
 	if err != nil || !isUserAdmin {
 		r.log.Error("error getting user role", "err", err)
 		return nil, errors.New("invalid email or password")

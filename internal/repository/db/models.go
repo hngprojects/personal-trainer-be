@@ -11,12 +11,130 @@ import (
 	"github.com/google/uuid"
 )
 
+type Booking struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	RescheduleCount    int32
+}
+
+type BookingRescheduleHistory struct {
+	ID                 uuid.UUID
+	DiscoveryBookingID uuid.UUID
+	PreviousDatetime   time.Time
+	NewDatetime        time.Time
+	RescheduledBy      string
+	Reason             sql.NullString
+	CreatedAt          time.Time
+	Notes              sql.NullString
+}
+
+type BookingSession struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	ActualStart   sql.NullTime
+	ActualEnd     sql.NullTime
+	TrainerJoined sql.NullBool
+	ClientJoined  sql.NullBool
+	Status        string
+	TrainerNotes  sql.NullString
+	CreatedAt     time.Time
+}
+
+type BookingSlot struct {
+	ID        uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	TrainerID uuid.NullUUID
+}
+
+type ContactMessage struct {
+	ID        uuid.UUID
+	Email     string
+	Subject   string
+	Message   string
+	Name      string
+	CreatedAt time.Time
+}
+
+type DiscoveryBooking struct {
+	ID               uuid.UUID
+	Name             string
+	Email            string
+	ContactMode      string
+	PhoneNumber      sql.NullString
+	SelectedDatetime time.Time
+	ClientTimezone   string
+	ZoomMeetingLink  sql.NullString
+	ZoomMeetingID    sql.NullString
+	Status           string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	UserID           uuid.NullUUID
+	RescheduleCount  int32
+	TrainerID        uuid.NullUUID
+}
+
+type FailedAvatarUpload struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+}
+
+type FailedVideoUpload struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	ObjectKey string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+}
+
+type PaidBookingRescheduleHistory struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	PreviousStart time.Time
+	NewStart      time.Time
+	Reason        sql.NullString
+	CreatedAt     time.Time
+}
+
 type PasswordResetCode struct {
 	ID        uuid.UUID
 	Email     string
 	Code      string
 	CreatedAt time.Time
 	ExpiresAt time.Time
+}
+
+type Review struct {
+	ID           uuid.UUID
+	BookingID    uuid.UUID
+	TrainerID    uuid.UUID
+	ClientUserID uuid.UUID
+	Rating       int32
+	Review       sql.NullString
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Role struct {
@@ -33,21 +151,64 @@ type Session struct {
 	CreatedAt time.Time
 }
 
+type Subscription struct {
+	ID                    uuid.UUID
+	ClientID              uuid.UUID
+	TrainerID             uuid.UUID
+	PlanType              string
+	SessionsPerMonth      sql.NullInt32
+	SessionsUsedThisMonth int32
+	Amount                sql.NullInt64
+	Currency              string
+	Status                string
+	CurrentPeriodStart    sql.NullTime
+	CurrentPeriodEnd      sql.NullTime
+	CreatedAt             time.Time
+	CancelledAt           sql.NullTime
+}
+
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
-	Specialization    sql.NullString
 	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	CalendlyConnected bool
-	CalendlyLink      sql.NullString
 	OnboardingStatus  string
 	AverageRating     sql.NullString
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
+}
+
+type TrainerAvailability struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type TrainerBenefit struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	Position  int32
+	Title     string
+	Subtext   string
+	CreatedAt time.Time
+}
+
+type TrainerImage struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	ImageUrl  string
+	Position  int32
+	CreatedAt time.Time
 }
 
 type User struct {
@@ -60,6 +221,10 @@ type User struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	Role         string
+	Gender       sql.NullString
+	FitnessGoals []string
+	FitnessLevel sql.NullString
+	AvatarUrl    sql.NullString
 }
 
 type UserRole struct {
@@ -80,7 +245,7 @@ type Waitlist struct {
 	ID          uuid.UUID
 	Email       string
 	CreatedAt   time.Time
-	PhoneNumber sql.NullString
-	Location    sql.NullString
-	Name        sql.NullString
+	PhoneNumber string
+	Location    string
+	Name        string
 }

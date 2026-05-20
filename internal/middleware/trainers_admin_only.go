@@ -31,7 +31,26 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		
+		// Public trainer review listing remains outside the trainer auth/admin guard.
+		if c.Request.Method == http.MethodGet &&
+			strings.HasPrefix(path, "/api/v1/trainers/") &&
+			strings.HasSuffix(path, "/reviews") {
+			c.Next()
+			return
+		}
+
+		// Trainer-owned endpoints (/trainers/me/*) are accessible to any authenticated trainer.
+		if strings.HasPrefix(path, "/api/v1/trainers/me/") ||
+			strings.HasPrefix(path, "/trainers/me/") ||
+			path == "/api/v1/trainers/me" ||
+			path == "/trainers/me" {
+			// Verify authenticated user is in context before allowing bypass
+			if _, ok := c.Get("user_id"); ok {
+				c.Next()
+				return
+			}
+		}
+
 		if os.Getenv("ENABLE_MOCK_AUTH") == "1" && (os.Getenv("ENV") == "test" || os.Getenv("ENV") == "development") {
 			mockRole := strings.TrimSpace(c.GetHeader("X-Mock-Role"))
 			mockID := strings.TrimSpace(c.GetHeader("X-Mock-User-ID"))
@@ -42,7 +61,8 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				}
 			}
 			if mockRole != "" {
-				if mockRole != "admin" {
+				// Mirror the real-auth path: both admin and super_admin pass.
+				if mockRole != "admin" && mockRole != "super_admin" {
 					c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 					return
 				}
@@ -50,13 +70,13 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 				return
 			}
 		}
-		
+
 		header := c.GetHeader("Authorization")
 		if header == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing token", api.CodeUnauthorized))
 			return
 		}
-		
+
 		const prefix = "Bearer "
 		if !strings.HasPrefix(header, prefix) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
@@ -67,7 +87,7 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
 			return
 		}
-		
+
 		token, err := auth.ValidateToken(tokenString)
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token", api.CodeUnauthorized))
@@ -80,13 +100,13 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			c.Next()
 			return
 		}
-		
+
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token claims", api.CodeUnauthorized))
 			return
 		}
-		
+
 		sub, ok := claims["sub"].(string)
 		if !ok || sub == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Missing subject claim", api.CodeUnauthorized))
@@ -109,7 +129,11 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
-		if role != "admin" {
+		// Both 'admin' and 'super_admin' satisfy this gate. super_admin is a
+		// strict superset of admin privileges everywhere else (see the
+		// dedicated SuperAdminOnly middleware), so it would be a bug for a
+		// super_admin to be rejected by a route that any admin can use.
+		if role != "admin" && role != "super_admin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; Admin access required", api.CodeForbidden))
 			return
 		}

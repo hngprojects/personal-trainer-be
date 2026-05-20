@@ -12,6 +12,10 @@ type Config struct {
 	LogLevel    string
 	LogFormat   string
 	FrontendURL string
+	ServiceName string
+
+	OTelEnabled  bool
+	OTelEndpoint string
 
 	SMTPHost     string
 	SMTPPort     string
@@ -31,6 +35,24 @@ type Config struct {
 	OTPSecret string
 	RedisURL  string
 	JwtSecret string
+
+	ZoomAccountID    string
+	ZoomClientID     string
+	ZoomClientSecret string
+
+	NotificationEmail string
+
+	MinioEndpoint      string // e.g. "localhost:9000" or "minio.staging.fitcall.me"
+	MinioAccessKey     string
+	MinioSecretKey     string
+	MinioBucket        string // bucket for avatar and video storage
+	MinioUseSSL        bool
+	MinioPublicBaseURL string // public URL prefix used to build asset URLs returned to clients
+
+	// VideoTempDir is where the video-upload handler writes incoming files
+	// before the worker transcodes them. Empty = os.TempDir. Set this to a
+	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
+	VideoTempDir string
 }
 
 func Load() (*Config, error) {
@@ -40,6 +62,10 @@ func Load() (*Config, error) {
 		LogLevel:    getenv("LOG_LEVEL", "info"),
 		LogFormat:   os.Getenv("LOG_FORMAT"),
 		FrontendURL: getenv("FRONTEND_URL", "http://localhost:3000"),
+		ServiceName: getenv("SERVICE_NAME", "personal-trainer-be"),
+
+		OTelEnabled:  getenv("OTEL_ENABLED", "true") != "false",
+		OTelEndpoint: getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317"),
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
@@ -61,6 +87,25 @@ func Load() (*Config, error) {
 		OTPSecret: getenv("OTP_SECRET", os.Getenv("JWT_SECRET")),
 		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
 		JwtSecret: os.Getenv("JWT_SECRET"),
+
+		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
+		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
+		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
+
+		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
+
+		MinioEndpoint:      os.Getenv("MINIO_ENDPOINT"),
+		MinioAccessKey:     os.Getenv("MINIO_ACCESS_KEY"),
+		MinioSecretKey:     os.Getenv("MINIO_SECRET_KEY"),
+		MinioBucket:        getenv("MINIO_BUCKET", "fitcall-avatars"),
+		MinioUseSSL:        getenv("MINIO_USE_SSL", "false") == "true",
+		MinioPublicBaseURL: os.Getenv("MINIO_PUBLIC_BASE_URL"),
+
+		// Default to os.TempDir() so consumers can rely on the field
+		// always being a usable path rather than empty-equals-default.
+		// Matches the comment on the field and the previous behaviour in
+		// streamUploadToTemp (which still defends if the value is empty).
+		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
 	}
 
 	if cfg.DatabaseURL == "" {

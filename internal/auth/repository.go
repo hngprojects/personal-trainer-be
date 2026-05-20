@@ -31,6 +31,14 @@ type UserRepository interface {
 // AdminUserRepository defines admin-specific user operations.
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
+}
+
+// TrainerUserRepository covers the user-provisioning side of the admin-creates-trainer
+// flow. Mirrors AdminUserRepository but writes role='trainer'.
+type TrainerUserRepository interface {
+	UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -60,7 +68,6 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	// return r.q.UserHasRole(ctx, userID, roleName)
 	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
@@ -146,6 +153,18 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 
 func (r *postgresUserRepo) UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error) {
 	user, err := r.q.UpsertAdminUser(ctx, db.UpsertAdminUserParams{
+		Email:    email,
+		Name:     name,
+		Password: sql.NullString{String: password, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error) {
+	user, err := r.q.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:    email,
 		Name:     name,
 		Password: sql.NullString{String: password, Valid: true},
