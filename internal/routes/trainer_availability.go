@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
@@ -25,17 +26,12 @@ type availabilityStore struct {
 	redis appredis.Client
 }
 
-// PutTrainersMeAvailability handles PUT /trainers/me/availability
-// Sets trainer weekly availability, replacing all existing slots.
+// PutTrainersMeAvailability handles PUT /trainers/me/availability — trainer
+// updates their own schedule. Looks up trainer.id via JWT user_id, then
+// delegates to the shared replace-availability core.
 func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 	if s.availability == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
-		return
-	}
-
-	var req api.SetAvailabilityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
@@ -50,15 +46,54 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-
-	trainer, err := s.availability.q.GetTrainerByUserID(ctx, userID)
+	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer profile", api.CodeServerError))
+		return
+	}
+
+	s.replaceTrainerAvailability(c, trainer.ID)
+}
+
+// PutTrainerAvailability handles PUT /trainers/{id}/availability — admin (or
+// super_admin) sets availability on behalf of a specific trainer.
+func (s *routerImpl) PutTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID := uuid.UUID(id)
+	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	s.replaceTrainerAvailability(c, trainerID)
+}
+
+// replaceTrainerAvailability is the shared body of the two PUT handlers
+// (me + admin). Parses the request, validates each slot, rejects overlaps,
+// then runs the delete-then-insert in a single TX.
+func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
+	var req api.SetAvailabilityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	if req.Availability == nil {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "availability", Message: "availability is required (use [] to clear the schedule)"},
+		}))
 		return
 	}
 
@@ -78,28 +113,92 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	savedSlots, err := saveAvailabilitySlots(ctx, s.availability, trainer.ID, parsedSlots)
+	savedSlots, err := saveAvailabilitySlots(c.Request.Context(), s.availability, trainerID, parsedSlots)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to save availability", api.CodeServerError))
 		return
 	}
 
-	// Invalidate cached booking slots for this trainer so clients see fresh data.
-	if err := s.availability.redis.Delete(ctx, bookingSlotsCacheKey(trainer.ID)); err != nil {
-		slog.Warn("failed to invalidate booking slots cache", "trainer_id", trainer.ID, "err", err)
+	if err := s.availability.redis.Delete(c.Request.Context(), bookingSlotsCacheKey(trainerID)); err != nil {
+		slog.Warn("failed to invalidate booking slots cache", "trainer_id", trainerID, "err", err)
 	}
 
-	responseSlots := make([]api.AvailabilitySlot, len(savedSlots))
-	for i, slot := range savedSlots {
-		responseSlots[i] = api.AvailabilitySlot{
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_SET", api.CodeOK, availabilitySlotsToResponse(savedSlots)))
+}
+
+// GetTrainersMeAvailability handles GET /trainers/me/availability —
+// the calling trainer fetches their own schedule.
+func (s *routerImpl) GetTrainersMeAvailability(c *gin.Context) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer profile", api.CodeServerError))
+		return
+	}
+
+	s.fetchTrainerAvailability(c, trainer.ID)
+}
+
+// GetTrainerAvailability handles GET /trainers/{id}/availability — any
+// authenticated user reads a trainer's weekly slots.
+func (s *routerImpl) GetTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
+	if s.availability == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID := uuid.UUID(id)
+	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	s.fetchTrainerAvailability(c, trainerID)
+}
+
+func (s *routerImpl) fetchTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
+	slots, err := s.availability.q.GetTrainerAvailabilitySlots(c.Request.Context(), trainerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load availability", api.CodeServerError))
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_FETCHED", api.CodeOK, availabilitySlotsToResponse(slots)))
+}
+
+func availabilitySlotsToResponse(slots []db.TrainerAvailability) []api.AvailabilitySlot {
+	out := make([]api.AvailabilitySlot, len(slots))
+	for i, slot := range slots {
+		out[i] = api.AvailabilitySlot{
 			DayOfWeek: int(slot.DayOfWeek),
 			StartTime: slot.StartTime.Format("15:04"),
 			EndTime:   slot.EndTime.Format("15:04"),
 			Timezone:  slot.Timezone,
 		}
 	}
-
-	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_SET", api.CodeOK, responseSlots))
+	return out
 }
 
 // bookingSlotsCacheKey returns the Redis key for a trainer's cached booking slots.

@@ -1494,6 +1494,9 @@ type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
+// PutTrainerAvailabilityJSONRequestBody defines body for PutTrainerAvailability for application/json ContentType.
+type PutTrainerAvailabilityJSONRequestBody = SetAvailabilityRequest
+
 // UploadTrainerImagesMultipartRequestBody defines body for UploadTrainerImages for multipart/form-data ContentType.
 type UploadTrainerImagesMultipartRequestBody UploadTrainerImagesMultipartBody
 
@@ -1616,6 +1619,9 @@ type ServerInterface interface {
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
+	// Get the authenticated trainer's weekly availability
+	// (GET /trainers/me/availability)
+	GetTrainersMeAvailability(c *gin.Context)
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
@@ -1628,6 +1634,12 @@ type ServerInterface interface {
 	// Update trainer (admin only)
 	// (PATCH /trainers/{id})
 	UpdateTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get a trainer's weekly availability
+	// (GET /trainers/{id}/availability)
+	GetTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Admin sets a trainer's weekly availability
+	// (PUT /trainers/{id}/availability)
+	PutTrainerAvailability(c *gin.Context, id openapi_types.UUID)
 	// List the gallery images for a trainer
 	// (GET /trainers/{id}/images)
 	ListTrainerImages(c *gin.Context, id openapi_types.UUID)
@@ -1844,8 +1856,6 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 // HandleRefresh operation middleware
 func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2389,6 +2399,21 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
+// GetTrainersMeAvailability operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeAvailability(c)
+}
+
 // PutTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 
@@ -2483,6 +2508,60 @@ func (siw *ServerInterfaceWrapper) UpdateTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateTrainer(c, id)
+}
+
+// GetTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerAvailability(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainerAvailability(c, id)
+}
+
+// PutTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PutTrainerAvailability(c, id)
 }
 
 // ListTrainerImages operation middleware
@@ -2822,10 +2901,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
+	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
+	router.GET(options.BaseURL+"/trainers/:id/availability", wrapper.GetTrainerAvailability)
+	router.PUT(options.BaseURL+"/trainers/:id/availability", wrapper.PutTrainerAvailability)
 	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
 	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)
 	router.DELETE(options.BaseURL+"/trainers/:id/images/:image_id", wrapper.DeleteTrainerImage)

@@ -1071,15 +1071,21 @@ paths:
 
   /auth/refresh:
     post:
-      security:
-        - bearerAuth: []
+      # Refresh authenticates with a REFRESH token in the Authorization header,
+      # not an access token. The standard bearerAuth middleware rejects refresh
+      # tokens (it gates on type=access), so we declare the route as having no
+      # security from the framework's perspective and the handler does its own
+      # refresh-token validation. Without this override the middleware short-
+      # circuits with "invalid token type" before the handler ever runs.
+      security: []
       operationId: HandleRefresh
       tags:
         - Auth — Session
       summary: Refresh access token
       description: >-
         Invalidates the current access token by adding it to the blocklist (via cache)
-        and issues a new access token. Requires a valid refresh token in the Authorization header.
+        and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
+        and the current (possibly expired) access token in the body.
       requestBody:
         required: true
         content:
@@ -2357,6 +2363,148 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      operationId: GetTrainersMeAvailability
+      summary: Get the authenticated trainer's weekly availability
+      tags: [Trainer]
+      description: |
+        Returns the calling trainer's weekly availability slots — the same
+        data that PUT /trainers/me/availability writes. Useful for the
+        trainer dashboard to display the current schedule before letting
+        the trainer edit it.
+      responses:
+        "200":
+          description: Availability fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/availability:
+    get:
+      operationId: GetTrainerAvailability
+      summary: Get a trainer's weekly availability
+      tags: [Trainer]
+      description: |
+        Returns the trainer's weekly availability slots. Used by clients to
+        see when the trainer is bookable, and by admins to inspect a
+        trainer's schedule. Any authenticated user can read.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Availability fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      operationId: PutTrainerAvailability
+      summary: Admin sets a trainer's weekly availability
+      tags: [Trainer]
+      description: |
+        Admin-only. Sets weekly availability on behalf of the trainer
+        specified by the path id. Same payload shape and validation rules
+        as PUT /trainers/me/availability (full replacement: existing slots
+        are deleted, then the submitted set is inserted; empty array
+        clears the schedule entirely). Existing bookings are not touched.
+
+        Gated by the TrainersAdminOnly middleware which automatically
+        admits both 'admin' and 'super_admin' on any non-GET /trainers
+        route; the path itself doesn't need an /admin/ prefix.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAvailabilityRequest"
+      responses:
+        "200":
+          description: Availability updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
           content:
             application/json:
               schema:
