@@ -9,7 +9,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"path"
+	"path"conflict in migrations/000029_create_booking_session_table.sql
+Auto-merging pkg/email/email.go
 	"strconv"
 	"strings"
 	"unicode/utf8"

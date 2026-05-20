@@ -132,13 +132,6 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		ClientTimezone:   req.Timezone,
 	})
 	if err != nil {
-		// Unique index violation means a concurrent request won the race for this slot.
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_discovery_bookings_slot_lock" {
-			c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
-			return
-		}
-		h.log.Error("failed to create discovery booking", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking", api.CodeServerError))
 		return
 	}
