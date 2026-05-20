@@ -106,10 +106,6 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("timezone is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "timezone", Message: "please provide current timezone"})
 	}
-	if request.SubscriptionId == uuid.Nil {
-		h.log.Error("subscription id is required")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscription", Message: "subscription id is required"})
-	}
 	// Check if booking slot is available
 	if request.ScheduledStart.IsZero() {
 		h.log.Error("select a booking start time")
@@ -131,16 +127,6 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("select a valid session platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
 	}
-	// check subscription status
-	activeSub, err := h.service.CheckSubscription(c.Request.Context(), request.SubscriptionId)
-	if err != nil {
-		h.log.Error("failed to check subscription", "error", err)
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscriptionId", Message: "could not get subscription status"})
-	}
-	if !activeSub {
-		h.log.Error("non-active subscription")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "subscriptionId", Message: "subscription is not active"})
-	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
@@ -158,7 +144,6 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
-		SubscriptionID:  uuid.NullUUID{Valid: true, UUID: request.SubscriptionId},
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
@@ -193,7 +178,6 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		ID                 uuid.UUID  `json:"id"`
 		TrainerID          uuid.UUID  `json:"trainer_id"`
 		ClientID           uuid.UUID  `json:"client_id"`
-		SubscriptionID     uuid.UUID  `json:"subscription_id"`
 		ScheduledStart     *time.Time `json:"scheduled_start"`
 		ScheduledEnd       *time.Time `json:"scheduled_end"`
 		Timezone           *string    `json:"timezone"`
@@ -210,9 +194,6 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		ID:        data.ID,
 		TrainerID: data.TrainerID,
 		ClientID:  userID,
-	}
-	if data.SubscriptionID.Valid {
-		response.SubscriptionID = data.SubscriptionID.UUID
 	}
 	if data.ScheduledStart.Valid {
 		response.ScheduledStart = &data.ScheduledStart.Time
