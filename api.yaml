@@ -970,7 +970,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalAuthData"
               example:
                 status: success
                 message: Login successful
@@ -1464,6 +1469,7 @@ paths:
               required:
                 [
                   trainer_id,
+                  subscription_id,
                   scheduled_start,
                   scheduled_end,
                   session_platform,
@@ -1471,6 +1477,9 @@ paths:
                 ]
               properties:
                 trainer_id:
+                  type: string
+                  format: uuid
+                subscription_id:
                   type: string
                   format: uuid
                 scheduled_start:
@@ -1500,6 +1509,7 @@ paths:
                   id: "550e8400-e29b-41d4-a716-446655440000"
                   client_id: "550e8400-e29b-41d4-a716-446655440000"
                   trainer_id: "550e8400-e29b-41d4-a716-446655440000"
+                  subscription_id: "550e8400-e29b-41d4-a716-446655440000"
                   scheduled_start: "2026-05-16 10:30:40.067585+00"
                   scheduled_end: "2026-05-16 10:30:40.067585+00"
                   timezone: "London"
@@ -1781,7 +1791,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: "#/components/schemas/CreateTrainerRequest"
       responses:
