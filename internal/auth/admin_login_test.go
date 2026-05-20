@@ -21,8 +21,9 @@ type fakeAdminUser struct {
 }
 
 type fakeAdminUserRole struct {
-	hasRole    bool
-	hasRoleErr error
+	hasRole       bool
+	hasSuperRole  bool
+	hasRoleErr    error
 }
 
 func (f *fakeAdminUser) Create(_ context.Context, email, name, password string) (*db.User, error) {
@@ -46,6 +47,9 @@ func (f *fakeAdminUser) MarkVerified(_ context.Context, email string) (*db.User,
 }
 
 func (f *fakeAdminUserRole) UserHasRole(_ context.Context, userID uuid.UUID, roleName string) (bool, error) {
+	if roleName == "super_admin" {
+		return f.hasSuperRole, f.hasRoleErr
+	}
 	return f.hasRole, f.hasRoleErr
 }
 
@@ -69,7 +73,7 @@ func createAdminHandler(t *testing.T) handlers.AdminLoginHandler {
 		},
 	}
 	roleRepo := &fakeAdminUserRole{
-		hasRole: true,
+		hasSuperRole: true,
 	}
 	handler := newAdminTestHandler(t, userRepo, roleRepo)
 	return *handler
@@ -263,7 +267,7 @@ func TestAdminLogin_SuccessResponseShape(t *testing.T) {
 	if userData["profile_complete"] != true {
 		t.Errorf("userData.profile_complete: want true, got %v", userData["profile_complete"])
 	}
-	if userData["user_type"] != "admin" {
-		t.Errorf("userData.user_type: want true, got %v", userData["user_type"])
+	if userData["user_type"] != "super_admin" {
+		t.Errorf("userData.user_type: want super_admin, got %v", userData["user_type"])
 	}
 }
