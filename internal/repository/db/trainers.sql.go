@@ -56,6 +56,17 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 	return i, err
 }
 
+const countTrainers = `-- name: CountTrainers :one
+SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved'
+`
+
+func (q *Queries) CountTrainers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTrainer = `-- name: CreateTrainer :one
 INSERT INTO trainers (
   user_id,

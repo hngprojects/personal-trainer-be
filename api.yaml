@@ -2825,6 +2825,63 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
+  /admin/user/trainer/count:
+    get:
+      operationId: GetUserTrainerCount
+      tags:
+        - Admin
+      summary: Get total count of active clients and approved trainers (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_clients:
+                            type: integer
+                            format: int64
+                            description: Number of active users with role client
+                            example: 120
+                          total_approved_trainers:
+                            type: integer
+                            format: int64
+                            description: Number of trainers with onboarding_status approved
+                            example: 45
+              example:
+                status: success
+                message: Stats retrieved successfully
+                code: OK
+                data:
+                  total_clients: 120
+                  total_approved_trainers: 45
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/add:
     post:
       operationId: AdminAdd
