@@ -17,7 +17,6 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
-	"github.com/hngprojects/personal-trainer-be/internal/observability"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
@@ -35,24 +34,6 @@ func main() {
 
 	auth.Configure(cfg.JwtSecret)
 
-	if cfg.OTelEnabled {
-		traceCtx, traceCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		tracerProvider, err := observability.InitTracer(traceCtx, cfg.ServiceName, cfg.Env, cfg.OTelEndpoint)
-		traceCancel()
-		if err != nil {
-			log.Error("failed to initialize tracing", "err", err)
-			os.Exit(1)
-		}
-		defer func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := tracerProvider.Shutdown(shutdownCtx); err != nil {
-				log.Error("failed to shutdown tracer provider", "err", err)
-			}
-		}()
-		log.Info("tracing initialized", "service", cfg.ServiceName, "endpoint", cfg.OTelEndpoint)
-	}
-
 	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
 		log.Error("failed to open database", "err", err)
@@ -68,13 +49,16 @@ func main() {
 	}
 	log.Info("database connected")
 
-	redisClient, err := appredis.New(cfg.RedisURL)
-	if err != nil {
-		log.Error("failed to connect to redis", "err", err)
-		os.Exit(1)
+	var redisClient *appredis.Client
+	if cfg.RedisURL != "" {
+		redisClient, err = appredis.New(cfg.RedisURL)
+		if err != nil {
+			log.Warn("redis unavailable — caching disabled", "err", err)
+		} else {
+			log.Info("redis connected")
+			defer func() { _ = redisClient.Close() }()
+		}
 	}
-	log.Info("redis connected")
-	defer func() { _ = redisClient.Close() }()
 
 	srv := routes.New(cfg, log, db, redisClient)
 

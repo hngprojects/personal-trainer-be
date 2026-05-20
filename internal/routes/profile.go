@@ -14,17 +14,12 @@ import (
 )
 
 func userToProfileMap(u db.User) map[string]interface{} {
-	profileComplete :=
-		u.Name != "" &&
-			u.Gender.Valid &&
-			u.FitnessLevel.Valid &&
-			u.AvatarUrl.Valid
 	out := map[string]interface{}{
 		"id":               u.ID.String(),
 		"email":            u.Email,
 		"name":             u.Name,
 		"fitness_goals":    u.FitnessGoals,
-		"profile_complete": profileComplete,
+		"profile_complete": u.Name != "",
 	}
 	if u.Gender.Valid {
 		out["gender"] = u.Gender.String
