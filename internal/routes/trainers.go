@@ -12,6 +12,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -266,6 +267,24 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		return
 	}
 
+	// bio is optional — trim and treat blank as NULL so we don't store
+	// literal empty strings. Cap at 2000 characters (not bytes) to match
+	// the api.yaml maxLength annotation. utf8.RuneCountInString counts
+	// code points so multibyte characters (emoji, accented letters, CJK)
+	// aren't unfairly rejected; plain len() would let a trainer with a
+	// 1500-character English bio pass but reject the same trainer's
+	// 1500-character Japanese bio.
+	var bio sql.NullString
+	if v := strings.TrimSpace(c.Request.FormValue("bio")); v != "" {
+		if utf8.RuneCountInString(v) > 2000 {
+			c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+				{Field: "bio", Message: "bio must not exceed 2000 characters"},
+			}))
+			return
+		}
+		bio = sql.NullString{String: v, Valid: true}
+	}
+
 	onboardingStatus := "pending"
 	if v := strings.TrimSpace(c.Request.FormValue("onboarding_status")); v != "" {
 		switch v {
@@ -379,6 +398,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		UserID:            user.ID,
 		Specializations:   specializations,
 		TrainingStyles:    trainingStyles,
+		Bio:               bio,
 		YearsOfExperience: yearsOfExperience,
 		DisplayPicture:    sql.NullString{Valid: false},
 		OnboardingStatus:  onboardingStatus,
@@ -547,11 +567,21 @@ func parseTrainerBenefits(raw []string) ([]parsedBenefit, error) {
 }
 
 func parseSingleBenefit(entry string) (string, string, error) {
-	// JSON form: {"title":"...","subtext":"..."}
+	// JSON form: {"title":"...","subtext":"..."}.
+	//
+	// `id` and `position` are also accepted but IGNORED — the OpenAPI schema
+	// marks both as readOnly, but Swagger UI still includes them in its
+	// generated form examples and the upstream `position: 0` value would
+	// otherwise trip DisallowUnknownFields. The server is the source of
+	// truth for both: id is the freshly-minted PK, position is the
+	// submitted-order index. We declare them here so the decoder doesn't
+	// reject the payload, then discard the values.
 	if strings.HasPrefix(entry, "{") {
 		var obj struct {
-			Title   string `json:"title"`
-			Subtext string `json:"subtext"`
+			Title    string  `json:"title"`
+			Subtext  string  `json:"subtext"`
+			ID       *string `json:"id,omitempty"`
+			Position *int    `json:"position,omitempty"`
 		}
 		if err := jsonDecode(entry, &obj); err != nil {
 			return "", "", fmt.Errorf("invalid JSON: %w", err)
