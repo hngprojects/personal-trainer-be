@@ -693,6 +693,13 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	type upcomingItem struct {
 		ID               string    `json:"id"`
 		Type             string    `json:"type"`
+		// SessionID is the booking_session.id for paid sessions whose session
+		// row has been created (i.e. the session was started). It lets the
+		// client navigate from this list to GET /sessions/{id} without an
+		// extra round trip. Omitted for discovery calls (they have no
+		// associated session row) and for paid bookings that haven't been
+		// started yet (the booking_session row only exists post-start).
+		SessionID        *string   `json:"session_id,omitempty"`
 		ScheduledAt      string    `json:"scheduled_at"`
 		ScheduledAtLocal string    `json:"scheduled_at_local"`
 		DurationMinutes  int       `json:"duration_minutes"`
@@ -792,6 +799,22 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 			if s.TrainerPhoto.Valid {
 				v := s.TrainerPhoto.String
 				item.TrainerPhoto = &v
+			}
+			// Per-row lookup of the booking_session.id (so the client can
+			// jump straight to /sessions/{id} from this list). Page size is
+			// capped at 100, so the N+1 cost here is bounded; a JOIN at the
+			// SQL layer would be cheaper but would require regenerating
+			// sqlc — keeping this in Go avoids the sqlc-inference drift
+			// we've seen on other bookings queries.
+			if sessionID, ok, err := h.repo.GetSessionIDForBooking(ctx, s.ID); err != nil {
+				// Don't fail the whole list for one row — log and move on
+				// with SessionID nil. The client can retry the detail call
+				// or fall back to /bookings/{id}/session if/when we add it.
+				h.log.Warn("failed to look up session id for booking",
+					"err", err, "booking_id", s.ID.String())
+			} else if ok {
+				v := sessionID.String()
+				item.SessionID = &v
 			}
 			items = append(items, item)
 		}
