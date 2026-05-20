@@ -28,6 +28,14 @@ type Repository interface {
 
 	GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error)
 	GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error)
+
+	// GetSessionIDForBooking returns the booking_session.id row that
+	// references the given bookings.id, or uuid.Nil + false if no session
+	// row exists yet (e.g. the booking hasn't been "started"). Used to
+	// enrich the /bookings/upcoming response so clients can navigate from
+	// a booking to its session detail (/sessions/{id}) without an extra
+	// round trip.
+	GetSessionIDForBooking(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, bool, error)
 }
 
 type postgresRepo struct {
@@ -103,4 +111,20 @@ func (r *postgresRepo) GetUpcomingDiscoveryBookings(ctx context.Context, userID 
 
 func (r *postgresRepo) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error) {
 	return r.q.GetUpcomingPaidSessions(ctx, clientID)
+}
+
+// GetSessionIDForBooking looks up the booking_session row for a given
+// booking and returns just its id. Wraps GetBookingSessionByBookingID and
+// flattens sql.ErrNoRows to (uuid.Nil, false, nil) — the absence of a
+// session row is expected (sessions are created when a booking is started,
+// not when it's booked) and shouldn't bubble up as an error.
+func (r *postgresRepo) GetSessionIDForBooking(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, bool, error) {
+	row, err := r.q.GetBookingSessionByBookingID(ctx, bookingID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, false, nil
+		}
+		return uuid.Nil, false, err
+	}
+	return row.ID, true, nil
 }
