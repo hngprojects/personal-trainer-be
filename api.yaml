@@ -1008,15 +1008,21 @@ paths:
 
   /auth/refresh:
     post:
-      security:
-        - bearerAuth: []
+      # Refresh authenticates with a REFRESH token in the Authorization header,
+      # not an access token. The standard bearerAuth middleware rejects refresh
+      # tokens (it gates on type=access), so we declare the route as having no
+      # security from the framework's perspective and the handler does its own
+      # refresh-token validation. Without this override the middleware short-
+      # circuits with "invalid token type" before the handler ever runs.
+      security: []
       operationId: HandleRefresh
       tags:
         - Authentication
       summary: Refresh access token
       description: >-
         Invalidates the current access token by adding it to the blocklist (via cache)
-        and issues a new access token. Requires a valid refresh token in the Authorization header.
+        and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
+        and the current (possibly expired) access token in the body.
       requestBody:
         required: true
         content:
