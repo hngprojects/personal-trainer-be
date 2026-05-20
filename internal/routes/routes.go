@@ -137,6 +137,13 @@ type routerImpl struct {
 	videoTranscoder               video.Transcoder                       // nil if ffmpeg is missing → upload endpoint 503s
 	trainerImageUploader          *uploads.TrainerImageUploader          // nil if MinIO env vars are missing → upload endpoint 503s
 	trainerDisplayPictureUploader *uploads.TrainerDisplayPictureUploader // nil if MinIO env vars are missing → POST /trainers with picture returns 503
+
+	// log + mailer are shared dependencies that a handful of handlers
+	// (notably POST /trainers for the credentials email) need direct access
+	// to. Already constructed at Router level — passed through here so the
+	// per-request handler methods don't need to dig back into the Router.
+	logger *slog.Logger
+	mailer email.Mailer
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -183,6 +190,7 @@ func (s *Router) Routes() *gin.Engine {
 			cfg:    s.cfg,
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
+			logger: s.log,
 		}
 
 		var q *db.Queries
@@ -207,15 +215,20 @@ func (s *Router) Routes() *gin.Engine {
 			bookingSessionRepo := booking_session.NewPostgresBookingSessionRepo(q)
 			bookingSessionService := booking_session.NewSessionService(bookingSessionRepo, s.log)
 			mailer := s.buildMailer()
+			impl.mailer = mailer
 
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
-			impl.trainers = newTrainersStore(q)
+			impl.trainers = newTrainersStore(s.db, q)
 			impl.users = newUsersStore(q)
-			impl.availability = &availabilityStore{db: s.db, q: q}
+			var redisVal appredis.Client
+			if s.redis != nil {
+				redisVal = *s.redis
+			}
+			impl.availability = &availabilityStore{db: s.db, q: q, redis: redisVal}
 
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {
@@ -226,7 +239,7 @@ func (s *Router) Routes() *gin.Engine {
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
-			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
+			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)

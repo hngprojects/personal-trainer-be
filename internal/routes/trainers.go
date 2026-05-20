@@ -1,49 +1,90 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"mime/multipart"
 	"net/http"
 	"path"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	"github.com/hngprojects/personal-trainer-be/internal/auth"
+	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
+// trainersStore now carries the raw *sql.DB so the admin-create handler can
+// run the user/trainer/benefits inserts inside one transaction. The existing
+// callers that only need *db.Queries continue to use the .q field.
 type trainersStore struct {
-	q *db.Queries
+	db *sql.DB
+	q  *db.Queries
 }
 
-func newTrainersStore(q *db.Queries) *trainersStore { return &trainersStore{q: q} }
+func newTrainersStore(rawDB *sql.DB, q *db.Queries) *trainersStore {
+	return &trainersStore{db: rawDB, q: q}
+}
 
+// allowedTrainerSpecializations mirrors the CHECK constraint added in
+// migration 000037. Kept here as a Go-side allow-list so we can return a
+// clean 400 instead of letting the DB raise a constraint violation.
+var allowedTrainerSpecializations = map[string]struct{}{
+	"yoga":      {},
+	"speed":     {},
+	"cardio":    {},
+	"endurance": {},
+	"strength":  {},
+}
+
+const (
+	// Hard cap on the display-picture file. Mirrors the 5 MiB profile used by
+	// the trainer gallery + user avatar endpoints.
+	trainerDisplayPictureMaxBytes = 5 << 20 // 5 MiB
+
+	// Wire-level cap on the whole multipart request: room for the picture +
+	// generous overhead for the text fields and multipart boundaries.
+	trainerCreateMaxRequestBytes = 10 << 20 // 10 MiB
+
+	trainerDisplayPictureField = "display_picture"
+
+	// Length of the auto-generated trainer password emailed to the trainer.
+	// Matches the admin invite flow; 16 chars from the friendly charset is
+	// well past any practical brute-force horizon against bcrypt.
+	trainerGeneratedPasswordLen = 16
+
+	// Max training_styles allowed by the DB CHECK + product spec.
+	trainerTrainingStylesMax = 4
+)
+
+// trainerToMap renders a trainers row for client consumption. Benefits are not
+// part of the trainers row (they live in a sibling table), so handlers that
+// want them on the response pass them via trainerToMapWithBenefits.
 func trainerToMap(t db.Trainer) map[string]interface{} {
 	out := map[string]interface{}{
-		"id":                 t.ID.String(),
-		"user_id":            t.UserID.String(),
-		"calendly_connected": t.CalendlyConnected,
-		"onboarding_status":  t.OnboardingStatus,
-		"average_rating":     t.AverageRating,
-		"total_reviews":      t.TotalReviews,
-		"created_at":         t.CreatedAt,
-		"updated_at":         t.UpdatedAt,
+		"id":                t.ID.String(),
+		"user_id":           t.UserID.String(),
+		"specializations":   specializationsOut(t.Specializations),
+		"training_styles":   trainingStylesOut(t.TrainingStyles),
+		"onboarding_status": t.OnboardingStatus,
+		"average_rating":    t.AverageRating,
+		"total_reviews":     t.TotalReviews,
+		"created_at":        t.CreatedAt,
+		"updated_at":        t.UpdatedAt,
 	}
 
-	if t.Specialization.Valid {
-		out["specialization"] = t.Specialization.String
-	} else {
-		out["specialization"] = nil
-	}
 	if t.Bio.Valid {
 		out["bio"] = t.Bio.String
 	} else {
@@ -64,12 +105,47 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 	} else {
 		out["display_picture"] = nil
 	}
-	if t.CalendlyLink.Valid {
-		out["calendly_link"] = t.CalendlyLink.String
-	} else {
-		out["calendly_link"] = nil
-	}
 
+	return out
+}
+
+// trainerToMapWithBenefits is the variant used by responses that already
+// loaded the trainer's benefits — POST /trainers in particular, where the
+// admin just supplied them and the client expects them back in the 201.
+func trainerToMapWithBenefits(t db.Trainer, benefits []db.TrainerBenefit) map[string]interface{} {
+	out := trainerToMap(t)
+	out["benefits"] = benefitsOut(benefits)
+	return out
+}
+
+// specializationsOut always returns a non-nil slice so the JSON encoder emits
+// `[]` rather than `null` for trainers with no specializations set. The DB
+// default is `'{}'` so this rarely triggers, but the marshaling guarantee
+// matters for clients that assume the field is always present.
+func specializationsOut(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+func trainingStylesOut(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+func benefitsOut(in []db.TrainerBenefit) []map[string]interface{} {
+	out := make([]map[string]interface{}, 0, len(in))
+	for _, b := range in {
+		out = append(out, map[string]interface{}{
+			"id":       b.ID.String(),
+			"position": b.Position,
+			"title":    b.Title,
+			"subtext":  b.Subtext,
+		})
+	}
 	return out
 }
 
@@ -100,62 +176,39 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	c.JSON(http.StatusOK, api.NewSuccess("TRAINERS_FETCHED", api.CodeOK, list))
 }
 
-const (
-	// Per-file hard cap for the display picture. Same 5 MiB profile as the
-	// trainer gallery images and the avatar handler.
-	trainerDisplayPictureMaxBytes = 5 << 20 // 5 MiB
-
-	// Wire-level cap on the whole multipart request. 5 MiB picture plus
-	// generous headroom for the text fields and multipart overhead.
-	trainerCreateMaxRequestBytes = 10 << 20 // 10 MiB
-
-	trainerDisplayPictureField = "display_picture"
-)
-
 // POST /trainers
 //
-// Multipart create. The caller's user_id is taken from the JWT (a trainer can
-// only create their own profile), the optional display_picture file is
-// uploaded asynchronously, and the intro video is uploaded separately via
-// POST /trainers/{id}/intro-video.
+// Admin-only. Admin enters the trainer's email + name + initial profile
+// fields; the server provisions the user account (role='trainer'), inserts
+// the trainer row, writes the benefits, optionally enqueues the display
+// picture upload, and mails the generated credentials.
 //
-// Failure-mode contract for the picture: the trainer row is INSERTed
-// synchronously and returned 201 immediately. The picture's eventual URL is
-// included in the response (predicted from the freshly-minted trainer.id) so
-// the client can optimistically display it; the URL will 404 for the second
-// or two while the background worker uploads, then start resolving once the
-// worker UPDATEs trainers.display_picture. On worker failure the column
-// stays NULL — ops sees a loud log line; the client can re-upload via PATCH
-// down the line (TODO: dedicated picture-replace endpoint).
+// Transactional contract: user upsert + trainer insert + benefit inserts run
+// inside a single SQL transaction so a partial write can never leave a user
+// row with no matching trainer (or a trainer with only half its benefits).
+// The picture enqueue and the credentials email happen AFTER commit — they
+// are non-fatal: a failure logs loudly and the admin can re-invite (the
+// upsert is idempotent on email) or upload the picture later.
 func (s *routerImpl) CreateTrainer(c *gin.Context) {
-	if s.trainers == nil {
+	if s.trainers == nil || s.mailer == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	// Auth: derive the user_id from the JWT. The middleware always populates
-	// this for authed routes; an absence means the route was reached without
-	// auth, which is a server config bug we surface as 401 rather than 500.
-	userID, ok := userIDFromContext(c)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
-		return
+	// Fail closed if the only mailer available is the no-op LogMailer in any
+	// non-development environment. The trainer create path rotates a real
+	// password and is useless if the credentials email never leaves the
+	// server — a 201 with "credentials emailed" would be a lie, and the
+	// trainer would be permanently locked out. Configure Resend or SMTP
+	// before enabling trainer provisioning on staging/prod.
+	if s.cfg != nil && s.cfg.Env != "development" {
+		if _, isLog := s.mailer.(*email.LogMailer); isLog {
+			c.JSON(http.StatusServiceUnavailable, api.NewError("mailer is not configured for credential delivery on this environment", api.CodeServerError))
+			return
+		}
 	}
 
-	// 409 if the caller already has a trainer profile. trainers.user_id has
-	// a UNIQUE constraint, so a second INSERT would 23505 anyway — we just
-	// turn the race-free common case into a friendlier response. (A racing
-	// concurrent create would still 23505 at INSERT time; we map that too
-	// below.)
-	if _, err := s.trainers.q.GetTrainerByUserID(c.Request.Context(), userID); err == nil {
-		c.JSON(http.StatusConflict, api.NewError("trainer profile already exists for this user", api.CodeConflict))
-		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to check existing trainer profile", api.CodeServerError))
-		return
-	}
-
-	// Bound the body before the multipart parser sees it.
+	// Bound the body before the multipart parser touches it.
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, trainerCreateMaxRequestBytes)
 
 	if err := c.Request.ParseMultipartForm(trainerCreateMaxRequestBytes); err != nil {
@@ -168,22 +221,72 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		return
 	}
 
-	// Read text fields. All optional.
-	specialization := formStringPtr(c, "specialization")
-	bio := formStringPtr(c, "bio")
+	emailAddr := strings.ToLower(strings.TrimSpace(c.Request.FormValue("email")))
+	if emailAddr == "" || !common.IsValidEmail(emailAddr) || len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "valid email is required (max 255 chars)"},
+		}))
+		return
+	}
+
+	name := strings.TrimSpace(c.Request.FormValue("name"))
+	if name == "" {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "name", Message: "name is required"},
+		}))
+		return
+	}
+
+	specializations, err := parseTrainerSpecializations(c.Request.MultipartForm.Value["specializations"])
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+		return
+	}
+	if len(specializations) == 0 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "specializations", Message: "at least one specialization is required (yoga, speed, cardio, endurance, strength)"},
+		}))
+		return
+	}
+
+	trainingStyles, err := parseTrainerTrainingStyles(c.Request.MultipartForm.Value["training_styles"])
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+		return
+	}
+
+	benefits, err := parseTrainerBenefits(c.Request.MultipartForm.Value["benefits"])
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+		return
+	}
+
 	yearsOfExperience, err := formIntPtr(c, "years_of_experience")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be an integer", api.CodeBadRequest))
 		return
 	}
-	calendlyLink := formStringPtr(c, "calendly_link")
-	calendlyConnected, err := formBool(c, "calendly_connected")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("calendly_connected must be a boolean", api.CodeBadRequest))
-		return
+
+	// bio is optional — trim and treat blank as NULL so we don't store
+	// literal empty strings. Cap at 2000 characters (not bytes) to match
+	// the api.yaml maxLength annotation. utf8.RuneCountInString counts
+	// code points so multibyte characters (emoji, accented letters, CJK)
+	// aren't unfairly rejected; plain len() would let a trainer with a
+	// 1500-character English bio pass but reject the same trainer's
+	// 1500-character Japanese bio.
+	var bio sql.NullString
+	if v := strings.TrimSpace(c.Request.FormValue("bio")); v != "" {
+		if utf8.RuneCountInString(v) > 2000 {
+			c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+				{Field: "bio", Message: "bio must not exceed 2000 characters"},
+			}))
+			return
+		}
+		bio = sql.NullString{String: v, Valid: true}
 	}
+
 	onboardingStatus := "pending"
-	if v := c.Request.FormValue("onboarding_status"); v != "" {
+	if v := strings.TrimSpace(c.Request.FormValue("onboarding_status")); v != "" {
 		switch v {
 		case "pending", "approved", "rejected", "suspended":
 			onboardingStatus = v
@@ -193,10 +296,8 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}
 
-	// Optional picture. Validate up-front (size + MIME) so we can refuse with
-	// the trainer row still un-INSERTed if the picture is bad. Also refuse
-	// 503 if the uploader isn't configured and a picture WAS supplied — we
-	// don't want to silently drop the upload after creating the row.
+	// Optional picture — validate up-front so we can refuse with NO trainer
+	// row created if the picture is bad / the uploader is missing.
 	var (
 		pictureBytes []byte
 		pictureMIME  string
@@ -225,8 +326,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 		if s.trainerDisplayPictureUploader == nil {
 			// Refuse rather than create the trainer with a silently-dropped
-			// picture. The client can retry once the server is fixed; mid-state
-			// is worse than the 503.
+			// picture. The admin can retry once storage is configured.
 			c.JSON(http.StatusServiceUnavailable, api.NewError("display picture storage is not configured on this server", api.CodeServerError))
 			return
 		}
@@ -235,73 +335,289 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		pictureExt = imageAcceptedMIMEs[mime]
 	}
 
-	// INSERT trainer with display_picture NULL — the worker (if any) fills
-	// it in once the object lands in MinIO.
-	created, err := s.trainers.q.CreateTrainer(c.Request.Context(), db.CreateTrainerParams{
-		UserID:            userID,
-		Specialization:    specialization,
+	// Generate the password BEFORE opening the TX so the password-hash work
+	// happens outside the DB lock window. bcrypt at cost 12 takes ~250ms;
+	// holding a TX open for that is wasteful.
+	plaintextPassword, err := auth.GenerateRandomPassword(trainerGeneratedPasswordLen)
+	if err != nil {
+		s.logger.Error("create trainer: generate password failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	passwordHash, err := auth.HashPassword(plaintextPassword)
+	if err != nil {
+		s.logger.Error("create trainer: hash password failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	// TX boundary. Everything that touches the DB lives here so a failure
+	// rolls back to a consistent state — no orphaned user without a trainer
+	// row, no trainer with half its benefits.
+	ctx := c.Request.Context()
+	tx, err := s.trainers.db.BeginTx(ctx, nil)
+	if err != nil {
+		s.logger.Error("create trainer: begin tx failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	qtx := s.trainers.q.WithTx(tx)
+
+	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
+		Email:    emailAddr,
+		Name:     name,
+		Password: sql.NullString{String: passwordHash, Valid: true},
+	})
+	if err != nil {
+		s.logger.Error("create trainer: upsert user failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	// 409 if the user already had a trainer profile. We do this AFTER the
+	// upsert (rather than a pre-check) so the read sees the committed row
+	// inside our TX — concurrent admin calls for the same email won't both
+	// pass a pre-check and then both INSERT.
+	if existing, err := qtx.GetTrainerByUserID(ctx, user.ID); err == nil {
+		_ = existing
+		c.JSON(http.StatusConflict, api.NewError("a trainer profile already exists for this email", api.CodeConflict))
+		return
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		s.logger.Error("create trainer: lookup existing trainer failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	trainer, err := qtx.CreateTrainer(ctx, db.CreateTrainerParams{
+		UserID:            user.ID,
+		Specializations:   specializations,
+		TrainingStyles:    trainingStyles,
 		Bio:               bio,
 		YearsOfExperience: yearsOfExperience,
-		IntroVideoUrl:     sql.NullString{Valid: false},
 		DisplayPicture:    sql.NullString{Valid: false},
-		CalendlyConnected: calendlyConnected,
-		CalendlyLink:      calendlyLink,
 		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {
-		// Concurrent create race past the 409 pre-check would land on the
-		// users_id unique constraint here.
-		if strings.Contains(err.Error(), "trainers_user_id_key") || strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
-			c.JSON(http.StatusConflict, api.NewError("trainer profile already exists for this user", api.CodeConflict))
+		// Race against a concurrent create for the same user_id — the unique
+		// constraint catches it; map to 409.
+		if strings.Contains(err.Error(), "trainers_user_id_key") {
+			c.JSON(http.StatusConflict, api.NewError("a trainer profile already exists for this email", api.CodeConflict))
 			return
 		}
+		s.logger.Error("create trainer: insert trainer failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create trainer", api.CodeServerError))
 		return
 	}
 
-	// Predict the picture URL from the freshly-minted trainer.id and queue
-	// the upload. If the queue is full, the row is already created — log
-	// loudly and return the row without a picture URL (the client can
-	// re-upload later). This is intentionally non-fatal: we accept a
-	// "trainer exists, picture missing" state over rolling back the INSERT,
-	// which would itself be fallible.
+	insertedBenefits := make([]db.TrainerBenefit, 0, len(benefits))
+	for i, b := range benefits {
+		row, err := qtx.AddTrainerBenefit(ctx, db.AddTrainerBenefitParams{
+			TrainerID: trainer.ID,
+			Position:  int32(i + 1),
+			Title:     b.title,
+			Subtext:   b.subtext,
+		})
+		if err != nil {
+			s.logger.Error("create trainer: insert benefit failed", "err", err, "position", i+1)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to write benefit", api.CodeServerError))
+			return
+		}
+		insertedBenefits = append(insertedBenefits, row)
+	}
+
+	if err := tx.Commit(); err != nil {
+		s.logger.Error("create trainer: commit failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	committed = true
+
+	// Post-commit side effects. Both are non-fatal: the trainer row is
+	// already real and queryable.
 	var pictureURL string
 	if pictureBytes != nil {
-		objectKey := path.Join("trainer-display-pictures", created.ID.String(), uuid.NewString()+pictureExt)
+		objectKey := path.Join("trainer-display-pictures", trainer.ID.String(), uuid.NewString()+pictureExt)
 		pictureURL = strings.TrimRight(s.cfg.MinioPublicBaseURL, "/") + "/" + objectKey
 		if err := s.trainerDisplayPictureUploader.Enqueue(uploads.TrainerDisplayPictureJob{
-			TrainerID:   created.ID,
+			TrainerID:   trainer.ID,
 			ObjectKey:   objectKey,
 			PublicURL:   pictureURL,
 			ContentType: pictureMIME,
 			Bytes:       pictureBytes,
 		}); err != nil {
-			// Don't fail the request — the trainer is created. Drop the
-			// optimistic URL from the response so the client doesn't try to
-			// display a picture that will never appear.
+			// Queue full / closed — log it but don't undo the trainer create.
+			// The admin can upload the picture via a future replace endpoint.
+			s.logger.Error("create trainer: enqueue picture failed", "err", err, "trainer_id", trainer.ID.String())
 			pictureURL = ""
 		}
 	}
 
-	// Build response. trainerToMap reflects the DB row (display_picture NULL),
-	// so overlay the predicted URL if we successfully queued the upload.
-	payload := trainerToMap(created)
+	if err := s.mailer.SendTrainerCredentials(emailAddr, plaintextPassword); err != nil {
+		// Trainer exists and is queryable — but we couldn't tell them.
+		// Surface a clear 500 so the admin retries (UpsertTrainerUser is
+		// idempotent and will rotate the password on retry).
+		s.logger.Error("create trainer: send credentials email failed", "err", err, "user_id", user.ID.String())
+		c.JSON(http.StatusInternalServerError, api.NewError("trainer created but credentials email failed; please retry", api.CodeServerError))
+		return
+	}
+
+	payload := trainerToMapWithBenefits(trainer, insertedBenefits)
+	payload["email"] = user.Email
+	payload["name"] = user.Name
 	if pictureURL != "" {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
 	}
-	c.JSON(http.StatusCreated, api.NewSuccess("TRAINER_CREATED", api.CodeCreated, payload))
+	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; credentials emailed", api.CodeCreated, payload))
 }
 
-// formStringPtr returns *string for an optional text form field. Empty string
-// is treated as "not supplied" so a client sending `bio=` doesn't store a
-// literal empty string in the DB (we want NULL).
-func formStringPtr(c *gin.Context, field string) sql.NullString {
-	v := c.Request.FormValue(field)
-	if v == "" {
-		return sql.NullString{Valid: false}
+// parseTrainerSpecializations accepts both a single CSV field
+// ("yoga,cardio") and a multi-valued field repeated for each entry. Either
+// form is convenient depending on the admin frontend; both reduce to the
+// same []string after dedup + catalog validation.
+func parseTrainerSpecializations(raw []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, entry := range raw {
+		for _, v := range strings.Split(entry, ",") {
+			v = strings.ToLower(strings.TrimSpace(v))
+			if v == "" {
+				continue
+			}
+			if _, ok := allowedTrainerSpecializations[v]; !ok {
+				return nil, fmt.Errorf("invalid specialization %q (allowed: yoga, speed, cardio, endurance, strength)", v)
+			}
+			if _, dup := seen[v]; dup {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
 	}
-	return sql.NullString{String: v, Valid: true}
+	if len(out) > 5 {
+		return nil, fmt.Errorf("at most 5 specializations allowed")
+	}
+	return out, nil
+}
+
+// parseTrainerTrainingStyles accepts the same CSV-or-multi-valued shapes as
+// specializations. Each style must be a single word (no whitespace); we
+// lowercase + dedup. Empty input is valid (returns empty slice).
+func parseTrainerTrainingStyles(raw []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, entry := range raw {
+		for _, v := range strings.Split(entry, ",") {
+			v = strings.ToLower(strings.TrimSpace(v))
+			if v == "" {
+				continue
+			}
+			if strings.ContainsAny(v, " \t\r\n") {
+				return nil, fmt.Errorf("training_styles entries must be single words (no whitespace): %q", v)
+			}
+			if _, dup := seen[v]; dup {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	if len(out) > trainerTrainingStylesMax {
+		return nil, fmt.Errorf("at most %d training_styles allowed", trainerTrainingStylesMax)
+	}
+	return out, nil
+}
+
+// parsedBenefit is the handler-side representation of one benefit row we're
+// about to INSERT. We don't expose it on responses — those use db.TrainerBenefit.
+type parsedBenefit struct {
+	title, subtext string
+}
+
+// parseTrainerBenefits expects a list of JSON-ish strings, one per benefit,
+// each containing the keys "title" and "subtext". For multipart admin
+// frontends sending repeated `benefits` fields it's clearer than the bracket
+// notation that some form libraries don't emit consistently. Examples of
+// accepted values for one entry:
+//
+//	{"title":"Personalized plans","subtext":"Tailored to your goals"}
+//	title=Personalized plans|subtext=Tailored to your goals
+//
+// We accept either form to avoid forcing the frontend to JSON-encode.
+func parseTrainerBenefits(raw []string) ([]parsedBenefit, error) {
+	out := make([]parsedBenefit, 0, len(raw))
+	for i, entry := range raw {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		title, subtext, err := parseSingleBenefit(entry)
+		if err != nil {
+			return nil, fmt.Errorf("benefit at index %d: %w", i, err)
+		}
+		out = append(out, parsedBenefit{title: title, subtext: subtext})
+	}
+	return out, nil
+}
+
+func parseSingleBenefit(entry string) (string, string, error) {
+	// JSON form: {"title":"...","subtext":"..."}.
+	//
+	// `id` and `position` are also accepted but IGNORED — the OpenAPI schema
+	// marks both as readOnly, but Swagger UI still includes them in its
+	// generated form examples and the upstream `position: 0` value would
+	// otherwise trip DisallowUnknownFields. The server is the source of
+	// truth for both: id is the freshly-minted PK, position is the
+	// submitted-order index. We declare them here so the decoder doesn't
+	// reject the payload, then discard the values.
+	if strings.HasPrefix(entry, "{") {
+		var obj struct {
+			Title    string  `json:"title"`
+			Subtext  string  `json:"subtext"`
+			ID       *string `json:"id,omitempty"`
+			Position *int    `json:"position,omitempty"`
+		}
+		if err := jsonDecode(entry, &obj); err != nil {
+			return "", "", fmt.Errorf("invalid JSON: %w", err)
+		}
+		if strings.TrimSpace(obj.Title) == "" || strings.TrimSpace(obj.Subtext) == "" {
+			return "", "", fmt.Errorf("title and subtext are required")
+		}
+		return strings.TrimSpace(obj.Title), strings.TrimSpace(obj.Subtext), nil
+	}
+	// Pipe-separated form: title=...|subtext=...
+	parts := strings.Split(entry, "|")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("expected JSON {title,subtext} or 'title=...|subtext=...' form")
+	}
+	kv := map[string]string{}
+	for _, p := range parts {
+		eq := strings.IndexByte(p, '=')
+		if eq < 0 {
+			return "", "", fmt.Errorf("malformed segment %q (missing '=')", p)
+		}
+		kv[strings.TrimSpace(p[:eq])] = strings.TrimSpace(p[eq+1:])
+	}
+	title, subtext := kv["title"], kv["subtext"]
+	if title == "" || subtext == "" {
+		return "", "", fmt.Errorf("title and subtext are required")
+	}
+	return title, subtext, nil
+}
+
+// jsonDecode is a tiny wrapper around encoding/json that rejects unknown
+// fields — admins typo'ing "title" / "subtext" should fail fast instead of
+// silently losing data on the way to the DB.
+func jsonDecode(s string, v interface{}) error {
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
 }
 
 // formIntPtr parses an optional integer form field. Returns (NullInt32, nil)
@@ -315,20 +631,10 @@ func formIntPtr(c *gin.Context, field string) (sql.NullInt32, error) {
 	if err != nil {
 		return sql.NullInt32{Valid: false}, err
 	}
-	if n > math.MaxInt32 || n < math.MinInt32 {
-		return sql.NullInt32{Valid: false}, fmt.Errorf("value out of int32 range")
+	if n < 0 {
+		return sql.NullInt32{Valid: false}, fmt.Errorf("must be non-negative")
 	}
 	return sql.NullInt32{Int32: int32(n), Valid: true}, nil
-}
-
-// formBool parses an optional boolean form field. Default-false when absent —
-// matches the schema's "calendly_connected defaults to false in DB" semantics.
-func formBool(c *gin.Context, field string) (bool, error) {
-	v := c.Request.FormValue(field)
-	if v == "" {
-		return false, nil
-	}
-	return strconv.ParseBool(v)
 }
 
 // getOptionalFormFile returns (nil, nil) when the file field is absent —
@@ -346,7 +652,7 @@ func getOptionalFormFile(c *gin.Context, field string) (*multipart.FileHeader, e
 }
 
 // GET /trainers/{id}
-// 200 -> TrainerResponse (data is Trainer)
+// 200 -> TrainerResponse (data is Trainer + benefits)
 func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -365,11 +671,23 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, trainerToMap(t)))
+	benefits, err := s.trainers.q.ListTrainerBenefits(c.Request.Context(), trainerID)
+	if err != nil {
+		// Don't 500 if benefits fetch fails — the trainer row is more
+		// important. Log and return without benefits.
+		s.logger.Error("get trainer: list benefits failed", "err", err, "trainer_id", trainerID.String())
+		benefits = nil
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, trainerToMapWithBenefits(t, benefits)))
 }
 
 // PATCH /trainers/{id}
 // 200 -> TrainerResponse (data is Trainer)
+//
+// Doesn't touch benefits — those have their own future endpoints. The handler
+// applies COALESCE-style "leave unchanged if NULL" semantics on the SQL side
+// for every field; pass an empty array to clear specializations/training_styles.
 func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -394,24 +712,48 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	specialization := existing.Specialization
-	if body.Specialization != nil {
-		specialization = sql.NullString{String: *body.Specialization, Valid: true}
+	// Specializations / training_styles: pass-through if nil, otherwise
+	// validate the new value against the catalog / cardinality rules.
+	var specializations []string
+	if body.Specializations != nil {
+		strs := make([]string, 0, len(*body.Specializations))
+		for _, s := range *body.Specializations {
+			strs = append(strs, string(s))
+		}
+		validated, err := parseTrainerSpecializations(strs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+			return
+		}
+		specializations = validated
+	}
+
+	var trainingStyles []string
+	if body.TrainingStyles != nil {
+		validated, err := parseTrainerTrainingStyles(*body.TrainingStyles)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+			return
+		}
+		trainingStyles = validated
 	}
 
 	years := existing.YearsOfExperience
 	if body.YearsOfExperience != nil {
+		if *body.YearsOfExperience < 0 {
+			c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be non-negative", api.CodeBadRequest))
+			return
+		}
 		years = sql.NullInt32{Int32: int32(*body.YearsOfExperience), Valid: true}
 	}
 
-	calendlyConnected := existing.CalendlyConnected
-	if body.CalendlyConnected != nil {
-		calendlyConnected = bool(*body.CalendlyConnected)
-	}
-
-	onboardingStatus := existing.OnboardingStatus
+	// onboarding_status uses sqlc.narg in the query (nullable) so a NULL
+	// argument leaves the column untouched. We only set Valid=true when the
+	// caller actually supplied a new value; otherwise we pass an
+	// invalid-NullString which COALESCE folds back to the existing column.
+	var onboardingStatus sql.NullString
 	if body.OnboardingStatus != nil {
-		onboardingStatus = string(*body.OnboardingStatus)
+		onboardingStatus = sql.NullString{String: string(*body.OnboardingStatus), Valid: true}
 	}
 
 	bio := existing.Bio
@@ -429,20 +771,14 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
-	calendlyLink := existing.CalendlyLink
-	if body.CalendlyLink != nil {
-		calendlyLink = sql.NullString{String: *body.CalendlyLink, Valid: true}
-	}
-
 	updated, err := s.trainers.q.UpdateTrainer(c.Request.Context(), db.UpdateTrainerParams{
 		ID:                trainerID,
-		Specialization:    specialization,
+		Specializations:   specializations,
+		TrainingStyles:    trainingStyles,
 		Bio:               bio,
 		YearsOfExperience: years,
 		IntroVideoUrl:     introVideoUrl,
 		DisplayPicture:    displayPicture,
-		CalendlyConnected: calendlyConnected,
-		CalendlyLink:      calendlyLink,
 		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {
@@ -479,3 +815,10 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	c.Status(http.StatusNoContent)
 }
+
+// silenceUnusedImports keeps imports compiled in if certain code paths get
+// pruned. Currently a no-op — referenced names below.
+var (
+	_ = context.Background
+	_ = email.NewLogMailer
+)

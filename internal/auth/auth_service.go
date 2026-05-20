@@ -42,7 +42,7 @@ func resolveSecret() []byte {
 }
 
 func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
-	ttl := 10 * time.Minute
+	ttl := 15 * time.Minute
 	if tokenType == RefreshToken {
 		ttl = 7 * 24 * time.Hour
 	}

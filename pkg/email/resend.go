@@ -57,6 +57,14 @@ func (m *ResendMailer) SendAdminCredentials(to, password string) error {
 	return m.send(to, adminCredentialsSubject, body)
 }
 
+func (m *ResendMailer) SendTrainerCredentials(to, password string) error {
+	body, err := trainerCredentialsHTML(to, password)
+	if err != nil {
+		return fmt.Errorf("resend: build trainer credentials email body: %w", err)
+	}
+	return m.send(to, trainerCredentialsSubject, body)
+}
+
 func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
 	body, err := passwordResetHTML(code, expiryMinutes)
 	if err != nil {

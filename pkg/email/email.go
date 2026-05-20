@@ -14,6 +14,7 @@ import (
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
 	SendAdminCredentials(to, password string) error
+	SendTrainerCredentials(to, password string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
 	SendContactConfirmation(to, name string) error
@@ -53,8 +54,8 @@ func (m *SMTPMailer) SendVerificationCode(to, code string, expiryMinutes int) er
 
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, verificationCodeSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, verificationCodeSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -74,8 +75,32 @@ func (m *SMTPMailer) SendAdminCredentials(to, password string) error {
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, adminCredentialsSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, adminCredentialsSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+// SendTrainerCredentials mails the generated password to a newly-provisioned
+// trainer. Used by POST /trainers (admin-creates-trainer). Mirrors the admin
+// credentials flow — same delivery shape, different copy.
+func (m *SMTPMailer) SendTrainerCredentials(to, password string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := trainerCredentialsHTML(toAddr, password)
+	if err != nil {
+		return fmt.Errorf("build trainer credentials email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, trainerCredentialsSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -96,8 +121,8 @@ func (m *SMTPMailer) SendPasswordResetCode(to, code string, expiryMinutes int) e
 
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, passwordResetSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, passwordResetSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -122,6 +147,20 @@ func (m *LogMailer) SendAdminCredentials(to, password string) error {
 		return err
 	}
 	slog.Info("email", "to", to, "subject", adminCredentialsSubject, "body", body)
+	return nil
+}
+
+// SendTrainerCredentials logs only metadata — never the rendered body, which
+// contains the live plaintext password. Mirrors SendPasswordResetCode's
+// redaction policy: if the LogMailer ever runs outside an isolated local
+// workflow, anyone with log access could otherwise take over a brand-new
+// trainer account. Local E2E flows that need the actual password should use
+// a test stub that captures the args, not the LogMailer.
+func (m *LogMailer) SendTrainerCredentials(to, _ string) error {
+	slog.Info("email (trainer credentials redacted)",
+		"to", to,
+		"subject", trainerCredentialsSubject,
+	)
 	return nil
 }
 
@@ -352,8 +391,8 @@ func (m *SMTPMailer) SendDiscoveryBookingConfirmation(to, name string, scheduled
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, subject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, subject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -373,8 +412,8 @@ func (m *SMTPMailer) SendDiscoveryBookingAdminNotification(to, clientName, clien
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, discoveryBookingAdminNotificationSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, discoveryBookingAdminNotificationSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -497,6 +536,55 @@ func adminCredentialsHTML(emailAddr, password string) (string, error) {
 	return body.String(), nil
 }
 
+const trainerCredentialsSubject = "Your FitCall trainer account is ready"
+
+var trainerCredentialsTemplate = template.Must(template.New("trainer-credentials-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Welcome to FitCall</h2>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">A trainer account was created for you. Use the credentials below to sign in and complete your profile (bio, intro video, availability).</p>
+        </td></tr>
+        <tr><td style="padding:8px 0;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Email:</strong> {{ .Email }}</p>
+        </td></tr>
+        <tr><td style="padding:8px 0 24px;">
+          <p style="margin:0;font-size:14px;color:#111827;"><strong>Temporary password:</strong>
+            <span style="font-family:monospace;background:#f4f4f5;padding:4px 8px;border-radius:4px;">{{ .Password }}</span>
+          </p>
+        </td></tr>
+        <tr><td align="center" style="padding-top:16px;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">Please change this password after your first sign-in. Do not share this email with anyone.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func trainerCredentialsHTML(emailAddr, password string) (string, error) {
+	var body bytes.Buffer
+	if err := trainerCredentialsTemplate.Execute(&body, struct {
+		Email    string
+		Password string
+	}{
+		Email:    emailAddr,
+		Password: password,
+	}); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
 const passwordResetSubject = "Your password reset code"
 
 var passwordResetTemplate = template.Must(template.New("password-reset-email").Parse(`<!DOCTYPE html>
@@ -556,8 +644,8 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, waitlistConfirmationSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, waitlistConfirmationSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -577,8 +665,8 @@ func (m *SMTPMailer) SendContactConfirmation(to, name string) error {
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, contactConfirmationSubject, body,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, contactConfirmationSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -662,8 +750,8 @@ func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTim
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, discoveryRescheduleSubject, html,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, discoveryRescheduleSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -731,8 +819,8 @@ func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldT
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, paidRescheduleClientSubject, html,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, paidRescheduleClientSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -752,8 +840,8 @@ func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, paidRescheduleTrainerSubject, html,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, paidRescheduleTrainerSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -906,8 +994,8 @@ func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string,
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
-		"From: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, bookingConfirmationSubject, html,
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, bookingConfirmationSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }

@@ -172,7 +172,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 }
 
 // GET /booking-slots — public
-func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsParams) {
+func (h *Handler) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
 	slots, err := h.repo.GetActiveSlots(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to get booking slots", "err", err)
@@ -198,7 +198,7 @@ func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsPara
 }
 
 // POST /booking-slots — admin / customer_care
-func (h *Handler) CreateBookingSlot(c *gin.Context) {
+func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -250,7 +250,7 @@ func (h *Handler) CreateBookingSlot(c *gin.Context) {
 }
 
 // PUT /booking-slots/{id} — admin / customer_care
-func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -315,7 +315,7 @@ func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
 }
 
 // DELETE /booking-slots/{id} — admin / customer_care
-func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	slotID := uuid.UUID(id)
 	if _, err := h.repo.GetSlotByID(c.Request.Context(), slotID); err != nil {
 		c.JSON(http.StatusNotFound, api.NewNotFoundError("booking slot"))
@@ -693,6 +693,13 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	type upcomingItem struct {
 		ID               string    `json:"id"`
 		Type             string    `json:"type"`
+		// SessionID is the booking_session.id for paid sessions whose session
+		// row has been created (i.e. the session was started). It lets the
+		// client navigate from this list to GET /sessions/{id} without an
+		// extra round trip. Omitted for discovery calls (they have no
+		// associated session row) and for paid bookings that haven't been
+		// started yet (the booking_session row only exists post-start).
+		SessionID        *string   `json:"session_id,omitempty"`
 		ScheduledAt      string    `json:"scheduled_at"`
 		ScheduledAtLocal string    `json:"scheduled_at_local"`
 		DurationMinutes  int       `json:"duration_minutes"`
@@ -702,7 +709,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 		PhoneNumber      *string   `json:"phone_number,omitempty"`
 		TrainerName      *string   `json:"trainer_name,omitempty"`
 		TrainerPhoto     *string   `json:"trainer_photo,omitempty"`
-		Specialization   *string   `json:"specialization,omitempty"`
+		Specializations  []string  `json:"specializations,omitempty"`
 		SortKey          time.Time `json:"-"`
 	}
 
@@ -783,9 +790,11 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 				v := s.TrainerName
 				item.TrainerName = &v
 			}
-			if s.TrainerSpecialization.Valid {
-				v := s.TrainerSpecialization.String
-				item.Specialization = &v
+			if len(s.TrainerSpecializations) > 0 {
+				// Trainer specializations are now multi-valued (see migration
+				// 033). Copy the slice so the response retains the full set
+				// rather than the previous single-string field.
+				item.Specializations = append([]string(nil), s.TrainerSpecializations...)
 			}
 			if s.TrainerPhoto.Valid {
 				v := s.TrainerPhoto.String
@@ -815,6 +824,39 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 		end = total
 	}
 	paged := items[offset:end]
+
+	// Enrich paid-session items in the paged slice with their
+	// booking_session.id (so the client can navigate straight to
+	// /sessions/{id} from this list). Run AFTER pagination so the per-row
+	// session lookup is bounded by `limit` (≤100), not by the total upcoming
+	// count — a user with 200 upcoming sessions on a page-size-10 request
+	// pays for 10 lookups, not 200.
+	//
+	// Discovery calls don't have an associated booking_session row, so we
+	// skip them entirely. A per-row failure logs a warning and leaves
+	// SessionID nil for that item — the client can retry the detail call.
+	for i := range paged {
+		if paged[i].Type != "paid_session" {
+			continue
+		}
+		bookingID, err := uuid.Parse(paged[i].ID)
+		if err != nil {
+			// Shouldn't happen — ID came from a db.UUID a few lines up.
+			h.log.Warn("upcoming item has unparseable booking id",
+				"err", err, "id", paged[i].ID)
+			continue
+		}
+		sessionID, ok, err := h.repo.GetSessionIDForBooking(ctx, bookingID)
+		if err != nil {
+			h.log.Warn("failed to look up session id for booking",
+				"err", err, "booking_id", paged[i].ID)
+			continue
+		}
+		if ok {
+			v := sessionID.String()
+			paged[i].SessionID = &v
+		}
+	}
 
 	meta := map[string]int{
 		"page":        page,

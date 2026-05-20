@@ -13,6 +13,17 @@ import (
 	"github.com/lib/pq"
 )
 
+const countClients = `-- name: CountClients :one
+SELECT COUNT(*) FROM users WHERE role = 'client' AND is_active = true
+`
+
+func (q *Queries) CountClients(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countClients)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
@@ -247,6 +258,52 @@ type UpsertAdminUserParams struct {
 
 func (q *Queries) UpsertAdminUser(ctx context.Context, arg UpsertAdminUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, upsertAdminUser, arg.Email, arg.Name, arg.Password)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+	)
+	return i, err
+}
+
+const upsertTrainerUser = `-- name: UpsertTrainerUser :one
+INSERT INTO users (email, name, password, auth_provider, role, is_active)
+VALUES ($1, $2, $3, 'local', 'trainer', true)
+ON CONFLICT (email, auth_provider) DO UPDATE
+   SET password   = EXCLUDED.password,
+       name       = EXCLUDED.name,
+       role       = 'trainer',
+       is_active  = true,
+       updated_at = NOW()
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+`
+
+type UpsertTrainerUserParams struct {
+	Email    string
+	Name     string
+	Password sql.NullString
+}
+
+// Mirror of UpsertAdminUser, used by POST /trainers (admin-creates-trainer).
+// The admin enters the trainer's email + name; we provision a local-auth user
+// with role='trainer' and a generated password (hashed). Re-inviting the same
+// email is idempotent — the password rotates, the name is overwritten, and
+// the role is forced back to 'trainer' so a previously-suspended account is
+// reactivated cleanly. The plaintext password is mailed exactly once by the
+// caller and never persisted.
+func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, upsertTrainerUser, arg.Email, arg.Name, arg.Password)
 	var i User
 	err := row.Scan(
 		&i.ID,

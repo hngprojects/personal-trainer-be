@@ -61,7 +61,7 @@ type BookingSlot struct {
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	TrainerID uuid.UUID
+	TrainerID uuid.NullUUID
 }
 
 type ContactMessage struct {
@@ -88,6 +88,7 @@ type DiscoveryBooking struct {
 	UpdatedAt        time.Time
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
+	TrainerID        uuid.NullUUID
 }
 
 type FailedAvatarUpload struct {
@@ -169,18 +170,17 @@ type Subscription struct {
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
-	Specialization    sql.NullString
 	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
-	CalendlyConnected bool
-	CalendlyLink      sql.NullString
 	OnboardingStatus  string
 	AverageRating     sql.NullString
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
 }
 
 type TrainerAvailability struct {
@@ -192,6 +192,15 @@ type TrainerAvailability struct {
 	Timezone  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type TrainerBenefit struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+	Position  int32
+	Title     string
+	Subtext   string
+	CreatedAt time.Time
 }
 
 type TrainerImage struct {

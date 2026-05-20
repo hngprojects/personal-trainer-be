@@ -13,15 +13,15 @@ import (
 
 const addTrainerImage = `-- name: AddTrainerImage :one
 WITH lock AS (
-    SELECT pg_advisory_xact_lock(hashtext('trainer_image_position:' || $1::text))
+    SELECT pg_advisory_xact_lock(hashtext('trainer_image_position:' || $1::uuid::text))
 ),
 next_pos AS (
     SELECT COALESCE(MAX(position) + 1, 1) AS pos
     FROM trainer_images
-    WHERE trainer_id = $1
+    WHERE trainer_id = $1::uuid
 )
 INSERT INTO trainer_images (trainer_id, image_url, position)
-SELECT $1, $2, next_pos.pos
+SELECT $1::uuid, $2, next_pos.pos
 FROM next_pos, lock
 RETURNING id, trainer_id, image_url, position, created_at
 `
@@ -42,6 +42,13 @@ type AddTrainerImageParams struct {
 // INSERT would fail the (trainer_id, position) unique index — losing a
 // gallery entry while leaving an orphaned object in MinIO. The lock is
 // released automatically when the implicit statement transaction ends.
+//
+// Every use of @trainer_id is cast to ::uuid explicitly. sqlc otherwise
+// infers the parameter's Go type from the *first* cast it sees, and the
+// '::text' cast inside hashtext used to win — leaving the WHERE comparison
+// as `uuid_column = text_param`, which Postgres rejects with
+// ERRCODE 42883 "operator does not exist: uuid = text". The string concat
+// in hashtext then double-casts ::uuid::text to keep the lock key stable.
 func (q *Queries) AddTrainerImage(ctx context.Context, arg AddTrainerImageParams) (TrainerImage, error) {
 	row := q.db.QueryRowContext(ctx, addTrainerImage, arg.TrainerID, arg.ImageUrl)
 	var i TrainerImage
