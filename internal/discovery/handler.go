@@ -121,12 +121,6 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		phoneNumber = *req.PhoneNumber
 	}
 
-	trainerID, err := uuid.Parse(*req.TrainerId)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid trainer id", api.CodeBadRequest))
-		return
-	}
-
 	// Insert booking first; create Zoom meeting after so no orphaned meeting on DB failure.
 	booking, err := h.repo.CreateBooking(ctx, db.CreateDiscoveryBookingParams{
 		UserID:           uuid.NullUUID{UUID: userID, Valid: true},
@@ -136,10 +130,6 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		PhoneNumber:      nullString(req.PhoneNumber),
 		SelectedDatetime: selectedTime,
 		ClientTimezone:   req.Timezone,
-		TrainerID: uuid.NullUUID{
-			UUID:  trainerID,
-			Valid: true,
-		},
 	})
 	if err != nil {
 		// Unique index violation means a concurrent request won the race for this slot.
@@ -182,7 +172,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 }
 
 // GET /booking-slots — public
-func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsParams) {
+func (h *Handler) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
 	slots, err := h.repo.GetActiveSlots(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to get booking slots", "err", err)
@@ -208,7 +198,7 @@ func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsPara
 }
 
 // POST /booking-slots — admin / customer_care
-func (h *Handler) CreateBookingSlot(c *gin.Context) {
+func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -260,7 +250,7 @@ func (h *Handler) CreateBookingSlot(c *gin.Context) {
 }
 
 // PUT /booking-slots/{id} — admin / customer_care
-func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -325,7 +315,7 @@ func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
 }
 
 // DELETE /booking-slots/{id} — admin / customer_care
-func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	slotID := uuid.UUID(id)
 	if _, err := h.repo.GetSlotByID(c.Request.Context(), slotID); err != nil {
 		c.JSON(http.StatusNotFound, api.NewNotFoundError("booking slot"))

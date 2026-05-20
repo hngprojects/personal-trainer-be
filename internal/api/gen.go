@@ -518,6 +518,24 @@ func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
+const (
+	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
+	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
+func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
+		return true
+	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
@@ -533,24 +551,6 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	case Whatsapp:
 		return true
 	case Zoom:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
-const (
-	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
-	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
-func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
-		return true
-	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -780,9 +780,6 @@ type BookDiscoveryCallRequest struct {
 
 	// Timezone Client IANA timezone
 	Timezone string `json:"timezone"`
-
-	// TrainerId Required trainer id
-	TrainerId *string `json:"trainer_id,omitempty"`
 }
 
 // BookDiscoveryCallRequestContactMode defines model for BookDiscoveryCallRequest.ContactMode.
@@ -992,6 +989,11 @@ type LocalAuthData struct {
 	ExpiresIn    int      `json:"expires_in"`
 	RefreshToken string   `json:"refresh_token"`
 	User         AuthUser `json:"user"`
+}
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email openapi_types.Email `json:"email"`
 }
 
 // RescheduleBookingRequest defines model for RescheduleBookingRequest.
@@ -1291,6 +1293,12 @@ type HandleGoogleCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
+// HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
+type HandleLocalAuthJSONBody struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
@@ -1308,6 +1316,9 @@ type HandleRefresh200JSONResponseBodyStatus string
 // HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
 type HandleVerifyEmail200JSONResponseBodyStatus string
 
+// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlots200JSONResponseBodyStatus string
+
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
 	ScheduledEnd    time.Time                            `json:"scheduled_end"`
@@ -1320,15 +1331,6 @@ type CreateBookingJSONBody struct {
 
 // CreateBookingJSONBodySessionPlatform defines parameters for CreateBooking.
 type CreateBookingJSONBodySessionPlatform string
-
-// GetBookingSlotsParams defines parameters for GetBookingSlots.
-type GetBookingSlotsParams struct {
-	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
-	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
-}
-
-// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
-type GetTrainersBookingSlots200JSONResponseBodyStatus string
 
 // GetUpcomingBookingsParams defines parameters for GetUpcomingBookings.
 type GetUpcomingBookingsParams struct {
@@ -1350,6 +1352,12 @@ type HandleContactUsJSONBody struct {
 	Message string              `json:"message"`
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
+}
+
+// GetDiscoverySlotsParams defines parameters for GetDiscoverySlots.
+type GetDiscoverySlotsParams struct {
+	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
+	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
 // HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
@@ -1432,11 +1440,17 @@ type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 // HandleGoogleMobileSignInJSONRequestBody defines body for HandleGoogleMobileSignIn for application/json ContentType.
 type HandleGoogleMobileSignInJSONRequestBody = GoogleMobileSignInRequest
 
+// HandleLocalAuthJSONRequestBody defines body for HandleLocalAuth for application/json ContentType.
+type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
+
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
 // HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
 type HandleRefreshJSONRequestBody HandleRefreshJSONBody
+
+// HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
+type HandleRegisterJSONRequestBody = RegisterRequest
 
 // HandleResetPasswordJSONRequestBody defines body for HandleResetPassword for application/json ContentType.
 type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
@@ -1450,12 +1464,6 @@ type CreateBookingJSONRequestBody CreateBookingJSONBody
 // BookDiscoveryCallJSONRequestBody defines body for BookDiscoveryCall for application/json ContentType.
 type BookDiscoveryCallJSONRequestBody = BookDiscoveryCallRequest
 
-// CreateBookingSlotJSONRequestBody defines body for CreateBookingSlot for application/json ContentType.
-type CreateBookingSlotJSONRequestBody = BookingSlotRequest
-
-// UpdateBookingSlotJSONRequestBody defines body for UpdateBookingSlot for application/json ContentType.
-type UpdateBookingSlotJSONRequestBody = BookingSlotRequest
-
 // CancelBookingJSONRequestBody defines body for CancelBooking for application/json ContentType.
 type CancelBookingJSONRequestBody = CancelBookingRequest
 
@@ -1465,14 +1473,20 @@ type RescheduleDiscoveryCallJSONRequestBody = RescheduleBookingRequest
 // HandleContactUsJSONRequestBody defines body for HandleContactUs for application/json ContentType.
 type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 
+// CreateDiscoverySlotJSONRequestBody defines body for CreateDiscoverySlot for application/json ContentType.
+type CreateDiscoverySlotJSONRequestBody = BookingSlotRequest
+
+// UpdateDiscoverySlotJSONRequestBody defines body for UpdateDiscoverySlot for application/json ContentType.
+type UpdateDiscoverySlotJSONRequestBody = BookingSlotRequest
+
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
-// CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
-type CreateTrainerMultipartRequestBody = CreateTrainerRequest
+// CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
+type CreateTrainerJSONRequestBody = CreateTrainerRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1504,10 +1518,10 @@ type ServerInterface interface {
 	// (GET /)
 	Root(c *gin.Context)
 	// Create an admin account (super_admin only)
-	// (POST /admin)
+	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
 	// Approve a trainer
-	// (PUT /admin/trainers/{id}/approval)
+	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
@@ -1524,54 +1538,60 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
+	// Login with email
+	// (POST /auth/login)
+	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
 	// Refresh access token
 	// (POST /auth/refresh)
 	HandleRefresh(c *gin.Context)
+	// Register or request a new OTP — sends a 6-digit verification code to the email
+	// (POST /auth/register)
+	HandleRegister(c *gin.Context)
 	// Reset password using a previously emailed code
 	// (POST /auth/reset-password)
 	HandleResetPassword(c *gin.Context)
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// List all active booking slots (public)
+	// (GET /booking-slots/{trainerId})
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
 	// Clients creates a booking session with preferred trainer
 	// (POST /bookings)
 	CreateBooking(c *gin.Context)
 	// Book a discovery call with a FitCall rep
 	// (POST /bookings/discovery)
 	BookDiscoveryCall(c *gin.Context)
-	// List all active booking slots (public)
-	// (GET /bookings/slots)
-	GetBookingSlots(c *gin.Context, params GetBookingSlotsParams)
-	// Create a booking slot (admin or customer_care only)
-	// (POST /bookings/slots)
-	CreateBookingSlot(c *gin.Context)
-	// Delete a booking slot (admin or customer_care only)
-	// (DELETE /bookings/slots/{id})
-	DeleteBookingSlot(c *gin.Context, id openapi_types.UUID)
-	// Update a booking slot (admin or customer_care only)
-	// (PUT /bookings/slots/{id})
-	UpdateBookingSlot(c *gin.Context, id openapi_types.UUID)
-	// List all active booking slots (public)
-	// (GET /bookings/slots/{trainerId})
-	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
 	// Get upcoming bookings for the authenticated client
 	// (GET /bookings/upcoming)
 	GetUpcomingBookings(c *gin.Context, params GetUpcomingBookingsParams)
 	// Cancel a confirmed booking
-	// (PUT /bookings/{id}/cancellation)
+	// (PUT /bookings/{id}/cancel)
 	CancelBooking(c *gin.Context, id openapi_types.UUID)
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// Handle taking user feedback
-	// (POST /contact)
+	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
 	HandleCreateDevToken(c *gin.Context)
+	// List all active discovery slots (public)
+	// (GET /discovery-slots)
+	GetDiscoverySlots(c *gin.Context, params GetDiscoverySlotsParams)
+	// Create a discovery slot (admin or customer_care only)
+	// (POST /discovery-slots)
+	CreateDiscoverySlot(c *gin.Context)
+	// Delete a discovery slot (admin or customer_care only)
+	// (DELETE /discovery-slots/{id})
+	DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID)
+	// Update a discovery slot (admin or customer_care only)
+	// (PUT /discovery-slots/{id})
+	UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -1593,7 +1613,7 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
-	// Get trainers
+	// Get trainers (admin only)
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
 	// Admin creates a trainer (admin or super_admin)
@@ -1608,7 +1628,7 @@ type ServerInterface interface {
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
-	// Get trainer by ID
+	// Get trainer by ID (admin only)
 	// (GET /trainers/{id})
 	GetTrainerByID(c *gin.Context, id openapi_types.UUID)
 	// Update trainer (admin only)
@@ -1645,7 +1665,7 @@ type ServerInterface interface {
 	// (PATCH /users/me/profile)
 	UpdateUserProfile(c *gin.Context)
 	// Upload an avatar image
-	// (POST /users/me/profile-picture)
+	// (POST /users/me/profile/picture)
 	UploadProfilePicture(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
@@ -1806,6 +1826,19 @@ func (siw *ServerInterfaceWrapper) HandleGoogleMobileSignIn(c *gin.Context) {
 	siw.Handler.HandleGoogleMobileSignIn(c)
 }
 
+// HandleLocalAuth operation middleware
+func (siw *ServerInterfaceWrapper) HandleLocalAuth(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleLocalAuth(c)
+}
+
 // HandleLogout operation middleware
 func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
@@ -1834,6 +1867,19 @@ func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
 	siw.Handler.HandleRefresh(c)
 }
 
+// HandleRegister operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegister(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegister(c)
+}
+
 // HandleResetPassword operation middleware
 func (siw *ServerInterfaceWrapper) HandleResetPassword(c *gin.Context) {
 
@@ -1858,6 +1904,33 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	}
 
 	siw.Handler.HandleVerifyEmail(c)
+}
+
+// GetTrainersBookingSlots operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "trainerId" -------------
+	var trainerId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersBookingSlots(c, trainerId)
 }
 
 // CreateBooking operation middleware
@@ -1888,129 +1961,6 @@ func (siw *ServerInterfaceWrapper) BookDiscoveryCall(c *gin.Context) {
 	}
 
 	siw.Handler.BookDiscoveryCall(c)
-}
-
-// GetBookingSlots operation middleware
-func (siw *ServerInterfaceWrapper) GetBookingSlots(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetBookingSlotsParams
-
-	// ------------- Optional query parameter "timezone" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetBookingSlots(c, params)
-}
-
-// CreateBookingSlot operation middleware
-func (siw *ServerInterfaceWrapper) CreateBookingSlot(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.CreateBookingSlot(c)
-}
-
-// DeleteBookingSlot operation middleware
-func (siw *ServerInterfaceWrapper) DeleteBookingSlot(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteBookingSlot(c, id)
-}
-
-// UpdateBookingSlot operation middleware
-func (siw *ServerInterfaceWrapper) UpdateBookingSlot(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.UpdateBookingSlot(c, id)
-}
-
-// GetTrainersBookingSlots operation middleware
-func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "trainerId" -------------
-	var trainerId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "trainerId", c.Param("trainerId"), &trainerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainerId: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetTrainersBookingSlots(c, trainerId)
 }
 
 // GetUpcomingBookings operation middleware
@@ -2144,6 +2094,102 @@ func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 	}
 
 	siw.Handler.HandleCreateDevToken(c)
+}
+
+// GetDiscoverySlots operation middleware
+func (siw *ServerInterfaceWrapper) GetDiscoverySlots(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDiscoverySlotsParams
+
+	// ------------- Optional query parameter "timezone" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDiscoverySlots(c, params)
+}
+
+// CreateDiscoverySlot operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiscoverySlot(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDiscoverySlot(c)
+}
+
+// DeleteDiscoverySlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteDiscoverySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteDiscoverySlot(c, id)
+}
+
+// UpdateDiscoverySlot operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDiscoverySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateDiscoverySlot(c, id)
 }
 
 // HealthCheck operation middleware
@@ -2821,29 +2867,31 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
-	router.POST(options.BaseURL+"/admin", wrapper.AdminAdd)
-	router.PUT(options.BaseURL+"/admin/trainers/:id/approval", wrapper.AdminApproveTrainer)
+	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
+	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
+	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
-	router.GET(options.BaseURL+"/bookings/slots", wrapper.GetBookingSlots)
-	router.POST(options.BaseURL+"/bookings/slots", wrapper.CreateBookingSlot)
-	router.DELETE(options.BaseURL+"/bookings/slots/:id", wrapper.DeleteBookingSlot)
-	router.PUT(options.BaseURL+"/bookings/slots/:id", wrapper.UpdateBookingSlot)
-	router.GET(options.BaseURL+"/bookings/slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
-	router.PUT(options.BaseURL+"/bookings/:id/cancellation", wrapper.CancelBooking)
+	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
-	router.POST(options.BaseURL+"/contact", wrapper.HandleContactUs)
+	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
+	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
+	router.POST(options.BaseURL+"/discovery-slots", wrapper.CreateDiscoverySlot)
+	router.DELETE(options.BaseURL+"/discovery-slots/:id", wrapper.DeleteDiscoverySlot)
+	router.PUT(options.BaseURL+"/discovery-slots/:id", wrapper.UpdateDiscoverySlot)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
@@ -2868,7 +2916,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
-	router.POST(options.BaseURL+"/users/me/profile-picture", wrapper.UploadProfilePicture)
+	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 }

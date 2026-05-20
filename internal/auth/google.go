@@ -128,7 +128,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"is_new_user":   isNewUser,
-		"expires_in":    int(10 * time.Minute / time.Second),
+		"expires_in":    int(accessTokenTTL / time.Second),
 	}
 	c.JSON(http.StatusOK, api.NewSuccessResponse("Google authentication successful", api.CodeOK, googleData, nil))
 }

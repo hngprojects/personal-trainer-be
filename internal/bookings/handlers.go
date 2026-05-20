@@ -2,6 +2,7 @@ package bookings
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -47,8 +48,24 @@ func NewBookingHandler(service BookingService, log *slog.Logger) *bookingHandler
 	return &bookingHandler{service: service, log: log}
 }
 
+const bookingSlotsCacheTTL = 15 * time.Minute
+
 func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
-	bookingSlot, err := h.service.GetTrainersBookingSlots(c.Request.Context(), trainerId)
+	ctx := c.Request.Context()
+	cacheKey := "booking-slots:trainer:" + trainerId.String()
+
+	// Cache read — skip on Redis error, proceed to DB.
+	if cached := h.redis.Get(ctx, cacheKey); cached.Err() == nil {
+		var slots []db.GetTrainersBookingSlotsRow
+		if err := json.Unmarshal([]byte(cached.Val()), &slots); err == nil {
+			bookingSlotResponse := map[string]interface{}{"data": slots}
+			var data interface{} = bookingSlotResponse
+			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
+			return
+		}
+	}
+
+	bookingSlot, err := h.service.GetTrainersBookingSlots(ctx, trainerId)
 	if err != nil {
 		h.log.Error("could not fetch booking slot for trainer", "err", err)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
@@ -61,6 +78,12 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 	if bookingSlot == nil {
 		bookingSlot = []db.GetTrainersBookingSlotsRow{}
 	}
+
+	// Cache the result for subsequent reads.
+	if raw, err := json.Marshal(bookingSlot); err == nil {
+		_ = h.redis.Set(ctx, cacheKey, raw, bookingSlotsCacheTTL)
+	}
+
 	bookingSlotResponse := map[string]interface{}{"data": bookingSlot}
 	var data interface{} = bookingSlotResponse
 	c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
