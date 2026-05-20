@@ -17,36 +17,36 @@ func (s *routerImpl) BookDiscoveryCall(c *gin.Context) {
 	s.discovery.BookDiscoveryCall(c)
 }
 
-func (s *routerImpl) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsParams) {
+func (s *routerImpl) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
 	if s.discovery == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.discovery.GetBookingSlots(c, params)
+	s.discovery.GetDiscoverySlots(c, params)
 }
 
-func (s *routerImpl) CreateBookingSlot(c *gin.Context) {
+func (s *routerImpl) CreateDiscoverySlot(c *gin.Context) {
 	if s.discovery == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.discovery.CreateBookingSlot(c)
+	s.discovery.CreateDiscoverySlot(c)
 }
 
-func (s *routerImpl) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (s *routerImpl) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	if s.discovery == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.discovery.UpdateBookingSlot(c, id)
+	s.discovery.UpdateDiscoverySlot(c, id)
 }
 
-func (s *routerImpl) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (s *routerImpl) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	if s.discovery == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.discovery.DeleteBookingSlot(c, id)
+	s.discovery.DeleteDiscoverySlot(c, id)
 }
 
 // RescheduleDiscoveryCall is the unified handler for PUT /bookings/{id}/reschedule.

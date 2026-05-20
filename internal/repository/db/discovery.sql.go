@@ -51,6 +51,7 @@ func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotC
 
 const createBookingSlot = `-- name: CreateBookingSlot :one
 INSERT INTO booking_slots (
+    trainer_id,
     day_of_week,
     start_time,
     end_time,
@@ -61,12 +62,14 @@ INSERT INTO booking_slots (
     $2,
     $3,
     $4,
+    $5,
     true
 )
 RETURNING id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id
 `
 
 type CreateBookingSlotParams struct {
+	TrainerID uuid.UUID
 	DayOfWeek int16
 	StartTime time.Time
 	EndTime   time.Time
@@ -75,6 +78,7 @@ type CreateBookingSlotParams struct {
 
 func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotParams) (BookingSlot, error) {
 	row := q.db.QueryRowContext(ctx, createBookingSlot,
+		arg.TrainerID,
 		arg.DayOfWeek,
 		arg.StartTime,
 		arg.EndTime,

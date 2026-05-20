@@ -45,12 +45,14 @@ LIMIT 1;
 
 -- name: CreateBookingSlot :one
 INSERT INTO booking_slots (
+    trainer_id,
     day_of_week,
     start_time,
     end_time,
     timezone,
     is_active
 ) VALUES (
+    sqlc.arg(trainer_id),
     sqlc.arg(day_of_week),
     sqlc.arg(start_time),
     sqlc.arg(end_time),

@@ -26,7 +26,7 @@ import (
 const (
 	codeExpiry         = 15 * time.Minute
 	refreshTokenExpiry = 7 * 24 * time.Hour
-	accessTokenTTL     = 10 * time.Minute
+	accessTokenTTL     = 15 * time.Minute
 )
 
 type LocalHandler struct {

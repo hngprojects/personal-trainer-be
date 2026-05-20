@@ -172,7 +172,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 }
 
 // GET /booking-slots — public
-func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsParams) {
+func (h *Handler) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
 	slots, err := h.repo.GetActiveSlots(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to get booking slots", "err", err)
@@ -198,7 +198,7 @@ func (h *Handler) GetBookingSlots(c *gin.Context, params api.GetBookingSlotsPara
 }
 
 // POST /booking-slots — admin / customer_care
-func (h *Handler) CreateBookingSlot(c *gin.Context) {
+func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -235,6 +235,7 @@ func (h *Handler) CreateBookingSlot(c *gin.Context) {
 	}
 
 	slot, err := h.repo.CreateSlot(c.Request.Context(), db.CreateBookingSlotParams{
+		TrainerID: uuid.UUID(req.TrainerId),
 		DayOfWeek: int16(req.DayOfWeek),
 		StartTime: startT,
 		EndTime:   endT,
@@ -250,7 +251,7 @@ func (h *Handler) CreateBookingSlot(c *gin.Context) {
 }
 
 // PUT /booking-slots/{id} — admin / customer_care
-func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -315,7 +316,7 @@ func (h *Handler) UpdateBookingSlot(c *gin.Context, id openapi_types.UUID) {
 }
 
 // DELETE /booking-slots/{id} — admin / customer_care
-func (h *Handler) DeleteBookingSlot(c *gin.Context, id openapi_types.UUID) {
+func (h *Handler) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	slotID := uuid.UUID(id)
 	if _, err := h.repo.GetSlotByID(c.Request.Context(), slotID); err != nil {
 		c.JSON(http.StatusNotFound, api.NewNotFoundError("booking slot"))

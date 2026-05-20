@@ -228,8 +228,6 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(s.db, q)
 			impl.users = newUsersStore(q)
-			impl.availability = &availabilityStore{db: s.db, q: q}
-
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
@@ -244,6 +242,7 @@ func (s *Router) Routes() *gin.Engine {
 				redisVal = *s.redis
 			}
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
+			impl.availability = &availabilityStore{db: s.db, q: q, redis: redisVal}
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)

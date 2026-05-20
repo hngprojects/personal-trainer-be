@@ -15,11 +15,13 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
 type availabilityStore struct {
-	db *sql.DB
-	q  *db.Queries
+	db    *sql.DB
+	q     *db.Queries
+	redis appredis.Client
 }
 
 // PutTrainersMeAvailability handles PUT /trainers/me/availability
@@ -36,7 +38,6 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	// Extract authenticated user ID
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
@@ -50,7 +51,6 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Lookup trainer by user ID
 	trainer, err := s.availability.q.GetTrainerByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -61,7 +61,6 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 		return
 	}
 
-	// Validate and convert availability slots
 	parsedSlots := make([]*parsedSlot, 0, len(req.Availability))
 	for i, slot := range req.Availability {
 		parsed, validationErr := validateAndParseSlot(slot)
@@ -69,25 +68,24 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, api.NewError(validationErr.Error(), api.CodeBadRequest))
 			return
 		}
-		// Add index for error reporting in case of overlaps
 		parsed.index = i
 		parsedSlots = append(parsedSlots, parsed)
 	}
 
-	// Check for overlaps
 	if err := checkOverlaps(parsedSlots); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
-	// Save slots (delete old, insert new) in transaction
 	savedSlots, err := saveAvailabilitySlots(ctx, s.availability, trainer.ID, parsedSlots)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to save availability", api.CodeServerError))
 		return
 	}
 
-	// Convert saved slots to response format
+	// Invalidate cached booking slots for this trainer so clients see fresh data.
+	s.availability.redis.Delete(ctx, bookingSlotsCacheKey(trainer.ID))
+
 	responseSlots := make([]api.AvailabilitySlot, len(savedSlots))
 	for i, slot := range savedSlots {
 		responseSlots[i] = api.AvailabilitySlot{
@@ -101,6 +99,11 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_SET", api.CodeOK, responseSlots))
 }
 
+// bookingSlotsCacheKey returns the Redis key for a trainer's cached booking slots.
+func bookingSlotsCacheKey(trainerID uuid.UUID) string {
+	return "booking-slots:trainer:" + trainerID.String()
+}
+
 type parsedSlot struct {
 	dayOfWeek int16
 	startTime time.Time
@@ -110,31 +113,26 @@ type parsedSlot struct {
 }
 
 func validateAndParseSlot(slot api.AvailabilitySlot) (*parsedSlot, error) {
-	// Validate day_of_week range
 	if slot.DayOfWeek < 0 || slot.DayOfWeek > 6 {
 		return nil, fmt.Errorf("day_of_week must be between 0 and 6")
 	}
 
-	// Validate timezone
 	if _, err := time.LoadLocation(slot.Timezone); err != nil {
 		return nil, fmt.Errorf("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)")
 	}
 
-	// Parse start time in UTC for consistency across all users
 	startTime, err := time.Parse("15:04", slot.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid start_time format: must be HH:MM (e.g. 09:00)")
 	}
 	startTime = startTime.In(time.UTC)
 
-	// Parse end time in UTC for consistency across all users
 	endTime, err := time.Parse("15:04", slot.EndTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid end_time format: must be HH:MM (e.g. 17:00)")
 	}
 	endTime = endTime.In(time.UTC)
 
-	// Validate end > start
 	if !endTime.After(startTime) {
 		return nil, fmt.Errorf("end_time must be after start_time")
 	}
@@ -148,29 +146,23 @@ func validateAndParseSlot(slot api.AvailabilitySlot) (*parsedSlot, error) {
 }
 
 func checkOverlaps(slots []*parsedSlot) error {
-	// Group by day_of_week
 	byDay := make(map[int16][]*parsedSlot)
 	for _, slot := range slots {
 		byDay[slot.dayOfWeek] = append(byDay[slot.dayOfWeek], slot)
 	}
 
-	// For each day, check for overlaps
 	for _, daySlots := range byDay {
 		if len(daySlots) <= 1 {
 			continue
 		}
 
-		// Sort by start time
 		sort.Slice(daySlots, func(i, j int) bool {
 			return daySlots[i].startTime.Before(daySlots[j].startTime)
 		})
 
-		// Check consecutive pairs for overlap
 		for i := 0; i < len(daySlots)-1; i++ {
 			current := daySlots[i]
 			next := daySlots[i+1]
-
-			// Overlap if current.end > next.start
 			if current.endTime.After(next.startTime) {
 				return fmt.Errorf("overlapping availability slots on same day")
 			}
@@ -181,7 +173,6 @@ func checkOverlaps(slots []*parsedSlot) error {
 }
 
 func saveAvailabilitySlots(ctx context.Context, store *availabilityStore, trainerID uuid.UUID, slots []*parsedSlot) ([]db.TrainerAvailability, error) {
-	// Start transaction
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -190,12 +181,10 @@ func saveAvailabilitySlots(ctx context.Context, store *availabilityStore, traine
 
 	qtx := store.q.WithTx(tx)
 
-	// Delete existing slots
 	if err := qtx.DeleteTrainerAvailabilitySlots(ctx, trainerID); err != nil {
 		return nil, err
 	}
 
-	// Insert new slots
 	var savedSlots []db.TrainerAvailability
 	for _, slot := range slots {
 		saved, err := qtx.InsertAvailabilitySlot(ctx, db.InsertAvailabilitySlotParams{
@@ -211,7 +200,6 @@ func saveAvailabilitySlots(ctx context.Context, store *availabilityStore, traine
 		savedSlots = append(savedSlots, saved)
 	}
 
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}

@@ -846,8 +846,13 @@ components:
           example: America/New_York
     BookingSlotRequest:
       type: object
-      required: [day_of_week, start_time, end_time]
+      required: [trainer_id, day_of_week, start_time, end_time]
       properties:
+        trainer_id:
+          type: string
+          format: uuid
+          description: UUID of the trainer this slot belongs to
+          example: 550e8400-e29b-41d4-a716-446655440000
         day_of_week:
           type: integer
           minimum: 0
@@ -3267,13 +3272,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /booking-slots:
+  /discovery-slots:
     get:
       security: []
-      operationId: GetBookingSlots
+      operationId: GetDiscoverySlots
       tags:
         - Booking
-      summary: List all active booking slots (public)
+      summary: List all active discovery slots (public)
       parameters:
         - name: timezone
           in: query
@@ -3297,8 +3302,8 @@ paths:
     post:
       security:
         - bearerAuth: []
-      operationId: CreateBookingSlot
-      summary: Create a booking slot (admin or customer_care only)
+      operationId: CreateDiscoverySlot
+      summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
         content:
@@ -3337,14 +3342,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /booking-slots/{id}:
+  /discovery-slots/{id}:
     put:
       security:
         - bearerAuth: []
       tags:
         - Booking
-      operationId: UpdateBookingSlot
-      summary: Update a booking slot (admin or customer_care only)
+      operationId: UpdateDiscoverySlot
+      summary: Update a discovery slot (admin or customer_care only)
       parameters:
         - name: id
           in: path
@@ -3398,8 +3403,8 @@ paths:
     delete:
       security:
         - bearerAuth: []
-      operationId: DeleteBookingSlot
-      summary: Delete a booking slot (admin or customer_care only)
+      operationId: DeleteDiscoverySlot
+      summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
           in: path
