@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS trainer_wallet_ledger (
     CONSTRAINT chk_wallet_ledger_amount_positive CHECK (amount > 0),
     balance_before   BIGINT NOT NULL,
     balance_after    BIGINT NOT NULL,
+    CONSTRAINT chk_balance_non_negative CHECK (balance_before >= 0 AND balance_after >= 0),
     CONSTRAINT chk_balance_calculation CHECK (
         (transaction_type = 'credit' AND balance_after = balance_before + amount) OR
         (transaction_type = 'debit' AND balance_after = balance_before - amount AND balance_after >= 0)

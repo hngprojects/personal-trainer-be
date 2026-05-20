@@ -2,6 +2,10 @@
 ALTER TABLE subscriptions
   DROP CONSTRAINT IF EXISTS subscriptions_plan_type_check;
 
+-- Remap any legacy plan_type values that would violate the new constraint
+UPDATE subscriptions SET plan_type = 'single'     WHERE plan_type = 'one_time';
+UPDATE subscriptions SET plan_type = 'monthly_12' WHERE plan_type = 'monthly';
+
 ALTER TABLE subscriptions
   ADD CONSTRAINT subscriptions_plan_type_check
     CHECK (plan_type IN ('single', 'monthly_12', 'monthly_18'));
