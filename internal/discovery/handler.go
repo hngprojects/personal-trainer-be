@@ -870,30 +870,22 @@ func (h *Handler) AdminGetAllDiscoveryBookings(c *gin.Context, params api.AdminG
 		limit = *params.Limit
 	}
 
-	bookings, err := h.repo.GetAllBookingDiscoveries(ctx)
+	offset := (page - 1) * limit
+
+	bookings, total, err := h.repo.GetAllBookingDiscoveries(ctx, limit, offset)
 	if err != nil {
 		h.log.Error("failed to get all discovery bookings", "err", err, "user_id", userID)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
-	total := len(bookings)
 	totalPages := (total + limit - 1) / limit
 	if totalPages == 0 {
 		totalPages = 1
 	}
 
-	offset := (page - 1) * limit
-	if offset > total {
-		offset = total
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-
-	paged := make([]map[string]interface{}, 0, limit)
-	for _, b := range bookings[offset:end] {
+	paged := make([]map[string]interface{}, 0, len(bookings))
+	for _, b := range bookings {
 		paged = append(paged, bookingToMap(b))
 	}
 

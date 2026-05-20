@@ -28,7 +28,7 @@ type Repository interface {
 
 	GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.UUID) ([]db.DiscoveryBooking, error)
 	GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]db.GetUpcomingPaidSessionsRow, error)
-	GetAllBookingDiscoveries(ctx context.Context) ([]db.DiscoveryBooking, error)
+	GetAllBookingDiscoveries(ctx context.Context, limit, offset int) ([]db.DiscoveryBooking, int, error)
 }
 
 type postgresRepo struct {
@@ -106,6 +106,17 @@ func (r *postgresRepo) GetUpcomingPaidSessions(ctx context.Context, clientID uui
 	return r.q.GetUpcomingPaidSessions(ctx, clientID)
 }
 
-func (r *postgresRepo) GetAllBookingDiscoveries(ctx context.Context) ([]db.DiscoveryBooking, error) {
-	return r.q.GetAllDiscovery(ctx)
+func (r *postgresRepo) GetAllBookingDiscoveries(ctx context.Context, limit, offset int) ([]db.DiscoveryBooking, int, error) {
+	total, err := r.q.CountAllDiscovery(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	bookings, err := r.q.GetAllDiscoveryPaginated(ctx, db.GetAllDiscoveryPaginatedParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return bookings, int(total), nil
 }

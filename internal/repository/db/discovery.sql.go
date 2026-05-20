@@ -49,6 +49,17 @@ func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotC
 	return count, err
 }
 
+const countAllDiscovery = `-- name: CountAllDiscovery :one
+SELECT COUNT(*) FROM discovery_bookings
+`
+
+func (q *Queries) CountAllDiscovery(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAllDiscovery)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createBookingSlot = `-- name: CreateBookingSlot :one
 INSERT INTO booking_slots (
     day_of_week,
@@ -266,6 +277,56 @@ ORDER BY selected_datetime ASC
 
 func (q *Queries) GetAllDiscovery(ctx context.Context) ([]DiscoveryBooking, error) {
 	rows, err := q.db.QueryContext(ctx, getAllDiscovery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryBooking
+	for rows.Next() {
+		var i DiscoveryBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.ContactMode,
+			&i.PhoneNumber,
+			&i.SelectedDatetime,
+			&i.ClientTimezone,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
+			&i.TrainerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllDiscoveryPaginated = `-- name: GetAllDiscoveryPaginated :many
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+ORDER BY selected_datetime ASC
+LIMIT $1 OFFSET $2
+`
+
+type GetAllDiscoveryPaginatedParams struct {
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) GetAllDiscoveryPaginated(ctx context.Context, arg GetAllDiscoveryPaginatedParams) ([]DiscoveryBooking, error) {
+	rows, err := q.db.QueryContext(ctx, getAllDiscoveryPaginated, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

@@ -146,3 +146,11 @@ ORDER BY selected_datetime ASC;
 -- name: GetAllDiscovery :many
 SELECT * FROM discovery_bookings
 ORDER BY selected_datetime ASC;
+
+-- name: GetAllDiscoveryPaginated :many
+SELECT * FROM discovery_bookings
+ORDER BY selected_datetime ASC
+LIMIT $1 OFFSET $2;
+
+-- name: CountAllDiscovery :one
+SELECT COUNT(*) FROM discovery_bookings;
