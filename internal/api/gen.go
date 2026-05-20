@@ -1185,9 +1185,14 @@ type TrainersListResponse struct {
 // TrainersListResponseStatus defines model for TrainersListResponse.Status.
 type TrainersListResponseStatus string
 
-// UpdateProfileRequest defines model for UpdateProfileRequest.
+// UpdateProfileRequest Partial profile update. avatar_url is intentionally NOT on this
+// request — avatars are set exclusively via
+// POST /users/me/profile/picture (which uploads through MinIO and
+// writes the column asynchronously). Putting avatar_url here too
+// would let the JSON endpoint clobber a freshly-uploaded picture
+// and was previously also forcing profile_complete = false until
+// a picture existed.
 type UpdateProfileRequest struct {
-	AvatarUrl    *string                             `json:"avatar_url,omitempty"`
 	FitnessGoals *[]UpdateProfileRequestFitnessGoals `json:"fitness_goals,omitempty"`
 	FitnessLevel *UpdateProfileRequestFitnessLevel   `json:"fitness_level,omitempty"`
 	Gender       *UpdateProfileRequestGender         `json:"gender,omitempty"`

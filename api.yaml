@@ -526,6 +526,14 @@ components:
 
     UpdateProfileRequest:
       type: object
+      description: |
+        Partial profile update. avatar_url is intentionally NOT on this
+        request — avatars are set exclusively via
+        POST /users/me/profile/picture (which uploads through MinIO and
+        writes the column asynchronously). Putting avatar_url here too
+        would let the JSON endpoint clobber a freshly-uploaded picture
+        and was previously also forcing profile_complete = false until
+        a picture existed.
       properties:
         name:
           type: string
@@ -551,10 +559,6 @@ components:
           type: string
           enum: [beginner, intermediate, advanced]
           example: beginner
-        avatar_url:
-          type: string
-          format: uri
-          example: "https://example.com/avatar.jpg"
 
     UserProfileResponse:
       type: object
@@ -1386,9 +1390,11 @@ paths:
         - User
       summary: Update the authenticated user's profile (onboarding)
       description: |
-        Saves name, gender, fitness goals, fitness level, and avatar URL for the
-        logged-in user. All fields are optional — send only what changed.
-        Sets profile_complete = true once name is non-empty.
+        Saves name, gender, fitness goals, and fitness level for the logged-in
+        user. All fields are optional — send only what changed. avatar_url is
+        NOT accepted here; upload via POST /users/me/profile/picture.
+        profile_complete flips to true once name, gender, and fitness_level
+        are all set.
       security:
         - bearerAuth: []
       requestBody:
