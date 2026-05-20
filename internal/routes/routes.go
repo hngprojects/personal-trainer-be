@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
+	infra_stripe "github.com/hngprojects/personal-trainer-be/internal/infra/stripe"
+	"github.com/hngprojects/personal-trainer-be/internal/subscription"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/booking_session"
@@ -144,6 +146,8 @@ type routerImpl struct {
 	// per-request handler methods don't need to dig back into the Router.
 	logger *slog.Logger
 	mailer email.Mailer
+
+	subscription *subscription.Handler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -224,8 +228,6 @@ func (s *Router) Routes() *gin.Engine {
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(s.db, q)
 			impl.users = newUsersStore(q)
-			impl.availability = &availabilityStore{db: s.db, q: q}
-
 			var meetingProvider meeting.Provider = meeting.NoOp{}
 			if s.cfg.ZoomAccountID != "" {
 				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
@@ -235,12 +237,26 @@ func (s *Router) Routes() *gin.Engine {
 			discoveryRepo := discovery.NewPostgresRepo(q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
-			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, *s.redis, s.log)
+			var redisVal appredis.Client
+			if s.redis != nil {
+				redisVal = *s.redis
+			}
+			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
+			impl.availability = &availabilityStore{db: s.db, q: q, redis: redisVal}
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
-			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, redisVal, s.log)
+
+			subscriptionRepo := subscription.NewPostgresRepo(q)
+			var stripeClient *infra_stripe.Client
+			if s.cfg.StripeSecretKey != "" {
+				stripeClient = infra_stripe.New(s.cfg.StripeSecretKey)
+			} else {
+				s.log.Warn("STRIPE_SECRET_KEY not set — payment endpoints will return 500")
+			}
+			impl.subscription = subscription.NewHandler(s.log, subscriptionRepo, stripeClient)
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
@@ -375,6 +391,12 @@ func (s *Router) Routes() *gin.Engine {
 				},
 			},
 		})
+
+		// Subscription and payment routes — not in generated API, registered manually with auth middleware.
+		if impl.subscription != nil {
+			authGroup := v1.Group("", authMw)
+			impl.registerSubscriptionRoutes(authGroup)
+		}
 	}
 
 	return r
