@@ -9,8 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"path"conflict in migrations/000029_create_booking_session_table.sql
-Auto-merging pkg/email/email.go
+	"path"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -474,6 +473,11 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if pictureURL != "" {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
+	}
+	if trainer.AverageRating.Valid {
+		payload["average_rating"] = trainer.AverageRating.String
+	} else {
+		payload["average_rating"] = "0"
 	}
 	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; credentials emailed", api.CodeCreated, payload))
 }
