@@ -108,7 +108,6 @@ const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
   trainer_id,
   client_id,
-  subscription_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -127,8 +126,7 @@ INSERT INTO bookings (
   $7,
   $8,
   $9,
-  $10,
-  $11
+  $10
 )
 RETURNING
   id,
@@ -151,7 +149,6 @@ RETURNING
 type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -162,11 +159,15 @@ type CreateBookingParams struct {
 	CancelledAt        sql.NullTime
 }
 
+// subscription_id is intentionally NOT inserted here — the field was removed
+// from the public POST /bookings contract. The column itself stays on the
+// bookings table (and on RETURNING + the other SELECT queries below) so
+// historical bookings with subscription_id populated remain queryable; new
+// bookings simply leave it NULL.
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
 		arg.ClientID,
-		arg.SubscriptionID,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 		arg.Timezone,
@@ -433,7 +434,7 @@ WHERE
 `
 
 type ReleaseBookingSlotParams struct {
-	TrainerID      uuid.UUID
+	TrainerID      uuid.NullUUID
 	Timezone       string
 	ScheduledStart time.Time
 	ScheduledEnd   time.Time

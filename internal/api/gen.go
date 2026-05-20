@@ -1345,7 +1345,6 @@ type CreateBookingJSONBody struct {
 	ScheduledEnd    time.Time                            `json:"scheduled_end"`
 	ScheduledStart  time.Time                            `json:"scheduled_start"`
 	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
-	SubscriptionId  openapi_types.UUID                   `json:"subscription_id"`
 	Timezone        string                               `json:"timezone"`
 	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
 }
