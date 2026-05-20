@@ -78,3 +78,19 @@ func (s *routerImpl) HandleAdminLogin(c *gin.Context) {
 	}
 	s.adminLogin.Login(c)
 }
+
+func (s *routerImpl) HandleLocalAuth(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.SignIn(c)
+}
+
+func (s *routerImpl) HandleRegister(c *gin.Context) {
+	if s.local == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.local.Register(c)
+}
