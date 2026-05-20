@@ -61,6 +61,7 @@ INSERT INTO trainers (
   user_id,
   specializations,
   training_styles,
+  bio,
   years_of_experience,
   display_picture,
   onboarding_status
@@ -70,7 +71,8 @@ INSERT INTO trainers (
   $3::text[],
   $4,
   $5,
-  COALESCE($6::text, 'pending')
+  $6,
+  COALESCE($7::text, 'pending')
 )
 RETURNING
   id,
@@ -92,6 +94,7 @@ type CreateTrainerParams struct {
 	UserID            uuid.UUID
 	Specializations   []string
 	TrainingStyles    []string
+	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	DisplayPicture    sql.NullString
 	OnboardingStatus  string
@@ -111,6 +114,7 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		arg.UserID,
 		pq.Array(arg.Specializations),
 		pq.Array(arg.TrainingStyles),
+		arg.Bio,
 		arg.YearsOfExperience,
 		arg.DisplayPicture,
 		arg.OnboardingStatus,
