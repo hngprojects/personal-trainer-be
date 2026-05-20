@@ -81,3 +81,6 @@ SET
     updated_at     = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: CountClients :one
+SELECT COUNT(*) FROM users WHERE role = 'client' AND is_active = true;
