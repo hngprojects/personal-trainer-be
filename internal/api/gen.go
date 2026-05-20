@@ -877,8 +877,11 @@ type CreateReviewRequest struct {
 // write the benefits rows, optionally enqueue the display_picture upload,
 // and email the credentials to the supplied email address.
 //
-// bio and intro_video_url are NOT set here — the trainer fills
-// those in themselves after they log in with the emailed credentials.
+// intro_video_url is NOT set here — the trainer fills it in themselves
+// after they log in with the emailed credentials and run the
+// intro-video upload flow. bio IS optionally accepted on create
+// (admin can pre-fill it) and can also be edited later by the trainer
+// themselves via PATCH /trainers/me.
 type CreateTrainerRequest struct {
 	// Benefits Marketing copy displayed on the trainer's public profile. Each
 	// benefit is a title+subtext pair. id and position are server-
@@ -1808,8 +1811,6 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 // HandleRefresh operation middleware
 func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
