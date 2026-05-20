@@ -132,6 +132,13 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		ClientTimezone:   req.Timezone,
 	})
 	if err != nil {
+		// Unique index violation means a concurrent request won the race for this slot.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_discovery_bookings_slot_lock" {
+			c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
+			return
+		}
+		h.log.Error("failed to create discovery booking", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking", api.CodeServerError))
 		return
 	}
@@ -684,8 +691,8 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	}
 
 	type upcomingItem struct {
-		ID               string    `json:"id"`
-		Type             string    `json:"type"`
+		ID   string `json:"id"`
+		Type string `json:"type"`
 		// SessionID is the booking_session.id for paid sessions whose session
 		// row has been created (i.e. the session was started). It lets the
 		// client navigate from this list to GET /sessions/{id} without an
