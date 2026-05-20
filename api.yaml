@@ -139,7 +139,7 @@ components:
           type: boolean
         expires_in:
           type: integer
-          example: 600
+          example: 900
 
     GoogleAuthResponse:
       allOf:
@@ -467,7 +467,7 @@ components:
           type: string
         expires_in:
           type: integer
-          example: 600
+          example: 900
 
     RegisterRequest:
       type: object
@@ -1121,7 +1121,7 @@ paths:
                         type: string
                       expires_in:
                         type: integer
-                        example: 600
+                        example: 900
               example:
                 status: success
                 message: Access token refreshed
@@ -1175,7 +1175,7 @@ paths:
       security: []
       operationId: HandleGoogleLogin
       tags:
-        - Auth - OAuth
+        - Auth — OAuth
         - Authentication
       summary: Initiate Google OAuth — redirects browser to Google consent screen
       responses:
@@ -1322,7 +1322,7 @@ paths:
       security: []
       operationId: HandleRegister
       tags:
-        - Auth - Local
+        - Auth — Local
         - Authentication
       summary: Register or request a new OTP — sends a 6-digit verification code to the email
       requestBody:
