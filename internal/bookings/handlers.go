@@ -144,10 +144,11 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
+		SubscriptionID:  uuid.NullUUID{UUID: request.SubscriptionId, Valid: request.SubscriptionId != uuid.Nil},
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
-		SessionPlatform: sql.NullString{Valid: true, String: string(request.SessionPlatform)},
+
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
