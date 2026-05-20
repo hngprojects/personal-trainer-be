@@ -1,8 +1,12 @@
 -- name: CreateBooking :one
+-- subscription_id is intentionally NOT inserted here — the field was removed
+-- from the public POST /bookings contract. The column itself stays on the
+-- bookings table (and on RETURNING + the other SELECT queries below) so
+-- historical bookings with subscription_id populated remain queryable; new
+-- bookings simply leave it NULL.
 INSERT INTO bookings (
   trainer_id,
   client_id,
-  subscription_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -14,7 +18,6 @@ INSERT INTO bookings (
 ) VALUES (
   sqlc.arg(trainer_id),
   sqlc.arg(client_id),
-  sqlc.arg(subscription_id),
   sqlc.arg(scheduled_start),
   sqlc.arg(scheduled_end),
   sqlc.arg(timezone),
@@ -142,9 +145,9 @@ SELECT
   b.booking_status,
   b.session_platform,
   b.created_at,
-  u.name           AS trainer_name,
-  t.specialization AS trainer_specialization,
-  t.display_picture AS trainer_photo
+  u.name             AS trainer_name,
+  t.specializations  AS trainer_specializations,
+  t.display_picture  AS trainer_photo
 FROM bookings b
 JOIN trainers t ON t.id = b.trainer_id
 JOIN users u ON u.id = t.user_id

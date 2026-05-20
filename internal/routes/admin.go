@@ -46,3 +46,29 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 
 	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_APPROVED", api.CodeOK, trainerToMap(updated)))
 }
+
+func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	totalClients, err := s.trainers.q.CountClients(c.Request.Context())
+	if err != nil {
+		s.logger.Error("failed to count clients", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to count clients", api.CodeServerError))
+		return
+	}
+
+	totalTrainers, err := s.trainers.q.CountTrainers(c.Request.Context())
+	if err != nil {
+		s.logger.Error("failed to count trainers", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to count trainers", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("Stats retrieved successfully", api.CodeOK, map[string]interface{}{
+		"total_clients":  totalClients,
+		"total_approved_trainers": totalTrainers,
+	}))
+}

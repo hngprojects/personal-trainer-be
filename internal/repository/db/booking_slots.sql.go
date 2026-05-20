@@ -28,7 +28,7 @@ FROM booking_slots
 
 type GetBookingSlotsRow struct {
 	ID        uuid.UUID
-	TrainerID uuid.UUID
+	TrainerID uuid.NullUUID
 	DayOfWeek int16
 	StartTime time.Time
 	EndTime   time.Time
@@ -96,7 +96,7 @@ type GetTrainersBookingSlotsRow struct {
 	UpdatedAt time.Time
 }
 
-func (q *Queries) GetTrainersBookingSlots(ctx context.Context, trainerID uuid.UUID) ([]GetTrainersBookingSlotsRow, error) {
+func (q *Queries) GetTrainersBookingSlots(ctx context.Context, trainerID uuid.NullUUID) ([]GetTrainersBookingSlotsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTrainersBookingSlots, trainerID)
 	if err != nil {
 		return nil, err

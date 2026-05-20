@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const cancelBooking = `-- name: CancelBooking :one
@@ -107,7 +108,6 @@ const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
   trainer_id,
   client_id,
-  subscription_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -126,8 +126,7 @@ INSERT INTO bookings (
   $7,
   $8,
   $9,
-  $10,
-  $11
+  $10
 )
 RETURNING
   id,
@@ -150,7 +149,6 @@ RETURNING
 type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
@@ -161,11 +159,15 @@ type CreateBookingParams struct {
 	CancelledAt        sql.NullTime
 }
 
+// subscription_id is intentionally NOT inserted here — the field was removed
+// from the public POST /bookings contract. The column itself stays on the
+// bookings table (and on RETURNING + the other SELECT queries below) so
+// historical bookings with subscription_id populated remain queryable; new
+// bookings simply leave it NULL.
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
 		arg.ClientID,
-		arg.SubscriptionID,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 		arg.Timezone,
@@ -355,9 +357,9 @@ SELECT
   b.booking_status,
   b.session_platform,
   b.created_at,
-  u.name           AS trainer_name,
-  t.specialization AS trainer_specialization,
-  t.display_picture AS trainer_photo
+  u.name             AS trainer_name,
+  t.specializations  AS trainer_specializations,
+  t.display_picture  AS trainer_photo
 FROM bookings b
 JOIN trainers t ON t.id = b.trainer_id
 JOIN users u ON u.id = t.user_id
@@ -368,18 +370,18 @@ ORDER BY b.scheduled_start ASC
 `
 
 type GetUpcomingPaidSessionsRow struct {
-	ID                    uuid.UUID
-	TrainerID             uuid.UUID
-	ClientID              uuid.UUID
-	ScheduledStart        sql.NullTime
-	ScheduledEnd          sql.NullTime
-	Timezone              sql.NullString
-	BookingStatus         sql.NullString
-	SessionPlatform       sql.NullString
-	CreatedAt             sql.NullTime
-	TrainerName           string
-	TrainerSpecialization sql.NullString
-	TrainerPhoto          sql.NullString
+	ID                     uuid.UUID
+	TrainerID              uuid.UUID
+	ClientID               uuid.UUID
+	ScheduledStart         sql.NullTime
+	ScheduledEnd           sql.NullTime
+	Timezone               sql.NullString
+	BookingStatus          sql.NullString
+	SessionPlatform        sql.NullString
+	CreatedAt              sql.NullTime
+	TrainerName            string
+	TrainerSpecializations []string
+	TrainerPhoto           sql.NullString
 }
 
 func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
@@ -402,7 +404,7 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 			&i.SessionPlatform,
 			&i.CreatedAt,
 			&i.TrainerName,
-			&i.TrainerSpecialization,
+			pq.Array(&i.TrainerSpecializations),
 			&i.TrainerPhoto,
 		); err != nil {
 			return nil, err
@@ -432,7 +434,7 @@ WHERE
 `
 
 type ReleaseBookingSlotParams struct {
-	TrainerID      uuid.UUID
+	TrainerID      uuid.NullUUID
 	Timezone       string
 	ScheduledStart time.Time
 	ScheduledEnd   time.Time
