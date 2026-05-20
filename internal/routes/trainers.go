@@ -547,11 +547,21 @@ func parseTrainerBenefits(raw []string) ([]parsedBenefit, error) {
 }
 
 func parseSingleBenefit(entry string) (string, string, error) {
-	// JSON form: {"title":"...","subtext":"..."}
+	// JSON form: {"title":"...","subtext":"..."}.
+	//
+	// `id` and `position` are also accepted but IGNORED — the OpenAPI schema
+	// marks both as readOnly, but Swagger UI still includes them in its
+	// generated form examples and the upstream `position: 0` value would
+	// otherwise trip DisallowUnknownFields. The server is the source of
+	// truth for both: id is the freshly-minted PK, position is the
+	// submitted-order index. We declare them here so the decoder doesn't
+	// reject the payload, then discard the values.
 	if strings.HasPrefix(entry, "{") {
 		var obj struct {
-			Title   string `json:"title"`
-			Subtext string `json:"subtext"`
+			Title    string  `json:"title"`
+			Subtext  string  `json:"subtext"`
+			ID       *string `json:"id,omitempty"`
+			Position *int    `json:"position,omitempty"`
 		}
 		if err := jsonDecode(entry, &obj); err != nil {
 			return "", "", fmt.Errorf("invalid JSON: %w", err)

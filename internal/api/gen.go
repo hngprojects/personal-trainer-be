@@ -1120,10 +1120,14 @@ type TrainerOnboardingStatus string
 
 // TrainerBenefit defines model for TrainerBenefit.
 type TrainerBenefit struct {
-	// Id Server-assigned; absent in request bodies.
+	// Id Server-assigned. Marked `readOnly` so Swagger UI hides it in the
+	// request example for POST /trainers — clients never supply it.
+	// Always present in responses.
 	Id *openapi_types.UUID `json:"id,omitempty"`
 
-	// Position 1-indexed display order. Server-assigned on create.
+	// Position 1-indexed display order. Server-assigned from the submitted
+	// order at create time. Marked `readOnly` so Swagger UI hides it
+	// from request examples. Always present in responses.
 	Position *int `json:"position,omitempty"`
 
 	// Subtext Supporting copy displayed beneath the title.
