@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
@@ -22,6 +24,7 @@ import (
 )
 
 const (
+	codeExpiry         = 15 * time.Minute
 	refreshTokenExpiry = 7 * 24 * time.Hour
 	accessTokenTTL     = 10 * time.Minute
 )
@@ -63,6 +66,83 @@ func NewLocalHandler(
 		registerLimiter: registerLimiter,
 		otpSecret:       otpSecret,
 	}
+}
+
+func (h *LocalHandler) Register(c *gin.Context) {
+	var req api.HandleRegisterJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+
+	if len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "email must not exceed 255 characters"},
+		}))
+		return
+	}
+
+	if !common.IsValidEmail(emailAddr) {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "invalid email format"},
+		}))
+		return
+	}
+
+	if allowed, err := h.registerLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("register rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
+		return
+	}
+
+	_, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		h.log.Error("failed to find user by email", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if errors.Is(err, ErrNotFound) {
+		if _, err = h.users.CreateEmailUser(c.Request.Context(), emailAddr); err != nil && !errors.Is(err, ErrEmailExists) {
+			h.log.Error("failed to create email user", "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
+		}
+	}
+
+	// Clear any previous codes — abort if this fails to keep one-code-at-a-time semantics
+	if err := h.codes.DeleteByEmail(c.Request.Context(), emailAddr); err != nil {
+		h.log.Error("failed to delete previous verification codes", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	code, err := generateVerificationCode()
+	if err != nil {
+		h.log.Error("failed to generate verification code", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if err := h.codes.Create(c.Request.Context(), emailAddr, h.hashOTP(code), time.Now().Add(codeExpiry)); err != nil {
+		h.log.Error("failed to store verification code", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if err := h.mailer.SendVerificationCode(emailAddr, code, int(codeExpiry.Minutes())); err != nil {
+		h.log.Error("failed to send verification email", "email_domain", emailDomain(emailAddr), "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if err := h.verifyLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("failed to reset verify limiter", "err", err)
+	}
+	c.JSON(http.StatusCreated, api.NewSuccess("Verification code sent to your email", api.CodeCreated, nil))
 }
 
 func (h *LocalHandler) VerifyEmail(c *gin.Context) {
@@ -164,6 +244,92 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, api.NewSuccess("Email verified successfully", api.CodeOK, data))
 }
 
+// SignIn handles POST /auth/login.
+func (h *LocalHandler) SignIn(c *gin.Context) {
+	var req api.HandleLocalAuthJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+
+	if len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "email must not exceed 255 characters"},
+		}))
+		return
+	}
+	if !common.IsValidEmail(emailAddr) {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "invalid email format"},
+		}))
+		return
+	}
+	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+			return
+		}
+		h.log.Error("sign-in: failed to find user", "email_domain", emailDomain(emailAddr), "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	if !user.IsActive {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+
+	// Verify password credential.
+	if !user.Password.Valid || user.Password.String == "" {
+		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+
+	userIDStr := user.ID.String()
+	accessToken, err := GenerateJWTToken(userIDStr, AccessToken)
+	if err != nil {
+		h.log.Error("sign-in: failed to generate access token", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	refreshToken, err := GenerateJWTToken(userIDStr, RefreshToken)
+	if err != nil {
+		h.log.Error("sign-in: failed to generate refresh token", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry))
+	if err != nil {
+		h.log.Error("sign-in: failed to create session", "user_id", userIDStr, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	h.log.Info("user signed in", "user_id", userIDStr)
+
+	data := api.LocalAuthData{
+		User: api.AuthUser{
+			Id:              user.ID,
+			Email:           user.Email,
+			Name:            user.Name,
+			UserType:        api.AuthUserUserTypeClient,
+			ProfileComplete: user.Name != "",
+		},
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int(accessTokenTTL / time.Second),
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("Login successful", api.CodeOK, data))
+}
 func generateVerificationCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	if err != nil {
@@ -185,4 +351,13 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac := hmac.New(sha256.New, []byte(h.otpSecret))
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+
+// emailDomain returns only the domain part of an email for safe logging.
+func emailDomain(email string) string {
+	if i := strings.LastIndex(email, "@"); i >= 0 {
+		return email[i:]
+	}
+	return "[unknown]"
 }

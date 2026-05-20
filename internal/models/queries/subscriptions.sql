@@ -12,7 +12,8 @@ SELECT
   current_period_start,
   current_period_end,
   created_at,
-  cancelled_at
+  cancelled_at,
+  cancelled_at_period_end
 FROM subscriptions
 WHERE id = sqlc.arg(id)
 LIMIT 1;
@@ -31,7 +32,8 @@ SELECT
   current_period_start,
   current_period_end,
   created_at,
-  cancelled_at
+  cancelled_at,
+  cancelled_at_period_end
 FROM subscriptions
 WHERE client_id = sqlc.arg(client_id)
   AND trainer_id = sqlc.arg(trainer_id)
@@ -56,4 +58,5 @@ RETURNING
   current_period_start,
   current_period_end,
   created_at,
-  cancelled_at;
+  cancelled_at,
+  cancelled_at_period_end;
