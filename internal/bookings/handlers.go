@@ -58,16 +58,21 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 	if cached := h.redis.Get(ctx, cacheKey); cached.Err() == nil {
 		var slots []db.GetTrainersBookingSlotsRow
 		if err := json.Unmarshal([]byte(cached.Val()), &slots); err == nil {
+			h.log.Info("HandleGetTrainersBookingSlots: cache hit", "trainer_id", trainerId)
 			bookingSlotResponse := map[string]interface{}{"data": slots}
 			var data interface{} = bookingSlotResponse
 			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
 			return
+		} else {
+			h.log.Warn("HandleGetTrainersBookingSlots: failed to unmarshal cached data, falling back to DB", "trainer_id", trainerId, "err", err)
 		}
+	} else {
+		h.log.Warn("HandleGetTrainersBookingSlots: cache miss or error, falling back to DB", "trainer_id", trainerId, "err", cached.Err())
 	}
 
 	bookingSlot, err := h.service.GetTrainersBookingSlots(ctx, trainerId)
 	if err != nil {
-		h.log.Warn("could not fetch booking slot for trainer", "err", err)
+		h.log.Warn("HandleGetTrainersBookingSlots: failed to fetch booking slots", "trainer_id", trainerId, "err", err)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
 			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error(), Status: "error"})
 			return

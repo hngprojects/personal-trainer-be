@@ -397,6 +397,11 @@ func (s *Router) Routes() *gin.Engine {
 					}
 				},
 			},
+			ErrorHandler: func(ctx *gin.Context, err error, statusCode int) {
+				paramName := extractUUIDParamName(err)
+				s.log.Warn("invalid uuid for parameter", "param", paramName, "err", err)
+				ctx.JSON(statusCode, api.NewError("invalid uuid for parameter: "+paramName, api.CodeBadRequest))
+			},
 		})
 	}
 
