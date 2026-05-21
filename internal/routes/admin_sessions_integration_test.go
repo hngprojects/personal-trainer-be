@@ -64,6 +64,7 @@ func TestAdminAndTrainerListingEndpoints(t *testing.T) {
 
 	// Seed users
 	superAdminID := insertSuperAdmin(t, db, "super@listing.test", "Super Admin")
+	plainAdminID := insertUser(t, db, "admin@listing.test", "Plain Admin", "admin")
 	clientID := insertUser(t, db, "client@listing.test", "Test Client", "client")
 	trainerUserID := insertUser(t, db, "trainer@listing.test", "Coach Tester", "client")
 	trainerID := insertTrainerWithSpecs(t, db, trainerUserID, "approved")
@@ -96,6 +97,7 @@ RETURNING id`,
 	insertDiscoveryBooking(t, db, clientID, "Test Client", "client@listing.test", now.Add(48*time.Hour))
 
 	superToken := tokenFor(t, superAdminID)
+	adminToken := tokenFor(t, plainAdminID)
 	clientToken := tokenFor(t, clientID)
 	trainerToken := tokenFor(t, trainerUserID)
 
@@ -145,7 +147,15 @@ RETURNING id`,
 		require.GreaterOrEqual(t, seenSession, 1, "at least one row should expose session_id")
 	})
 
-	t.Run("admin sessions: rejects non-super-admin", func(t *testing.T) {
+	t.Run("admin sessions: accepts plain admin too (not just super_admin)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/admin/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("admin sessions: rejects non-admin (client role)", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, apiBase+"/admin/sessions", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
@@ -189,7 +199,15 @@ RETURNING id`,
 		require.Len(t, body.Data, 2)
 	})
 
-	t.Run("admin discovery: rejects non-super-admin", func(t *testing.T) {
+	t.Run("admin discovery: accepts plain admin too", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/admin/discovery-bookings", nil)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("admin discovery: rejects non-admin (client role)", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, apiBase+"/admin/discovery-bookings", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)

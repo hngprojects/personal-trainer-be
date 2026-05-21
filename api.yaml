@@ -3064,10 +3064,11 @@ paths:
       operationId: AdminListSessions
       tags:
         - Admin
-      summary: List every booked training session (super_admin only) — paginated
+      summary: List every booked training session (admin or super_admin) — paginated
       description: |
         Paginated administrative view of every booking in the bookings table,
-        joined with client and trainer names. Ordered newest first.
+        joined with client and trainer names. Ordered newest first. Accessible
+        to both `admin` and `super_admin` roles (read-only listing).
       security:
         - bearerAuth: []
       parameters:
@@ -3123,10 +3124,11 @@ paths:
       operationId: AdminListDiscoveryBookings
       tags:
         - Admin
-      summary: List every booked discovery call (super_admin only) — paginated
+      summary: List every booked discovery call (admin or super_admin) — paginated
       description: |
         Paginated administrative view of every row in discovery_bookings,
-        ordered by selected_datetime descending.
+        ordered by selected_datetime descending. Accessible to both `admin`
+        and `super_admin` roles (read-only listing).
       security:
         - bearerAuth: []
       parameters:

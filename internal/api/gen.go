@@ -1581,10 +1581,10 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
-	// List every booked discovery call (super_admin only) — paginated
+	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
-	// List every booked training session (super_admin only) — paginated
+	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
 	// Approve a trainer

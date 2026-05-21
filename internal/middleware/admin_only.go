@@ -14,14 +14,26 @@ import (
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
+// adminReadablePaths lists the /admin/* endpoints any admin role can read
+// (not just super_admin). Currently the cross-tenant listing dashboards:
+// these are read-only views the customer-care / ops admin needs day to
+// day, so requiring super_admin would force every read through the
+// founders. Mutating /admin routes (AdminAdd, ApproveTrainer, etc.) stay
+// super_admin-only because they grant or remove privileges.
+var adminReadablePaths = map[string]bool{
+	"/api/v1/admin/sessions":           true,
+	"/api/v1/admin/discovery-bookings": true,
+}
+
 // SuperAdminOnly protects /api/v1/admin/* routes. Mirrors the path-prefix
 // pattern of TrainersAdminOnly so the gating logic stays close to the
 // generated routing table without splitting handler groups.
 //
-// Distinction from TrainersAdminOnly:
-//   - this middleware requires role == "super_admin" (TrainersAdminOnly accepts "admin")
-//   - GET requests are NOT exempted — every method requires super_admin here
-//     because there are no public read endpoints under /admin
+// Role policy:
+//   - mutating /admin routes (AdminAdd, ApproveTrainer, …) require super_admin
+//   - read-only listings in adminReadablePaths accept admin OR super_admin
+//     when the request is a GET; any other method on those paths still
+//     requires super_admin
 func SuperAdminOnly(q *db.Queries) api.MiddlewareFunc {
 	return func(c *gin.Context) {
 		path := c.FullPath()
@@ -83,8 +95,12 @@ func SuperAdminOnly(q *db.Queries) api.MiddlewareFunc {
 		}
 
 		if role != "super_admin" {
-			c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; super_admin access required", api.CodeForbidden))
-			return
+			// Permit plain admins on the read-only listing endpoints; deny
+			// every other /admin/* route (those mutate privileges).
+			if !(role == "admin" && c.Request.Method == http.MethodGet && adminReadablePaths[path]) {
+				c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; super_admin access required", api.CodeForbidden))
+				return
+			}
 		}
 
 		c.Next()
