@@ -16,14 +16,14 @@ import (
 
 // mockSessionRepo implements booking_session.BookingSessionRepo
 type mockSessionRepo struct {
-	getSessionByIDFn         func(ctx context.Context, id uuid.UUID) (*db.BookingSession, error)
+	getSessionByIDFn         func(ctx context.Context, id uuid.UUID) (*db.GetBookingSessionByIdRow, error)
 	markSessionAsStartedFn   func(ctx context.Context, id uuid.UUID, start time.Time) (*db.BookingSession, error)
 	markSessionAsJoinedFn    func(ctx context.Context, id uuid.UUID) (*db.BookingSession, error)
 	markSessionAsCompletedFn func(ctx context.Context, id uuid.UUID, end time.Time) (*db.BookingSession, error)
 	updateTrainersNoteFn     func(ctx context.Context, id uuid.UUID, notes string) (*db.BookingSession, error)
 }
 
-func (m *mockSessionRepo) GetSessionByID(ctx context.Context, id uuid.UUID) (*db.BookingSession, error) {
+func (m *mockSessionRepo) GetSessionByID(ctx context.Context, id uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
 	if m.getSessionByIDFn != nil {
 		return m.getSessionByIDFn(ctx, id)
 	}
@@ -71,17 +71,29 @@ func sessionWithStatus(status string) *db.BookingSession {
 	}
 }
 
+// sessionRowWithStatus mirrors sessionWithStatus for the joined-row type
+// returned by GetSessionByID. Use this in any getSessionByIDFn mock.
+func sessionRowWithStatus(status string) *db.GetBookingSessionByIdRow {
+	return &db.GetBookingSessionByIdRow{
+		ID:        uuid.New(),
+		BookingID: uuid.New(),
+		TrainerID: uuid.New(),
+		Status:    status,
+		CreatedAt: time.Now(),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // GetSessionById
 // ---------------------------------------------------------------------------
 
 func TestGetSessionById_Success(t *testing.T) {
 	id := uuid.New()
-	want := sessionWithStatus("booked")
+	want := sessionRowWithStatus("booked")
 	want.ID = id
 
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, got uuid.UUID) (*db.BookingSession, error) {
+		getSessionByIDFn: func(_ context.Context, got uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
 			if got != id {
 				t.Fatalf("expected id %v, got %v", id, got)
 			}
@@ -116,8 +128,8 @@ func TestStartSession_Success(t *testing.T) {
 	started := sessionWithStatus("started")
 
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("booked"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("booked"), nil
 		},
 		markSessionAsStartedFn: func(_ context.Context, _ uuid.UUID, _ time.Time) (*db.BookingSession, error) {
 			return started, nil
@@ -135,8 +147,8 @@ func TestStartSession_Success(t *testing.T) {
 
 func TestStartSession_AlreadyStarted(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("started"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("started"), nil
 		},
 	}, testLog())
 
@@ -148,8 +160,8 @@ func TestStartSession_AlreadyStarted(t *testing.T) {
 
 func TestStartSession_AlreadyInSession(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("in-session"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("in-session"), nil
 		},
 	}, testLog())
 
@@ -161,8 +173,8 @@ func TestStartSession_AlreadyInSession(t *testing.T) {
 
 func TestStartSession_AlreadyCompleted(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("completed"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("completed"), nil
 		},
 	}, testLog())
 
@@ -189,8 +201,8 @@ func TestJoinSession_Success(t *testing.T) {
 	inSession := sessionWithStatus("in-session")
 
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("started"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("started"), nil
 		},
 		markSessionAsJoinedFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
 			return inSession, nil
@@ -208,8 +220,8 @@ func TestJoinSession_Success(t *testing.T) {
 
 func TestJoinSession_TrainerNotStartedYet(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("booked"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("booked"), nil
 		},
 	}, testLog())
 
@@ -221,8 +233,8 @@ func TestJoinSession_TrainerNotStartedYet(t *testing.T) {
 
 func TestJoinSession_AlreadyInSession(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("in-session"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("in-session"), nil
 		},
 	}, testLog())
 
@@ -234,8 +246,8 @@ func TestJoinSession_AlreadyInSession(t *testing.T) {
 
 func TestJoinSession_AlreadyCompleted(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("completed"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("completed"), nil
 		},
 	}, testLog())
 
@@ -262,8 +274,8 @@ func TestCompleteSession_Success(t *testing.T) {
 	completed := sessionWithStatus("completed")
 
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("in-session"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("in-session"), nil
 		},
 		markSessionAsCompletedFn: func(_ context.Context, _ uuid.UUID, _ time.Time) (*db.BookingSession, error) {
 			return completed, nil
@@ -281,8 +293,8 @@ func TestCompleteSession_Success(t *testing.T) {
 
 func TestCompleteSession_NotInSession(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("started"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("started"), nil
 		},
 	}, testLog())
 
@@ -294,8 +306,8 @@ func TestCompleteSession_NotInSession(t *testing.T) {
 
 func TestCompleteSession_StillBooked(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("booked"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("booked"), nil
 		},
 	}, testLog())
 
@@ -307,8 +319,8 @@ func TestCompleteSession_StillBooked(t *testing.T) {
 
 func TestCompleteSession_AlreadyCompleted(t *testing.T) {
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("completed"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("completed"), nil
 		},
 	}, testLog())
 
@@ -336,8 +348,8 @@ func TestTrainerSessionNote_Success(t *testing.T) {
 	result := sessionWithStatus("completed")
 
 	svc := booking_session.NewSessionService(&mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return sessionWithStatus("completed"), nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return sessionRowWithStatus("completed"), nil
 		},
 		updateTrainersNoteFn: func(_ context.Context, _ uuid.UUID, n string) (*db.BookingSession, error) {
 			if n != note {
@@ -361,8 +373,8 @@ func TestTrainerSessionNote_SessionNotCompleted(t *testing.T) {
 		s := status
 		t.Run(s, func(t *testing.T) {
 			svc := booking_session.NewSessionService(&mockSessionRepo{
-				getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-					return sessionWithStatus(s), nil
+				getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+					return sessionRowWithStatus(s), nil
 				},
 			}, testLog())
 
@@ -392,8 +404,8 @@ func TestSessionStateMachine_FullFlow(t *testing.T) {
 	status := "booked"
 
 	repo := &mockSessionRepo{
-		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.BookingSession, error) {
-			return &db.BookingSession{ID: id, Status: status, CreatedAt: time.Now()}, nil
+		getSessionByIDFn: func(_ context.Context, _ uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
+			return &db.GetBookingSessionByIdRow{ID: id, Status: status, CreatedAt: time.Now()}, nil
 		},
 		markSessionAsStartedFn: func(_ context.Context, _ uuid.UUID, _ time.Time) (*db.BookingSession, error) {
 			status = "started"

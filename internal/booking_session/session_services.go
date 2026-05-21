@@ -18,7 +18,7 @@ const (
 )
 
 type SessionInterface interface {
-	GetSessionById(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
+	GetSessionById(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error)
 	StartSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	JoinSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	CompleteSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
@@ -34,7 +34,7 @@ func NewSessionService(sessionRepo BookingSessionRepo, log *slog.Logger) Session
 	return &sessionService{repo: sessionRepo, log: log}
 }
 
-func (r *sessionService) GetSessionById(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error) {
+func (r *sessionService) GetSessionById(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
 	dbData, err := r.repo.GetSessionByID(ctx, sessionID)
 	if err != nil {
 		r.log.Error("error getting session by ID", "err", err)

@@ -135,6 +135,12 @@ WHERE
   AND timezone = sqlc.arg(timezone);
 
 -- name: GetUpcomingPaidSessions :many
+-- "Upcoming" here means any booking the client hasn't explicitly resolved
+-- (cancelled or completed). We deliberately don't filter by
+-- scheduled_start > NOW(): a session that came and went without being
+-- started/completed must stay visible so the client/trainer can still
+-- act on it. The 7-day grace past scheduled_end is an upper bound so
+-- abandoned bookings eventually fall off this list.
 SELECT
   b.id,
   b.trainer_id,
@@ -152,7 +158,7 @@ FROM bookings b
 JOIN trainers t ON t.id = b.trainer_id
 JOIN users u ON u.id = t.user_id
 WHERE b.client_id = sqlc.arg(client_id)
-  AND b.scheduled_start > NOW()
+  AND (b.scheduled_end IS NULL OR b.scheduled_end > NOW() - INTERVAL '7 days')
   AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
 ORDER BY b.scheduled_start ASC;
 
@@ -218,3 +224,73 @@ SET zoom_meeting_link = sqlc.arg(zoom_meeting_link),
 WHERE id = sqlc.arg(id)
   AND zoom_meeting_id IS NULL
 RETURNING *;
+
+-- name: ListBookingsForAdmin :many
+-- Paginated list of every booking in the system for the admin sessions
+-- dashboard. Joins client and trainer names so the response can render the
+-- "client X with trainer Y" labels without forcing the FE to do N extra
+-- user lookups. LEFT JOINs booking_session so the response also includes
+-- the session_id (NULL if the session hasn't been started yet — the
+-- booking_session row only exists after StartSession).
+-- Newest first so the most recent activity surfaces on page 1.
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+ORDER BY b.created_at DESC NULLS LAST, b.id DESC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings;
+
+-- name: ListBookingsByTrainer :many
+-- Paginated list of bookings where the caller is the trainer. The trainer
+-- is identified by the trainers.id (the trainer profile row) — callers
+-- resolve this from the authenticated user_id via GetTrainerByUserID.
+-- Joins client name so the trainer's dashboard can render the client
+-- without an extra lookup; LEFT JOINs booking_session for session_id (NULL
+-- if the session hasn't been started yet).
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name  AS client_name,
+  client_user.email AS client_email,
+  bs.id             AS session_id
+FROM bookings b
+JOIN users client_user ON client_user.id = b.client_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.trainer_id = sqlc.arg(trainer_id)
+ORDER BY b.scheduled_start DESC NULLS LAST, b.id DESC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountBookingsByTrainer :one
+SELECT COUNT(*) FROM bookings WHERE trainer_id = sqlc.arg(trainer_id);

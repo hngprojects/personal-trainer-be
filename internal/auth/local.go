@@ -353,7 +353,6 @@ func (h *LocalHandler) hashOTP(code string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-
 // emailDomain returns only the domain part of an email for safe logging.
 func emailDomain(email string) string {
 	if i := strings.LastIndex(email, "@"); i >= 0 {

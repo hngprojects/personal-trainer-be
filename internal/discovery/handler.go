@@ -691,15 +691,19 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	}
 
 	type upcomingItem struct {
-		ID               string    `json:"id"`
-		Type             string    `json:"type"`
+		ID   string `json:"id"`
+		Type string `json:"type"`
 		// SessionID is the booking_session.id for paid sessions whose session
 		// row has been created (i.e. the session was started). It lets the
 		// client navigate from this list to GET /sessions/{id} without an
 		// extra round trip. Omitted for discovery calls (they have no
 		// associated session row) and for paid bookings that haven't been
 		// started yet (the booking_session row only exists post-start).
-		SessionID        *string   `json:"session_id,omitempty"`
+		SessionID *string `json:"session_id,omitempty"`
+		// TrainerID is the bookings.trainer_id for paid sessions — the client
+		// uses it to look up trainer details (e.g. GET /trainers/{id}).
+		// Omitted for discovery calls (no trainer assigned).
+		TrainerID        *string   `json:"trainer_id,omitempty"`
 		ScheduledAt      string    `json:"scheduled_at"`
 		ScheduledAtLocal string    `json:"scheduled_at_local"`
 		DurationMinutes  int       `json:"duration_minutes"`
@@ -773,9 +777,11 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 			if s.BookingStatus.Valid {
 				status = s.BookingStatus.String
 			}
+			trainerIDStr := s.TrainerID.String()
 			item := upcomingItem{
 				ID:               s.ID.String(),
 				Type:             "paid_session",
+				TrainerID:        &trainerIDStr,
 				ScheduledAt:      scheduledStart.UTC().Format(time.RFC3339),
 				ScheduledAtLocal: scheduledStart.In(loc).Format(time.RFC3339),
 				DurationMinutes:  durationMins,

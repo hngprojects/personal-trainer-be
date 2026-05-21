@@ -6,10 +6,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 func (s *routerImpl) AdminAdd(c *gin.Context) {
@@ -45,6 +46,155 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_APPROVED", api.CodeOK, trainerToMap(updated)))
+}
+
+// AdminListSessions handles GET /admin/sessions. Paginated list of every
+// booking in the bookings table, with client and trainer names joined.
+// Guarded by SuperAdminOnly via the /admin path prefix.
+func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessionsParams) {
+	if s.bookings == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.bookings.q.CountBookingsForAdmin(ctx)
+	if err != nil {
+		s.logger.Error("count bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.bookings.q.ListBookingsForAdmin(ctx, db.ListBookingsForAdminParams{
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("list bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, adminBookingRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+// AdminListDiscoveryBookings handles GET /admin/discovery-bookings.
+// Paginated list of every row in discovery_bookings, newest scheduled
+// time first.
+func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.AdminListDiscoveryBookingsParams) {
+	if s.bookings == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.bookings.q.CountDiscoveryBookings(ctx)
+	if err != nil {
+		s.logger.Error("count discovery bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list discovery bookings", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.bookings.q.ListDiscoveryBookingsPaginated(ctx, db.ListDiscoveryBookingsPaginatedParams{
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("list discovery bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list discovery bookings", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, discoveryBookingToAdminMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("DISCOVERY_BOOKINGS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+func adminBookingRowToMap(r db.ListBookingsForAdminRow) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":            r.ID.String(),
+		"trainer_id":    r.TrainerID.String(),
+		"client_id":     r.ClientID.String(),
+		"client_name":   r.ClientName,
+		"client_email":  r.ClientEmail,
+		"trainer_name":  r.TrainerName,
+		"trainer_email": r.TrainerEmail,
+	}
+	if r.SessionID.Valid {
+		m["session_id"] = r.SessionID.UUID.String()
+	}
+	if r.ScheduledStart.Valid {
+		m["scheduled_start"] = r.ScheduledStart.Time
+	}
+	if r.ScheduledEnd.Valid {
+		m["scheduled_end"] = r.ScheduledEnd.Time
+	}
+	if r.Timezone.Valid {
+		m["timezone"] = r.Timezone.String
+	}
+	if r.BookingStatus.Valid {
+		m["booking_status"] = r.BookingStatus.String
+	}
+	if r.SessionPlatform.Valid {
+		m["session_platform"] = r.SessionPlatform.String
+	}
+	if r.CreatedAt.Valid {
+		m["created_at"] = r.CreatedAt.Time
+	}
+	if r.CancelledAt.Valid {
+		m["cancelled_at"] = r.CancelledAt.Time
+	}
+	if r.ZoomMeetingLink.Valid {
+		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
+	}
+	return m
+}
+
+func discoveryBookingToAdminMap(r db.DiscoveryBooking) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":                r.ID.String(),
+		"name":              r.Name,
+		"email":             r.Email,
+		"contact_mode":      r.ContactMode,
+		"selected_datetime": r.SelectedDatetime,
+		"client_timezone":   r.ClientTimezone,
+		"status":            r.Status,
+		"created_at":        r.CreatedAt,
+		"reschedule_count":  r.RescheduleCount,
+	}
+	if r.UserID.Valid {
+		m["user_id"] = r.UserID.UUID.String()
+	}
+	if r.PhoneNumber.Valid {
+		m["phone_number"] = r.PhoneNumber.String
+	}
+	if r.ZoomMeetingLink.Valid {
+		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
+	}
+	if r.ZoomMeetingID.Valid {
+		m["zoom_meeting_id"] = r.ZoomMeetingID.String
+	}
+	return m
 }
 
 func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
