@@ -108,30 +108,31 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	cfg            *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
-	google         *auth.GoogleHandler
-	googleMobile   *auth.MobileGoogleHandler
-	local          *auth.LocalHandler
-	root           *root.RootHandler
-	adminLogin     *handlers.AdminLoginHandler
-	health         *health.HealthHandler
-	waitlist       *waitlist.WaitlistHandler
-	logout         *auth.LogoutHandler
-	refresh        *auth.RefreshHandler
-	passwordReset  *auth.PasswordResetHandler
-	trainers       *trainersStore
-	users          *usersStore
-	reviews        *reviewsvc.Service
-	admin          *admin.Handler
-	contact        *contact.Handler
-	bookings       *bookingsStore
-	paidReschedule *bookings.Handler
-	discovery      *discovery.Handler
-	availability   *availabilityStore
-	dev            *dev.Handler
-	booking        bookings.BookingHandler
-	bookingSlot    bookings.BookingSlotHandler
-	bookingSession booking_session.SessionHandler
+	cfg                           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
+	google                        *auth.GoogleHandler
+	googleMobile                  *auth.MobileGoogleHandler
+	local                         *auth.LocalHandler
+	root                          *root.RootHandler
+	adminLogin                    *handlers.AdminLoginHandler
+	health                        *health.HealthHandler
+	waitlist                      *waitlist.WaitlistHandler
+	logout                        *auth.LogoutHandler
+	refresh                       *auth.RefreshHandler
+	passwordReset                 *auth.PasswordResetHandler
+	accountSetup                  *auth.AccountSetupHandler
+	trainers                      *trainersStore
+	users                         *usersStore
+	reviews                       *reviewsvc.Service
+	admin                         *admin.Handler
+	contact                       *contact.Handler
+	bookings                      *bookingsStore
+	paidReschedule                *bookings.Handler
+	discovery                     *discovery.Handler
+	availability                  *availabilityStore
+	dev                           *dev.Handler
+	booking                       bookings.BookingHandler
+	bookingSlot                   bookings.BookingSlotHandler
+	bookingSession                booking_session.SessionHandler
 	uploader                      *uploads.AvatarUploader                // nil if MinIO env vars are missing → upload endpoint 503s
 	videoUploader                 *uploads.VideoUploader                 // nil if MinIO env vars or ffmpeg are missing → upload endpoint 503s
 	videoTranscoder               video.Transcoder                       // nil if ffmpeg is missing → upload endpoint 503s
@@ -314,13 +315,14 @@ func (s *Router) Routes() *gin.Engine {
 			// at request time already fail open; this matches that behaviour for
 			// the "no backend at all" startup case.
 			var (
-				verifyLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				registerLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				forgotLimiter   ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				forgotIPLimiter ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				resetLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				resetIPLimiter  ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
-				refreshLimiter  ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				verifyLimiter      ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				registerLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				forgotLimiter      ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				forgotIPLimiter    ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				resetLimiter       ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				resetIPLimiter     ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				refreshLimiter     ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
+				setPasswordIPLimit ratelimit.RateLimiter = ratelimit.AllowAllLimiter{}
 			)
 			if s.redis != nil {
 				rawRedis := s.redis.Raw()
@@ -331,6 +333,7 @@ func (s *Router) Routes() *gin.Engine {
 				resetLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password", 5, 15*time.Minute)
 				resetIPLimiter = ratelimit.New(rawRedis, "rl:auth:reset-password:ip", 20, 15*time.Minute)
 				refreshLimiter = ratelimit.New(rawRedis, "rl:auth:refresh", 10, 1*time.Minute)
+				setPasswordIPLimit = ratelimit.New(rawRedis, "rl:auth:set-password:ip", 20, 15*time.Minute)
 			} else {
 				s.log.Warn("redis is not configured — auth rate limits disabled (using no-op limiters)")
 			}
@@ -339,6 +342,15 @@ func (s *Router) Routes() *gin.Engine {
 			impl.passwordReset = auth.NewPasswordResetHandler(usersRepo, rolesRepo, passwordResetRepo, mailer, s.log, s.cfg.OTPSecret, forgotLimiter, forgotIPLimiter, resetLimiter, resetIPLimiter)
 			impl.refresh = auth.NewRefreshHandler(s.redis, s.log, refreshLimiter)
 			impl.admin = admin.NewHandler(usersRepo.(auth.AdminUserRepository), mailer, s.log)
+			impl.accountSetup = auth.NewAccountSetupHandler(
+				auth.NewPostgresAccountSetupRepo(s.db),
+				mailer,
+				s.log,
+				s.cfg.OTPSecret,
+				s.cfg.FrontendURL,
+				s.cfg.TrainerSetupTokenExpiryHours,
+				setPasswordIPLimit,
+			)
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}

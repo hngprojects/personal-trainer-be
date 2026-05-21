@@ -1317,6 +1317,18 @@ type AdminAddJSONBody struct {
 	Name  string              `json:"name"`
 }
 
+// AdminListDiscoveryBookingsParams defines parameters for AdminListDiscoveryBookings.
+type AdminListDiscoveryBookingsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AdminListSessionsParams defines parameters for AdminListSessions.
+type AdminListSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetUserTrainerCount200JSONResponseBodyStatus defines parameters for GetUserTrainerCount.
 type GetUserTrainerCount200JSONResponseBodyStatus string
 
@@ -1410,6 +1422,22 @@ type HandleTrainersNoteJSONBody struct {
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
+type GetTrainersMeSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// HandleSetPasswordJSONBody defines parameters for HandleSetPassword.
+type HandleSetPasswordJSONBody struct {
+	NewPassword string `json:"new_password"`
+
+	// Token Activation token from the setup email link
+	Token string `json:"token"`
 }
 
 // ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
@@ -1532,6 +1560,9 @@ type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
+// HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
+type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
+
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
@@ -1561,6 +1592,12 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
+	// List every booked discovery call (admin or super_admin) — paginated
+	// (GET /admin/discovery-bookings)
+	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
+	// List every booked training session (admin or super_admin) — paginated
+	// (GET /admin/sessions)
+	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1657,7 +1694,7 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
-	// Get trainers (admin only)
+	// Get trainers (admin only) — paginated
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
 	// Admin creates a trainer (admin or super_admin)
@@ -1669,6 +1706,12 @@ type ServerInterface interface {
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
+	// List sessions booked with the authenticated trainer — paginated
+	// (GET /trainers/me/sessions)
+	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
+	// Set the initial password for an admin-provisioned trainer account
+	// (POST /trainers/set-password)
+	HandleSetPassword(c *gin.Context)
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1754,6 +1797,80 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	}
 
 	siw.Handler.AdminAdd(c)
+}
+
+// AdminListDiscoveryBookings operation middleware
+func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminListDiscoveryBookingsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListDiscoveryBookings(c, params)
+}
+
+// AdminListSessions operation middleware
+func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminListSessionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListSessions(c, params)
 }
 
 // AdminApproveTrainer operation middleware
@@ -2433,6 +2550,22 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2486,6 +2619,56 @@ func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainersMeAvailability(c)
+}
+
+// GetTrainersMeSessions operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeSessionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeSessions(c, params)
+}
+
+// HandleSetPassword operation middleware
+func (siw *ServerInterfaceWrapper) HandleSetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSetPassword(c)
 }
 
 // DeleteTrainer operation middleware
@@ -2927,6 +3110,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
+	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
@@ -2963,6 +3148,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
+	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)

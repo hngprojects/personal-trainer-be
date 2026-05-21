@@ -59,26 +59,71 @@ FROM trainers
 WHERE id = $1
 LIMIT 1;
 
+-- name: GetTrainerWithUserByID :one
+-- Variant of GetTrainerByID that joins users so the trainer detail handler
+-- can return the trainer's display name + email without a second lookup.
+-- Kept distinct from GetTrainerByID so existing internal callers that
+-- only need the trainers row (e.g. bookings/repository.go) continue to
+-- receive db.Trainer.
+SELECT
+  t.id,
+  t.user_id,
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+  t.specializations,
+  t.training_styles,
+  u.name  AS trainer_name,
+  u.email AS trainer_email
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+WHERE t.id = $1
+LIMIT 1;
+
 -- name: ListTrainers :many
 -- Filter by a single specialization. The empty-string sentinel means "no
 -- filter". Containment uses the GIN index on specializations.
+--
+-- Joins users so the response can render the trainer's name without an
+-- extra round trip; the trainer's display name lives on users.name (the
+-- trainers row only stores profile fields). Paginated via LIMIT/OFFSET —
+-- callers compute total pages from CountTrainersForList.
 SELECT
-  id,
-  user_id,
-  bio,
-  years_of_experience,
-  intro_video_url,
-  display_picture,
-  onboarding_status,
-  average_rating,
-  total_reviews,
-  created_at,
-  updated_at,
-  specializations,
-  training_styles
-FROM trainers
-WHERE ($1::text = '' OR specializations @> ARRAY[$1]::text[])
-ORDER BY created_at DESC;
+  t.id,
+  t.user_id,
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+  t.specializations,
+  t.training_styles,
+  u.name  AS trainer_name,
+  u.email AS trainer_email
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[])
+ORDER BY t.created_at DESC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountTrainersForList :one
+-- Total count for ListTrainers, applying the same category filter. Used to
+-- compute total_pages on the paginated /trainers endpoint. NOTE: this is
+-- distinct from CountTrainers, which restricts to approved trainers for
+-- the admin stats dashboard — here we count what the list returns.
+SELECT COUNT(*) FROM trainers t
+WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[]);
 
 -- name: UpdateTrainer :one
 -- Partial update. Pass NULL to leave a column unchanged. specializations and

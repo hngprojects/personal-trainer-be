@@ -11,6 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type AccountSetupToken struct {
+	UserID     uuid.UUID
+	TokenHash  string
+	ExpiresAt  time.Time
+	ConsumedAt sql.NullTime
+	CreatedAt  time.Time
+}
+
 type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
@@ -175,7 +183,7 @@ type Trainer struct {
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
 	OnboardingStatus  string
-	AverageRating     sql.NullString
+	AverageRating     sql.NullFloat64
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
