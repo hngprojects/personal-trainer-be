@@ -3503,6 +3503,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: CreateDiscoverySlot
+      tags:
+        - Discovery
       summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
@@ -3604,6 +3606,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: DeleteDiscoverySlot
+      tags:
+        - Discovery
       summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
@@ -3686,6 +3690,8 @@ paths:
     get:
       security: []
       operationId: HandleCreateDevToken
+      tags:
+        - Dev
       responses:
         "200":
           description: Token generated

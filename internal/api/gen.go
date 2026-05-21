@@ -748,16 +748,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
