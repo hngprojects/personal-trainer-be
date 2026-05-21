@@ -232,19 +232,25 @@ func TestHandleSetPassword_ReplayRejected(t *testing.T) {
 }
 
 func TestHandleSetPassword_ExpiredToken(t *testing.T) {
-	repo := &fakeSetupRepo{
-		userID:    uuid.New(),
-		tokenHash: "manually-seeded-hash",
-		expiresAt: time.Now().Add(-1 * time.Hour),
-	}
-	_, router := newTestHandler(t, repo, &captureMailer{})
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
 
-	// Use anything as token — repo will reject because expiresAt is in the past.
+	// Issue a real token so its HMAC matches what the handler computes,
+	// then backdate the persisted expiry so consume must reject on the
+	// "expired" branch — not the "unknown token" branch.
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+	repo.mu.Lock()
+	repo.expiresAt = time.Now().Add(-1 * time.Hour)
+	repo.mu.Unlock()
+
 	rec := postJSON(t, router, "/trainers/set-password", map[string]any{
-		"token":        "any-value-the-hmac-wont-match-anyway",
+		"token":        tokenFromLink(t, link),
 		"new_password": "Strong1Password",
 	})
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.False(t, repo.consumed, "expired token must not be consumed")
 }
 
 func TestHandleSetPassword_UnknownToken(t *testing.T) {

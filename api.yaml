@@ -2934,6 +2934,11 @@ paths:
                   type: string
                   format: password
                   minLength: 8
+                  # maxLength matches bcrypt's 72-byte ceiling — same cap
+                  # the reset-password endpoint enforces server-side. Kept
+                  # in the spec so the FE rejects oversize inputs before
+                  # round-tripping to the server.
+                  maxLength: 72
       responses:
         "200":
           description: Password set successfully
@@ -2964,6 +2969,14 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: >-
+            Service unavailable — the account-setup handler is not wired on
+            this server (configuration issue, e.g. DB unavailable at boot).
           content:
             application/json:
               schema:
