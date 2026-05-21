@@ -39,18 +39,18 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 		h.log.Info("Cache hit!!")
 		var body db.GetBookingSessionByIdRow
 		if err := json.Unmarshal([]byte(cached.Val()), &body); err != nil {
-			h.log.Error("failed to unmarshal data into body")
+			h.log.Warn("failed to unmarshal data into body")
 		} else {
 			result := ParseResponseWithTrainer(&body)
 			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 			return
 		}
 	} else {
-		h.log.Error("redis error", "err", cached.Err())
+		h.log.Warn("redis error", "err", cached.Err())
 	}
 	session, err := h.service.GetSessionById(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("err fetching booking session", "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session data", api.CodeNotFound, nil))
 			return
@@ -61,10 +61,10 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 	}
 	marshalCacheData, err := json.Marshal(session)
 	if err != nil {
-		h.log.Error("failed to marshall cache data", "err", err)
+		h.log.Warn("failed to marshall cache data", "err", err)
 	}
 	if err := h.redis.Set(c.Request.Context(), cachedKey, marshalCacheData, 5*time.Minute); err != nil {
-		h.log.Error("failed to save session to cache", "err", err)
+		h.log.Warn("failed to save session to cache", "err", err)
 	} else {
 		h.log.Info("session saved to cache", "info", err)
 	}
@@ -79,12 +79,12 @@ func (h *sessionHandler) StartSessionHandler(c *gin.Context, sessionID uuid.UUID
 		h.log.Info("session not found in cache")
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("error occured during cache lookup", "err", cacheCmd.Err())
 	}
 	h.log.Info("data deleted from cache", "data", cacheCmd)
 	updateData, err := h.service.StartSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("service returned err", "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
@@ -104,12 +104,12 @@ func (h *sessionHandler) JoinSessionHandler(c *gin.Context, sessionID uuid.UUID)
 		h.log.Info("session not found in cache")
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("error occured during cache lookup", "err", cacheCmd.Err())
 	}
 	h.log.Info("data deleted from cache", "data", cacheCmd)
 	updateData, err := h.service.JoinSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("service returned err", "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
@@ -129,12 +129,12 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 		h.log.Info("session not found in cache")
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("error occured during cache lookup", "err", cacheCmd.Err())
 	}
 	h.log.Info("data deleted from cache", "data", cacheCmd)
 	updateData, err := h.service.CompleteSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("service returned err", "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
@@ -151,7 +151,7 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 	var notes api.HandleTrainersNoteJSONBody
 	if err := c.ShouldBindJSON(&notes); err != nil {
-		h.log.Error("error binding request body", "err", err)
+		h.log.Warn("error binding request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request, please provide a note"))
 		return
 	}
@@ -167,12 +167,12 @@ func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 		h.log.Info("session not found in cache")
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("error occured during cache lookup", "err", cacheCmd.Err())
 	}
 	h.log.Info("data deleted from cache", "data", cacheCmd)
 	updateData, err := h.service.TrainerSessionNote(c.Request.Context(), sessionID, notes.Note)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("service returned err", "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return

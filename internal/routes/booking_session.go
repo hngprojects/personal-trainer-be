@@ -10,6 +10,7 @@ import (
 
 func (s *routerImpl) HandleGetSessionById(c *gin.Context, id uuid.UUID) {
 	if s.bookingSession == nil {
+		s.logger.Warn("HandleGetSessionById: booking session handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -18,6 +19,7 @@ func (s *routerImpl) HandleGetSessionById(c *gin.Context, id uuid.UUID) {
 
 func (s *routerImpl) HandleStartSession(c *gin.Context, id uuid.UUID) {
 	if s.bookingSession == nil {
+		s.logger.Warn("HandleStartSession: booking session handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -26,6 +28,7 @@ func (s *routerImpl) HandleStartSession(c *gin.Context, id uuid.UUID) {
 
 func (s *routerImpl) HandleJoinSession(c *gin.Context, id uuid.UUID) {
 	if s.bookingSession == nil {
+		s.logger.Warn("HandleJoinSession: booking session handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -34,6 +37,7 @@ func (s *routerImpl) HandleJoinSession(c *gin.Context, id uuid.UUID) {
 
 func (s *routerImpl) HandleCompleteSession(c *gin.Context, id uuid.UUID) {
 	if s.bookingSession == nil {
+		s.logger.Warn("HandleCompleteSession: booking session handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -42,6 +46,7 @@ func (s *routerImpl) HandleCompleteSession(c *gin.Context, id uuid.UUID) {
 
 func (s *routerImpl) HandleTrainersNote(c *gin.Context, id uuid.UUID) {
 	if s.bookingSession == nil {
+		s.logger.Warn("HandleTrainersNote: booking session handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}

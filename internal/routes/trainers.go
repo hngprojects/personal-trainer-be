@@ -153,6 +153,7 @@ func benefitsOut(in []db.TrainerBenefit) []map[string]interface{} {
 // Returns pagination metadata under "meta".
 func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	if s.trainers == nil {
+		s.logger.Warn("get trainers: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -257,6 +258,7 @@ func trainerListRowToMap(t db.ListTrainersRow) map[string]interface{} {
 // upsert is idempotent on email) or upload the picture later.
 func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if s.trainers == nil || s.mailer == nil {
+		s.logger.Warn("create trainer: trainers store or mailer not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -269,6 +271,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	// before enabling trainer provisioning on staging/prod.
 	if s.cfg != nil && s.cfg.Env != "development" {
 		if _, isLog := s.mailer.(*email.LogMailer); isLog {
+			s.logger.Warn("create trainer: mailer is LogMailer on non-development environment")
 			c.JSON(http.StatusServiceUnavailable, api.NewError("mailer is not configured for credential delivery on this environment", api.CodeServerError))
 			return
 		}
@@ -280,15 +283,18 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if err := c.Request.ParseMultipartForm(trainerCreateMaxRequestBytes); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			s.logger.Warn("form request exceeds allowed limit", "err", err)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("request exceeds %d-byte limit", trainerCreateMaxRequestBytes), api.CodeBadRequest))
 			return
 		}
+		s.logger.Warn("invalid multipart form submitted", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid multipart form: "+err.Error(), api.CodeBadRequest))
 		return
 	}
 
 	emailAddr := strings.ToLower(strings.TrimSpace(c.Request.FormValue("email")))
 	if emailAddr == "" || !common.IsValidEmail(emailAddr) || len(emailAddr) > 255 {
+		s.logger.Warn("create trainer: invalid email", "email", emailAddr)
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "valid email is required (max 255 chars)"},
 		}))
@@ -297,6 +303,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 
 	name := strings.TrimSpace(c.Request.FormValue("name"))
 	if name == "" {
+		s.logger.Warn("create trainer: name is required", "email", emailAddr)
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "name", Message: "name is required"},
 		}))
@@ -305,10 +312,12 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 
 	specializations, err := parseTrainerSpecializations(c.Request.MultipartForm.Value["specializations"])
 	if err != nil {
+		s.logger.Warn("create trainer: invalid specializations", "email", emailAddr, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 	if len(specializations) == 0 {
+		s.logger.Warn("create trainer: no specializations provided", "email", emailAddr)
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "specializations", Message: "at least one specialization is required (yoga, speed, cardio, endurance, strength)"},
 		}))
@@ -317,18 +326,21 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 
 	trainingStyles, err := parseTrainerTrainingStyles(c.Request.MultipartForm.Value["training_styles"])
 	if err != nil {
+		s.logger.Warn("create trainer: invalid training styles", "email", emailAddr, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
 	benefits, err := parseTrainerBenefits(c.Request.MultipartForm.Value["benefits"])
 	if err != nil {
+		s.logger.Warn("create trainer: invalid benefits", "email", emailAddr, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
 
 	yearsOfExperience, err := formIntPtr(c, "years_of_experience")
 	if err != nil {
+		s.logger.Warn("create trainer: invalid years of experience", "email", emailAddr, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be an integer", api.CodeBadRequest))
 		return
 	}
@@ -343,6 +355,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	var bio sql.NullString
 	if v := strings.TrimSpace(c.Request.FormValue("bio")); v != "" {
 		if utf8.RuneCountInString(v) > 2000 {
+			s.logger.Warn("create trainer: bio too long", "email", emailAddr, "bioLength", utf8.RuneCountInString(v))
 			c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 				{Field: "bio", Message: "bio must not exceed 2000 characters"},
 			}))
@@ -357,6 +370,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		case "pending", "approved", "rejected", "suspended":
 			onboardingStatus = v
 		default:
+			s.logger.Warn("create trainer: invalid onboarding status", "email", emailAddr, "onboardingStatus", v)
 			c.JSON(http.StatusBadRequest, api.NewError("onboarding_status must be one of pending, approved, rejected, suspended", api.CodeBadRequest))
 			return
 		}
@@ -371,28 +385,33 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	)
 	if fh, _ := getOptionalFormFile(c, trainerDisplayPictureField); fh != nil {
 		if fh.Size > trainerDisplayPictureMaxBytes {
+			s.logger.Warn("create trainer: display picture too large", "email", emailAddr, "size", fh.Size)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("display_picture exceeds %d-byte limit", trainerDisplayPictureMaxBytes), api.CodeBadRequest))
 			return
 		}
 		f, err := fh.Open()
 		if err != nil {
+			s.logger.Warn("create trainer: could not open display picture", "email", emailAddr, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("could not open display_picture: "+err.Error(), api.CodeBadRequest))
 			return
 		}
 		raw, err := io.ReadAll(f)
 		_ = f.Close()
 		if err != nil {
+			s.logger.Warn("create trainer: could not read display picture", "email", emailAddr, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("could not read display_picture: "+err.Error(), api.CodeBadRequest))
 			return
 		}
 		mime, err := detectTrainerImage(raw)
 		if err != nil {
+			s.logger.Warn("create trainer: unsupported image format", "email", emailAddr, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 			return
 		}
 		if s.trainerDisplayPictureUploader == nil {
 			// Refuse rather than create the trainer with a silently-dropped
 			// picture. The admin can retry once storage is configured.
+			s.logger.Warn("create trainer: display picture uploader not configured", "email", emailAddr)
 			c.JSON(http.StatusServiceUnavailable, api.NewError("display picture storage is not configured on this server", api.CodeServerError))
 			return
 		}
@@ -462,6 +481,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	// pass a pre-check and then both INSERT.
 	if existing, err := qtx.GetTrainerByUserID(ctx, user.ID); err == nil {
 		_ = existing
+		s.logger.Warn("create trainer: trainer profile already exists", "email", emailAddr, "userID", user.ID.String())
 		c.JSON(http.StatusConflict, api.NewError("a trainer profile already exists for this email", api.CodeConflict))
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
@@ -483,6 +503,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		// Race against a concurrent create for the same user_id — the unique
 		// constraint catches it; map to 409.
 		if strings.Contains(err.Error(), "trainers_user_id_key") {
+			s.logger.Warn("create trainer: unique constraint violation on user_id", "email", emailAddr, "userID", user.ID.String())
 			c.JSON(http.StatusConflict, api.NewError("a trainer profile already exists for this email", api.CodeConflict))
 			return
 		}
@@ -736,6 +757,7 @@ func getOptionalFormFile(c *gin.Context, field string) (*multipart.FileHeader, e
 // the trainer's display name + email without an extra users lookup.
 func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("get trainer by id: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -744,6 +766,7 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("failed to get trainer by ID", "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
@@ -790,6 +813,7 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 // for every field; pass an empty array to clear specializations/training_styles.
 func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("update trainer: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -798,12 +822,14 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	var body api.UpdateTrainerRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("update trainers endpoint got invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	existing, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("failed to get trainer by ID ", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
@@ -822,6 +848,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		}
 		validated, err := parseTrainerSpecializations(strs)
 		if err != nil {
+			s.logger.Warn("update trainer: invalid specializations", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 			return
 		}
@@ -832,6 +859,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	if body.TrainingStyles != nil {
 		validated, err := parseTrainerTrainingStyles(*body.TrainingStyles)
 		if err != nil {
+			s.logger.Warn("update trainer: invalid training styles", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 			return
 		}
@@ -841,6 +869,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	years := existing.YearsOfExperience
 	if body.YearsOfExperience != nil {
 		if *body.YearsOfExperience < 0 {
+			s.logger.Warn("update trainer: negative years of experience", "trainerID", trainerID.String(), "years", *body.YearsOfExperience)
 			c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be non-negative", api.CodeBadRequest))
 			return
 		}
@@ -882,6 +911,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		OnboardingStatus:  onboardingStatus,
 	})
 	if err != nil {
+		s.logger.Warn("error while updating trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
@@ -897,6 +927,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 // 204 -> no content
 func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("delete trainer: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -905,6 +936,7 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	_, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("error while deleting trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return

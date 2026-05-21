@@ -46,6 +46,7 @@ func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 			return
 		}
 		if !allowed {
+			h.log.Warn("HandleRefresh: rate limit hit", "user_id", userID)
 			c.JSON(http.StatusTooManyRequests, api.NewError("too many requests", api.CodeTooManyRequests))
 			return
 		}

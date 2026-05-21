@@ -31,23 +31,28 @@ type availabilityStore struct {
 // delegates to the shared replace-availability core.
 func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 	if s.availability == nil {
+		s.logger.Warn("PutTrainersMeAvailability: availability service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		s.logger.Warn("PutTrainersMeAvailability: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		s.logger.Warn("PutTrainersMeAvailability: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
 
 	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
+	s.logger.Warn("PutTrainersMeAvailability: failed to fetch trainer", "userID", userID, "err", err)
 	if err != nil {
+		s.logger.Warn("PutTrainersMeAvailability: failed to fetch trainer", "userID", userID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
 			return
@@ -63,12 +68,14 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 // super_admin) sets availability on behalf of a specific trainer.
 func (s *routerImpl) PutTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
 	if s.availability == nil {
+		s.logger.Warn("PutTrainerAvailability: availability service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	trainerID := uuid.UUID(id)
 	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		s.logger.Warn("failed to fetch trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
@@ -86,11 +93,13 @@ func (s *routerImpl) PutTrainerAvailability(c *gin.Context, id openapi_types.UUI
 func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
 	var req api.SetAvailabilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		s.logger.Warn("replaceTrainerAvailability: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	if req.Availability == nil {
+		s.logger.Warn("replaceTrainerAvailability: nil availability in request")
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "availability", Message: "availability is required (use [] to clear the schedule)"},
 		}))
@@ -115,6 +124,7 @@ func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.U
 
 	savedSlots, err := saveAvailabilitySlots(c.Request.Context(), s.availability, trainerID, parsedSlots)
 	if err != nil {
+		s.logger.Warn("failed to save trainer availability", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to save availability", api.CodeServerError))
 		return
 	}
@@ -130,23 +140,27 @@ func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.U
 // the calling trainer fetches their own schedule.
 func (s *routerImpl) GetTrainersMeAvailability(c *gin.Context) {
 	if s.availability == nil {
+		s.logger.Warn("GetTrainersMeAvailability: availability service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		s.logger.Warn("GetTrainersMeAvailability: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		s.logger.Warn("GetTrainersMeAvailability: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
 
 	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
 	if err != nil {
+		s.logger.Warn("GetTrainersMeAvailability: failed to fetch trainer", "userID", userID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile"))
 			return
@@ -162,12 +176,14 @@ func (s *routerImpl) GetTrainersMeAvailability(c *gin.Context) {
 // authenticated user reads a trainer's weekly slots.
 func (s *routerImpl) GetTrainerAvailability(c *gin.Context, id openapi_types.UUID) {
 	if s.availability == nil {
+		s.logger.Warn("GetTrainerAvailability: availability service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	trainerID := uuid.UUID(id)
 	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		s.logger.Warn("failed to fetch trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
@@ -182,6 +198,7 @@ func (s *routerImpl) GetTrainerAvailability(c *gin.Context, id openapi_types.UUI
 func (s *routerImpl) fetchTrainerAvailability(c *gin.Context, trainerID uuid.UUID) {
 	slots, err := s.availability.q.GetTrainerAvailabilitySlots(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("failed to fetch trainer availability", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load availability", api.CodeServerError))
 		return
 	}

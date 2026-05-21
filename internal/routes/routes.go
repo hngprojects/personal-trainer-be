@@ -362,13 +362,13 @@ func (s *Router) Routes() *gin.Engine {
 		if s.redis != nil {
 			authRedis = s.redis
 		}
-		authMw := middleware.AuthMiddleware(authRedis)
+		authMw := middleware.AuthMiddleware(authRedis, s.log)
 		refreshMw := middleware.AuthMiddlewareWithType(authRedis, "refresh")
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
-			trainersAdminOnly = middleware.TrainersAdminOnly(q)
-			superAdminOnly = middleware.SuperAdminOnly(q)
+			trainersAdminOnly = middleware.TrainersAdminOnly(q, s.log)
+			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
