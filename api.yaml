@@ -1075,7 +1075,7 @@ paths:
                 code: SERVER_ERROR
 
   /auth/refresh:
-    post:
+    get:
       # Refresh authenticates with a REFRESH token in the Authorization header,
       # not an access token. The standard bearerAuth middleware rejects refresh
       # tokens (it gates on type=access), so we declare the route as having no
@@ -1091,17 +1091,6 @@ paths:
         Invalidates the current access token by adding it to the blocklist (via cache)
         and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
         and the current (possibly expired) access token in the body.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [access_token]
-              properties:
-                access_token:
-                  type: string
-                  description: The current access token to invalidate
       responses:
         "200":
           description: Token refresh successful

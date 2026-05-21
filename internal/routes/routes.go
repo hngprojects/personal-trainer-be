@@ -108,30 +108,30 @@ func (s *Router) Close() {
 }
 
 type routerImpl struct {
-	cfg            *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
-	google         *auth.GoogleHandler
-	googleMobile   *auth.MobileGoogleHandler
-	local          *auth.LocalHandler
-	root           *root.RootHandler
-	adminLogin     *handlers.AdminLoginHandler
-	health         *health.HealthHandler
-	waitlist       *waitlist.WaitlistHandler
-	logout         *auth.LogoutHandler
-	refresh        *auth.RefreshHandler
-	passwordReset  *auth.PasswordResetHandler
-	trainers       *trainersStore
-	users          *usersStore
-	reviews        *reviewsvc.Service
-	admin          *admin.Handler
-	contact        *contact.Handler
-	bookings       *bookingsStore
-	paidReschedule *bookings.Handler
-	discovery      *discovery.Handler
-	availability   *availabilityStore
-	dev            *dev.Handler
-	booking        bookings.BookingHandler
-	bookingSlot    bookings.BookingSlotHandler
-	bookingSession booking_session.SessionHandler
+	cfg                           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
+	google                        *auth.GoogleHandler
+	googleMobile                  *auth.MobileGoogleHandler
+	local                         *auth.LocalHandler
+	root                          *root.RootHandler
+	adminLogin                    *handlers.AdminLoginHandler
+	health                        *health.HealthHandler
+	waitlist                      *waitlist.WaitlistHandler
+	logout                        *auth.LogoutHandler
+	refresh                       *auth.RefreshHandler
+	passwordReset                 *auth.PasswordResetHandler
+	trainers                      *trainersStore
+	users                         *usersStore
+	reviews                       *reviewsvc.Service
+	admin                         *admin.Handler
+	contact                       *contact.Handler
+	bookings                      *bookingsStore
+	paidReschedule                *bookings.Handler
+	discovery                     *discovery.Handler
+	availability                  *availabilityStore
+	dev                           *dev.Handler
+	booking                       bookings.BookingHandler
+	bookingSlot                   bookings.BookingSlotHandler
+	bookingSession                booking_session.SessionHandler
 	uploader                      *uploads.AvatarUploader                // nil if MinIO env vars are missing → upload endpoint 503s
 	videoUploader                 *uploads.VideoUploader                 // nil if MinIO env vars or ffmpeg are missing → upload endpoint 503s
 	videoTranscoder               video.Transcoder                       // nil if ffmpeg is missing → upload endpoint 503s
@@ -351,6 +351,7 @@ func (s *Router) Routes() *gin.Engine {
 			authRedis = s.redis
 		}
 		authMw := middleware.AuthMiddleware(authRedis)
+		refreshMw := middleware.AuthMiddlewareWithType(authRedis, "refresh")
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
@@ -375,6 +376,9 @@ func (s *Router) Routes() *gin.Engine {
 					}
 					if superAdminOnly != nil {
 						superAdminOnly(c)
+					}
+					if c.FullPath() == "/api/v1/auth/refresh" {
+						refreshMw(c)
 					}
 				},
 			},

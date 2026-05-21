@@ -15,6 +15,14 @@ import (
 )
 
 func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
+	return authMiddleware(redis, auth.AccessToken)
+}
+
+func AuthMiddlewareWithType(redis appredis.RedisClient, tokenType auth.TokenType) gin.HandlerFunc {
+	return authMiddleware(redis, tokenType)
+}
+
+func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
@@ -42,7 +50,7 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		}
 
 		tokenType, _ := claims["type"].(string)
-		if tokenType != string(auth.AccessToken) {
+		if tokenType != string(expectedType) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
 			return
 		}
