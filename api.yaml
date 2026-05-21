@@ -2905,6 +2905,70 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
+  /trainers/set-password:
+    post:
+      security: []
+      operationId: HandleSetPassword
+      tags:
+        - Trainer
+        - Authentication
+      summary: Set the initial password for an admin-provisioned trainer account
+      description: >-
+        Consumes a one-time activation token emailed to a newly provisioned
+        trainer and stores the chosen password. The token is single-use and
+        expires after a configurable window (default 7 days). Every failure
+        branch returns the same generic 400 so an attacker cannot tell
+        "wrong token" from "already consumed" from "expired".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                  description: Activation token from the setup email link
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "200":
+          description: Password set successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: password set successfully
+                code: OK
+                data: null
+        "400":
+          description: Validation error or invalid/expired setup token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid or expired setup token
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/user/trainer/count:
     get:
       operationId: GetUserTrainerCount

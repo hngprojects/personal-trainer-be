@@ -19,7 +19,6 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
-	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
@@ -59,11 +58,6 @@ const (
 	trainerCreateMaxRequestBytes = 10 << 20 // 10 MiB
 
 	trainerDisplayPictureField = "display_picture"
-
-	// Length of the auto-generated trainer password emailed to the trainer.
-	// Matches the admin invite flow; 16 chars from the friendly charset is
-	// well past any practical brute-force horizon against bcrypt.
-	trainerGeneratedPasswordLen = 16
 
 	// Max training_styles allowed by the DB CHECK + product spec.
 	trainerTrainingStylesMax = 4
@@ -407,25 +401,22 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		pictureExt = imageAcceptedMIMEs[mime]
 	}
 
-	// Generate the password BEFORE opening the TX so the password-hash work
-	// happens outside the DB lock window. bcrypt at cost 12 takes ~250ms;
-	// holding a TX open for that is wasteful.
-	plaintextPassword, err := auth.GenerateRandomPassword(trainerGeneratedPasswordLen)
-	if err != nil {
-		s.logger.Error("create trainer: generate password failed", "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-	passwordHash, err := auth.HashPassword(plaintextPassword)
-	if err != nil {
-		s.logger.Error("create trainer: hash password failed", "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+	// Account-setup flow is required: the trainer will mint their own
+	// password via the emailed link. Refuse the create if the handler isn't
+	// wired (configuration bug) rather than fall back to the old plaintext
+	// path and leave a dangling password-less account.
+	if s.accountSetup == nil {
+		s.logger.Error("create trainer: account setup handler not wired")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("account setup is not configured on this server", api.CodeServerError))
 		return
 	}
 
 	// TX boundary. Everything that touches the DB lives here so a failure
 	// rolls back to a consistent state — no orphaned user without a trainer
 	// row, no trainer with half its benefits.
+	//
+	// Note: the user row is created with password = NULL. The trainer sets
+	// their own password by consuming the activation token mailed below.
 	ctx := c.Request.Context()
 	tx, err := s.trainers.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -444,11 +435,24 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:    emailAddr,
 		Name:     name,
-		Password: sql.NullString{String: passwordHash, Valid: true},
+		Password: sql.NullString{Valid: false},
 	})
 	if err != nil {
 		s.logger.Error("create trainer: upsert user failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	// If this user was previously invited and has already activated their
+	// account, a re-invite would silently overwrite their password via a
+	// new token — confusing for the trainer and a privilege issue. Refuse
+	// with 409 and tell the admin to use the forgot-password path instead.
+	if activated, err := s.accountSetup.IsActivated(ctx, user.ID); err != nil {
+		s.logger.Error("create trainer: token status lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	} else if activated {
+		c.JSON(http.StatusConflict, api.NewError("this account is already activated; ask the trainer to use forgot-password instead", api.CodeConflict))
 		return
 	}
 
@@ -530,12 +534,13 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}
 
-	if err := s.mailer.SendTrainerCredentials(emailAddr, plaintextPassword); err != nil {
-		// Trainer exists and is queryable — but we couldn't tell them.
-		// Surface a clear 500 so the admin retries (UpsertTrainerUser is
-		// idempotent and will rotate the password on retry).
-		s.logger.Error("create trainer: send credentials email failed", "err", err, "user_id", user.ID.String())
-		c.JSON(http.StatusInternalServerError, api.NewError("trainer created but credentials email failed; please retry", api.CodeServerError))
+	// Issue the activation token + send the setup link. Mirrors the previous
+	// "send credentials" failure mode: the trainer row already exists, so a
+	// 500 here is the right signal for the admin to retry. UpsertToken is
+	// idempotent on user_id so retrying rotates the token cleanly.
+	if err := s.accountSetup.IssueAndSend(ctx, user.ID, emailAddr, name); err != nil {
+		s.logger.Error("create trainer: issue setup link failed", "err", err, "user_id", user.ID.String())
+		c.JSON(http.StatusInternalServerError, api.NewError("trainer created but setup link failed; please retry", api.CodeServerError))
 		return
 	}
 
@@ -547,7 +552,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		payload["display_picture_status"] = "processing"
 	}
 
-	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; credentials emailed", api.CodeCreated, payload))
+	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; setup link emailed", api.CodeCreated, payload))
 }
 
 // parseTrainerSpecializations accepts both a single CSV field

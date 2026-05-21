@@ -1432,6 +1432,14 @@ type GetTrainersMeSessionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// HandleSetPasswordJSONBody defines parameters for HandleSetPassword.
+type HandleSetPasswordJSONBody struct {
+	NewPassword string `json:"new_password"`
+
+	// Token Activation token from the setup email link
+	Token string `json:"token"`
+}
+
 // ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
 type ListTrainerImages200JSONResponseBodyStatus string
 
@@ -1551,6 +1559,9 @@ type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+
+// HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
+type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
@@ -1698,6 +1709,9 @@ type ServerInterface interface {
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
+	// Set the initial password for an admin-provisioned trainer account
+	// (POST /trainers/set-password)
+	HandleSetPassword(c *gin.Context)
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
@@ -2644,6 +2658,19 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 	siw.Handler.GetTrainersMeSessions(c, params)
 }
 
+// HandleSetPassword operation middleware
+func (siw *ServerInterfaceWrapper) HandleSetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSetPassword(c)
+}
+
 // DeleteTrainer operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 
@@ -3122,6 +3149,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
+	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)

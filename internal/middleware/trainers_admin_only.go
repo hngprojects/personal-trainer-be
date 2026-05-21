@@ -31,6 +31,16 @@ func TrainersAdminOnly(q *db.Queries) api.MiddlewareFunc {
 			return
 		}
 
+		// Public: trainer set-password (initial account activation). The
+		// caller has a setup token in the body, not a JWT — and the handler
+		// validates the token itself. Adding admin gating here would make
+		// the email link unusable.
+		if c.Request.Method == http.MethodPost &&
+			(path == "/api/v1/trainers/set-password" || path == "/trainers/set-password") {
+			c.Next()
+			return
+		}
+
 		// Public trainer review listing remains outside the trainer auth/admin guard.
 		if c.Request.Method == http.MethodGet &&
 			strings.HasPrefix(path, "/api/v1/trainers/") &&
