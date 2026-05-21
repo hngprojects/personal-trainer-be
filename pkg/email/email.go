@@ -749,6 +749,7 @@ func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTim
 		return fmt.Errorf("smtp: invalid recipient address: %w", err)
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, discoveryRescheduleSubject, html,

@@ -79,12 +79,15 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 		"specializations":   specializationsOut(t.Specializations),
 		"training_styles":   trainingStylesOut(t.TrainingStyles),
 		"onboarding_status": t.OnboardingStatus,
-		"average_rating":    t.AverageRating,
 		"total_reviews":     t.TotalReviews,
 		"created_at":        t.CreatedAt,
 		"updated_at":        t.UpdatedAt,
 	}
-
+	if t.AverageRating.Valid {
+		out["average_rating"] = t.AverageRating.Float64
+	} else {
+		out["average_rating"] = nil
+	}
 	if t.Bio.Valid {
 		out["bio"] = t.Bio.String
 	} else {
@@ -474,6 +477,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
 	}
+
 	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; credentials emailed", api.CodeCreated, payload))
 }
 
