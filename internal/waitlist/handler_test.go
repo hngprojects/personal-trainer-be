@@ -63,6 +63,9 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return ni
 func (m *fakeMailer) SendWaitlistConfirmation(_ string) error        { return nil }
 func (m *fakeMailer) SendAdminCredentials(_, _ string) error         { return nil }
 func (m *fakeMailer) SendTrainerCredentials(_, _ string) error       { return nil }
+func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
+	return nil
+}
 func (m *fakeMailer) SendContactConfirmation(_, _ string) error      { return nil }
 func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
 	return nil
