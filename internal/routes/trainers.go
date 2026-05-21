@@ -152,8 +152,11 @@ func benefitsOut(in []db.TrainerBenefit) []map[string]interface{} {
 	return out
 }
 
-// GET /trainers?category=...
-// 200 -> TrainersListResponse (data is []Trainer)
+// GET /trainers?category=&page=&limit=
+//
+// Paginated. Each item now carries the trainer's display name + email
+// (joined from users) so the FE doesn't have to round-trip per row.
+// Returns pagination metadata under "meta".
 func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -165,18 +168,84 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 		category = *params.Category
 	}
 
-	trainers, err := s.trainers.q.ListTrainers(c.Request.Context(), category)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.trainers.q.CountTrainersForList(ctx, category)
 	if err != nil {
+		s.logger.Error("count trainers failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainers", api.CodeServerError))
+		return
+	}
+
+	trainers, err := s.trainers.q.ListTrainers(ctx, db.ListTrainersParams{
+		Category:   category,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("list trainers failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainers", api.CodeServerError))
 		return
 	}
 
 	list := make([]interface{}, 0, len(trainers))
 	for _, t := range trainers {
-		list = append(list, trainerToMap(t))
+		list = append(list, trainerListRowToMap(t))
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINERS_FETCHED", api.CodeOK, list))
+	meta := api.NewPaginationMeta(page, limit, int(total))
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("TRAINERS_FETCHED", api.CodeOK, list, meta))
+}
+
+// trainerListRowToMap renders one paginated /trainers list row. Differs
+// from trainerToMap (used by GetTrainerByID) only in that the SQL row
+// also carries the joined users.name + users.email — exposed on the
+// response as "name" / "email" so the FE can render the trainer's
+// person without a second call.
+func trainerListRowToMap(t db.ListTrainersRow) map[string]interface{} {
+	out := map[string]interface{}{
+		"id":                t.ID.String(),
+		"user_id":           t.UserID.String(),
+		"name":              t.TrainerName,
+		"email":             t.TrainerEmail,
+		"specializations":   specializationsOut(t.Specializations),
+		"training_styles":   trainingStylesOut(t.TrainingStyles),
+		"onboarding_status": t.OnboardingStatus,
+		"total_reviews":     t.TotalReviews,
+		"created_at":        t.CreatedAt,
+		"updated_at":        t.UpdatedAt,
+	}
+	if t.AverageRating.Valid {
+		out["average_rating"] = t.AverageRating.Float64
+	} else {
+		out["average_rating"] = nil
+	}
+	if t.Bio.Valid {
+		out["bio"] = t.Bio.String
+	} else {
+		out["bio"] = nil
+	}
+	if t.YearsOfExperience.Valid {
+		out["years_of_experience"] = t.YearsOfExperience.Int32
+	} else {
+		out["years_of_experience"] = nil
+	}
+	if t.IntroVideoUrl.Valid {
+		out["intro_video_url"] = t.IntroVideoUrl.String
+	} else {
+		out["intro_video_url"] = nil
+	}
+	if t.DisplayPicture.Valid {
+		out["display_picture"] = t.DisplayPicture.String
+	} else {
+		out["display_picture"] = nil
+	}
+	return out
 }
 
 // POST /trainers
@@ -656,7 +725,10 @@ func getOptionalFormFile(c *gin.Context, field string) (*multipart.FileHeader, e
 }
 
 // GET /trainers/{id}
-// 200 -> TrainerResponse (data is Trainer + benefits)
+// 200 -> TrainerResponse (data is Trainer + name/email + benefits)
+//
+// Uses the joined GetTrainerWithUserByID query so the response includes
+// the trainer's display name + email without an extra users lookup.
 func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
@@ -665,7 +737,7 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 
 	trainerID := uuid.UUID(id)
 
-	t, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
+	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
@@ -683,7 +755,26 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		benefits = nil
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, trainerToMapWithBenefits(t, benefits)))
+	payload := trainerToMap(db.Trainer{
+		ID:                row.ID,
+		UserID:            row.UserID,
+		Bio:               row.Bio,
+		YearsOfExperience: row.YearsOfExperience,
+		IntroVideoUrl:     row.IntroVideoUrl,
+		DisplayPicture:    row.DisplayPicture,
+		OnboardingStatus:  row.OnboardingStatus,
+		AverageRating:     row.AverageRating,
+		TotalReviews:      row.TotalReviews,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+		Specializations:   row.Specializations,
+		TrainingStyles:    row.TrainingStyles,
+	})
+	payload["name"] = row.TrainerName
+	payload["email"] = row.TrainerEmail
+	payload["benefits"] = benefitsOut(benefits)
+
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
 }
 
 // PATCH /trainers/{id}
@@ -818,6 +909,111 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// GET /trainers/me/sessions?page=&limit=
+//
+// Paginated list of bookings where the calling user is the trainer. The
+// authenticated user_id is mapped to a trainers.id via GetTrainerByUserID
+// — non-trainers get 404 (no trainer profile) rather than 403, mirroring
+// the existing /trainers/me/* behaviour.
+func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			return
+		}
+		s.logger.Error("get trainer by user id failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return
+	}
+
+	total, err := s.trainers.q.CountBookingsByTrainer(ctx, trainer.ID)
+	if err != nil {
+		s.logger.Error("count trainer bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.trainers.q.ListBookingsByTrainer(ctx, db.ListBookingsByTrainerParams{
+		TrainerID:  trainer.ID,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("list trainer bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, trainerBookingRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{} {
+	m := map[string]interface{}{
+		"id":           r.ID.String(),
+		"trainer_id":   r.TrainerID.String(),
+		"client_id":    r.ClientID.String(),
+		"client_name":  r.ClientName,
+		"client_email": r.ClientEmail,
+	}
+	if r.SessionID.Valid {
+		m["session_id"] = r.SessionID.UUID.String()
+	}
+	if r.ScheduledStart.Valid {
+		m["scheduled_start"] = r.ScheduledStart.Time
+	}
+	if r.ScheduledEnd.Valid {
+		m["scheduled_end"] = r.ScheduledEnd.Time
+	}
+	if r.Timezone.Valid {
+		m["timezone"] = r.Timezone.String
+	}
+	if r.BookingStatus.Valid {
+		m["booking_status"] = r.BookingStatus.String
+	}
+	if r.SessionPlatform.Valid {
+		m["session_platform"] = r.SessionPlatform.String
+	}
+	if r.CreatedAt.Valid {
+		m["created_at"] = r.CreatedAt.Time
+	}
+	if r.CancelledAt.Valid {
+		m["cancelled_at"] = r.CancelledAt.Time
+	}
+	if r.ZoomMeetingLink.Valid {
+		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
+	}
+	return m
 }
 
 // silenceUnusedImports keeps imports compiled in if certain code paths get

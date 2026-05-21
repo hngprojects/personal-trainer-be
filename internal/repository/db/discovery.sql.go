@@ -49,6 +49,17 @@ func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotC
 	return count, err
 }
 
+const countDiscoveryBookings = `-- name: CountDiscoveryBookings :one
+SELECT COUNT(*) FROM discovery_bookings
+`
+
+func (q *Queries) CountDiscoveryBookings(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDiscoveryBookings)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createBookingSlot = `-- name: CreateBookingSlot :one
 INSERT INTO booking_slots (
     day_of_week,
@@ -394,6 +405,60 @@ ORDER BY selected_datetime ASC
 
 func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking, error) {
 	rows, err := q.db.QueryContext(ctx, listDiscoveryBookings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryBooking
+	for rows.Next() {
+		var i DiscoveryBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.ContactMode,
+			&i.PhoneNumber,
+			&i.SelectedDatetime,
+			&i.ClientTimezone,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.RescheduleCount,
+			&i.TrainerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDiscoveryBookingsPaginated = `-- name: ListDiscoveryBookingsPaginated :many
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+ORDER BY selected_datetime DESC, id DESC
+LIMIT $2
+OFFSET $1
+`
+
+type ListDiscoveryBookingsPaginatedParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+// Admin paginated view of every discovery call ever booked. Newest first so
+// the most-recent activity is the top of page 1; supports
+// LIMIT/OFFSET pagination matching the admin sessions endpoint.
+func (q *Queries) ListDiscoveryBookingsPaginated(ctx context.Context, arg ListDiscoveryBookingsPaginatedParams) ([]DiscoveryBooking, error) {
+	rows, err := q.db.QueryContext(ctx, listDiscoveryBookingsPaginated, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
