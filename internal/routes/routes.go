@@ -363,6 +363,7 @@ func (s *Router) Routes() *gin.Engine {
 			authRedis = s.redis
 		}
 		authMw := middleware.AuthMiddleware(authRedis)
+		refreshMw := middleware.AuthMiddlewareWithType(authRedis, "refresh")
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
@@ -375,6 +376,12 @@ func (s *Router) Routes() *gin.Engine {
 				func(c *gin.Context) {
 					if _, requiresAuth := c.Get(string(api.BearerAuthScopes)); requiresAuth {
 						authMw(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
+						refreshMw(c)
 						if c.IsAborted() {
 							return
 						}

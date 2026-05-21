@@ -34,6 +34,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+    refreshAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     BaseResponse:
       type: object
@@ -1082,7 +1087,8 @@ paths:
       # security from the framework's perspective and the handler does its own
       # refresh-token validation. Without this override the middleware short-
       # circuits with "invalid token type" before the handler ever runs.
-      security: []
+      security:
+        - refreshAuth: []
       operationId: HandleRefresh
       tags:
         - Auth — Session
@@ -1091,17 +1097,6 @@ paths:
         Invalidates the current access token by adding it to the blocklist (via cache)
         and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
         and the current (possibly expired) access token in the body.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [access_token]
-              properties:
-                access_token:
-                  type: string
-                  description: The current access token to invalidate
       responses:
         "200":
           description: Token refresh successful
@@ -3571,7 +3566,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -3610,7 +3605,7 @@ paths:
     put:
       operationId: RescheduleDiscoveryCall
       tags:
-        - Booking
+        - Discovery
       summary: Reschedule an existing discovery call booking
       description: |
         Allows a client to reschedule their discovery call to a new date and time.
@@ -3754,7 +3749,7 @@ paths:
       security: []
       operationId: GetDiscoverySlots
       tags:
-        - Booking
+        - Discovery
       summary: List all active discovery slots (public)
       parameters:
         - name: timezone
@@ -3780,6 +3775,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: CreateDiscoverySlot
+      tags:
+        - Discovery
       summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
@@ -3824,7 +3821,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: UpdateDiscoverySlot
       summary: Update a discovery slot (admin or customer_care only)
       parameters:
@@ -3881,6 +3878,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: DeleteDiscoverySlot
+      tags:
+        - Discovery
       summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
@@ -3963,6 +3962,8 @@ paths:
     get:
       security: []
       operationId: HandleCreateDevToken
+      tags:
+        - Dev
       responses:
         "200":
           description: Token generated
