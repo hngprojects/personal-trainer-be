@@ -120,3 +120,18 @@ func (r *postgresRepo) GetAllBookingDiscoveries(ctx context.Context, limit, offs
 	}
 	return bookings, int(total), nil
 }
+// GetSessionIDForBooking looks up the booking_session row for a given
+// booking and returns just its id. Wraps GetBookingSessionByBookingID and
+// flattens sql.ErrNoRows to (uuid.Nil, false, nil) — the absence of a
+// session row is expected (sessions are created when a booking is started,
+// not when it's booked) and shouldn't bubble up as an error.
+func (r *postgresRepo) GetSessionIDForBooking(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, bool, error) {
+	row, err := r.q.GetBookingSessionByBookingID(ctx, bookingID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, false, nil
+		}
+		return uuid.Nil, false, err
+	}
+	return row.ID, true, nil
+}

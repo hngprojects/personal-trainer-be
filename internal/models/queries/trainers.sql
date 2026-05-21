@@ -12,6 +12,7 @@ INSERT INTO trainers (
   user_id,
   specializations,
   training_styles,
+  bio,
   years_of_experience,
   display_picture,
   onboarding_status
@@ -19,6 +20,7 @@ INSERT INTO trainers (
   sqlc.arg(user_id),
   sqlc.arg(specializations)::text[],
   sqlc.arg(training_styles)::text[],
+  sqlc.arg(bio),
   sqlc.arg(years_of_experience),
   sqlc.arg(display_picture),
   COALESCE(sqlc.arg(onboarding_status)::text, 'pending')
@@ -189,3 +191,6 @@ UPDATE trainers
 SET display_picture = sqlc.arg(display_picture),
     updated_at      = NOW()
 WHERE id = sqlc.arg(id);
+
+-- name: CountTrainers :one
+SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved';

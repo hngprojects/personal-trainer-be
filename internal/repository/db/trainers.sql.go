@@ -56,11 +56,23 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 	return i, err
 }
 
+const countTrainers = `-- name: CountTrainers :one
+SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved'
+`
+
+func (q *Queries) CountTrainers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTrainer = `-- name: CreateTrainer :one
 INSERT INTO trainers (
   user_id,
   specializations,
   training_styles,
+  bio,
   years_of_experience,
   display_picture,
   onboarding_status
@@ -70,7 +82,8 @@ INSERT INTO trainers (
   $3::text[],
   $4,
   $5,
-  COALESCE($6::text, 'pending')
+  $6,
+  COALESCE($7::text, 'pending')
 )
 RETURNING
   id,
@@ -92,6 +105,7 @@ type CreateTrainerParams struct {
 	UserID            uuid.UUID
 	Specializations   []string
 	TrainingStyles    []string
+	Bio               sql.NullString
 	YearsOfExperience sql.NullInt32
 	DisplayPicture    sql.NullString
 	OnboardingStatus  string
@@ -111,6 +125,7 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		arg.UserID,
 		pq.Array(arg.Specializations),
 		pq.Array(arg.TrainingStyles),
+		arg.Bio,
 		arg.YearsOfExperience,
 		arg.DisplayPicture,
 		arg.OnboardingStatus,

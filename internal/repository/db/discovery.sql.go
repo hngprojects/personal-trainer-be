@@ -109,7 +109,6 @@ func (q *Queries) CreateBookingSlot(ctx context.Context, arg CreateBookingSlotPa
 const createDiscoveryBooking = `-- name: CreateDiscoveryBooking :one
 INSERT INTO discovery_bookings (
     user_id,
-    trainer_id,
     name,
     email,
     contact_mode,
@@ -129,7 +128,6 @@ INSERT INTO discovery_bookings (
     $7,
     $8,
     $9,
-    $10,
     'confirmed'
 )
 RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id
@@ -137,7 +135,6 @@ RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client
 
 type CreateDiscoveryBookingParams struct {
 	UserID           uuid.NullUUID
-	TrainerID        uuid.NullUUID
 	Name             string
 	Email            string
 	ContactMode      string
@@ -151,7 +148,6 @@ type CreateDiscoveryBookingParams struct {
 func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscoveryBookingParams) (DiscoveryBooking, error) {
 	row := q.db.QueryRowContext(ctx, createDiscoveryBooking,
 		arg.UserID,
-		arg.TrainerID,
 		arg.Name,
 		arg.Email,
 		arg.ContactMode,

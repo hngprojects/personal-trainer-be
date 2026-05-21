@@ -14,11 +14,17 @@ import (
 )
 
 func userToProfileMap(u db.User) map[string]interface{} {
+	// profile_complete intentionally does NOT require AvatarUrl. Avatars
+	// are set exclusively via POST /users/me/profile/picture (which
+	// uploads through MinIO and writes the column asynchronously), so
+	// gating completion on AvatarUrl.Valid would block clients who
+	// finished onboarding via the JSON profile endpoint but haven't
+	// uploaded a picture yet — they'd appear "incomplete" forever even
+	// though their profile data is fully filled in.
 	profileComplete :=
 		u.Name != "" &&
 			u.Gender.Valid &&
-			u.FitnessLevel.Valid &&
-			u.AvatarUrl.Valid
+			u.FitnessLevel.Valid
 	out := map[string]interface{}{
 		"id":               u.ID.String(),
 		"email":            u.Email,
@@ -115,18 +121,19 @@ func (s *routerImpl) UpdateUserProfile(c *gin.Context) {
 		fitnessLevel = string(*body.FitnessLevel)
 	}
 
-	avatarURL := ""
-	if body.AvatarUrl != nil {
-		avatarURL = *body.AvatarUrl
-	}
-
+	// avatar_url is intentionally not read from the request body. Avatars
+	// are set exclusively via POST /users/me/profile/picture so this
+	// endpoint can't accidentally clobber a freshly-uploaded URL. We
+	// still pass an empty string to UpdateUserOnboarding because the SQL
+	// uses COALESCE(NULLIF(...,''), avatar_url) which preserves the
+	// existing value when blank.
 	updated, err := s.users.q.UpdateUserOnboarding(c.Request.Context(), db.UpdateUserOnboardingParams{
 		ID:           userID,
 		Name:         name,
 		Gender:       gender,
 		FitnessGoals: fitnessGoals,
 		FitnessLevel: fitnessLevel,
-		AvatarUrl:    avatarURL,
+		AvatarUrl:    "",
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
