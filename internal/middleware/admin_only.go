@@ -76,7 +76,6 @@ func SuperAdminOnly(q *db.Queries, log *slog.Logger) api.MiddlewareFunc {
 		if !ok {
 			log.Warn("super admin middleware: invalid token claims")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("Unauthorized; Invalid token claims", api.CodeUnauthorized))
-			return
 		}
 		sub, ok := claims["sub"].(string)
 		if !ok || sub == "" {
