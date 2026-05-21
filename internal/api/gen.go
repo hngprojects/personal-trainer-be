@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
+	BearerAuthScopes  bearerAuthContextKey  = "bearerAuth.Scopes"
+	RefreshAuthScopes refreshAuthContextKey = "refreshAuth.Scopes"
 )
 
 // Defines values for AuthUserUserType.
@@ -1311,6 +1312,9 @@ type WaitlistRequest struct {
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// refreshAuthContextKey is the context key for refreshAuth security scheme
+type refreshAuthContextKey string
+
 // AdminAddJSONBody defines parameters for AdminAdd.
 type AdminAddJSONBody struct {
 	Email openapi_types.Email `json:"email"`
@@ -1906,6 +1910,8 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 // HandleRefresh operation middleware
 func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
+
+	c.Set(string(RefreshAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)

@@ -34,6 +34,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+    refreshAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     BaseResponse:
       type: object
@@ -1075,14 +1080,15 @@ paths:
                 code: SERVER_ERROR
 
   /auth/refresh:
-    get:
+    post:
       # Refresh authenticates with a REFRESH token in the Authorization header,
       # not an access token. The standard bearerAuth middleware rejects refresh
       # tokens (it gates on type=access), so we declare the route as having no
       # security from the framework's perspective and the handler does its own
       # refresh-token validation. Without this override the middleware short-
       # circuits with "invalid token type" before the handler ever runs.
-      security: []
+      security:
+        - refreshAuth: []
       operationId: HandleRefresh
       tags:
         - Auth — Session

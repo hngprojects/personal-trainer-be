@@ -368,6 +368,12 @@ func (s *Router) Routes() *gin.Engine {
 							return
 						}
 					}
+					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
+						refreshMw(c)
+						if c.IsAborted() {
+							return
+						}
+					}
 					if trainersAdminOnly != nil {
 						trainersAdminOnly(c)
 						if c.IsAborted() {
@@ -376,9 +382,6 @@ func (s *Router) Routes() *gin.Engine {
 					}
 					if superAdminOnly != nil {
 						superAdminOnly(c)
-					}
-					if c.FullPath() == "/api/v1/auth/refresh" {
-						refreshMw(c)
 					}
 				},
 			},

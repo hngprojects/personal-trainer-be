@@ -60,7 +60,7 @@ func main() {
 	generatedToken, err := auth.GenerateJWTToken(userID, tokenType)
 	if err != nil {
 		slog.Error("failed to generate token", "err", err)
-		return
+		os.Exit(1)
 	}
 
 	fmt.Println("token:\n", generatedToken)
