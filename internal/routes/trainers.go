@@ -79,7 +79,6 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 		"specializations":   specializationsOut(t.Specializations),
 		"training_styles":   trainingStylesOut(t.TrainingStyles),
 		"onboarding_status": t.OnboardingStatus,
-		"average_rating":    t.AverageRating,
 		"total_reviews":     t.TotalReviews,
 		"created_at":        t.CreatedAt,
 		"updated_at":        t.UpdatedAt,
