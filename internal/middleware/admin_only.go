@@ -97,7 +97,7 @@ func SuperAdminOnly(q *db.Queries) api.MiddlewareFunc {
 		if role != "super_admin" {
 			// Permit plain admins on the read-only listing endpoints; deny
 			// every other /admin/* route (those mutate privileges).
-			if !(role == "admin" && c.Request.Method == http.MethodGet && adminReadablePaths[path]) {
+			if role != "admin" || c.Request.Method != http.MethodGet || !adminReadablePaths[path] {
 				c.AbortWithStatusJSON(http.StatusForbidden, api.NewError("Forbidden; super_admin access required", api.CodeForbidden))
 				return
 			}
