@@ -340,11 +340,14 @@ func (q *Queries) GetDiscoveryBookingByUserID(ctx context.Context, userID uuid.N
 const getUpcomingDiscoveryBookings = `-- name: GetUpcomingDiscoveryBookings :many
 SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
 WHERE user_id = $1
-  AND selected_datetime > NOW()
+  AND selected_datetime > NOW() - INTERVAL '7 days'
   AND status NOT IN ('cancelled', 'completed')
 ORDER BY selected_datetime ASC
 `
 
+// Mirror of GetUpcomingPaidSessions: keep showing the call until the user
+// explicitly cancels/completes it. The 7-day grace past selected_datetime
+// bounds the visibility of abandoned bookings.
 func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.NullUUID) ([]DiscoveryBooking, error) {
 	rows, err := q.db.QueryContext(ctx, getUpcomingDiscoveryBookings, userID)
 	if err != nil {

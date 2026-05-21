@@ -16,7 +16,10 @@ var (
 )
 
 type BookingSessionRepo interface {
-	GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
+	// GetSessionByID returns the session joined with its parent booking so
+	// the trainer_id is included — callers can render the trainer alongside
+	// the session without a second query.
+	GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error)
 	MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID, start time.Time) (*db.BookingSession, error)
 	MarkSessionAsJoined(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID, end time.Time) (*db.BookingSession, error)
@@ -31,7 +34,7 @@ func NewPostgresBookingSessionRepo(q *db.Queries) BookingSessionRepo {
 	return &bookingSessionRepo{q: q}
 }
 
-func (r *bookingSessionRepo) GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error) {
+func (r *bookingSessionRepo) GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error) {
 	bookingSession, err := r.q.GetBookingSessionById(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

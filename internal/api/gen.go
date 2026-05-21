@@ -485,6 +485,24 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetUserTrainerCount200JSONResponseBodyStatus.
+const (
+	GetUserTrainerCount200JSONResponseBodyStatusError   GetUserTrainerCount200JSONResponseBodyStatus = "error"
+	GetUserTrainerCount200JSONResponseBodyStatusSuccess GetUserTrainerCount200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetUserTrainerCount200JSONResponseBodyStatus enum.
+func (e GetUserTrainerCount200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetUserTrainerCount200JSONResponseBodyStatusError:
+		return true
+	case GetUserTrainerCount200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleLocalAuth200JSONResponseBodyStatus.
 const (
 	HandleLocalAuth200JSONResponseBodyStatusError   HandleLocalAuth200JSONResponseBodyStatus = "error"
@@ -1299,6 +1317,9 @@ type AdminAddJSONBody struct {
 	Name  string              `json:"name"`
 }
 
+// GetUserTrainerCount200JSONResponseBodyStatus defines parameters for GetUserTrainerCount.
+type GetUserTrainerCount200JSONResponseBodyStatus string
+
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -1543,6 +1564,9 @@ type ServerInterface interface {
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get total count of active clients and approved trainers (super_admin only)
+	// (GET /admin/user/trainer/count)
+	GetUserTrainerCount(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -1757,6 +1781,21 @@ func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.AdminApproveTrainer(c, id)
+}
+
+// GetUserTrainerCount operation middleware
+func (siw *ServerInterfaceWrapper) GetUserTrainerCount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserTrainerCount(c)
 }
 
 // HandleAdminLogin operation middleware
@@ -2889,6 +2928,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)

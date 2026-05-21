@@ -175,7 +175,7 @@ type Trainer struct {
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
 	OnboardingStatus  string
-	AverageRating     sql.NullString
+	AverageRating     sql.NullFloat64
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time

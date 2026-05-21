@@ -7,3 +7,6 @@ sql:
       go:
         package: "db"
         out: "internal/repository/db"
+        overrides:
+          - column: "trainers.average_rating"
+            go_type: "database/sql.NullFloat64"

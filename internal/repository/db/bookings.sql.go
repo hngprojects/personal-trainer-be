@@ -364,7 +364,7 @@ FROM bookings b
 JOIN trainers t ON t.id = b.trainer_id
 JOIN users u ON u.id = t.user_id
 WHERE b.client_id = $1
-  AND b.scheduled_start > NOW()
+  AND (b.scheduled_end IS NULL OR b.scheduled_end > NOW() - INTERVAL '7 days')
   AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
 ORDER BY b.scheduled_start ASC
 `
@@ -384,6 +384,12 @@ type GetUpcomingPaidSessionsRow struct {
 	TrainerPhoto           sql.NullString
 }
 
+// "Upcoming" here means any booking the client hasn't explicitly resolved
+// (cancelled or completed). We deliberately don't filter by
+// scheduled_start > NOW(): a session that came and went without being
+// started/completed must stay visible so the client/trainer can still
+// act on it. The 7-day grace past scheduled_end is an upper bound so
+// abandoned bookings eventually fall off this list.
 func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUpcomingPaidSessions, clientID)
 	if err != nil {

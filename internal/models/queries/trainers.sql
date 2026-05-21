@@ -191,3 +191,6 @@ UPDATE trainers
 SET display_picture = sqlc.arg(display_picture),
     updated_at      = NOW()
 WHERE id = sqlc.arg(id);
+
+-- name: CountTrainers :one
+SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved';
