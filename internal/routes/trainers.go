@@ -85,11 +85,7 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 		"updated_at":        t.UpdatedAt,
 	}
 	if t.AverageRating.Valid {
-		if ratingInNumber, err := strconv.ParseFloat(t.AverageRating.String, 64); err != nil {
-			out["average_rating"] = nil
-		} else {
-			out["average_rating"] = ratingInNumber
-		}
+		out["average_rating"] = t.AverageRating.Float64
 	} else {
 		out["average_rating"] = nil
 	}
