@@ -50,6 +50,7 @@ func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType) gin
 		}
 
 		tokenType, _ := claims["type"].(string)
+		exp, _ := claims["exp"].(string)
 		if tokenType != string(expectedType) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
 			return
@@ -79,6 +80,9 @@ func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType) gin
 
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
 		c.Set(string(common.ContextKeyJTI), jti)
+		if expectedType == "refresh" {
+			c.Set(string(common.ContextKeyExpTime), exp)
+		}
 		c.Next()
 	}
 }
