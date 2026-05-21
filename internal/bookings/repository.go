@@ -46,7 +46,11 @@ func (r *postgresRepo) FindBookingSlotByTrainerID(ctx context.Context, trainerID
 		}
 		return nil, err
 	}
-	slots, err := r.q.GetTrainersBookingSlots(ctx, trainerID)
+	// sqlc inferred trainer_id as uuid.NullUUID for this query (defensive
+	// default for untyped $1 params); wrap the non-null caller value so the
+	// types line up. The booking_slots.trainer_id column is itself NOT NULL
+	// at the schema level, so Valid is always true here.
+	slots, err := r.q.GetTrainersBookingSlots(ctx, uuid.NullUUID{UUID: trainerID, Valid: true})
 	if err != nil {
 		return nil, err
 	}

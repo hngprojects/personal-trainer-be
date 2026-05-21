@@ -485,6 +485,42 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetUserTrainerCount200JSONResponseBodyStatus.
+const (
+	GetUserTrainerCount200JSONResponseBodyStatusError   GetUserTrainerCount200JSONResponseBodyStatus = "error"
+	GetUserTrainerCount200JSONResponseBodyStatusSuccess GetUserTrainerCount200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the GetUserTrainerCount200JSONResponseBodyStatus enum.
+func (e GetUserTrainerCount200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case GetUserTrainerCount200JSONResponseBodyStatusError:
+		return true
+	case GetUserTrainerCount200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleLocalAuth200JSONResponseBodyStatus.
+const (
+	HandleLocalAuth200JSONResponseBodyStatusError   HandleLocalAuth200JSONResponseBodyStatus = "error"
+	HandleLocalAuth200JSONResponseBodyStatusSuccess HandleLocalAuth200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleLocalAuth200JSONResponseBodyStatus enum.
+func (e HandleLocalAuth200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case HandleLocalAuth200JSONResponseBodyStatusError:
+		return true
+	case HandleLocalAuth200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
 	HandleRefresh200JSONResponseBodyStatusSuccess HandleRefresh200JSONResponseBodyStatus = "success"
@@ -712,16 +748,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UploadProfilePicture202JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1281,6 +1317,9 @@ type AdminAddJSONBody struct {
 	Name  string              `json:"name"`
 }
 
+// GetUserTrainerCount200JSONResponseBodyStatus defines parameters for GetUserTrainerCount.
+type GetUserTrainerCount200JSONResponseBodyStatus string
+
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -1298,6 +1337,9 @@ type HandleLocalAuthJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
 	Password string              `json:"password"`
 }
+
+// HandleLocalAuth200JSONResponseBodyStatus defines parameters for HandleLocalAuth.
+type HandleLocalAuth200JSONResponseBodyStatus string
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
@@ -1324,7 +1366,6 @@ type CreateBookingJSONBody struct {
 	ScheduledEnd    time.Time                            `json:"scheduled_end"`
 	ScheduledStart  time.Time                            `json:"scheduled_start"`
 	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
-	SubscriptionId  openapi_types.UUID                   `json:"subscription_id"`
 	Timezone        string                               `json:"timezone"`
 	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
 }
@@ -1485,8 +1526,8 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
-// CreateTrainerJSONRequestBody defines body for CreateTrainer for application/json ContentType.
-type CreateTrainerJSONRequestBody = CreateTrainerRequest
+// CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
+type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1523,6 +1564,9 @@ type ServerInterface interface {
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get total count of active clients and approved trainers (super_admin only)
+	// (GET /admin/user/trainer/count)
+	GetUserTrainerCount(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -1737,6 +1781,21 @@ func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.AdminApproveTrainer(c, id)
+}
+
+// GetUserTrainerCount operation middleware
+func (siw *ServerInterfaceWrapper) GetUserTrainerCount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserTrainerCount(c)
 }
 
 // HandleAdminLogin operation middleware
@@ -2869,6 +2928,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)

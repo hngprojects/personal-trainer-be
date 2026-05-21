@@ -1469,7 +1469,6 @@ paths:
               required:
                 [
                   trainer_id,
-                  subscription_id,
                   scheduled_start,
                   scheduled_end,
                   session_platform,
@@ -1477,9 +1476,6 @@ paths:
                 ]
               properties:
                 trainer_id:
-                  type: string
-                  format: uuid
-                subscription_id:
                   type: string
                   format: uuid
                 scheduled_start:
@@ -1509,7 +1505,6 @@ paths:
                   id: "550e8400-e29b-41d4-a716-446655440000"
                   client_id: "550e8400-e29b-41d4-a716-446655440000"
                   trainer_id: "550e8400-e29b-41d4-a716-446655440000"
-                  subscription_id: "550e8400-e29b-41d4-a716-446655440000"
                   scheduled_start: "2026-05-16 10:30:40.067585+00"
                   scheduled_end: "2026-05-16 10:30:40.067585+00"
                   timezone: "London"
@@ -2829,6 +2824,63 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /admin/user/trainer/count:
+    get:
+      operationId: GetUserTrainerCount
+      tags:
+        - Admin
+      summary: Get total count of active clients and approved trainers (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_clients:
+                            type: integer
+                            format: int64
+                            description: Number of active users with role client
+                            example: 120
+                          total_approved_trainers:
+                            type: integer
+                            format: int64
+                            description: Number of trainers with onboarding_status approved
+                            example: 45
+              example:
+                status: success
+                message: Stats retrieved successfully
+                code: OK
+                data:
+                  total_clients: 120
+                  total_approved_trainers: 45
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/add:
     post:

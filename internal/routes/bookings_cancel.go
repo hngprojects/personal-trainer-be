@@ -139,8 +139,12 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 
 	// Release the booking slot back to availability
 	if booking.ScheduledStart.Valid && booking.ScheduledEnd.Valid {
+		// ReleaseBookingSlotParams.TrainerID is uuid.NullUUID (sqlc inferred
+		// the column as nullable for this query path); booking.TrainerID is
+		// uuid.UUID. Wrap with Valid=true — the FK guarantees the booking has
+		// a non-null trainer.
 		rowsAffected, err := qtx.ReleaseBookingSlot(ctx, db.ReleaseBookingSlotParams{
-			TrainerID:      booking.TrainerID,
+			TrainerID:      uuid.NullUUID{UUID: booking.TrainerID, Valid: true},
 			ScheduledStart: booking.ScheduledStart.Time,
 			ScheduledEnd:   booking.ScheduledEnd.Time,
 			Timezone:       booking.Timezone.String,

@@ -13,6 +13,17 @@ import (
 	"github.com/lib/pq"
 )
 
+const countClients = `-- name: CountClients :one
+SELECT COUNT(*) FROM users WHERE role = 'client' AND is_active = true
+`
+
+func (q *Queries) CountClients(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countClients)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
