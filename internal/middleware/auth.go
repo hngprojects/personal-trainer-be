@@ -15,6 +15,14 @@ import (
 )
 
 func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
+	return authMiddleware(redis, auth.AccessToken)
+}
+
+func AuthMiddlewareWithType(redis appredis.RedisClient, tokenType auth.TokenType) gin.HandlerFunc {
+	return authMiddleware(redis, tokenType)
+}
+
+func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
@@ -42,7 +50,9 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		}
 
 		tokenType, _ := claims["type"].(string)
-		if tokenType != string(auth.AccessToken) {
+		expFloat, _ := claims["exp"].(float64) // jwt.MapClaims always decodes numbers as float64
+		exp := int64(expFloat)                 // convert once; stored as int64 for RequestExpFromContext
+		if tokenType != string(expectedType) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
 			return
 		}
@@ -71,6 +81,9 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
 		c.Set(string(common.ContextKeyJTI), jti)
+		if expectedType == "refresh" {
+			c.Set(string(common.ContextKeyExpTime), exp) // now int64, not string
+		}
 		c.Next()
 	}
 }
