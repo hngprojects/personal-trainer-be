@@ -3504,7 +3504,7 @@ paths:
         - bearerAuth: []
       operationId: CreateDiscoverySlot
       tags:
-        - Discovery
+        - Booking
       summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
@@ -3607,7 +3607,7 @@ paths:
         - bearerAuth: []
       operationId: DeleteDiscoverySlot
       tags:
-        - Discovery
+        - Booking
       summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
