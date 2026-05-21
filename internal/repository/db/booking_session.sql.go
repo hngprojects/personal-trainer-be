@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -139,23 +140,41 @@ func (q *Queries) GetBookingSessionByBookingID(ctx context.Context, bookingID uu
 
 const getBookingSessionById = `-- name: GetBookingSessionById :one
 SELECT
-    id,
-    booking_id,
-    actual_start,
-    actual_end,
-    trainer_joined,
-    client_joined,
-    status,
-    trainer_notes,
-    created_at
-FROM booking_session
-WHERE id = $1
+    bs.id,
+    bs.booking_id,
+    bs.actual_start,
+    bs.actual_end,
+    bs.trainer_joined,
+    bs.client_joined,
+    bs.status,
+    bs.trainer_notes,
+    bs.created_at,
+    b.trainer_id
+FROM booking_session bs
+JOIN bookings b ON b.id = bs.booking_id
+WHERE bs.id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetBookingSessionById(ctx context.Context, id uuid.UUID) (BookingSession, error) {
+type GetBookingSessionByIdRow struct {
+	ID            uuid.UUID
+	BookingID     uuid.UUID
+	ActualStart   sql.NullTime
+	ActualEnd     sql.NullTime
+	TrainerJoined sql.NullBool
+	ClientJoined  sql.NullBool
+	Status        string
+	TrainerNotes  sql.NullString
+	CreatedAt     time.Time
+	TrainerID     uuid.UUID
+}
+
+// Joins the parent booking so we can return the trainer_id alongside the
+// session — the client uses it to look up trainer details without an
+// extra round trip.
+func (q *Queries) GetBookingSessionById(ctx context.Context, id uuid.UUID) (GetBookingSessionByIdRow, error) {
 	row := q.db.QueryRowContext(ctx, getBookingSessionById, id)
-	var i BookingSession
+	var i GetBookingSessionByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
@@ -166,6 +185,7 @@ func (q *Queries) GetBookingSessionById(ctx context.Context, id uuid.UUID) (Book
 		&i.Status,
 		&i.TrainerNotes,
 		&i.CreatedAt,
+		&i.TrainerID,
 	)
 	return i, err
 }

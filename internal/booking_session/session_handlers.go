@@ -37,11 +37,11 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 	cached := h.redis.Get(c.Request.Context(), cachedKey)
 	if cached.Err() == nil {
 		h.log.Info("Cache hit!!")
-		var body db.BookingSession
+		var body db.GetBookingSessionByIdRow
 		if err := json.Unmarshal([]byte(cached.Val()), &body); err != nil {
 			h.log.Error("failed to unmarshal data into body")
 		} else {
-			result := ParseResponse(&body)
+			result := ParseResponseWithTrainer(&body)
 			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 			return
 		}
@@ -68,7 +68,7 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 	} else {
 		h.log.Info("session saved to cache", "info", err)
 	}
-	result := ParseResponse(session)
+	result := ParseResponseWithTrainer(session)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 }
 
