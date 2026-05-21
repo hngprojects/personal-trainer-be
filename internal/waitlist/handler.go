@@ -73,7 +73,6 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 		return
 	}
 
-	h.log.Info("email added to waitlist", "email", email, "phone_number", phoneNumber, "location", location, "name", name)
 	if err := h.mailer.SendWaitlistConfirmation(email); err != nil {
 		h.log.Error("failed to send waitlist confirmation email", "email", email, "err", err)
 	}
