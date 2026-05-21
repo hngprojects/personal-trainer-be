@@ -1721,7 +1721,12 @@ paths:
       operationId: GetTrainers
       tags:
         - Trainer
-      summary: Get trainers (admin only)
+      summary: Get trainers (admin only) — paginated
+      description: |
+        Paginated list of trainers. Each item includes the trainer's display
+        name (sourced from users.name), so the FE doesn't have to join
+        against a separate user lookup. Pagination metadata is returned in
+        the standard `meta` block.
       parameters:
         - name: category
           in: query
@@ -1729,6 +1734,21 @@ paths:
           schema:
             type: string
           description: Filter by category (maps to trainers.specialization)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
       responses:
         "200":
           description: Trainers fetched
@@ -2409,6 +2429,66 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/me/sessions:
+    get:
+      operationId: GetTrainersMeSessions
+      summary: List sessions booked with the authenticated trainer — paginated
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated list of bookings (paid training sessions) where
+        the trainer of record is the calling user. Includes the client's
+        name + email per booking so the trainer dashboard doesn't have to
+        do per-row user lookups. Newest scheduled first.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Sessions fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/{id}/availability:
     get:
       operationId: GetTrainerAvailability
@@ -2825,6 +2905,83 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
+  /trainers/set-password:
+    post:
+      security: []
+      operationId: HandleSetPassword
+      tags:
+        - Trainer
+        - Authentication
+      summary: Set the initial password for an admin-provisioned trainer account
+      description: >-
+        Consumes a one-time activation token emailed to a newly provisioned
+        trainer and stores the chosen password. The token is single-use and
+        expires after a configurable window (default 7 days). Every failure
+        branch returns the same generic 400 so an attacker cannot tell
+        "wrong token" from "already consumed" from "expired".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                  description: Activation token from the setup email link
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  # maxLength matches bcrypt's 72-byte ceiling — same cap
+                  # the reset-password endpoint enforces server-side. Kept
+                  # in the spec so the FE rejects oversize inputs before
+                  # round-tripping to the server.
+                  maxLength: 72
+      responses:
+        "200":
+          description: Password set successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: password set successfully
+                code: OK
+                data: null
+        "400":
+          description: Validation error or invalid/expired setup token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid or expired setup token
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: >-
+            Service unavailable — the account-setup handler is not wired on
+            this server (configuration issue, e.g. DB unavailable at boot).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/user/trainer/count:
     get:
       operationId: GetUserTrainerCount
@@ -2968,6 +3125,126 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions:
+    get:
+      operationId: AdminListSessions
+      tags:
+        - Admin
+      summary: List every booked training session (admin or super_admin) — paginated
+      description: |
+        Paginated administrative view of every booking in the bookings table,
+        joined with client and trainer names. Ordered newest first. Accessible
+        to both `admin` and `super_admin` roles (read-only listing).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Booked sessions retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/discovery-bookings:
+    get:
+      operationId: AdminListDiscoveryBookings
+      tags:
+        - Admin
+      summary: List every booked discovery call (admin or super_admin) — paginated
+      description: |
+        Paginated administrative view of every row in discovery_bookings,
+        ordered by selected_datetime descending. Accessible to both `admin`
+        and `super_admin` roles (read-only listing).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Discovery bookings retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
           content:
             application/json:
               schema:

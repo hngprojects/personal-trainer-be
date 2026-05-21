@@ -11,6 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type AccountSetupToken struct {
+	UserID     uuid.UUID
+	TokenHash  string
+	ExpiresAt  time.Time
+	ConsumedAt sql.NullTime
+	CreatedAt  time.Time
+}
+
 type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
