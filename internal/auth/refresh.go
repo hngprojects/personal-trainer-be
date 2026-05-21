@@ -3,6 +3,7 @@ package auth
 import (
 	"log/slog"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,9 @@ type RefreshHandler struct {
 }
 
 func NewRefreshHandler(redis appredis.RedisClient, log *slog.Logger, limiter ratelimit.RateLimiter) *RefreshHandler {
+	if redis != nil && reflect.ValueOf(redis).IsNil() {
+		redis = nil
+	}
 	return &RefreshHandler{redis: redis, log: log, limiter: limiter}
 }
 
@@ -27,7 +31,12 @@ func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 	jti := c.MustGet("jti").(string)
 	exp := common.RequestExpFromContext(c)
-	remainingTTL := time.Until(time.Unix(int64(exp), 0))
+	if exp == 0 {
+		h.log.Error("missing or invalid exp in token context")
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid token", api.CodeUnauthorized))
+		return
+	}
+	remainingTTL := time.Until(time.Unix(exp, 0))
 
 	if h.limiter != nil {
 		allowed, err := h.limiter.Allow(c.Request.Context(), userID.String())
@@ -40,6 +49,11 @@ func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 			c.JSON(http.StatusTooManyRequests, api.NewError("too many requests", api.CodeTooManyRequests))
 			return
 		}
+	}
+	if h.redis == nil {
+		h.log.Error("token rotation unavailable: no Redis client configured")
+		c.JSON(http.StatusInternalServerError, api.NewError("token rotation unavailable", api.CodeServerError))
+		return
 	}
 
 	if err := h.redis.Set(c.Request.Context(), common.RedisKeyBlocklist+jti, 1, remainingTTL); err != nil {

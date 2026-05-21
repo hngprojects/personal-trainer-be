@@ -45,7 +45,14 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 func RequestExpFromContext(ctx context.Context) int64 {
 	val := ctx.Value(ContextKeyExpTime)
 	if val == nil {
-		return 1
+		return 0
 	}
-	return val.(int64)
+	switch v := val.(type) {
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
 }
