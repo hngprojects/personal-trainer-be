@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -35,6 +36,12 @@ type Config struct {
 	OTPSecret string
 	RedisURL  string
 	JwtSecret string
+
+	// TrainerSetupTokenExpiryHours bounds how long a trainer activation link
+	// is valid. Default 168h (7 days) so an admin can invite a trainer on
+	// Monday and the trainer can act on it during the following week.
+	// Override via TRAINER_SETUP_TOKEN_EXPIRY_HOURS.
+	TrainerSetupTokenExpiryHours int
 
 	ZoomAccountID    string
 	ZoomClientID     string
@@ -88,6 +95,8 @@ func Load() (*Config, error) {
 		RedisURL:  getenv("REDIS_URL", "redis://localhost:6379"),
 		JwtSecret: os.Getenv("JWT_SECRET"),
 
+		TrainerSetupTokenExpiryHours: parsePositiveIntEnv("TRAINER_SETUP_TOKEN_EXPIRY_HOURS", 168),
+
 		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
 		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
@@ -123,4 +132,19 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parsePositiveIntEnv reads an env var as a positive int. Empty, unset, or
+// invalid values fall back to the supplied default — preferring a sane
+// default over hard-failing boot on a malformed knob.
+func parsePositiveIntEnv(key string, fallback int) int {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }
