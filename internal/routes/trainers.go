@@ -956,17 +956,20 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 // the existing /trainers/me/* behaviour.
 func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
 	if s.trainers == nil {
+		s.logger.Warn("GetTrainersMeSessions: trainers store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		s.logger.Warn("GetTrainersMeSessions: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		s.logger.Warn("GetTrainersMeSessions: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -981,6 +984,7 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("GetTrainersMeSessions: trainer profile not found", "userID", userID)
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
 			return
 		}

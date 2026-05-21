@@ -56,6 +56,7 @@ func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType, log
 		expFloat, _ := claims["exp"].(float64) // jwt.MapClaims always decodes numbers as float64
 		exp := int64(expFloat)                 // convert once; stored as int64 for RequestExpFromContext
 		if tokenType != string(expectedType) {
+			log.Warn("AuthMiddleware: invalid token type", "expected", expectedType, "got", tokenType)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
 			return
 		}

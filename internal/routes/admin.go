@@ -58,6 +58,7 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 // Guarded by SuperAdminOnly via the /admin path prefix.
 func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessionsParams) {
 	if s.bookings == nil {
+		s.logger.Warn("AdminListSessions: bookings store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -99,6 +100,7 @@ func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessi
 // time first.
 func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.AdminListDiscoveryBookingsParams) {
 	if s.bookings == nil {
+		s.logger.Warn("AdminListDiscoveryBookings: bookings store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}

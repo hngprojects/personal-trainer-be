@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,7 @@ func parsePagination(c *gin.Context, pageParam, limitParam *int) (page, limit in
 	page, limit = 1, 10
 	if pageParam != nil {
 		if *pageParam < 1 {
+			slog.Warn("parsePagination: page < 1", "page", *pageParam)
 			c.JSON(http.StatusBadRequest, api.NewError("page must be >= 1", api.CodeBadRequest))
 			return 0, 0, false
 		}
@@ -23,6 +25,7 @@ func parsePagination(c *gin.Context, pageParam, limitParam *int) (page, limit in
 	}
 	if limitParam != nil {
 		if *limitParam < 1 || *limitParam > 100 {
+			slog.Warn("parsePagination: limit out of range", "limit", *limitParam)
 			c.JSON(http.StatusBadRequest, api.NewError("limit must be between 1 and 100", api.CodeBadRequest))
 			return 0, 0, false
 		}

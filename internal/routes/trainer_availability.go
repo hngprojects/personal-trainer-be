@@ -110,6 +110,7 @@ func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.U
 	for i, slot := range req.Availability {
 		parsed, validationErr := validateAndParseSlot(slot)
 		if validationErr != nil {
+			s.logger.Warn("replaceTrainerAvailability: slot validation failed", "index", i, "err", validationErr)
 			c.JSON(http.StatusBadRequest, api.NewError(validationErr.Error(), api.CodeBadRequest))
 			return
 		}
@@ -118,6 +119,7 @@ func (s *routerImpl) replaceTrainerAvailability(c *gin.Context, trainerID uuid.U
 	}
 
 	if err := checkOverlaps(parsedSlots); err != nil {
+		s.logger.Warn("replaceTrainerAvailability: overlapping slots", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}

@@ -81,6 +81,7 @@ func (s *routerImpl) HandleResetPassword(c *gin.Context) {
 
 func (s *routerImpl) HandleSetPassword(c *gin.Context) {
 	if s.accountSetup == nil {
+		s.logger.Warn("HandleSetPassword: account setup handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
