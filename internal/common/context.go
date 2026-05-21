@@ -12,6 +12,7 @@ const (
 	ContextKeyUserID    contextKey = "user_id"
 	ContextKeyRequestID contextKey = "request_id"
 	ContextKeyJTI       contextKey = "jti"
+	ContextKeyExpTime   contextKey = "exp"
 )
 
 const RedisKeyBlocklist = "blocklist:"
@@ -39,4 +40,19 @@ func RequestIDFromContext(ctx context.Context) string {
 
 func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return context.WithValue(ctx, ContextKeyRequestID, requestID)
+}
+
+func RequestExpFromContext(ctx context.Context) int64 {
+	val := ctx.Value(ContextKeyExpTime)
+	if val == nil {
+		return 0
+	}
+	switch v := val.(type) {
+	case int64:
+		return v
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
 }

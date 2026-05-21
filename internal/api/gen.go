@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
+	BearerAuthScopes  bearerAuthContextKey  = "bearerAuth.Scopes"
+	RefreshAuthScopes refreshAuthContextKey = "refreshAuth.Scopes"
 )
 
 // Defines values for AuthUserUserType.
@@ -1311,6 +1312,9 @@ type WaitlistRequest struct {
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// refreshAuthContextKey is the context key for refreshAuth security scheme
+type refreshAuthContextKey string
+
 // AdminAddJSONBody defines parameters for AdminAdd.
 type AdminAddJSONBody struct {
 	Email openapi_types.Email `json:"email"`
@@ -1356,12 +1360,6 @@ type HandleLocalAuth200JSONResponseBodyStatus string
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
-}
-
-// HandleRefreshJSONBody defines parameters for HandleRefresh.
-type HandleRefreshJSONBody struct {
-	// AccessToken The current access token to invalidate
-	AccessToken string `json:"access_token"`
 }
 
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
@@ -1515,9 +1513,6 @@ type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
 
-// HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
-type HandleRefreshJSONRequestBody HandleRefreshJSONBody
-
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
 
@@ -1626,7 +1621,7 @@ type ServerInterface interface {
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
 	// Refresh access token
-	// (POST /auth/refresh)
+	// (GET /auth/refresh)
 	HandleRefresh(c *gin.Context)
 	// Register or request a new OTP — sends a 6-digit verification code to the email
 	// (POST /auth/register)
@@ -2032,6 +2027,8 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 // HandleRefresh operation middleware
 func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
+
+	c.Set(string(RefreshAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -3121,7 +3118,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
-	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
+	router.GET(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)

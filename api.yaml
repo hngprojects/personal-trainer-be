@@ -34,6 +34,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+    refreshAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     BaseResponse:
       type: object
@@ -1082,7 +1087,8 @@ paths:
       # security from the framework's perspective and the handler does its own
       # refresh-token validation. Without this override the middleware short-
       # circuits with "invalid token type" before the handler ever runs.
-      security: []
+      security:
+        - refreshAuth: []
       operationId: HandleRefresh
       tags:
         - Auth — Session
@@ -1091,17 +1097,6 @@ paths:
         Invalidates the current access token by adding it to the blocklist (via cache)
         and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
         and the current (possibly expired) access token in the body.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [access_token]
-              properties:
-                access_token:
-                  type: string
-                  description: The current access token to invalidate
       responses:
         "200":
           description: Token refresh successful
