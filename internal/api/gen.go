@@ -1621,7 +1621,7 @@ type ServerInterface interface {
 	// (POST /auth/logout)
 	HandleLogout(c *gin.Context)
 	// Refresh access token
-	// (GET /auth/refresh)
+	// (POST /auth/refresh)
 	HandleRefresh(c *gin.Context)
 	// Register or request a new OTP — sends a 6-digit verification code to the email
 	// (POST /auth/register)
@@ -3118,7 +3118,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/google/mobile", wrapper.HandleGoogleMobileSignIn)
 	router.POST(options.BaseURL+"/auth/login", wrapper.HandleLocalAuth)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.HandleLogout)
-	router.GET(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
+	router.POST(options.BaseURL+"/auth/refresh", wrapper.HandleRefresh)
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)

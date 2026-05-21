@@ -3566,7 +3566,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -3605,7 +3605,7 @@ paths:
     put:
       operationId: RescheduleDiscoveryCall
       tags:
-        - Booking
+        - Discovery
       summary: Reschedule an existing discovery call booking
       description: |
         Allows a client to reschedule their discovery call to a new date and time.
@@ -3749,7 +3749,7 @@ paths:
       security: []
       operationId: GetDiscoverySlots
       tags:
-        - Booking
+        - Discovery
       summary: List all active discovery slots (public)
       parameters:
         - name: timezone
@@ -3776,7 +3776,7 @@ paths:
         - bearerAuth: []
       operationId: CreateDiscoverySlot
       tags:
-        - Booking
+        - Discovery
       summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
@@ -3821,7 +3821,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: UpdateDiscoverySlot
       summary: Update a discovery slot (admin or customer_care only)
       parameters:
@@ -3879,7 +3879,7 @@ paths:
         - bearerAuth: []
       operationId: DeleteDiscoverySlot
       tags:
-        - Booking
+        - Discovery
       summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
