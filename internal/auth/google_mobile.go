@@ -140,7 +140,7 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 			Id:              user.ID,
 			Email:           user.Email,
 			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
+			UserType:        toAuthUserType(user.Role),
 			ProfileComplete: user.Name != "",
 		},
 		AccessToken:  accessToken,
