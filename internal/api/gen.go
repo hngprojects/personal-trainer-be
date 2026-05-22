@@ -807,6 +807,17 @@ func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// AddAvailabilityRequest Request body for the additive POST availability endpoints. Same
+// shape as SetAvailabilityRequest but the semantics differ:
+// supplied slots are appended to the trainer's existing schedule
+// rather than replacing it. Use PUT (SetAvailabilityRequest) when
+// you want to wipe-and-reseed; use this when you want to add a
+// slot without resending the whole list.
+type AddAvailabilityRequest struct {
+	// Availability Slots to append. At least one is required (empty arrays are rejected with 400).
+	Availability []AvailabilitySlot `json:"availability"`
+}
+
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
 	Email           string             `json:"email"`
@@ -895,6 +906,13 @@ type BookingSlotResponse struct {
 
 	// Timezone IANA timezone for the slot
 	Timezone *string `json:"timezone,omitempty"`
+}
+
+// BookingSlotsBulkRequest Array of slot specs for POST /discovery-slots/bulk. The whole
+// batch is inserted in a single transaction; any validation
+// failure rolls everything back.
+type BookingSlotsBulkRequest struct {
+	Slots []BookingSlotRequest `json:"slots"`
 }
 
 // CancelBookingRequest defines model for CancelBookingRequest.
@@ -1594,6 +1612,9 @@ type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 // CreateDiscoverySlotJSONRequestBody defines body for CreateDiscoverySlot for application/json ContentType.
 type CreateDiscoverySlotJSONRequestBody = BookingSlotRequest
 
+// CreateDiscoverySlotsBulkJSONRequestBody defines body for CreateDiscoverySlotsBulk for application/json ContentType.
+type CreateDiscoverySlotsBulkJSONRequestBody = BookingSlotsBulkRequest
+
 // UpdateDiscoverySlotJSONRequestBody defines body for UpdateDiscoverySlot for application/json ContentType.
 type UpdateDiscoverySlotJSONRequestBody = BookingSlotRequest
 
@@ -1606,6 +1627,9 @@ type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 // CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
+// AddTrainersMeAvailabilityJSONRequestBody defines body for AddTrainersMeAvailability for application/json ContentType.
+type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
+
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
@@ -1614,6 +1638,9 @@ type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
+
+// AddTrainerAvailabilityJSONRequestBody defines body for AddTrainerAvailability for application/json ContentType.
+type AddTrainerAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainerAvailabilityJSONRequestBody defines body for PutTrainerAvailability for application/json ContentType.
 type PutTrainerAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1716,6 +1743,9 @@ type ServerInterface interface {
 	// Create a discovery slot (admin or customer_care only)
 	// (POST /discovery-slots)
 	CreateDiscoverySlot(c *gin.Context)
+	// Create multiple discovery slots in one request (admin or customer_care)
+	// (POST /discovery-slots/bulk)
+	CreateDiscoverySlotsBulk(c *gin.Context)
 	// Delete a discovery slot (admin or customer_care only)
 	// (DELETE /discovery-slots/{id})
 	DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID)
@@ -1752,9 +1782,15 @@ type ServerInterface interface {
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
+	// Append one or more availability slots without replacing existing ones
+	// (POST /trainers/me/availability)
+	AddTrainersMeAvailability(c *gin.Context)
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
+	// Delete a single availability slot owned by the authenticated trainer
+	// (DELETE /trainers/me/availability/{slot_id})
+	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
@@ -1776,9 +1812,15 @@ type ServerInterface interface {
 	// Get a trainer's weekly availability
 	// (GET /trainers/{id}/availability)
 	GetTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Admin appends slots to a trainer's weekly availability
+	// (POST /trainers/{id}/availability)
+	AddTrainerAvailability(c *gin.Context, id openapi_types.UUID)
 	// Admin sets a trainer's weekly availability
 	// (PUT /trainers/{id}/availability)
 	PutTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Admin deletes one availability slot for a specific trainer
+	// (DELETE /trainers/{id}/availability/{slot_id})
+	DeleteTrainerAvailabilitySlot(c *gin.Context, id openapi_types.UUID, slotId openapi_types.UUID)
 	// List the gallery images for a trainer
 	// (GET /trainers/{id}/images)
 	ListTrainerImages(c *gin.Context, id openapi_types.UUID)
@@ -2368,6 +2410,21 @@ func (siw *ServerInterfaceWrapper) CreateDiscoverySlot(c *gin.Context) {
 	siw.Handler.CreateDiscoverySlot(c)
 }
 
+// CreateDiscoverySlotsBulk operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiscoverySlotsBulk(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDiscoverySlotsBulk(c)
+}
+
 // DeleteDiscoverySlot operation middleware
 func (siw *ServerInterfaceWrapper) DeleteDiscoverySlot(c *gin.Context) {
 
@@ -2660,6 +2717,21 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 	siw.Handler.GetTrainersMeAvailability(c)
 }
 
+// AddTrainersMeAvailability operation middleware
+func (siw *ServerInterfaceWrapper) AddTrainersMeAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddTrainersMeAvailability(c)
+}
+
 // PutTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 
@@ -2673,6 +2745,33 @@ func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainersMeAvailability(c)
+}
+
+// DeleteTrainersMeAvailabilitySlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slot_id" -------------
+	var slotId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot_id", c.Param("slot_id"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slot_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
 }
 
 // GetTrainersMeSessions operation middleware
@@ -2860,6 +2959,33 @@ func (siw *ServerInterfaceWrapper) GetTrainerAvailability(c *gin.Context) {
 	siw.Handler.GetTrainerAvailability(c, id)
 }
 
+// AddTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) AddTrainerAvailability(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddTrainerAvailability(c, id)
+}
+
 // PutTrainerAvailability operation middleware
 func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 
@@ -2885,6 +3011,42 @@ func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainerAvailability(c, id)
+}
+
+// DeleteTrainerAvailabilitySlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainerAvailabilitySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "slot_id" -------------
+	var slotId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot_id", c.Param("slot_id"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slot_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTrainerAvailabilitySlot(c, id, slotId)
 }
 
 // ListTrainerImages operation middleware
@@ -3216,6 +3378,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
 	router.POST(options.BaseURL+"/discovery-slots", wrapper.CreateDiscoverySlot)
+	router.POST(options.BaseURL+"/discovery-slots/bulk", wrapper.CreateDiscoverySlotsBulk)
 	router.DELETE(options.BaseURL+"/discovery-slots/:id", wrapper.DeleteDiscoverySlot)
 	router.PUT(options.BaseURL+"/discovery-slots/:id", wrapper.UpdateDiscoverySlot)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
@@ -3228,7 +3391,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
+	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
@@ -3236,7 +3401,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
 	router.GET(options.BaseURL+"/trainers/:id/availability", wrapper.GetTrainerAvailability)
+	router.POST(options.BaseURL+"/trainers/:id/availability", wrapper.AddTrainerAvailability)
 	router.PUT(options.BaseURL+"/trainers/:id/availability", wrapper.PutTrainerAvailability)
+	router.DELETE(options.BaseURL+"/trainers/:id/availability/:slot_id", wrapper.DeleteTrainerAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
 	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)
 	router.DELETE(options.BaseURL+"/trainers/:id/images/:image_id", wrapper.DeleteTrainerImage)
