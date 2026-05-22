@@ -66,6 +66,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 	c.SetCookie("oauth_state", "", -1, "/", "", h.isProd, true)
 
 	if err != nil || state != stateFromCookie {
+		h.log.Warn("HandleGoogleCallback: state mismatch or missing cookie", "cookie_err", err)
 		c.JSON(http.StatusBadRequest, api.NewErrorResponse("invalid state", api.CodeBadRequest, nil))
 		return
 	}

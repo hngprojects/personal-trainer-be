@@ -3,6 +3,7 @@ package middleware_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
+
+var testLogger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 func init() {
 	gin.SetMode(gin.TestMode)
@@ -58,10 +61,10 @@ func makeToken(t *testing.T, userID, jti, tokenType, secret string) string {
 	return signed
 }
 
-func setupRouter(redis appredis.RedisClient) (*gin.Engine, *httptest.ResponseRecorder) {
+func setupRouter(redis appredis.RedisClient, log *slog.Logger) (*gin.Engine, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
-	r.Use(middleware.AuthMiddleware(redis))
+	r.Use(middleware.AuthMiddleware(redis, log))
 	r.GET("/protected", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -69,7 +72,7 @@ func setupRouter(redis appredis.RedisClient) (*gin.Engine, *httptest.ResponseRec
 }
 
 func TestAuthMiddleware_MissingToken(t *testing.T) {
-	r, w := setupRouter(&fakeRedis{})
+	r, w := setupRouter(&fakeRedis{}, testLogger)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	r.ServeHTTP(w, req)
 
@@ -79,7 +82,7 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 }
 
 func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
-	r, w := setupRouter(&fakeRedis{})
+	r, w := setupRouter(&fakeRedis{}, testLogger)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	req.Header.Set("Authorization", "InvalidFormat")
 	r.ServeHTTP(w, req)
@@ -94,7 +97,7 @@ func TestAuthMiddleware_InvalidSignature(t *testing.T) {
 	userID := uuid.NewString()
 	token := makeToken(t, userID, jti, "access", "wrong-secret")
 
-	r, w := setupRouter(&fakeRedis{})
+	r, w := setupRouter(&fakeRedis{}, testLogger)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	r.ServeHTTP(w, req)
@@ -109,7 +112,7 @@ func TestAuthMiddleware_BlocklistedToken(t *testing.T) {
 	userID := uuid.NewString()
 	token := makeToken(t, userID, jti, "access", "test-secret")
 
-	r, w := setupRouter(&fakeRedis{blocked: map[string]bool{"blocklist:" + jti: true}})
+	r, w := setupRouter(&fakeRedis{blocked: map[string]bool{"blocklist:" + jti: true}}, testLogger)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	r.ServeHTTP(w, req)
@@ -129,7 +132,7 @@ func TestAuthMiddleware_ValidToken_SetsContext(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	_, r := gin.CreateTestContext(w)
-	r.Use(middleware.AuthMiddleware(&fakeRedis{}))
+	r.Use(middleware.AuthMiddleware(&fakeRedis{}, testLogger))
 	r.GET("/protected", func(c *gin.Context) {
 		gotUserID, _ = c.MustGet("user_id").(uuid.UUID)
 		gotJTI, _ = c.MustGet(string(common.ContextKeyJTI)).(string)
@@ -156,7 +159,7 @@ func TestAuthMiddleware_RedisError(t *testing.T) {
 	userID := uuid.NewString()
 	token := makeToken(t, userID, jti, "access", "test-secret")
 
-	r, w := setupRouter(&fakeRedis{err: fmt.Errorf("redis down")})
+	r, w := setupRouter(&fakeRedis{err: fmt.Errorf("redis down")}, testLogger)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	r.ServeHTTP(w, req)

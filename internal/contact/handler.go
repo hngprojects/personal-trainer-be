@@ -37,11 +37,13 @@ func (h *Handler) HandleContactUs(c *gin.Context) {
 	message := strings.TrimSpace(req.Message)
 
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("HandleContactUs: invalid email", "email_len", len(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewError("Invalid email address", api.CodeBadRequest))
 		return
 	}
 
 	if name == "" || subject == "" || message == "" {
+		h.log.Warn("HandleContactUs: missing required fields", "name_empty", name == "", "subject_empty", subject == "", "message_empty", message == "")
 		c.JSON(http.StatusBadRequest, api.NewError("Invalid or missing parameters", api.CodeBadRequest))
 		return
 	}

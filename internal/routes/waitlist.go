@@ -9,6 +9,7 @@ import (
 
 func (s *routerImpl) HandleAddWaitlist(c *gin.Context) {
 	if s.waitlist == nil {
+		s.logger.Warn("HandleAddWaitlist: waitlist handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -17,6 +18,7 @@ func (s *routerImpl) HandleAddWaitlist(c *gin.Context) {
 
 func (s *routerImpl) HandleGetWaitlist(c *gin.Context, params api.HandleGetWaitlistParams) {
 	if s.waitlist == nil {
+		s.logger.Warn("HandleGetWaitlist: waitlist handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}

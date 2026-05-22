@@ -42,37 +42,44 @@ func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.
 func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	var req api.BookDiscoveryCallRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("book discovery call: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		h.log.Warn("book discovery call: missing authenticated user")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		h.log.Warn("book discovery call: invalid user id in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
 
 	if req.ContactMode != api.ZoomMeeting && req.ContactMode != api.PhoneCallback {
+		h.log.Warn("book discovery call: invalid contact mode", "userID", userID.String(), "contactMode", req.ContactMode)
 		c.JSON(http.StatusBadRequest, api.NewError("contact_mode must be zoom_meeting or phone_callback", api.CodeBadRequest))
 		return
 	}
 	if req.ContactMode == api.PhoneCallback && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
+		h.log.Warn("book discovery call: phone number required for callback", "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for phone_callback", api.CodeBadRequest))
 		return
 	}
 	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
 		if !phoneE164Regex.MatchString(*req.PhoneNumber) {
+			h.log.Warn("book discovery call: invalid phone number format", "userID", userID.String())
 			c.JSON(http.StatusBadRequest, api.NewError("phone_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
 			return
 		}
 	}
 
 	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		h.log.Warn("book discovery call: invalid timezone", "userID", userID.String(), "timezone", req.Timezone, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 		return
 	}
@@ -82,6 +89,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 
 	// Reject past datetimes.
 	if selectedTime.Before(time.Now()) {
+		h.log.Warn("book discovery call: selected time is in the past", "userID", userID.String(), "selectedTime", selectedTime)
 		c.JSON(http.StatusBadRequest, api.NewError("selected time is in the past", api.CodeBadRequest))
 		return
 	}
@@ -94,11 +102,13 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 	if exists {
+		h.log.Warn("book discovery call: user already used free discovery call", "userID", userID.String())
 		c.JSON(http.StatusForbidden, api.NewError("you have already used your free discovery call — please upgrade to book a session", api.CodeForbidden))
 		return
 	}
 
 	if err := h.validateAgainstSlots(ctx, selectedTime); err != nil {
+		h.log.Warn("book discovery call: slot validation failed", "userID", userID.String(), "selectedTime", selectedTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
@@ -110,6 +120,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 	if count > 0 {
+		h.log.Warn("book discovery call: slot already taken", "userID", userID.String(), "selectedTime", selectedTime)
 		c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
 		return
 	}
@@ -135,6 +146,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		// Unique index violation means a concurrent request won the race for this slot.
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_discovery_bookings_slot_lock" {
+			h.log.Warn("book discovery call: slot already taken (unique constraint)", "userID", userID.String(), "selectedTime", selectedTime)
 			c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
 			return
 		}
@@ -201,6 +213,7 @@ func (h *Handler) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlots
 func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("create discovery slot: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -208,6 +221,7 @@ func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	tz := "Africa/Lagos"
 	if req.Timezone != nil {
 		if _, err := time.LoadLocation(*req.Timezone); err != nil {
+			h.log.Warn("create discovery slot: invalid timezone", "timezone", *req.Timezone, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 			return
 		}
@@ -215,21 +229,25 @@ func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	}
 
 	if req.DayOfWeek < 0 || req.DayOfWeek > 6 {
+		h.log.Warn("create discovery slot: invalid day of week", "dayOfWeek", req.DayOfWeek)
 		c.JSON(http.StatusBadRequest, api.NewError("day_of_week must be 0 (Sunday) to 6 (Saturday)", api.CodeBadRequest))
 		return
 	}
 
 	startT, err := time.Parse("15:04", req.StartTime)
 	if err != nil {
+		h.log.Warn("create discovery slot: invalid start time", "startTime", req.StartTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("start_time must be HH:MM format", api.CodeBadRequest))
 		return
 	}
 	endT, err := time.Parse("15:04", req.EndTime)
 	if err != nil {
+		h.log.Warn("create discovery slot: invalid end time", "endTime", req.EndTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("end_time must be HH:MM format", api.CodeBadRequest))
 		return
 	}
 	if !startT.Before(endT) {
+		h.log.Warn("create discovery slot: end time before start time", "startTime", req.StartTime, "endTime", req.EndTime)
 		c.JSON(http.StatusBadRequest, api.NewError("start_time must be before end_time", api.CodeBadRequest))
 		return
 	}
@@ -253,12 +271,14 @@ func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	var req api.BookingSlotRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("update discovery slot: invalid request body", "slotID", uuid.UUID(id).String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	slotID := uuid.UUID(id)
 	if _, err := h.repo.GetSlotByID(c.Request.Context(), slotID); err != nil {
+		h.log.Warn("update discovery slot: slot not found", "slotID", slotID.String(), "err", err)
 		c.JSON(http.StatusNotFound, api.NewNotFoundError("booking slot"))
 		return
 	}
@@ -266,6 +286,7 @@ func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	tz := "Africa/Lagos"
 	if req.Timezone != nil {
 		if _, err := time.LoadLocation(*req.Timezone); err != nil {
+			h.log.Warn("update discovery slot: invalid timezone", "slotID", slotID.String(), "timezone", *req.Timezone, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 			return
 		}
@@ -273,6 +294,7 @@ func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	if req.DayOfWeek < 0 || req.DayOfWeek > 6 {
+		h.log.Warn("update discovery slot: invalid day of week", "slotID", slotID.String(), "dayOfWeek", req.DayOfWeek)
 		c.JSON(http.StatusBadRequest, api.NewError("day_of_week must be 0 (Sunday) to 6 (Saturday)", api.CodeBadRequest))
 		return
 	}
@@ -284,15 +306,18 @@ func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 
 	startT, err := time.Parse("15:04", req.StartTime)
 	if err != nil {
+		h.log.Warn("update discovery slot: invalid start time", "slotID", slotID.String(), "startTime", req.StartTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("start_time must be HH:MM format", api.CodeBadRequest))
 		return
 	}
 	endT, err := time.Parse("15:04", req.EndTime)
 	if err != nil {
+		h.log.Warn("update discovery slot: invalid end time", "slotID", slotID.String(), "endTime", req.EndTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("end_time must be HH:MM format", api.CodeBadRequest))
 		return
 	}
 	if !startT.Before(endT) {
+		h.log.Warn("update discovery slot: end time before start time", "slotID", slotID.String(), "startTime", req.StartTime, "endTime", req.EndTime)
 		c.JSON(http.StatusBadRequest, api.NewError("start_time must be before end_time", api.CodeBadRequest))
 		return
 	}
@@ -318,6 +343,7 @@ func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 func (h *Handler) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	slotID := uuid.UUID(id)
 	if _, err := h.repo.GetSlotByID(c.Request.Context(), slotID); err != nil {
+		h.log.Warn("delete discovery slot: slot not found", "slotID", slotID.String(), "err", err)
 		c.JSON(http.StatusNotFound, api.NewNotFoundError("booking slot"))
 		return
 	}
@@ -338,32 +364,38 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		h.log.Warn("reschedule discovery call: missing authenticated user", "bookingID", bookingID.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		h.log.Warn("reschedule discovery call: invalid user id in context", "bookingID", bookingID.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
 
 	var req api.RescheduleBookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("reschedule discovery call: invalid request body", "bookingID", bookingID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	if !req.Reason.Valid() {
+		h.log.Warn("reschedule discovery call: invalid reason", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid reason", api.CodeBadRequest))
 		return
 	}
 
 	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		h.log.Warn("reschedule discovery call: invalid timezone", "bookingID", bookingID.String(), "userID", userID.String(), "timezone", req.Timezone, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 		return
 	}
 
 	if req.Notes != nil && len(*req.Notes) > 200 {
+		h.log.Warn("reschedule discovery call: notes too long", "bookingID", bookingID.String(), "userID", userID.String(), "notesLength", len(*req.Notes))
 		c.JSON(http.StatusBadRequest, api.NewError("notes must not exceed 200 characters", api.CodeBadRequest))
 		return
 	}
@@ -371,6 +403,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	booking, err := h.repo.GetBookingByID(ctx, bookingID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			h.log.Warn("reschedule discovery call: booking not found", "bookingID", bookingID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("booking"))
 			return
 		}
@@ -381,16 +414,19 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 
 	// Ownership check
 	if !booking.UserID.Valid || booking.UserID.UUID != userID {
+		h.log.Warn("reschedule discovery call: ownership mismatch", "bookingID", bookingID.String(), "userID", userID.String(), "bookingUserID", booking.UserID.UUID)
 		c.JSON(http.StatusForbidden, api.NewError("you do not have permission to reschedule this booking", api.CodeForbidden))
 		return
 	}
 
 	// Status checks
 	if booking.Status == "cancelled" {
+		h.log.Warn("reschedule discovery call: booking is cancelled", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusForbidden, api.NewError("cannot reschedule a cancelled booking", api.CodeForbidden))
 		return
 	}
 	if booking.Status == "completed" {
+		h.log.Warn("reschedule discovery call: booking is completed", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusForbidden, api.NewError("cannot reschedule a completed booking", api.CodeForbidden))
 		return
 	}
@@ -398,12 +434,14 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	// 12-hour lock window — all comparisons in UTC
 	lockDeadline := booking.SelectedDatetime.UTC().Add(-12 * time.Hour)
 	if !time.Now().UTC().Before(lockDeadline) {
+		h.log.Warn("reschedule discovery call: within 12-hour lock window", "bookingID", bookingID.String(), "userID", userID.String(), "selectedDatetime", booking.SelectedDatetime)
 		c.JSON(http.StatusForbidden, api.NewError("rescheduling is not allowed within 12 hours of the original call time", api.CodeForbidden))
 		return
 	}
 
 	// Max 3 reschedules per booking
 	if booking.RescheduleCount >= 3 {
+		h.log.Warn("reschedule discovery call: max reschedule limit reached", "bookingID", bookingID.String(), "userID", userID.String(), "rescheduleCount", booking.RescheduleCount)
 		c.JSON(http.StatusTooManyRequests, api.NewError("maximum reschedule limit of 3 has been reached for this booking", api.CodeTooManyRequests))
 		return
 	}
@@ -412,12 +450,14 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 
 	// New time must not be in the past
 	if newTime.Before(time.Now()) {
+		h.log.Warn("reschedule discovery call: new time is in the past", "bookingID", bookingID.String(), "userID", userID.String(), "newTime", newTime)
 		c.JSON(http.StatusBadRequest, api.NewError("new time is in the past", api.CodeBadRequest))
 		return
 	}
 
 	// New time must fall within open hours
 	if err := h.validateAgainstSlots(ctx, newTime); err != nil {
+		h.log.Warn("reschedule discovery call: slot validation failed", "bookingID", bookingID.String(), "userID", userID.String(), "newTime", newTime, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
@@ -433,6 +473,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		return
 	}
 	if count > 0 {
+		h.log.Warn("reschedule discovery call: slot already taken", "bookingID", bookingID.String(), "userID", userID.String(), "newTime", newTime)
 		c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
 		return
 	}
@@ -459,6 +500,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	phoneNumber := booking.PhoneNumber
 	if booking.ContactMode == "phone_callback" && req.PhoneNumber != nil && *req.PhoneNumber != "" {
 		if !phoneE164Regex.MatchString(*req.PhoneNumber) {
+			h.log.Warn("reschedule discovery call: invalid phone number format", "bookingID", bookingID.String(), "userID", userID.String())
 			c.JSON(http.StatusBadRequest, api.NewError("phone_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
 			return
 		}
@@ -487,6 +529,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		}
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == "idx_discovery_bookings_slot_lock" {
+			h.log.Warn("reschedule discovery call: slot already taken (unique constraint)", "bookingID", bookingID.String(), "userID", userID.String(), "newTime", newTime)
 			c.JSON(http.StatusConflict, api.NewError("this time slot is already taken", api.CodeConflict))
 			return
 		}
@@ -652,11 +695,13 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		h.log.Warn("get upcoming bookings: missing authenticated user")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		h.log.Warn("get upcoming bookings: invalid user id in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -665,6 +710,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	clientTZ := "UTC"
 	if params.Timezone != nil && *params.Timezone != "" {
 		if _, err := time.LoadLocation(*params.Timezone); err != nil {
+			h.log.Warn("get upcoming bookings: invalid timezone", "userID", userID.String(), "timezone", *params.Timezone, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 			return
 		}
@@ -676,6 +722,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	page := 1
 	if params.Page != nil {
 		if *params.Page < 1 {
+			h.log.Warn("get upcoming bookings: invalid page", "userID", userID.String(), "page", *params.Page)
 			c.JSON(http.StatusBadRequest, api.NewError("page must be >= 1", api.CodeBadRequest))
 			return
 		}
@@ -684,6 +731,7 @@ func (h *Handler) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBook
 	limit := 10
 	if params.Limit != nil {
 		if *params.Limit < 1 || *params.Limit > 100 {
+			h.log.Warn("get upcoming bookings: invalid limit", "userID", userID.String(), "limit", *params.Limit)
 			c.JSON(http.StatusBadRequest, api.NewError("limit must be between 1 and 100", api.CodeBadRequest))
 			return
 		}

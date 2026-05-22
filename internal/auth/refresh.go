@@ -30,8 +30,9 @@ func NewRefreshHandler(redis appredis.RedisClient, log *slog.Logger, limiter rat
 func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
 	jti := c.MustGet("jti").(string)
-	exp := common.RequestExpFromContext(c)
-	if exp == 0 {
+	expRaw, exists := c.Get(string(common.ContextKeyExpTime))
+	exp, _ := expRaw.(int64)
+	if !exists || exp == 0 {
 		h.log.Error("missing or invalid exp in token context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid token", api.CodeUnauthorized))
 		return
@@ -46,6 +47,7 @@ func (h *RefreshHandler) HandleRefresh(c *gin.Context) {
 			return
 		}
 		if !allowed {
+			h.log.Warn("HandleRefresh: rate limit hit", "user_id", userID)
 			c.JSON(http.StatusTooManyRequests, api.NewError("too many requests", api.CodeTooManyRequests))
 			return
 		}

@@ -362,13 +362,13 @@ func (s *Router) Routes() *gin.Engine {
 		if s.redis != nil {
 			authRedis = s.redis
 		}
-		authMw := middleware.AuthMiddleware(authRedis)
-		refreshMw := middleware.AuthMiddlewareWithType(authRedis, "refresh")
+		authMw := middleware.AuthMiddleware(authRedis, s.log)
+		refreshMw := middleware.AuthMiddlewareWithType(authRedis, "refresh", s.log)
 		var trainersAdminOnly api.MiddlewareFunc
 		var superAdminOnly api.MiddlewareFunc
 		if q != nil {
-			trainersAdminOnly = middleware.TrainersAdminOnly(q)
-			superAdminOnly = middleware.SuperAdminOnly(q)
+			trainersAdminOnly = middleware.TrainersAdminOnly(q, s.log)
+			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
@@ -396,6 +396,11 @@ func (s *Router) Routes() *gin.Engine {
 						superAdminOnly(c)
 					}
 				},
+			},
+			ErrorHandler: func(ctx *gin.Context, err error, statusCode int) {
+				paramName := extractUUIDParamName(err)
+				s.log.Warn("invalid uuid for parameter", "param", paramName, "err", err)
+				ctx.JSON(statusCode, api.NewError("invalid uuid for parameter: "+paramName, api.CodeBadRequest))
 			},
 		})
 	}
