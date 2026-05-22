@@ -237,7 +237,7 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
 			bookingService := bookings.NewBookingService(bookingRepo, meetingProvider, mailer, s.log)
-			discoveryRepo := discovery.NewPostgresRepo(q)
+			discoveryRepo := discovery.NewPostgresRepo(s.db, q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
