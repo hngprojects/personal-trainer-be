@@ -84,3 +84,26 @@ RETURNING *;
 
 -- name: CountClients :one
 SELECT COUNT(*) FROM users WHERE role = 'client' AND is_active = true;
+
+-- name: ListClients :many
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.role = 'client'
+  AND (sqlc.narg(is_active)::boolean IS NULL OR u.is_active = sqlc.narg(is_active)::boolean)
+GROUP BY u.id
+ORDER BY u.created_at DESC
+LIMIT sqlc.arg(lim)::BIGINT
+OFFSET sqlc.arg(off)::BIGINT;
+
+-- name: CountClients2 :one
+SELECT COUNT(*)::BIGINT
+FROM users
+WHERE role = 'client'
+  AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean);

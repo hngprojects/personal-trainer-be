@@ -230,3 +230,76 @@ func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
 		"total_approved_trainers": totalTrainers,
 	}))
 }
+
+func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsParams) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
+	if !ok {
+		return
+	}
+	offset := int64((page - 1) * limit)
+
+	var isActive sql.NullBool
+	if params.Status != nil {
+		isActive = sql.NullBool{Bool: *params.Status == api.Active, Valid: true}
+	}
+
+	clients, err := s.trainers.q.ListClients(c.Request.Context(), db.ListClientsParams{
+		IsActive: isActive,
+		Lim:      int64(limit),
+		Off:      offset,
+	})
+	if err != nil {
+		s.logger.Error("failed to list clients", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list clients", api.CodeServerError))
+		return
+	}
+
+	total, err := s.trainers.q.CountClients2(c.Request.Context(), isActive)
+	if err != nil {
+		s.logger.Error("failed to count clients", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to count clients", api.CodeServerError))
+		return
+	}
+
+	type clientItem struct {
+		ID             string `json:"id"`
+		Name           string `json:"name"`
+		Email          string `json:"email"`
+		IsActive       bool   `json:"is_active"`
+		JoinedAt       string `json:"joined_at"`
+		SessionsBooked int64  `json:"sessions_booked"`
+		Revenue        int64  `json:"revenue"`
+	}
+
+	items := make([]clientItem, 0, len(clients))
+	for _, cl := range clients {
+		items = append(items, clientItem{
+			ID:             cl.ID.String(),
+			Name:           cl.Name,
+			Email:          cl.Email,
+			IsActive:       cl.IsActive,
+			JoinedAt:       cl.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			SessionsBooked: cl.SessionsBooked,
+			Revenue:        0,
+		})
+	}
+
+	totalPages := int(total) / limit
+	if int(total)%limit != 0 {
+		totalPages++
+	}
+
+	meta := map[string]interface{}{
+		"page":        page,
+		"per_page":    limit,
+		"total":       total,
+		"total_pages": totalPages,
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Clients retrieved successfully", api.CodeOK, items, meta))
+}
