@@ -2551,19 +2551,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /trainers/me/sessions:
+  /trainers/sessions:
     get:
-      operationId: GetTrainersMeSessions
-      summary: List sessions booked with the authenticated trainer — paginated
+      operationId: ListTrainerSessions
+      summary: List sessions booked with a specific trainer — paginated
       tags: [Trainer]
       security:
         - bearerAuth: []
       description: |
-        Returns a paginated list of bookings (paid training sessions) where
-        the trainer of record is the calling user. Includes the client's
-        name + email per booking so the trainer dashboard doesn't have to
-        do per-row user lookups. Newest scheduled first.
+        Returns a paginated list of bookings (paid training sessions)
+        where the trainer of record matches the supplied trainer_id
+        query parameter. Includes the client's name + email per booking
+        so the trainer dashboard doesn't have to do per-row user
+        lookups. Newest scheduled first.
+
+        Replaces the earlier GET /trainers/me/sessions which derived
+        the trainer from the JWT user — that path 404'd whenever the
+        caller wasn't a trainer (admin tools, etc.). This endpoint
+        takes the trainer_id explicitly and authorizes either the
+        trainer owner (caller.user_id matches trainers.user_id) OR an
+        admin / super_admin.
       parameters:
+        - name: trainer_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The trainer whose sessions to list
         - name: page
           in: query
           required: false
@@ -2587,7 +2602,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
         "400":
-          description: Invalid pagination parameters
+          description: Invalid or missing trainer_id / pagination params
           content:
             application/json:
               schema:
@@ -2598,8 +2613,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is neither the owner of this trainer profile nor an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Trainer profile not found for this user
+          description: Trainer not found
           content:
             application/json:
               schema:
