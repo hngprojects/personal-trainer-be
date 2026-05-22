@@ -23,6 +23,7 @@ func RateLimit(limiter ratelimit.RateLimiter, log *slog.Logger) gin.HandlerFunc 
 		}
 
 		if !allowed {
+			log.Warn("rate limit exceeded", "ip", ip)
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, api.NewError(
 				"too many requests, please slow down",
 				api.CodeTooManyRequests,

@@ -58,16 +58,21 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 	if cached := h.redis.Get(ctx, cacheKey); cached.Err() == nil {
 		var slots []db.GetTrainersBookingSlotsRow
 		if err := json.Unmarshal([]byte(cached.Val()), &slots); err == nil {
+			h.log.Info("HandleGetTrainersBookingSlots: cache hit", "trainer_id", trainerId)
 			bookingSlotResponse := map[string]interface{}{"data": slots}
 			var data interface{} = bookingSlotResponse
 			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
 			return
+		} else {
+			h.log.Warn("HandleGetTrainersBookingSlots: failed to unmarshal cached data, falling back to DB", "trainer_id", trainerId, "err", err)
 		}
+	} else {
+		h.log.Warn("HandleGetTrainersBookingSlots: cache miss or error, falling back to DB", "trainer_id", trainerId, "err", cached.Err())
 	}
 
 	bookingSlot, err := h.service.GetTrainersBookingSlots(ctx, trainerId)
 	if err != nil {
-		h.log.Error("could not fetch booking slot for trainer", "err", err)
+		h.log.Warn("HandleGetTrainersBookingSlots: failed to fetch booking slots", "trainer_id", trainerId, "err", err)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
 			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error(), Status: "error"})
 			return
@@ -92,39 +97,39 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	var request api.CreateBookingJSONBody
 	if err := c.ShouldBindJSON(&request); err != nil {
-		h.log.Error("error binding request body", "err", err)
+		h.log.Warn("error binding request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request"))
 		return
 	}
 	// if trainer is not provided
 	var fieldErrors []api.FieldError
 	if request.TrainerId == uuid.Nil {
-		h.log.Error("trainer id is required")
+		h.log.Warn("HandleCreateBookingSession: trainer_id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "trainers", Message: "please provide a trainer to be booked"})
 	}
 	if !common.IsNotEmpty(request.Timezone) {
-		h.log.Error("timezone is required")
+		h.log.Warn("HandleCreateBookingSession: timezone is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "timezone", Message: "please provide current timezone"})
 	}
 	// Check if booking slot is available
 	if request.ScheduledStart.IsZero() {
-		h.log.Error("select a booking start time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_start is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking start time"})
 	}
 	if request.ScheduledEnd.IsZero() {
-		h.log.Error("select a booking end time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_end is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking end time"})
 	}
 	if !request.ScheduledStart.IsZero() && !request.ScheduledEnd.IsZero() && request.ScheduledEnd.Before(request.ScheduledStart) {
-		h.log.Error("booking end time must be after start time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_end before scheduled_start")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking end time must be after start time"})
 	}
 	if !common.IsNotEmpty(string(request.SessionPlatform)) {
-		h.log.Error("select a session platform")
+		h.log.Warn("HandleCreateBookingSession: session_platform is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
 	}
 	if !request.SessionPlatform.Valid() {
-		h.log.Error("select a valid session platform")
+		h.log.Warn("HandleCreateBookingSession: invalid session_platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
 	}
 	if len(fieldErrors) > 0 {
@@ -133,11 +138,13 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		h.log.Warn("HandleCreateBookingSession: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		h.log.Warn("HandleCreateBookingSession: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -152,17 +159,26 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		h.log.Error("failed to get user by id", "err", err)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			h.log.Warn("HandleCreateBookingSession: user not found", "userID", userID)
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
+			return
+		}
+		h.log.Warn("HandleCreateBookingSession: DB error fetching user", "userID", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
-		h.log.Error("failed to get trainer by id", "err", err)
+		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			h.log.Warn("HandleCreateBookingSession: trainer not found", "trainerID", request.TrainerId)
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
+			return
+		}
+		h.log.Warn("HandleCreateBookingSession: DB error fetching trainer", "trainerID", request.TrainerId, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
 		return
 	}
-
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
 		h.log.Error("failed to create booking session", "err", err)

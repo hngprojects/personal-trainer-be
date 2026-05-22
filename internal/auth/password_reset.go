@@ -157,12 +157,14 @@ func NewPasswordResetHandler(
 func (h *PasswordResetHandler) HandleForgotPassword(c *gin.Context) {
 	var req api.HandleForgotPasswordJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("forgot password: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 	if len(emailAddr) > 255 || !common.IsValidEmail(emailAddr) {
+		h.log.Warn("forgot password: invalid email", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -175,6 +177,7 @@ func (h *PasswordResetHandler) HandleForgotPassword(c *gin.Context) {
 	if allowed, err := h.forgotIPLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
 		h.log.Warn("forgot-password IP rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("forgot password: IP rate limit hit", "clientIP", c.ClientIP())
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -258,6 +261,7 @@ func (h *PasswordResetHandler) issueResetCode(ctx context.Context, emailAddr str
 func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	var req api.HandleResetPasswordJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("reset password: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -277,6 +281,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "new_password", Message: msg})
 	}
 	if len(fieldErrors) > 0 {
+		h.log.Warn("reset password: field validation failed", "email_domain", emailDomain(emailAddr), "fieldErrors", fieldErrors)
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
 	}
@@ -287,6 +292,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	if allowed, err := h.resetIPLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
 		h.log.Warn("reset-password IP rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("reset password: IP rate limit hit", "clientIP", c.ClientIP())
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -294,6 +300,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	if allowed, err := h.resetLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("reset-password email rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("reset password: email rate limit hit", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
@@ -313,6 +320,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("reset password: user not found", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 			return
 		}
@@ -321,6 +329,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 		return
 	}
 	if !user.IsActive {
+		h.log.Warn("reset password: inactive user", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
 	}
@@ -331,6 +340,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 		return
 	}
 	if !isAdmin {
+		h.log.Warn("reset password: user is not admin", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
 	}
@@ -338,6 +348,7 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	updated, err := h.resetRepo.ConsumeCodeAndUpdatePassword(c.Request.Context(), emailAddr, h.hashCode(code), string(hashed))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("reset password: code consume failed", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 			return
 		}

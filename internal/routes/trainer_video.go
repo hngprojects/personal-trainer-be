@@ -46,10 +46,12 @@ const (
 // Generated method name = UploadTrainerIntroVideo; wired by oapi-codegen.
 func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UUID) {
 	if s.videoUploader == nil || s.videoTranscoder == nil {
+		s.logger.Warn("upload trainer intro video: uploader or transcoder not configured")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("video upload is not configured on this server", api.CodeServerError))
 		return
 	}
 	if s.trainers == nil {
+		s.logger.Warn("upload trainer intro video: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -61,9 +63,11 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 	// the trainerID was made up.
 	if _, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("upload trainer intro video: trainer not found", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("upload trainer intro video: failed to look up trainer", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
 		return
 	}
@@ -75,6 +79,7 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 	file, _, err := c.Request.FormFile(videoMultipartFieldName)
 	if err != nil {
 		if errors.Is(err, http.ErrMissingFile) || strings.Contains(err.Error(), "missing form body") {
+			s.logger.Warn("upload trainer intro video: missing video file", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("missing 'video' file in multipart form", api.CodeBadRequest))
 			return
 		}
@@ -82,9 +87,11 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 		// drift and we'd silently start returning 400 for oversize uploads.
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			s.logger.Warn("upload trainer intro video: file too large", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("file exceeds %d-byte upload limit", videoMaxUploadBytes), api.CodeBadRequest))
 			return
 		}
+		s.logger.Warn("upload trainer intro video: invalid multipart form", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid multipart form: "+err.Error(), api.CodeBadRequest))
 		return
 	}
@@ -96,6 +103,7 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 	// blowing up RAM.
 	tempPath, err := streamUploadToTemp(file, s.cfg.VideoTempDir)
 	if err != nil {
+		s.logger.Warn("upload trainer intro video: could not buffer upload to disk", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not buffer upload to disk", api.CodeServerError))
 		return
 	}
@@ -119,17 +127,21 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 		// garbage. Distinguish the two so the caller sees the right status:
 		// 503 means "try again later / not us"; 400 means "fix your upload".
 		if errors.Is(err, video.ErrNotConfigured) {
+			s.logger.Warn("upload trainer intro video: transcoder not configured", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusServiceUnavailable, api.NewError("video transcoder is not configured on this server", api.CodeServerError))
 			return
 		}
+		s.logger.Warn("upload trainer intro video: probe failed", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("could not read video metadata — is this a valid video file?", api.CodeBadRequest))
 		return
 	}
 	if !meta.HasVideoStream {
+		s.logger.Warn("upload trainer intro video: file has no video stream", "trainerID", trainerID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("file has no video stream", api.CodeBadRequest))
 		return
 	}
 	if meta.DurationSeconds > videoMaxDurationSeconds {
+		s.logger.Warn("upload trainer intro video: video duration exceeds limit", "trainerID", trainerID.String(), "duration", meta.DurationSeconds)
 		c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("video duration %.0fs exceeds %ds limit", meta.DurationSeconds, videoMaxDurationSeconds), api.CodeBadRequest))
 		return
 	}
@@ -149,9 +161,11 @@ func (s *routerImpl) UploadTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 		ContentType:   "video/mp4", // always mp4 after transcode
 	}); err != nil {
 		if errors.Is(err, uploads.ErrQueueFull) || errors.Is(err, uploads.ErrUploaderClosed) {
+			s.logger.Warn("upload trainer intro video: upload service busy", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusServiceUnavailable, api.NewError("video upload service is busy, please retry shortly", api.CodeServerError))
 			return
 		}
+		s.logger.Warn("upload trainer intro video: could not enqueue upload", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not enqueue upload", api.CodeServerError))
 		return
 	}
@@ -214,6 +228,7 @@ func streamUploadToTemp(src io.Reader, dir string) (string, error) {
 //     than the bare MinIO 404 page.
 func (s *routerImpl) StreamTrainerIntroVideo(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("stream trainer intro video: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -222,13 +237,16 @@ func (s *routerImpl) StreamTrainerIntroVideo(c *gin.Context, id openapi_types.UU
 	t, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("stream trainer intro video: trainer not found", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("stream trainer intro video: failed to look up trainer", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
 		return
 	}
 	if !t.IntroVideoUrl.Valid || t.IntroVideoUrl.String == "" {
+		s.logger.Warn("stream trainer intro video: trainer has no intro video", "trainerID", trainerID.String())
 		c.JSON(http.StatusNotFound, api.NewError("trainer has no intro video", api.CodeNotFound))
 		return
 	}

@@ -24,6 +24,7 @@ type bookingsStore struct {
 // Allows clients or trainers to cancel confirmed bookings with refund calculation
 func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	if s.bookings == nil {
+		s.logger.Warn("cancel booking: bookings store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -31,11 +32,13 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	// Extract authenticated user ID from context
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		s.logger.Warn("cancel booking: missing authenticated user", "bookingID", id.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		s.logger.Warn("cancel booking: invalid user id in context", "bookingID", id.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -43,6 +46,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	// Parse request body
 	var req api.CancelBookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		s.logger.Warn("cancel booking: invalid request body", "bookingID", id.String(), "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -57,6 +61,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		"other":              true,
 	}
 	if req.Reason == "" || !validReasons[string(req.Reason)] {
+		s.logger.Warn("cancel booking: invalid cancellation reason", "bookingID", id.String(), "userID", userID.String(), "reason", req.Reason)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid cancellation reason", api.CodeBadRequest))
 		return
 	}
@@ -66,6 +71,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	// Start transaction with deferred rollback
 	tx, err := s.bookings.db.BeginTx(ctx, nil)
 	if err != nil {
+		s.logger.Warn("failed to cancel booking request", "userID", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to start transaction", api.CodeServerError))
 		return
 	}
@@ -77,27 +83,32 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	booking, err := qtx.GetBookingByIDForUpdate(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("cancel booking: booking not found", "bookingID", id.String(), "userID", userID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("booking"))
 			return
 		}
+		s.logger.Warn("cancel booking: failed to load booking", "bookingID", id.String(), "userID", userID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load booking", api.CodeServerError))
 		return
 	}
 
 	// Verify user is either the client or trainer of this booking
 	if booking.ClientID != userID && booking.TrainerID != userID {
+		s.logger.Warn("cancel booking: user not authorized", "bookingID", booking.ID.String(), "userID", userID.String())
 		c.JSON(http.StatusForbidden, api.NewError("you are not authorized to cancel this booking", api.CodeForbidden))
 		return
 	}
 
 	// Check if booking is already cancelled
 	if booking.BookingStatus.Valid && booking.BookingStatus.String == "cancelled" {
+		s.logger.Warn("cancel booking: already cancelled", "bookingID", booking.ID.String(), "userID", userID.String())
 		c.JSON(http.StatusConflict, api.NewError("booking is already cancelled", api.CodeConflict))
 		return
 	}
 
 	// Check if booking is confirmed
 	if !booking.BookingStatus.Valid || booking.BookingStatus.String != "confirmed" {
+		s.logger.Warn("cancel booking: booking not confirmed", "bookingID", booking.ID.String(), "userID", userID.String(), "status", booking.BookingStatus.String)
 		c.JSON(http.StatusConflict, api.NewError("only confirmed bookings can be cancelled", api.CodeConflict))
 		return
 	}
@@ -105,6 +116,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	// Check if session has already started (in UTC)
 	now := time.Now().UTC()
 	if booking.ScheduledStart.Valid && now.After(booking.ScheduledStart.Time) {
+		s.logger.Warn("cancel booking: session already started", "bookingID", booking.ID.String(), "userID", userID.String(), "scheduledStart", booking.ScheduledStart.Time)
 		c.JSON(http.StatusConflict, api.NewError("cannot cancel a session that has already started", api.CodeConflict))
 		return
 	}
@@ -133,6 +145,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		CancellationReason: sql.NullString{String: cancellationReason, Valid: true},
 	})
 	if err != nil {
+		s.logger.Warn("failed to cancel booking", "userID", userID, "booking", booking.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to cancel booking", api.CodeServerError))
 		return
 	}
@@ -150,10 +163,12 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 			Timezone:       booking.Timezone.String,
 		})
 		if err != nil {
+			s.logger.Warn("failed to release booking slot", "userID", userID, "err", err)
 			c.JSON(http.StatusInternalServerError, api.NewError("failed to release booking slot", api.CodeServerError))
 			return
 		}
 		if rowsAffected != 1 {
+			s.logger.Warn("failed to release booking slot: unexpected rows affected", "userID", userID, "bookingID", booking.ID, "rowsAffected", rowsAffected)
 			c.JSON(http.StatusInternalServerError, api.NewError("failed to release booking slot: slot not found", api.CodeServerError))
 			return
 		}
@@ -163,6 +178,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 	if refundAmount > 0 && booking.SubscriptionID.Valid {
 		subscription, err := qtx.GetSubscriptionByID(ctx, booking.SubscriptionID.UUID)
 		if err != nil {
+			s.logger.Warn("cancel booking: get subscription failed", "bookingID", booking.ID.String(), "userID", userID.String(), "subscriptionID", booking.SubscriptionID.UUID, "err", err)
 			if errors.Is(err, sql.ErrNoRows) {
 				c.JSON(http.StatusInternalServerError, api.NewError("subscription not found", api.CodeServerError))
 				return
@@ -175,6 +191,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		if subscription.Status == "active" {
 			_, err = qtx.RefundSessionCredit(ctx, booking.SubscriptionID.UUID)
 			if err != nil {
+				s.logger.Warn("failed to refund credit for active subscriptions", "userID", userID, "subscriptionID", booking.SubscriptionID.UUID, "err", err)
 				c.JSON(http.StatusInternalServerError, api.NewError("failed to refund credits", api.CodeServerError))
 				return
 			}
@@ -183,6 +200,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
+		s.logger.Warn("cancel booking request transaction failed", "userID", userID, "bookingID", booking.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit transaction", api.CodeServerError))
 		return
 	}

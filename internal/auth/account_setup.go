@@ -38,6 +38,10 @@ type AccountSetupRepository interface {
 	UpsertToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
 	ConsumeTokenAndSetPassword(ctx context.Context, tokenHash, hashedPassword string) (*db.User, error)
 	TokenStatus(ctx context.Context, userID uuid.UUID) (consumed bool, exists bool, err error)
+	// PeekToken returns the row's consumed_at / expires_at without touching
+	// it. Used by the FE pre-flight to render the right state before the
+	// trainer types a password. Returns exists=false on no-such-token.
+	PeekToken(ctx context.Context, tokenHash string) (consumed bool, expiresAt time.Time, exists bool, err error)
 }
 
 type postgresAccountSetupRepo struct {
@@ -115,6 +119,17 @@ func (r *postgresAccountSetupRepo) TokenStatus(ctx context.Context, userID uuid.
 		return false, false, err
 	}
 	return row.ConsumedAt.Valid, true, nil
+}
+
+func (r *postgresAccountSetupRepo) PeekToken(ctx context.Context, tokenHash string) (consumed bool, expiresAt time.Time, exists bool, err error) {
+	row, err := db.New(r.rawDB).PeekAccountSetupToken(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, time.Time{}, false, nil
+		}
+		return false, time.Time{}, false, err
+	}
+	return row.ConsumedAt.Valid, row.ExpiresAt, true, nil
 }
 
 // AccountSetupHandler owns POST /auth/set-password and exposes IssueToken
@@ -200,6 +215,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 		NewPassword string `json:"new_password"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("HandleSetPassword: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -214,6 +230,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "new_password", Message: msg})
 	}
 	if len(fieldErrors) > 0 {
+		h.log.Warn("HandleSetPassword: field validation failed", "field_errors", len(fieldErrors))
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
 	}
@@ -223,8 +240,9 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 	// receives the email (token is the only identifier) and we shouldn't
 	// reveal which user a token maps to before we've validated it.
 	if allowed, err := h.ipLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
-		h.log.Warn("set-password IP rate limiter error — failing open", "err", err)
+		h.log.Warn("HandleSetPassword: IP rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("HandleSetPassword: IP rate limit hit", "ip", c.ClientIP())
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -242,6 +260,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 	user, err := h.repo.ConsumeTokenAndSetPassword(c.Request.Context(), h.hashToken(token), string(hashed))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("HandleSetPassword: invalid or expired setup token")
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired setup token", api.CodeBadRequest))
 			return
 		}
@@ -252,6 +271,73 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 
 	h.log.Info("account password set via setup token", "user_id", user.ID.String())
 	c.JSON(http.StatusOK, api.NewSuccess("password set successfully", api.CodeOK, nil))
+}
+
+// HandleValidateSetupToken handles GET /trainers/set-password/validate?token=...
+//
+// Used by the FE set-password page as a pre-flight: it shows "your link
+// expired", "this link was already used", or the password form depending
+// on the response. Returns 200 with a small status payload in every
+// success case (valid / consumed / expired / unknown) so the FE can
+// branch on `data.status` without parsing error messages.
+//
+// IP rate-limited (same bucket as HandleSetPassword) so this endpoint
+// can't be used to enumerate tokens any faster than the consume endpoint
+// could be brute-forced.
+func (h *AccountSetupHandler) HandleValidateSetupToken(c *gin.Context) {
+	token := strings.TrimSpace(c.Query("token"))
+	if token == "" {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "token", Message: "token query parameter is required"},
+		}))
+		return
+	}
+
+	if allowed, err := h.ipLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
+		h.log.Warn("HandleValidateSetupToken: IP rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		h.log.Warn("HandleValidateSetupToken: IP rate limit hit", "ip", c.ClientIP())
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
+		return
+	}
+
+	consumed, expiresAt, exists, err := h.repo.PeekToken(c.Request.Context(), h.hashToken(token))
+	if err != nil {
+		h.log.Error("HandleValidateSetupToken: lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	// status drives the FE's decision tree. Strings (not bools) so a new
+	// state — e.g. "revoked" — could slot in later without a breaking
+	// change to existing clients.
+	//
+	// Boundary: the consume query gates on `expires_at > NOW()`, so a token
+	// at exactly its expiry instant is rejected there. Use `!Before` (i.e.
+	// now >= expiresAt) here so this endpoint reports "expired" at the
+	// same instant — otherwise the FE would render the password form,
+	// the user would submit, and consume would 400 a moment later.
+	var status string
+	switch {
+	case !exists:
+		status = "invalid"
+	case consumed:
+		status = "consumed"
+	case !time.Now().Before(expiresAt):
+		status = "expired"
+	default:
+		status = "valid"
+	}
+
+	payload := map[string]any{
+		"status": status,
+		"valid":  status == "valid",
+	}
+	if exists {
+		payload["expires_at"] = expiresAt
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("setup token checked", api.CodeOK, payload))
 }
 
 func (h *AccountSetupHandler) hashToken(token string) string {

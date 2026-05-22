@@ -11,6 +11,7 @@ import (
 
 func (s *routerImpl) BookDiscoveryCall(c *gin.Context) {
 	if s.discovery == nil {
+		s.logger.Warn("BookDiscoveryCall: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -19,6 +20,7 @@ func (s *routerImpl) BookDiscoveryCall(c *gin.Context) {
 
 func (s *routerImpl) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
 	if s.discovery == nil {
+		s.logger.Warn("GetDiscoverySlots: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -27,6 +29,7 @@ func (s *routerImpl) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySl
 
 func (s *routerImpl) CreateDiscoverySlot(c *gin.Context) {
 	if s.discovery == nil {
+		s.logger.Warn("CreateDiscoverySlot: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -35,6 +38,7 @@ func (s *routerImpl) CreateDiscoverySlot(c *gin.Context) {
 
 func (s *routerImpl) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	if s.discovery == nil {
+		s.logger.Warn("UpdateDiscoverySlot: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -43,6 +47,7 @@ func (s *routerImpl) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) 
 
 func (s *routerImpl) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	if s.discovery == nil {
+		s.logger.Warn("DeleteDiscoverySlot: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -56,6 +61,7 @@ func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UU
 		return
 	}
 	if s.discovery == nil {
+		s.logger.Warn("RescheduleDiscoveryCall: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -64,6 +70,7 @@ func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UU
 
 func (s *routerImpl) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBookingsParams) {
 	if s.discovery == nil {
+		s.logger.Warn("GetUpcomingBookings: discovery handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}

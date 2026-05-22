@@ -71,6 +71,7 @@ func NewLocalHandler(
 func (h *LocalHandler) Register(c *gin.Context) {
 	var req api.HandleRegisterJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("register: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -78,6 +79,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("register: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
@@ -85,6 +87,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("register: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -94,6 +97,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	if allowed, err := h.registerLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("register rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("register: rate limit hit", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -148,6 +152,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	var req api.HandleVerifyEmailJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("verify email: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -156,6 +161,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("verify email: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
@@ -163,6 +169,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("verify email: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -170,12 +177,14 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	if code == "" {
+		h.log.Warn("verify email: code is empty", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code is required"},
 		}))
 		return
 	}
 	if len(code) != 6 || !isDigits(code) {
+		h.log.Warn("verify email: invalid code format", "email_domain", emailDomain(emailAddr), "codeLength", len(code))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code must be a 6-digit number"},
 		}))
@@ -185,6 +194,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	if allowed, err := h.verifyLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("verify rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("verify email: rate limit hit", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
@@ -192,6 +202,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	user, err := h.localAuth.ConsumeAndMarkVerified(c.Request.Context(), emailAddr, h.hashOTP(code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("verify email: invalid or expired code", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
 			return
 		}
@@ -248,6 +259,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 func (h *LocalHandler) SignIn(c *gin.Context) {
 	var req api.HandleLocalAuthJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("sign-in: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -255,12 +267,14 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("sign-in: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
 		return
 	}
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("sign-in: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -269,6 +283,7 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("sign-in: user not found", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 			return
 		}
@@ -278,6 +293,7 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 
 	if !user.IsActive {
+		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
@@ -285,10 +301,12 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	// Verify password credential.
 	if !user.Password.Valid || user.Password.String == "" {
 		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
+		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
+		h.log.Warn("sign-in: incorrect password", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
