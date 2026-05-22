@@ -69,6 +69,15 @@ func (r *fakeSetupRepo) TokenStatus(_ context.Context, userID uuid.UUID) (bool, 
 	return r.consumed, true, nil
 }
 
+func (r *fakeSetupRepo) PeekToken(_ context.Context, tokenHash string) (bool, time.Time, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.tokenHash == "" || tokenHash != r.tokenHash {
+		return false, time.Time{}, false, nil
+	}
+	return r.consumed, r.expiresAt, true, nil
+}
+
 // captureMailer records the last setup link sent so tests can extract the
 // raw token from the URL and feed it back into the consume endpoint.
 type captureMailer struct {
@@ -142,6 +151,7 @@ func newTestHandler(t *testing.T, repo auth.AccountSetupRepository, mailer *capt
 	)
 	r := gin.New()
 	r.POST("/trainers/set-password", h.HandleSetPassword)
+	r.GET("/trainers/set-password/validate", h.HandleValidateSetupToken)
 	return h, r
 }
 
@@ -327,3 +337,108 @@ func TestIsActivated_FlipsOnConsume(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, activated, "after successful consume, IsActivated must be true")
 }
+
+// ---------------------------------------------------------------------------
+// HandleValidateSetupToken
+// ---------------------------------------------------------------------------
+
+// validateResponse mirrors the success payload from HandleValidateSetupToken
+// — pulled into its own type so each test asserts on the same shape.
+type validateResponse struct {
+	Data struct {
+		Status    string `json:"status"`
+		Valid     bool   `json:"valid"`
+		ExpiresAt string `json:"expires_at,omitempty"`
+	} `json:"data"`
+}
+
+func getValidate(t *testing.T, r http.Handler, token string) (*httptest.ResponseRecorder, validateResponse) {
+	t.Helper()
+	url := "/trainers/set-password/validate"
+	if token != "" {
+		url += "?token=" + token
+	}
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	var body validateResponse
+	if rec.Code == http.StatusOK {
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	}
+	return rec, body
+}
+
+func TestHandleValidateSetupToken_ValidToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "valid", body.Data.Status)
+	require.True(t, body.Data.Valid)
+	require.NotEmpty(t, body.Data.ExpiresAt, "expires_at must be returned for a known token")
+	require.False(t, repo.consumed, "validate must NOT consume the token")
+}
+
+func TestHandleValidateSetupToken_ExpiredToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+	// Backdate persisted expiry; same trick as the consume-expired test.
+	repo.mu.Lock()
+	repo.expiresAt = time.Now().Add(-1 * time.Hour)
+	repo.mu.Unlock()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "expired", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_ConsumedToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+	token := tokenFromLink(t, link)
+
+	// Consume it via the real handler so the state mirrors a real flow.
+	rec := postJSON(t, router, "/trainers/set-password", map[string]any{
+		"token":        token,
+		"new_password": "Strong1Password",
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec2, body := getValidate(t, router, token)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, "consumed", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_UnknownToken(t *testing.T) {
+	_, router := newTestHandler(t, &fakeSetupRepo{}, &captureMailer{})
+
+	rec, body := getValidate(t, router, "never-issued-token")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "invalid", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_MissingTokenIs400(t *testing.T) {
+	_, router := newTestHandler(t, &fakeSetupRepo{}, &captureMailer{})
+
+	rec, _ := getValidate(t, router, "")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// Suppress unused-import warning if any earlier test stops referencing errors.
+var _ = errors.New
