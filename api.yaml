@@ -450,6 +450,24 @@ components:
             $ref: "#/components/schemas/AvailabilitySlot"
           description: "List of weekly availability slots. Empty array clears all slots."
 
+    AddAvailabilityRequest:
+      type: object
+      required: [availability]
+      description: |
+        Request body for the additive POST availability endpoints. Same
+        shape as SetAvailabilityRequest but the semantics differ:
+        supplied slots are appended to the trainer's existing schedule
+        rather than replacing it. Use PUT (SetAvailabilityRequest) when
+        you want to wipe-and-reseed; use this when you want to add a
+        slot without resending the whole list.
+      properties:
+        availability:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AvailabilitySlot"
+          description: "Slots to append. At least one is required (empty arrays are rejected with 400)."
+
     SetAvailabilityResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -2413,13 +2431,14 @@ paths:
         them. Validation rules are identical (well-formed times, end > start,
         valid IANA timezone) and slots in the request body must not overlap
         each other or any existing slot for the same day. Exact duplicates
-        of an existing (day, start, end, timezone) tuple return 409.
+        of an existing (day, start, end) tuple return 409; any other
+        overlap returns 400.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SetAvailabilityRequest"
+              $ref: "#/components/schemas/AddAvailabilityRequest"
       responses:
         "201":
           description: Slots created
@@ -2654,7 +2673,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SetAvailabilityRequest"
+              $ref: "#/components/schemas/AddAvailabilityRequest"
       responses:
         "201":
           description: Slots created

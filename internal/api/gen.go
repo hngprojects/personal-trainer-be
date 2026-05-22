@@ -807,6 +807,17 @@ func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	}
 }
 
+// AddAvailabilityRequest Request body for the additive POST availability endpoints. Same
+// shape as SetAvailabilityRequest but the semantics differ:
+// supplied slots are appended to the trainer's existing schedule
+// rather than replacing it. Use PUT (SetAvailabilityRequest) when
+// you want to wipe-and-reseed; use this when you want to add a
+// slot without resending the whole list.
+type AddAvailabilityRequest struct {
+	// Availability Slots to append. At least one is required (empty arrays are rejected with 400).
+	Availability []AvailabilitySlot `json:"availability"`
+}
+
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
 	Email           string             `json:"email"`
@@ -1617,7 +1628,7 @@ type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
 // AddTrainersMeAvailabilityJSONRequestBody defines body for AddTrainersMeAvailability for application/json ContentType.
-type AddTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1629,7 +1640,7 @@ type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
 
 // AddTrainerAvailabilityJSONRequestBody defines body for AddTrainerAvailability for application/json ContentType.
-type AddTrainerAvailabilityJSONRequestBody = SetAvailabilityRequest
+type AddTrainerAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainerAvailabilityJSONRequestBody defines body for PutTrainerAvailability for application/json ContentType.
 type PutTrainerAvailabilityJSONRequestBody = SetAvailabilityRequest

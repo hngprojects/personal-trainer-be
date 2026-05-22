@@ -105,7 +105,9 @@ func TestTrainerAvailabilityAdditiveFlow(t *testing.T) {
 		require.Equal(t, 3, countTrainerAvailability(t, db, trainerID))
 	}
 
-	// 4: POST exact duplicate of an existing tuple → 409.
+	// 4: POST exact duplicate of an existing tuple → 409. The handler
+	// checks for exact (day, start, end) match BEFORE the general
+	// overlap predicate, so duplicates get the precise status.
 	{
 		body := map[string]any{
 			"availability": []map[string]any{
@@ -118,14 +120,30 @@ func TestTrainerAvailabilityAdditiveFlow(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
-		// Could be 400 (overlap check fires first) or 409 (UNIQUE
-		// constraint). The overlap predicate is "new.start < existing.end
-		// AND new.end > existing.start" — an exact duplicate matches.
-		// Either response is acceptable from a contract POV, so accept
-		// both.
-		require.Contains(t, []int{http.StatusBadRequest, http.StatusConflict}, res.StatusCode,
-			"duplicate must be rejected with 400 or 409, not silently inserted")
+		require.Equal(t, http.StatusConflict, res.StatusCode,
+			"exact-duplicate of an existing slot must be 409, not the generic 400 from the overlap check")
 		require.Equal(t, 3, countTrainerAvailability(t, db, trainerID))
+	}
+
+	// 4b: POST with two exact duplicates inside the same request body
+	// → 409 (in-request duplicate detection mirrors the cross-existing
+	// rule).
+	{
+		body := map[string]any{
+			"availability": []map[string]any{
+				{"day_of_week": 6, "start_time": "08:00", "end_time": "09:00", "timezone": "UTC"},
+				{"day_of_week": 6, "start_time": "08:00", "end_time": "09:00", "timezone": "UTC"},
+			},
+		}
+		raw, _ := json.Marshal(body)
+		req, _ := http.NewRequest(http.MethodPost, apiBase+"/trainers/me/availability", bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+		require.Equal(t, 3, countTrainerAvailability(t, db, trainerID),
+			"in-request duplicate must short-circuit before any insert")
 	}
 
 	// 5: DELETE one slot — others must remain. Pull a slot id off the
