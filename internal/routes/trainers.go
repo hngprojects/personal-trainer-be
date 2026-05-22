@@ -954,22 +954,33 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 // authenticated user_id is mapped to a trainers.id via GetTrainerByUserID
 // — non-trainers get 404 (no trainer profile) rather than 403, mirroring
 // the existing /trainers/me/* behaviour.
-func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
+// ListTrainerSessions handles GET /trainers/sessions?trainer_id=...
+//
+// Trainer_id is supplied as a query parameter rather than derived from
+// the JWT — the earlier GET /trainers/me/sessions used to resolve the
+// trainer via GetTrainerByUserID and 404'd whenever the caller wasn't
+// a trainer themselves (admin dashboards, etc.). With the explicit
+// trainer_id, admins can query any trainer's schedule and the trainer
+// themselves can pass their own id.
+//
+// Authz: caller must be EITHER the owner of the trainer profile
+// (caller.user_id == trainers.user_id) OR admin / super_admin.
+func (s *routerImpl) ListTrainerSessions(c *gin.Context, params api.ListTrainerSessionsParams) {
 	if s.trainers == nil {
-		s.logger.Warn("GetTrainersMeSessions: trainers store is nil")
+		s.logger.Warn("ListTrainerSessions: trainers store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
-		s.logger.Warn("GetTrainersMeSessions: missing authenticated user in context")
+		s.logger.Warn("ListTrainerSessions: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
-	userID, ok := userIDVal.(uuid.UUID)
+	callerUserID, ok := userIDVal.(uuid.UUID)
 	if !ok {
-		s.logger.Warn("GetTrainersMeSessions: invalid user id type in context")
+		s.logger.Warn("ListTrainerSessions: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -979,18 +990,44 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 		return
 	}
 
+	trainerID := uuid.UUID(params.TrainerId)
+	if trainerID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "trainer_id", Message: "trainer_id is required"},
+		}))
+		return
+	}
+
 	ctx := c.Request.Context()
 
-	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
+	// Look up the target trainer first — needed both for the 404 path
+	// and for the authz check (we compare callerUserID against
+	// trainer.UserID).
+	trainer, err := s.trainers.q.GetTrainerByID(ctx, trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			s.logger.Warn("GetTrainersMeSessions: trainer profile not found", "userID", userID)
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
-		s.logger.Error("get trainer by user id failed", "err", err)
+		s.logger.Error("ListTrainerSessions: trainer lookup failed", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
 		return
+	}
+
+	// Authz: trainer owner OR admin/super_admin. Owner check is the
+	// cheap path; only hit the roles table if the caller isn't the
+	// owner.
+	if trainer.UserID != callerUserID {
+		role, err := s.trainers.q.GetUserRoleByID(ctx, callerUserID)
+		if err != nil {
+			s.logger.Error("ListTrainerSessions: caller role lookup failed", "callerUserID", callerUserID, "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to verify caller", api.CodeServerError))
+			return
+		}
+		if role != "admin" && role != "super_admin" {
+			c.JSON(http.StatusForbidden, api.NewError("you are not authorized to view this trainer's sessions", api.CodeForbidden))
+			return
+		}
 	}
 
 	total, err := s.trainers.q.CountBookingsByTrainer(ctx, trainer.ID)
