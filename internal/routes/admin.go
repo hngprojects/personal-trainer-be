@@ -245,7 +245,15 @@ func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsP
 
 	var isActive sql.NullBool
 	if params.Status != nil {
-		isActive = sql.NullBool{Bool: *params.Status == api.Active, Valid: true}
+		switch *params.Status {
+		case api.Active:
+			isActive = sql.NullBool{Bool: true, Valid: true}
+		case api.Inactive:
+			isActive = sql.NullBool{Bool: false, Valid: true}
+		default:
+			c.JSON(http.StatusBadRequest, api.NewError("invalid status: must be active or inactive", api.CodeBadRequest))
+			return
+		}
 	}
 
 	clients, err := s.trainers.q.ListClients(c.Request.Context(), db.ListClientsParams{
@@ -289,17 +297,5 @@ func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsP
 		})
 	}
 
-	totalPages := int(total) / limit
-	if int(total)%limit != 0 {
-		totalPages++
-	}
-
-	meta := map[string]interface{}{
-		"page":        page,
-		"per_page":    limit,
-		"total":       total,
-		"total_pages": totalPages,
-	}
-
-	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Clients retrieved successfully", api.CodeOK, items, meta))
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Clients retrieved successfully", api.CodeOK, items, api.NewPaginationMeta(page, limit, int(total))))
 }
