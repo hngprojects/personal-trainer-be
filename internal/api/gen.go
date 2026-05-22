@@ -486,6 +486,24 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAdminClientsParamsStatus.
+const (
+	Active   GetAdminClientsParamsStatus = "active"
+	Inactive GetAdminClientsParamsStatus = "inactive"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminClientsParamsStatus enum.
+func (e GetAdminClientsParamsStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Inactive:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetUserTrainerCount200JSONResponseBodyStatus.
 const (
 	GetUserTrainerCount200JSONResponseBodyStatusError   GetUserTrainerCount200JSONResponseBodyStatus = "error"
@@ -1381,6 +1399,18 @@ type AdminAddJSONBody struct {
 	Name  string              `json:"name"`
 }
 
+// GetAdminClientsParams defines parameters for GetAdminClients.
+type GetAdminClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Filter by account status. Omit to return all clients.
+	Status *GetAdminClientsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetAdminClientsParamsStatus defines parameters for GetAdminClients.
+type GetAdminClientsParamsStatus string
+
 // AdminListDiscoveryBookingsParams defines parameters for AdminListDiscoveryBookings.
 type AdminListDiscoveryBookingsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
@@ -1668,6 +1698,9 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
+	// List all clients (super_admin only)
+	// (GET /admin/clients)
+	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
@@ -1891,6 +1924,51 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	}
 
 	siw.Handler.AdminAdd(c)
+}
+
+// GetAdminClients operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminClients(c, params)
 }
 
 // AdminListDiscoveryBookings operation middleware
@@ -3353,6 +3431,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
