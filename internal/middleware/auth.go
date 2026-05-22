@@ -87,9 +87,14 @@ func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType, log
 
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
 		c.Set(string(common.ContextKeyJTI), jti)
-		if expectedType == "refresh" {
-			c.Set(string(common.ContextKeyExpTime), exp) // now int64, not string
-		}
+		// Set exp unconditionally, not just on refresh tokens. The previous
+		// `if expectedType == "refresh"` guard was the single line that, in
+		// production, kept the refresh handler from seeing the exp value —
+		// the handler then 401'd with "missing or invalid exp in token
+		// context" on every refresh attempt, forcing users out after the
+		// access token expired. Setting exp on access-token paths too is
+		// harmless: no other handler reads this key.
+		c.Set(string(common.ContextKeyExpTime), exp)
 		c.Next()
 	}
 }

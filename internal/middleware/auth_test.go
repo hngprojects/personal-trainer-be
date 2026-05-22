@@ -168,3 +168,74 @@ func TestAuthMiddleware_RedisError(t *testing.T) {
 		t.Errorf("expected 500 on redis error, got %d", w.Code)
 	}
 }
+
+// TestAuthMiddleware_SetsExpInContext is the regression test for the
+// refresh-handler logout bug. The middleware used to only set
+// ContextKeyExpTime when expectedType == "refresh"; in production that
+// guard somehow evaluated false even on refresh-token requests, so the
+// refresh handler 401'd with "missing or invalid exp in token context"
+// on every refresh attempt, forcing users out after the access token
+// expired. Setting exp unconditionally makes the handler-side read
+// robust regardless of how the middleware was constructed.
+func TestAuthMiddleware_SetsExpInContext(t *testing.T) {
+	cases := []struct {
+		name string
+		// build is whichever middleware variant we're testing — access
+		// (default AuthMiddleware) and refresh (AuthMiddlewareWithType).
+		build func(appredis.RedisClient, *slog.Logger) gin.HandlerFunc
+		// tokenType matches the middleware's expectation so the type
+		// check passes and we reach the c.Set lines.
+		tokenType string
+	}{
+		{
+			name:      "access middleware sets exp",
+			build:     middleware.AuthMiddleware,
+			tokenType: "access",
+		},
+		{
+			name: "refresh middleware sets exp",
+			build: func(r appredis.RedisClient, l *slog.Logger) gin.HandlerFunc {
+				return middleware.AuthMiddlewareWithType(r, "refresh", l)
+			},
+			tokenType: "refresh",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			jti := uuid.NewString()
+			userID := uuid.New()
+			token := makeToken(t, userID.String(), jti, tc.tokenType, "test-secret")
+
+			var gotExp int64
+			var gotExists bool
+
+			w := httptest.NewRecorder()
+			_, r := gin.CreateTestContext(w)
+			r.Use(tc.build(&fakeRedis{}, testLogger))
+			r.GET("/protected", func(c *gin.Context) {
+				v, exists := c.Get(string(common.ContextKeyExpTime))
+				gotExists = exists
+				gotExp, _ = v.(int64)
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/protected", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			r.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+			}
+			if !gotExists {
+				t.Fatalf("exp key missing from gin context — refresh handler would 401")
+			}
+			if gotExp <= 0 {
+				t.Fatalf("exp value should be a positive Unix timestamp, got %d", gotExp)
+			}
+			if gotExp <= time.Now().Unix() {
+				t.Errorf("exp should be in the future (makeToken uses now+10m), got %d (now=%d)", gotExp, time.Now().Unix())
+			}
+		})
+	}
+}
