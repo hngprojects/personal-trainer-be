@@ -36,6 +36,15 @@ func (s *routerImpl) CreateDiscoverySlot(c *gin.Context) {
 	s.discovery.CreateDiscoverySlot(c)
 }
 
+func (s *routerImpl) CreateDiscoverySlotsBulk(c *gin.Context) {
+	if s.discovery == nil {
+		s.logger.Warn("CreateDiscoverySlotsBulk: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.CreateDiscoverySlotsBulk(c)
+}
+
 func (s *routerImpl) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	if s.discovery == nil {
 		s.logger.Warn("UpdateDiscoverySlot: discovery handler is nil")

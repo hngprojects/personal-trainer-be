@@ -267,6 +267,115 @@ func (h *Handler) CreateDiscoverySlot(c *gin.Context) {
 	c.JSON(http.StatusCreated, api.NewSuccess("Booking slot created", api.CodeCreated, slotToMap(slot, nil)))
 }
 
+// CreateDiscoverySlotsBulk handles POST /discovery-slots/bulk — additive
+// batch insert of multiple slots in a single transaction. The whole batch
+// rolls back on any per-row failure (parse error, overlap, duplicate of
+// an existing slot), so partial inserts can't happen.
+func (h *Handler) CreateDiscoverySlotsBulk(c *gin.Context) {
+	var req api.BookingSlotsBulkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("create discovery slots bulk: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+	if len(req.Slots) == 0 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "slots", Message: "at least one slot is required"},
+		}))
+		return
+	}
+	if len(req.Slots) > 100 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "slots", Message: "at most 100 slots per request"},
+		}))
+		return
+	}
+
+	// Parse + per-slot validation. We collect everything before the DB
+	// hit so a bad slot at index 4 doesn't trigger an INSERT for slot 0–3
+	// that has to roll back.
+	type parsed struct {
+		dayOfWeek int16
+		start     time.Time
+		end       time.Time
+		timezone  string
+	}
+	parsedSlots := make([]parsed, 0, len(req.Slots))
+	for i, s := range req.Slots {
+		tz := "Africa/Lagos"
+		if s.Timezone != nil {
+			if _, err := time.LoadLocation(*s.Timezone); err != nil {
+				c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slot %d: invalid timezone", i), api.CodeBadRequest))
+				return
+			}
+			tz = *s.Timezone
+		}
+		if s.DayOfWeek < 0 || s.DayOfWeek > 6 {
+			c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slot %d: day_of_week must be 0 (Sunday) to 6 (Saturday)", i), api.CodeBadRequest))
+			return
+		}
+		startT, err := time.Parse("15:04", s.StartTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slot %d: start_time must be HH:MM format", i), api.CodeBadRequest))
+			return
+		}
+		endT, err := time.Parse("15:04", s.EndTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slot %d: end_time must be HH:MM format", i), api.CodeBadRequest))
+			return
+		}
+		if !startT.Before(endT) {
+			c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slot %d: start_time must be before end_time", i), api.CodeBadRequest))
+			return
+		}
+		parsedSlots = append(parsedSlots, parsed{
+			dayOfWeek: int16(s.DayOfWeek),
+			start:     startT,
+			end:       endT,
+			timezone:  tz,
+		})
+	}
+
+	// In-request overlap check: pairwise compare on same day_of_week.
+	// O(n^2) is fine — the request is capped at 100.
+	for i := 0; i < len(parsedSlots); i++ {
+		for j := i + 1; j < len(parsedSlots); j++ {
+			a, b := parsedSlots[i], parsedSlots[j]
+			if a.dayOfWeek != b.dayOfWeek {
+				continue
+			}
+			if a.start.Before(b.end) && a.end.After(b.start) {
+				c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("slots %d and %d overlap on same day_of_week", i, j), api.CodeBadRequest))
+				return
+			}
+		}
+	}
+
+	// Convert to DB params and run inside one TX.
+	params := make([]db.CreateBookingSlotParams, len(parsedSlots))
+	for i, p := range parsedSlots {
+		params[i] = db.CreateBookingSlotParams{
+			DayOfWeek: p.dayOfWeek,
+			StartTime: p.start,
+			EndTime:   p.end,
+			Timezone:  p.timezone,
+		}
+	}
+
+	saved, err := h.repo.CreateSlotsBulk(c.Request.Context(), params)
+	if err != nil {
+		h.log.Error("failed to create booking slots bulk", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create slots", api.CodeServerError))
+		return
+	}
+
+	resp := make([]map[string]interface{}, 0, len(saved))
+	for _, s := range saved {
+		resp = append(resp, slotToMap(s, nil))
+	}
+	c.JSON(http.StatusCreated, api.NewSuccess("Booking slots created", api.CodeCreated, resp))
+}
+
 // PUT /booking-slots/{id} — admin / customer_care
 func (h *Handler) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
 	var req api.BookingSlotRequest

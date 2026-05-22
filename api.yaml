@@ -874,6 +874,20 @@ components:
         is_active:
           type: boolean
           default: true
+    BookingSlotsBulkRequest:
+      type: object
+      required: [slots]
+      description: |
+        Array of slot specs for POST /discovery-slots/bulk. The whole
+        batch is inserted in a single transaction; any validation
+        failure rolls everything back.
+      properties:
+        slots:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/BookingSlotRequest"
     BookingSlotResponse:
       type: object
       properties:
@@ -2389,6 +2403,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+    post:
+      operationId: AddTrainersMeAvailability
+      summary: Append one or more availability slots without replacing existing ones
+      tags: [Trainer]
+      description: |
+        Additive variant of PUT /trainers/me/availability — the supplied
+        slots are inserted alongside any existing slots instead of replacing
+        them. Validation rules are identical (well-formed times, end > start,
+        valid IANA timezone) and slots in the request body must not overlap
+        each other or any existing slot for the same day. Exact duplicates
+        of an existing (day, start, end, timezone) tuple return 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAvailabilityRequest"
+      responses:
+        "201":
+          description: Slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Exact duplicate of an existing slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     get:
       operationId: GetTrainersMeAvailability
       summary: Get the authenticated trainer's weekly availability
@@ -2413,6 +2482,45 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/availability/{slot_id}:
+    delete:
+      operationId: DeleteTrainersMeAvailabilitySlot
+      summary: Delete a single availability slot owned by the authenticated trainer
+      tags: [Trainer]
+      description: |
+        Removes the slot with the given id only if it belongs to the
+        calling trainer. Trying to delete another trainer's slot returns
+        404 — the data layer matches both id AND trainer_id so an attacker
+        can't tell whether the id exists at all.
+      parameters:
+        - name: slot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Slot deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found (or not owned by the calling trainer)
           content:
             application/json:
               schema:
@@ -2526,6 +2634,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+    post:
+      operationId: AddTrainerAvailability
+      summary: Admin appends slots to a trainer's weekly availability
+      tags: [Trainer]
+      description: |
+        Admin-only additive variant of PUT — the supplied slots are
+        inserted alongside the trainer's existing slots instead of
+        replacing them. Validation matches the trainer-facing POST.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAvailabilityRequest"
+      responses:
+        "201":
+          description: Slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Exact duplicate of an existing slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     put:
       operationId: PutTrainerAvailability
       summary: Admin sets a trainer's weekly availability
@@ -2580,6 +2753,57 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/availability/{slot_id}:
+    delete:
+      operationId: DeleteTrainerAvailabilitySlot
+      summary: Admin deletes one availability slot for a specific trainer
+      tags: [Trainer]
+      description: |
+        Admin-only. Removes a single availability slot from a given
+        trainer's schedule, identified by both trainer id and slot id —
+        the slot_id must already belong to the path trainer, otherwise
+        the response is 404 (same shape as the trainer-facing endpoint).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: slot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Slot deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found for this trainer
           content:
             application/json:
               schema:
@@ -3883,6 +4107,65 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /discovery-slots/bulk:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: CreateDiscoverySlotsBulk
+      tags:
+        - Discovery
+      summary: Create multiple discovery slots in one request (admin or customer_care)
+      description: |
+        Additive bulk variant of POST /discovery-slots. The body is an
+        array of slot specs; each is validated, then all are inserted in
+        a single transaction. Per-slot validation matches the single
+        endpoint (well-formed times, end > start, valid timezone). Any
+        in-request overlap or any exact-duplicate of an existing slot
+        rolls back the entire batch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingSlotsBulkRequest"
+      responses:
+        "201":
+          description: Booking slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: One of the supplied slots duplicates an existing one
           content:
             application/json:
               schema:

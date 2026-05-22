@@ -12,6 +12,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteAvailabilitySlotByID = `-- name: DeleteAvailabilitySlotByID :execrows
+DELETE FROM trainer_availability
+WHERE id = $1 AND trainer_id = $2
+`
+
+type DeleteAvailabilitySlotByIDParams struct {
+	ID        uuid.UUID
+	TrainerID uuid.UUID
+}
+
+// Single-row delete used by DELETE /trainers/.../availability/{slot_id}.
+// The trainer_id predicate is the data-layer authz check: even if a
+// caller guesses another trainer's slot UUID, the row won't match and
+// the handler returns 404. Returns rowsAffected so the handler can
+// distinguish "not found / not yours" from a real DB error.
+func (q *Queries) DeleteAvailabilitySlotByID(ctx context.Context, arg DeleteAvailabilitySlotByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAvailabilitySlotByID, arg.ID, arg.TrainerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteTrainerAvailabilitySlots = `-- name: DeleteTrainerAvailabilitySlots :exec
 DELETE FROM trainer_availability
 WHERE trainer_id = $1

@@ -23,6 +23,10 @@ type Repository interface {
 	GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error)
 	GetSlotByID(ctx context.Context, id uuid.UUID) (db.BookingSlot, error)
 	CreateSlot(ctx context.Context, arg db.CreateBookingSlotParams) (db.BookingSlot, error)
+	// CreateSlotsBulk inserts every slot inside one transaction so a
+	// failure on any row rolls all the new inserts back. Returns the
+	// freshly-created rows in input order.
+	CreateSlotsBulk(ctx context.Context, slots []db.CreateBookingSlotParams) ([]db.BookingSlot, error)
 	UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotParams) (db.BookingSlot, error)
 	DeleteSlot(ctx context.Context, id uuid.UUID) error
 
@@ -39,11 +43,12 @@ type Repository interface {
 }
 
 type postgresRepo struct {
-	q *db.Queries
+	rawDB *sql.DB
+	q     *db.Queries
 }
 
-func NewPostgresRepo(q *db.Queries) Repository {
-	return &postgresRepo{q: q}
+func NewPostgresRepo(rawDB *sql.DB, q *db.Queries) Repository {
+	return &postgresRepo{rawDB: rawDB, q: q}
 }
 
 func (r *postgresRepo) CreateBooking(ctx context.Context, arg db.CreateDiscoveryBookingParams) (db.DiscoveryBooking, error) {
@@ -95,6 +100,29 @@ func (r *postgresRepo) GetSlotByID(ctx context.Context, id uuid.UUID) (db.Bookin
 
 func (r *postgresRepo) CreateSlot(ctx context.Context, arg db.CreateBookingSlotParams) (db.BookingSlot, error) {
 	return r.q.CreateBookingSlot(ctx, arg)
+}
+
+func (r *postgresRepo) CreateSlotsBulk(ctx context.Context, slots []db.CreateBookingSlotParams) ([]db.BookingSlot, error) {
+	tx, err := r.rawDB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := r.q.WithTx(tx)
+	out := make([]db.BookingSlot, 0, len(slots))
+	for _, s := range slots {
+		row, err := qtx.CreateBookingSlot(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *postgresRepo) UpdateSlot(ctx context.Context, arg db.UpdateBookingSlotParams) (db.BookingSlot, error) {
