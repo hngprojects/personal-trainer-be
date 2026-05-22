@@ -46,7 +46,7 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 			return
 		}
 	} else {
-		h.log.Warn("HandleGetSessionById: redis error", "session_id", sessionID, "err", cached.Err())
+		h.log.Warn("HandleGetSessionById: redis error: could not fetch session", "session_id", sessionID, "err", cached.Err())
 	}
 	session, err := h.service.GetSessionById(c.Request.Context(), sessionID)
 	if err != nil {

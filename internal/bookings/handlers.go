@@ -159,20 +159,27 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		h.log.Warn("failed to get user by id", "err", err)
+		if err == ErrNotFound {
+			h.log.Warn("failed to get user by id", "err", err)
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
+		}
+		h.log.Warn("Get user by id: an error occured during DB look up", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
-		h.log.Warn("failed to get trainer by id", "err", err)
+		if err == ErrNotFound {
+			h.log.Warn("failed to get trainer by id", "err", err)
+			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
+		}
+		h.log.Warn("Get trainer by id: an error occured during DB look up", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
 		return
 	}
-
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
-		h.log.Warn("failed to create booking session", "err", err)
+		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to create booking session"))
 		return
 	}
