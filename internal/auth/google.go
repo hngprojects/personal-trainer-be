@@ -123,7 +123,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 			"id":               user.ID.String(),
 			"email":            user.Email,
 			"name":             user.Name,
-			"user_type":        "client",
+			"user_type":        string(toAuthUserType(user.Role)),
 			"profile_complete": !isNewUser,
 		},
 		"access_token":  accessToken,
