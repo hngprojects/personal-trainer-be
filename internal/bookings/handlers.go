@@ -181,7 +181,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
-		h.log.Warn("failed to create booking session", "err", err)
+		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to create booking session"))
 		return
 	}
