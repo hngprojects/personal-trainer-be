@@ -299,3 +299,57 @@ func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsP
 
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("Clients retrieved successfully", api.CodeOK, items, api.NewPaginationMeta(page, limit, int(total))))
 }
+
+func (s *routerImpl) GetAdminClientByID(c *gin.Context, id openapi_types.UUID) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	client, err := s.trainers.q.GetClientByID(c.Request.Context(), id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
+			return
+		}
+		s.logger.Error("failed to get client", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get client", api.CodeServerError))
+		return
+	}
+
+	type clientDetail struct {
+		ID             string   `json:"id"`
+		Name           string   `json:"name"`
+		Email          string   `json:"email"`
+		IsActive       bool     `json:"is_active"`
+		JoinedAt       string   `json:"joined_at"`
+		Gender         *string  `json:"gender"`
+		FitnessGoals   []string `json:"fitness_goals"`
+		FitnessLevel   *string  `json:"fitness_level"`
+		AvatarURL      *string  `json:"avatar_url"`
+		SessionsBooked int64    `json:"sessions_booked"`
+		Revenue        int64    `json:"revenue"`
+	}
+
+	detail := clientDetail{
+		ID:             client.ID.String(),
+		Name:           client.Name,
+		Email:          client.Email,
+		IsActive:       client.IsActive,
+		JoinedAt:       client.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		FitnessGoals:   client.FitnessGoals,
+		SessionsBooked: client.SessionsBooked,
+		Revenue:        0,
+	}
+	if client.Gender.Valid {
+		detail.Gender = &client.Gender.String
+	}
+	if client.FitnessLevel.Valid {
+		detail.FitnessLevel = &client.FitnessLevel.String
+	}
+	if client.AvatarUrl.Valid {
+		detail.AvatarURL = &client.AvatarUrl.String
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("Client retrieved successfully", api.CodeOK, detail))
+}
