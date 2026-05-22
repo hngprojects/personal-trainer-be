@@ -159,7 +159,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: user not found", "userID", userID)
 			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
 			return
@@ -170,7 +170,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: trainer not found", "trainerID", request.TrainerId)
 			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
 			return
