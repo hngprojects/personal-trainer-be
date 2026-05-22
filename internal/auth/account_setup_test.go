@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -354,11 +355,18 @@ type validateResponse struct {
 
 func getValidate(t *testing.T, r http.Handler, token string) (*httptest.ResponseRecorder, validateResponse) {
 	t.Helper()
-	url := "/trainers/set-password/validate"
+	target := "/trainers/set-password/validate"
 	if token != "" {
-		url += "?token=" + token
+		// url.Values handles query-reserved characters correctly. Raw
+		// concatenation would silently corrupt tokens that ever contain
+		// '+', '&', '=', etc — base64-url-safe encoding mostly dodges
+		// this today, but a future token format shouldn't break the
+		// test helper.
+		q := url.Values{}
+		q.Set("token", token)
+		target += "?" + q.Encode()
 	}
-	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req := httptest.NewRequest(http.MethodGet, target, nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	var body validateResponse
@@ -438,6 +446,32 @@ func TestHandleValidateSetupToken_MissingTokenIs400(t *testing.T) {
 
 	rec, _ := getValidate(t, router, "")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestHandleValidateSetupToken_BoundaryMatchesConsume pins the contract
+// that validate and consume agree at the exact expiry instant: the consume
+// query uses `expires_at > NOW()`, so a token at expires_at == now must
+// fail consume, and therefore validate must already report "expired" so
+// the FE doesn't render the password form on a token the next POST will
+// reject.
+func TestHandleValidateSetupToken_BoundaryMatchesConsume(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+
+	// Pin expires_at to a moment already in the past relative to the
+	// handler's clock; intent is "the boundary has been reached or
+	// crossed" which is exactly the case the consume query rejects.
+	repo.mu.Lock()
+	repo.expiresAt = time.Now().Add(-time.Microsecond)
+	repo.mu.Unlock()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "expired", body.Data.Status, "validate must agree with consume at the expiry boundary")
 }
 
 // Suppress unused-import warning if any earlier test stops referencing errors.

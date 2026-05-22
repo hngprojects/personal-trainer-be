@@ -311,13 +311,19 @@ func (h *AccountSetupHandler) HandleValidateSetupToken(c *gin.Context) {
 	// status drives the FE's decision tree. Strings (not bools) so a new
 	// state — e.g. "revoked" — could slot in later without a breaking
 	// change to existing clients.
+	//
+	// Boundary: the consume query gates on `expires_at > NOW()`, so a token
+	// at exactly its expiry instant is rejected there. Use `!Before` (i.e.
+	// now >= expiresAt) here so this endpoint reports "expired" at the
+	// same instant — otherwise the FE would render the password form,
+	// the user would submit, and consume would 400 a moment later.
 	var status string
 	switch {
 	case !exists:
 		status = "invalid"
 	case consumed:
 		status = "consumed"
-	case time.Now().After(expiresAt):
+	case !time.Now().Before(expiresAt):
 		status = "expired"
 	default:
 		status = "valid"
