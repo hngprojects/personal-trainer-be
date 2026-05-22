@@ -107,3 +107,21 @@ SELECT COUNT(*)::BIGINT
 FROM users
 WHERE role = 'client'
   AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean);
+
+-- name: GetClientByID :one
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    u.gender,
+    u.fitness_goals,
+    u.fitness_level,
+    u.avatar_url,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.id = sqlc.arg(id)::uuid
+  AND u.role = 'client'
+GROUP BY u.id;
