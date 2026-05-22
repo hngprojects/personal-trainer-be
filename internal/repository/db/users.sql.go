@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -22,6 +23,20 @@ func (q *Queries) CountClients(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countClients2 = `-- name: CountClients2 :one
+SELECT COUNT(*)::BIGINT
+FROM users
+WHERE role = 'client'
+  AND ($1::boolean IS NULL OR is_active = $1::boolean)
+`
+
+func (q *Queries) CountClients2(ctx context.Context, isActive sql.NullBool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countClients2, isActive)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createUser = `-- name: CreateUser :one
@@ -160,6 +175,69 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	var role string
 	err := row.Scan(&role)
 	return role, err
+}
+
+const listClients = `-- name: ListClients :many
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.role = 'client'
+  AND ($1::boolean IS NULL OR u.is_active = $1::boolean)
+GROUP BY u.id
+ORDER BY u.created_at DESC
+LIMIT $3::BIGINT
+OFFSET $2::BIGINT
+`
+
+type ListClientsParams struct {
+	IsActive sql.NullBool
+	Off      int64
+	Lim      int64
+}
+
+type ListClientsRow struct {
+	ID             uuid.UUID
+	Name           string
+	Email          string
+	IsActive       bool
+	CreatedAt      time.Time
+	SessionsBooked int64
+}
+
+func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]ListClientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listClients, arg.IsActive, arg.Off, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListClientsRow
+	for rows.Next() {
+		var i ListClientsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.SessionsBooked,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
