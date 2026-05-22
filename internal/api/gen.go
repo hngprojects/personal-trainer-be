@@ -1701,6 +1701,9 @@ type ServerInterface interface {
 	// List all clients (super_admin only)
 	// (GET /admin/clients)
 	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
+	// Get a single client by ID (super_admin only)
+	// (GET /admin/clients/{id})
+	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
@@ -1969,6 +1972,33 @@ func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminClients(c, params)
+}
+
+// GetAdminClientByID operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminClientByID(c, id)
 }
 
 // AdminListDiscoveryBookings operation middleware
@@ -3432,6 +3462,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
+	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)

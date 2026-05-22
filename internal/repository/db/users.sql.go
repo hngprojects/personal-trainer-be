@@ -74,6 +74,56 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getClientByID = `-- name: GetClientByID :one
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    u.gender,
+    u.fitness_goals,
+    u.fitness_level,
+    u.avatar_url,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.id = $1::uuid
+  AND u.role = 'client'
+GROUP BY u.id
+`
+
+type GetClientByIDRow struct {
+	ID             uuid.UUID
+	Name           string
+	Email          string
+	IsActive       bool
+	CreatedAt      time.Time
+	Gender         sql.NullString
+	FitnessGoals   []string
+	FitnessLevel   sql.NullString
+	AvatarUrl      sql.NullString
+	SessionsBooked int64
+}
+
+func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (GetClientByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getClientByID, id)
+	var i GetClientByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+		&i.SessionsBooked,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
 FROM users
