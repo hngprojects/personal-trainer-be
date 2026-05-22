@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -216,10 +217,14 @@ RETURNING id`,
 	})
 
 	// -----------------------------------------------------------------
-	// GET /trainers/me/sessions
+	// GET /trainers/sessions?trainer_id=...
 	// -----------------------------------------------------------------
-	t.Run("trainer me sessions: returns trainer's own bookings with session_id", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+	sessionsURL := func(id string) string {
+		return apiBase + "/trainers/sessions?trainer_id=" + id
+	}
+
+	t.Run("trainer sessions: trainer can read their own", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
@@ -248,16 +253,42 @@ RETURNING id`,
 		require.Equal(t, 2, seenSession, "exactly 2 bookings have associated sessions")
 	})
 
-	t.Run("trainer me sessions: 404 when caller has no trainer profile", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+	t.Run("trainer sessions: admin can read any trainer's", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("trainer sessions: non-owner non-admin gets 403", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusForbidden, res.StatusCode,
+			"plain client trying to view someone else's trainer sessions must be 403, not 200/404")
+	})
+
+	t.Run("trainer sessions: unknown trainer_id returns 404", func(t *testing.T) {
+		bogus := uuid.New().String()
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(bogus), nil)
+		req.Header.Set("Authorization", "Bearer "+superToken)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("trainer me sessions: 401 without token", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+	t.Run("trainer sessions: missing trainer_id returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("trainer sessions: 401 without token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
