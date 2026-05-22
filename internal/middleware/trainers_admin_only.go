@@ -42,6 +42,15 @@ func TrainersAdminOnly(q *db.Queries, log *slog.Logger) api.MiddlewareFunc {
 			return
 		}
 
+		// Public: pre-flight validate-setup-token used by the FE landing
+		// page to render "your link expired" vs the password form. Same
+		// reasoning as set-password — the caller has a token, not a JWT.
+		if c.Request.Method == http.MethodGet &&
+			(path == "/api/v1/trainers/set-password/validate" || path == "/trainers/set-password/validate") {
+			c.Next()
+			return
+		}
+
 		// Public trainer review listing remains outside the trainer auth/admin guard.
 		if c.Request.Method == http.MethodGet &&
 			strings.HasPrefix(path, "/api/v1/trainers/") &&

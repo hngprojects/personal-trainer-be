@@ -2977,6 +2977,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/set-password/validate:
+    get:
+      security: []
+      operationId: HandleValidateSetupToken
+      tags:
+        - Trainer
+        - Authentication
+      summary: Check whether a trainer setup token is still valid (no consume)
+      description: >-
+        Pre-flight check used by the FE set-password page. Returns 200 with
+        a `status` field describing the token's state so the FE can branch
+        on it: `valid` (show password form), `expired` (link timed out),
+        `consumed` (already used), `invalid` (unknown token). Does NOT
+        mark the token used — that only happens on
+        `POST /trainers/set-password`.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Activation token from the setup email link
+      responses:
+        "200":
+          description: Token state returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [valid, expired, consumed, invalid]
+                          valid:
+                            type: boolean
+                          expires_at:
+                            type: string
+                            format: date-time
+              example:
+                status: success
+                message: setup token checked
+                code: OK
+                data:
+                  status: valid
+                  valid: true
+                  expires_at: "2026-05-29T12:00:00Z"
+        "400":
+          description: Missing or empty `token` query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: >-
+            Service unavailable — the account-setup handler is not wired on
+            this server (configuration issue, e.g. DB unavailable at boot).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/user/trainer/count:
     get:
       operationId: GetUserTrainerCount

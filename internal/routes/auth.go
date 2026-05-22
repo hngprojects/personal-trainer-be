@@ -88,6 +88,15 @@ func (s *routerImpl) HandleSetPassword(c *gin.Context) {
 	s.accountSetup.HandleSetPassword(c)
 }
 
+func (s *routerImpl) HandleValidateSetupToken(c *gin.Context, _ api.HandleValidateSetupTokenParams) {
+	if s.accountSetup == nil {
+		s.logger.Warn("HandleValidateSetupToken: account setup handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.accountSetup.HandleValidateSetupToken(c)
+}
+
 func (s *routerImpl) HandleAdminLogin(c *gin.Context) {
 	if s.adminLogin == nil {
 		s.logger.Warn("HandleAdminLogin: admin login handler is nil")

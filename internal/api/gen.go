@@ -612,6 +612,48 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
+const (
+	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
+	Expired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
+	Invalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
+	Valid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyDataStatus enum.
+func (e HandleValidateSetupToken200JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case Consumed:
+		return true
+	case Expired:
+		return true
+	case Invalid:
+		return true
+	case Valid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleValidateSetupToken200JSONResponseBodyStatus.
+const (
+	HandleValidateSetupToken200JSONResponseBodyStatusError   HandleValidateSetupToken200JSONResponseBodyStatus = "error"
+	HandleValidateSetupToken200JSONResponseBodyStatusSuccess HandleValidateSetupToken200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyStatus enum.
+func (e HandleValidateSetupToken200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case HandleValidateSetupToken200JSONResponseBodyStatusError:
+		return true
+	case HandleValidateSetupToken200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListTrainerImages200JSONResponseBodyStatus.
 const (
 	ListTrainerImages200JSONResponseBodyStatusError   ListTrainerImages200JSONResponseBodyStatus = "error"
@@ -749,16 +791,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UploadProfilePicture202JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1438,6 +1480,18 @@ type HandleSetPasswordJSONBody struct {
 	Token string `json:"token"`
 }
 
+// HandleValidateSetupTokenParams defines parameters for HandleValidateSetupToken.
+type HandleValidateSetupTokenParams struct {
+	// Token Activation token from the setup email link
+	Token string `form:"token" json:"token"`
+}
+
+// HandleValidateSetupToken200JSONResponseBodyDataStatus defines parameters for HandleValidateSetupToken.
+type HandleValidateSetupToken200JSONResponseBodyDataStatus string
+
+// HandleValidateSetupToken200JSONResponseBodyStatus defines parameters for HandleValidateSetupToken.
+type HandleValidateSetupToken200JSONResponseBodyStatus string
+
 // ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
 type ListTrainerImages200JSONResponseBodyStatus string
 
@@ -1707,6 +1761,9 @@ type ServerInterface interface {
 	// Set the initial password for an admin-provisioned trainer account
 	// (POST /trainers/set-password)
 	HandleSetPassword(c *gin.Context)
+	// Check whether a trainer setup token is still valid (no consume)
+	// (GET /trainers/set-password/validate)
+	HandleValidateSetupToken(c *gin.Context, params HandleValidateSetupTokenParams)
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
@@ -2668,6 +2725,33 @@ func (siw *ServerInterfaceWrapper) HandleSetPassword(c *gin.Context) {
 	siw.Handler.HandleSetPassword(c)
 }
 
+// HandleValidateSetupToken operation middleware
+func (siw *ServerInterfaceWrapper) HandleValidateSetupToken(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleValidateSetupTokenParams
+
+	// ------------- Required query parameter "token" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "token", c.Request.URL.Query(), &params.Token, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleValidateSetupToken(c, params)
+}
+
 // DeleteTrainer operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainer(c *gin.Context) {
 
@@ -3147,6 +3231,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
+	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)

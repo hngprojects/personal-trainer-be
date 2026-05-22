@@ -74,6 +74,34 @@ func (q *Queries) GetAccountSetupTokenStatus(ctx context.Context, userID uuid.UU
 	return i, err
 }
 
+const peekAccountSetupToken = `-- name: PeekAccountSetupToken :one
+SELECT consumed_at, expires_at
+FROM account_setup_tokens
+WHERE token_hash = $1
+`
+
+type PeekAccountSetupTokenRow struct {
+	ConsumedAt sql.NullTime
+	ExpiresAt  time.Time
+}
+
+// Read-only validity check for the set-password FE page. Looks up the row
+// by token_hash but does NOT mark it consumed — callers use this to
+// pre-render "your link expired" / "this link was already used" UI before
+// they ever ask the user to type a password.
+//
+// Returns consumed_at and expires_at so the handler can return a precise
+// reason (valid / expired / used) for the FE — there's no enumeration
+// concern here because the token IS the secret: an attacker would already
+// need to possess a valid hash to learn anything, at which point they'd
+// just use the consume endpoint instead.
+func (q *Queries) PeekAccountSetupToken(ctx context.Context, tokenHash string) (PeekAccountSetupTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, peekAccountSetupToken, tokenHash)
+	var i PeekAccountSetupTokenRow
+	err := row.Scan(&i.ConsumedAt, &i.ExpiresAt)
+	return i, err
+}
+
 const updateUserPasswordByID = `-- name: UpdateUserPasswordByID :one
 UPDATE users SET password = $2, updated_at = NOW()
 WHERE id = $1 AND auth_provider = 'local' AND is_active = true
