@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -67,6 +68,15 @@ func (r *fakeSetupRepo) TokenStatus(_ context.Context, userID uuid.UUID) (bool, 
 		return false, false, nil
 	}
 	return r.consumed, true, nil
+}
+
+func (r *fakeSetupRepo) PeekToken(_ context.Context, tokenHash string) (bool, time.Time, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.tokenHash == "" || tokenHash != r.tokenHash {
+		return false, time.Time{}, false, nil
+	}
+	return r.consumed, r.expiresAt, true, nil
 }
 
 // captureMailer records the last setup link sent so tests can extract the
@@ -142,6 +152,7 @@ func newTestHandler(t *testing.T, repo auth.AccountSetupRepository, mailer *capt
 	)
 	r := gin.New()
 	r.POST("/trainers/set-password", h.HandleSetPassword)
+	r.GET("/trainers/set-password/validate", h.HandleValidateSetupToken)
 	return h, r
 }
 
@@ -327,3 +338,141 @@ func TestIsActivated_FlipsOnConsume(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, activated, "after successful consume, IsActivated must be true")
 }
+
+// ---------------------------------------------------------------------------
+// HandleValidateSetupToken
+// ---------------------------------------------------------------------------
+
+// validateResponse mirrors the success payload from HandleValidateSetupToken
+// — pulled into its own type so each test asserts on the same shape.
+type validateResponse struct {
+	Data struct {
+		Status    string `json:"status"`
+		Valid     bool   `json:"valid"`
+		ExpiresAt string `json:"expires_at,omitempty"`
+	} `json:"data"`
+}
+
+func getValidate(t *testing.T, r http.Handler, token string) (*httptest.ResponseRecorder, validateResponse) {
+	t.Helper()
+	target := "/trainers/set-password/validate"
+	if token != "" {
+		// url.Values handles query-reserved characters correctly. Raw
+		// concatenation would silently corrupt tokens that ever contain
+		// '+', '&', '=', etc — base64-url-safe encoding mostly dodges
+		// this today, but a future token format shouldn't break the
+		// test helper.
+		q := url.Values{}
+		q.Set("token", token)
+		target += "?" + q.Encode()
+	}
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	var body validateResponse
+	if rec.Code == http.StatusOK {
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	}
+	return rec, body
+}
+
+func TestHandleValidateSetupToken_ValidToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "valid", body.Data.Status)
+	require.True(t, body.Data.Valid)
+	require.NotEmpty(t, body.Data.ExpiresAt, "expires_at must be returned for a known token")
+	require.False(t, repo.consumed, "validate must NOT consume the token")
+}
+
+func TestHandleValidateSetupToken_ExpiredToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+	// Backdate persisted expiry; same trick as the consume-expired test.
+	repo.mu.Lock()
+	repo.expiresAt = time.Now().Add(-1 * time.Hour)
+	repo.mu.Unlock()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "expired", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_ConsumedToken(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+	token := tokenFromLink(t, link)
+
+	// Consume it via the real handler so the state mirrors a real flow.
+	rec := postJSON(t, router, "/trainers/set-password", map[string]any{
+		"token":        token,
+		"new_password": "Strong1Password",
+	})
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec2, body := getValidate(t, router, token)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, "consumed", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_UnknownToken(t *testing.T) {
+	_, router := newTestHandler(t, &fakeSetupRepo{}, &captureMailer{})
+
+	rec, body := getValidate(t, router, "never-issued-token")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "invalid", body.Data.Status)
+	require.False(t, body.Data.Valid)
+}
+
+func TestHandleValidateSetupToken_MissingTokenIs400(t *testing.T) {
+	_, router := newTestHandler(t, &fakeSetupRepo{}, &captureMailer{})
+
+	rec, _ := getValidate(t, router, "")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// TestHandleValidateSetupToken_BoundaryMatchesConsume pins the contract
+// that validate and consume agree at the exact expiry instant: the consume
+// query uses `expires_at > NOW()`, so a token at expires_at == now must
+// fail consume, and therefore validate must already report "expired" so
+// the FE doesn't render the password form on a token the next POST will
+// reject.
+func TestHandleValidateSetupToken_BoundaryMatchesConsume(t *testing.T) {
+	repo := &fakeSetupRepo{}
+	mailer := &captureMailer{}
+	h, router := newTestHandler(t, repo, mailer)
+
+	require.NoError(t, h.IssueAndSend(context.Background(), uuid.New(), "trainer@test.local", "Tester"))
+	_, link := mailer.snapshot()
+
+	// Pin expires_at to a moment already in the past relative to the
+	// handler's clock; intent is "the boundary has been reached or
+	// crossed" which is exactly the case the consume query rejects.
+	repo.mu.Lock()
+	repo.expiresAt = time.Now().Add(-time.Microsecond)
+	repo.mu.Unlock()
+
+	rec, body := getValidate(t, router, tokenFromLink(t, link))
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "expired", body.Data.Status, "validate must agree with consume at the expiry boundary")
+}
+
+// Suppress unused-import warning if any earlier test stops referencing errors.
+var _ = errors.New

@@ -35,6 +35,21 @@ SELECT consumed_at, expires_at
 FROM account_setup_tokens
 WHERE user_id = $1;
 
+-- name: PeekAccountSetupToken :one
+-- Read-only validity check for the set-password FE page. Looks up the row
+-- by token_hash but does NOT mark it consumed — callers use this to
+-- pre-render "your link expired" / "this link was already used" UI before
+-- they ever ask the user to type a password.
+--
+-- Returns consumed_at and expires_at so the handler can return a precise
+-- reason (valid / expired / used) for the FE — there's no enumeration
+-- concern here because the token IS the secret: an attacker would already
+-- need to possess a valid hash to learn anything, at which point they'd
+-- just use the consume endpoint instead.
+SELECT consumed_at, expires_at
+FROM account_setup_tokens
+WHERE token_hash = $1;
+
 -- name: DeleteExpiredAccountSetupTokens :exec
 -- Periodic sweep of stale rows. Safe to run on a cron — leaves
 -- still-valid and recently-consumed tokens untouched. consumed_at rows
