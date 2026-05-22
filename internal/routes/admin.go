@@ -63,7 +63,7 @@ func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessi
 		return
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}
@@ -105,7 +105,7 @@ func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.Admin
 		return
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}

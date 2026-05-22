@@ -163,7 +163,7 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 		category = *params.Category
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}
@@ -766,11 +766,11 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
-		s.logger.Warn("failed to get trainer by ID", "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
+		s.logger.Warn("get trainer by id: DB error", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer", api.CodeServerError))
 		return
 	}
@@ -829,11 +829,11 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	existing, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
-		s.logger.Warn("failed to get trainer by ID ", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
+		s.logger.Warn("update trainer: DB error fetching trainer", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
 		return
 	}
@@ -974,7 +974,7 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 		return
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}

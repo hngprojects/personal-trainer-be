@@ -104,32 +104,32 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	// if trainer is not provided
 	var fieldErrors []api.FieldError
 	if request.TrainerId == uuid.Nil {
-		h.log.Warn("trainer id is required")
+		h.log.Warn("HandleCreateBookingSession: trainer_id is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "trainers", Message: "please provide a trainer to be booked"})
 	}
 	if !common.IsNotEmpty(request.Timezone) {
-		h.log.Warn("timezone is required")
+		h.log.Warn("HandleCreateBookingSession: timezone is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "timezone", Message: "please provide current timezone"})
 	}
 	// Check if booking slot is available
 	if request.ScheduledStart.IsZero() {
-		h.log.Warn("select a booking start time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_start is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking start time"})
 	}
 	if request.ScheduledEnd.IsZero() {
-		h.log.Warn("select a booking end time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_end is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "select a booking end time"})
 	}
 	if !request.ScheduledStart.IsZero() && !request.ScheduledEnd.IsZero() && request.ScheduledEnd.Before(request.ScheduledStart) {
-		h.log.Warn("booking end time must be after start time")
+		h.log.Warn("HandleCreateBookingSession: scheduled_end before scheduled_start")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking end time must be after start time"})
 	}
 	if !common.IsNotEmpty(string(request.SessionPlatform)) {
-		h.log.Warn("select a session platform")
+		h.log.Warn("HandleCreateBookingSession: session_platform is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
 	}
 	if !request.SessionPlatform.Valid() {
-		h.log.Warn("select a valid session platform")
+		h.log.Warn("HandleCreateBookingSession: invalid session_platform")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
 	}
 	if len(fieldErrors) > 0 {
@@ -160,20 +160,22 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		if err == ErrNotFound {
-			h.log.Warn("failed to get user by id", "err", err)
+			h.log.Warn("HandleCreateBookingSession: user not found", "userID", userID)
 			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
+			return
 		}
-		h.log.Warn("Get user by id: an error occured during DB look up", "err", err)
+		h.log.Warn("HandleCreateBookingSession: DB error fetching user", "userID", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
 		if err == ErrNotFound {
-			h.log.Warn("failed to get trainer by id", "err", err)
+			h.log.Warn("HandleCreateBookingSession: trainer not found", "trainerID", request.TrainerId)
 			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
+			return
 		}
-		h.log.Warn("Get trainer by id: an error occured during DB look up", "err", err)
+		h.log.Warn("HandleCreateBookingSession: DB error fetching trainer", "trainerID", request.TrainerId, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
 		return
 	}

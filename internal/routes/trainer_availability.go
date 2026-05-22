@@ -50,7 +50,6 @@ func (s *routerImpl) PutTrainersMeAvailability(c *gin.Context) {
 	}
 
 	trainer, err := s.availability.q.GetTrainerByUserID(c.Request.Context(), userID)
-	s.logger.Warn("PutTrainersMeAvailability: failed to fetch trainer", "userID", userID, "err", err)
 	if err != nil {
 		s.logger.Warn("PutTrainersMeAvailability: failed to fetch trainer", "userID", userID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {

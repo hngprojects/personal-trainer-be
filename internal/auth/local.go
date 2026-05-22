@@ -293,7 +293,7 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 
 	if !user.IsActive {
-		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
+		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
@@ -301,12 +301,12 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	// Verify password credential.
 	if !user.Password.Valid || user.Password.String == "" {
 		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
-		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
+		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
-		h.log.Warn("sign-in: incorrect password", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
+		h.log.Warn("sign-in: incorrect password", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}

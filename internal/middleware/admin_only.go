@@ -32,8 +32,8 @@ var adminReadablePaths = map[string]bool{
 //
 // Distinction from TrainersAdminOnly:
 //   - this middleware requires role == "super_admin" (TrainersAdminOnly accepts "admin")
-//   - GET requests are NOT exempted — every method requires super_admin here
-//     because there are no public read endpoints under /admin
+//   - plain admin is permitted on GET requests to adminReadablePaths (ops dashboards);
+//     all other /admin routes require super_admin
 func SuperAdminOnly(q *db.Queries, log *slog.Logger) api.MiddlewareFunc {
 	return func(c *gin.Context) {
 		path := c.FullPath()
