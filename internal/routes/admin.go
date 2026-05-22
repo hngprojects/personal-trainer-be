@@ -15,6 +15,7 @@ import (
 
 func (s *routerImpl) AdminAdd(c *gin.Context) {
 	if s.admin == nil {
+		s.logger.Warn("admin add: admin handler not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -23,6 +24,7 @@ func (s *routerImpl) AdminAdd(c *gin.Context) {
 
 func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("admin approve trainer: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -32,15 +34,18 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 	_, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("admin approve trainer: trainer not found", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
+		s.logger.Warn("admin approve trainer: failed to fetch trainer", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer", api.CodeServerError))
 		return
 	}
 
 	updated, err := s.trainers.q.ApproveTrainer(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("admin approve trainer: failed to approve", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to approve trainer", api.CodeServerError))
 		return
 	}
@@ -53,11 +58,12 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 // Guarded by SuperAdminOnly via the /admin path prefix.
 func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessionsParams) {
 	if s.bookings == nil {
+		s.logger.Warn("AdminListSessions: bookings store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}
@@ -94,11 +100,12 @@ func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessi
 // time first.
 func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.AdminListDiscoveryBookingsParams) {
 	if s.bookings == nil {
+		s.logger.Warn("AdminListDiscoveryBookings: bookings store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	page, limit, ok := parsePagination(c, params.Page, params.Limit)
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
 	if !ok {
 		return
 	}
@@ -199,6 +206,7 @@ func discoveryBookingToAdminMap(r db.DiscoveryBooking) map[string]interface{} {
 
 func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
 	if s.trainers == nil {
+		s.logger.Warn("get user trainer count: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}

@@ -46,7 +46,7 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 
 	if !common.IsValidEmail(email) {
-		h.log.Info("invalid email", "email", email)
+		h.log.Warn("HandleAddWaitlist: invalid email", "email_len", len(email))
 		c.JSON(http.StatusBadRequest, api.NewError("Invalid email", api.CodeBadRequest))
 		return
 	}

@@ -54,33 +54,39 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		h.log.Warn("reschedule paid session: missing authenticated user", "bookingID", bookingID.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return true
 	}
 	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
+		h.log.Warn("reschedule paid session: invalid user id in context", "bookingID", bookingID.String())
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return true
 	}
 
 	// ownership check before parsing body — avoids decoding for unauthorized callers
 	if booking.ClientID != userID {
+		h.log.Warn("reschedule paid session: ownership mismatch", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusForbidden, api.NewError("you do not have permission to reschedule this booking", api.CodeForbidden))
 		return true
 	}
 
 	var req api.RescheduleBookingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("reschedule paid session: invalid request body", "bookingID", bookingID.String(), "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return true
 	}
 
 	if !req.Reason.Valid() {
+		h.log.Warn("reschedule paid session: invalid reason", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid reason", api.CodeBadRequest))
 		return true
 	}
 
 	if _, err := time.LoadLocation(req.Timezone); err != nil {
+		h.log.Warn("reschedule paid session: invalid timezone", "bookingID", bookingID.String(), "userID", userID.String(), "timezone", req.Timezone, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid timezone: must be a valid IANA timezone (e.g. America/New_York)", api.CodeBadRequest))
 		return true
 	}
@@ -88,15 +94,18 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	if booking.BookingStatus.Valid {
 		switch booking.BookingStatus.String {
 		case "cancelled":
+			h.log.Warn("reschedule paid session: booking is cancelled", "bookingID", bookingID.String(), "userID", userID.String())
 			c.JSON(http.StatusForbidden, api.NewError("cannot reschedule a cancelled booking", api.CodeForbidden))
 			return true
 		case "completed":
+			h.log.Warn("reschedule paid session: booking is completed", "bookingID", bookingID.String(), "userID", userID.String())
 			c.JSON(http.StatusForbidden, api.NewError("cannot reschedule a completed booking", api.CodeForbidden))
 			return true
 		}
 	}
 
 	if !booking.ScheduledStart.Valid {
+		h.log.Warn("reschedule paid session: no scheduled start time", "bookingID", bookingID.String(), "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("booking has no scheduled start time", api.CodeBadRequest))
 		return true
 	}
@@ -104,6 +113,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	now := time.Now().UTC()
 	lockDeadline := booking.ScheduledStart.Time.UTC().Add(-lockWindowHours * time.Hour)
 	if !now.Before(lockDeadline) {
+		h.log.Warn("reschedule paid session: within lock window", "bookingID", bookingID.String(), "userID", userID.String(), "scheduledStart", booking.ScheduledStart.Time)
 		c.JSON(http.StatusForbidden, api.NewError(
 			fmt.Sprintf("rescheduling is not allowed within %d hours of the session start time", lockWindowHours),
 			api.CodeForbidden,
@@ -112,6 +122,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	}
 
 	if booking.RescheduleCount >= maxReschedules {
+		h.log.Warn("reschedule paid session: max reschedule limit reached", "bookingID", bookingID.String(), "userID", userID.String(), "rescheduleCount", booking.RescheduleCount)
 		c.JSON(http.StatusTooManyRequests, api.NewError(
 			fmt.Sprintf("maximum reschedule limit of %d has been reached for this booking", maxReschedules),
 			api.CodeTooManyRequests,
@@ -121,6 +132,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 
 	newStart := req.NewDatetime.UTC()
 	if newStart.Before(now) {
+		h.log.Warn("reschedule paid session: new time is in the past", "bookingID", bookingID.String(), "userID", userID.String(), "newStart", newStart)
 		c.JSON(http.StatusBadRequest, api.NewError("new time is in the past", api.CodeBadRequest))
 		return true
 	}
@@ -145,6 +157,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 		return true
 	}
 	if conflictCount > 0 {
+		h.log.Warn("reschedule paid session: trainer unavailable", "bookingID", bookingID.String(), "userID", userID.String(), "newStart", newStart, "trainerID", booking.TrainerID)
 		c.JSON(http.StatusConflict, api.NewError("the trainer is unavailable at the requested time", api.CodeConflict))
 		return true
 	}

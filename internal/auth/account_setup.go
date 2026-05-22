@@ -200,6 +200,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 		NewPassword string `json:"new_password"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("HandleSetPassword: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -214,6 +215,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "new_password", Message: msg})
 	}
 	if len(fieldErrors) > 0 {
+		h.log.Warn("HandleSetPassword: field validation failed", "field_errors", len(fieldErrors))
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
 	}
@@ -223,8 +225,9 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 	// receives the email (token is the only identifier) and we shouldn't
 	// reveal which user a token maps to before we've validated it.
 	if allowed, err := h.ipLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
-		h.log.Warn("set-password IP rate limiter error — failing open", "err", err)
+		h.log.Warn("HandleSetPassword: IP rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("HandleSetPassword: IP rate limit hit", "ip", c.ClientIP())
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -242,6 +245,7 @@ func (h *AccountSetupHandler) HandleSetPassword(c *gin.Context) {
 	user, err := h.repo.ConsumeTokenAndSetPassword(c.Request.Context(), h.hashToken(token), string(hashed))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("HandleSetPassword: invalid or expired setup token")
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired setup token", api.CodeBadRequest))
 			return
 		}
