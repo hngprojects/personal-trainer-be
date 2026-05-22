@@ -66,7 +66,7 @@ func (m *fakeMailer) SendTrainerCredentials(_, _ string) error       { return ni
 func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
 	return nil
 }
-func (m *fakeMailer) SendContactConfirmation(_, _ string) error      { return nil }
+func (m *fakeMailer) SendContactConfirmation(_, _ string) error { return nil }
 func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
 	return nil
 }
@@ -227,19 +227,19 @@ func TestHandleAddWaitlist_EmailAlreadyExists(t *testing.T) {
 
 	handler.HandleAddWaitlist(c)
 
-	// Should return 200 OK (not 201) when email already exists
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	// Should return 400 OK (not 201) when email already exists
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
 	}
 
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "success" {
-		t.Errorf("expected status 'success', got %v", resp["status"])
+	if resp["status"] != "error" {
+		t.Errorf("expected status 'error', got %v", resp["status"])
 	}
-	if resp["code"] != "OK" {
-		t.Errorf("expected code 'OK', got %v", resp["code"])
+	if resp["code"] != "BAD_REQUEST" {
+		t.Errorf("expected code 'BAD_REQUEST', got %v", resp["code"])
 	}
 }
 
