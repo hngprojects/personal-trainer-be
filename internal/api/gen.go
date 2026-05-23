@@ -1556,6 +1556,12 @@ type GetTrainersParams struct {
 	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
+type GetTrainersMeClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
 type GetTrainersMeSessionsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
@@ -1892,6 +1898,9 @@ type ServerInterface interface {
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
+	// List distinct clients who have booked with the authenticated trainer
+	// (GET /trainers/me/clients)
+	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
@@ -2968,6 +2977,43 @@ func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Conte
 	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
 }
 
+// GetTrainersMeClients operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeClients(c, params)
+}
+
 // GetTrainersMeSessions operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 
@@ -3651,6 +3697,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
+	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)

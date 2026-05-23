@@ -126,6 +126,18 @@ func (q *Queries) CountBookingsForAdmin(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countTrainerClients = `-- name: CountTrainerClients :one
+SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = $1
+`
+
+// Count of distinct clients who have booked with this trainer.
+func (q *Queries) CountTrainerClients(ctx context.Context, trainerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainerClients, trainerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO bookings (
   trainer_id,
@@ -625,6 +637,81 @@ func (q *Queries) ListBookingsForAdmin(ctx context.Context, arg ListBookingsForA
 			&i.TrainerName,
 			&i.TrainerEmail,
 			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrainerClients = `-- name: ListTrainerClients :many
+SELECT
+  u.id                                                AS client_id,
+  u.name                                              AS client_name,
+  u.email                                             AS client_email,
+  u.avatar_url                                        AS client_avatar,
+  u.gender                                            AS client_gender,
+  u.fitness_goals                                     AS client_fitness_goals,
+  u.fitness_level                                     AS client_fitness_level,
+  COUNT(b.id)::BIGINT                                 AS total_bookings,
+  MAX(b.scheduled_start)                              AS last_booking_date
+FROM users u
+JOIN bookings b ON b.client_id = u.id
+WHERE b.trainer_id = $1
+GROUP BY u.id
+ORDER BY last_booking_date DESC NULLS LAST, u.id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListTrainerClientsParams struct {
+	TrainerID  uuid.UUID
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListTrainerClientsRow struct {
+	ClientID           uuid.UUID
+	ClientName         string
+	ClientEmail        string
+	ClientAvatar       sql.NullString
+	ClientGender       sql.NullString
+	ClientFitnessGoals []string
+	ClientFitnessLevel sql.NullString
+	TotalBookings      int64
+	LastBookingDate    interface{}
+}
+
+// Distinct clients who have at least one booking with this trainer.
+// Returns the client's profile details plus aggregate booking counts and
+// the most recent booking date, so the trainer dashboard can render a
+// client roster without extra per-row lookups.
+func (q *Queries) ListTrainerClients(ctx context.Context, arg ListTrainerClientsParams) ([]ListTrainerClientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTrainerClients, arg.TrainerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrainerClientsRow
+	for rows.Next() {
+		var i ListTrainerClientsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.ClientAvatar,
+			&i.ClientGender,
+			pq.Array(&i.ClientFitnessGoals),
+			&i.ClientFitnessLevel,
+			&i.TotalBookings,
+			&i.LastBookingDate,
 		); err != nil {
 			return nil, err
 		}
