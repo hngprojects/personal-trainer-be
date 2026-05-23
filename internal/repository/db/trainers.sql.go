@@ -303,8 +303,10 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
-  u.name  AS trainer_name,
-  u.email AS trainer_email
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
 WHERE t.id = $1
@@ -312,21 +314,23 @@ LIMIT 1
 `
 
 type GetTrainerWithUserByIDRow struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Bio               sql.NullString
-	YearsOfExperience sql.NullInt32
-	IntroVideoUrl     sql.NullString
-	DisplayPicture    sql.NullString
-	OnboardingStatus  string
-	AverageRating     sql.NullFloat64
-	TotalReviews      int32
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	Specializations   []string
-	TrainingStyles    []string
-	TrainerName       string
-	TrainerEmail      string
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
 }
 
 // Variant of GetTrainerByID that joins users so the trainer detail handler
@@ -353,6 +357,8 @@ func (q *Queries) GetTrainerWithUserByID(ctx context.Context, id uuid.UUID) (Get
 		pq.Array(&i.TrainingStyles),
 		&i.TrainerName,
 		&i.TrainerEmail,
+		&i.TrainerGender,
+		&i.TrainerPhoneNumber,
 	)
 	return i, err
 }
@@ -372,8 +378,10 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
-  u.name  AS trainer_name,
-  u.email AS trainer_email
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
 WHERE ($1::text = '' OR t.specializations @> ARRAY[$1::text]::text[])
@@ -389,21 +397,23 @@ type ListTrainersParams struct {
 }
 
 type ListTrainersRow struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Bio               sql.NullString
-	YearsOfExperience sql.NullInt32
-	IntroVideoUrl     sql.NullString
-	DisplayPicture    sql.NullString
-	OnboardingStatus  string
-	AverageRating     sql.NullFloat64
-	TotalReviews      int32
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	Specializations   []string
-	TrainingStyles    []string
-	TrainerName       string
-	TrainerEmail      string
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
 }
 
 // Filter by a single specialization. The empty-string sentinel means "no
@@ -438,6 +448,8 @@ func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]L
 			pq.Array(&i.TrainingStyles),
 			&i.TrainerName,
 			&i.TrainerEmail,
+			&i.TrainerGender,
+			&i.TrainerPhoneNumber,
 		); err != nil {
 			return nil, err
 		}

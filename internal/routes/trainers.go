@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -24,6 +25,11 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
+
+// trainerPhoneE164Regex validates the phone_number form field on
+// POST /trainers. Same shape the discovery-call phone_callback path
+// uses so trainers and that flow share one phone format.
+var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing
@@ -240,6 +246,16 @@ func trainerListRowToMap(t db.ListTrainersRow) map[string]interface{} {
 	} else {
 		out["display_picture"] = nil
 	}
+	if t.TrainerGender.Valid {
+		out["gender"] = t.TrainerGender.String
+	} else {
+		out["gender"] = nil
+	}
+	if t.TrainerPhoneNumber.Valid {
+		out["phone_number"] = t.TrainerPhoneNumber.String
+	} else {
+		out["phone_number"] = nil
+	}
 	return out
 }
 
@@ -376,6 +392,35 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}
 
+	// gender is optional. Closed enum (mirrored by the users_gender_valid
+	// CHECK constraint added in migration 000047) so a typo on the admin
+	// form gets a clean 400 instead of a constraint violation at TX commit.
+	// Empty/missing -> store NULL (handled by NULLIF in the SQL).
+	gender := ""
+	if v := strings.TrimSpace(c.Request.FormValue("gender")); v != "" {
+		switch strings.ToLower(v) {
+		case "male", "female", "other", "prefer_not_to_say":
+			gender = strings.ToLower(v)
+		default:
+			s.logger.Warn("create trainer: invalid gender", "email", emailAddr, "gender", v)
+			c.JSON(http.StatusBadRequest, api.NewError("gender must be one of male, female, other, prefer_not_to_say", api.CodeBadRequest))
+			return
+		}
+	}
+
+	// phone_number is optional. Must be E.164 if supplied — same regex
+	// the discovery-call phone_callback field uses, so trainers and
+	// callbacks share one shape.
+	phoneNumber := ""
+	if v := strings.TrimSpace(c.Request.FormValue("phone_number")); v != "" {
+		if !trainerPhoneE164Regex.MatchString(v) {
+			s.logger.Warn("create trainer: invalid phone number", "email", emailAddr)
+			c.JSON(http.StatusBadRequest, api.NewError("phone_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		phoneNumber = v
+	}
+
 	// Optional picture — validate up-front so we can refuse with NO trainer
 	// row created if the picture is bad / the uploader is missing.
 	var (
@@ -452,9 +497,11 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	qtx := s.trainers.q.WithTx(tx)
 
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
-		Email:    emailAddr,
-		Name:     name,
-		Password: sql.NullString{Valid: false},
+		Email:       emailAddr,
+		Name:        name,
+		Password:    sql.NullString{Valid: false},
+		Gender:      gender,
+		PhoneNumber: phoneNumber,
 	})
 	if err != nil {
 		s.logger.Error("create trainer: upsert user failed", "err", err)
@@ -568,6 +615,20 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	payload := trainerToMapWithBenefits(trainer, insertedBenefits)
 	payload["email"] = user.Email
 	payload["name"] = user.Name
+	// Echo gender + phone_number from the freshly-upserted user row so
+	// admins get a confirmation of what was saved. Sourced from the
+	// returned User (post-NULLIF) — if the admin omitted them the
+	// stored value is NULL and we emit JSON null.
+	if user.Gender.Valid {
+		payload["gender"] = user.Gender.String
+	} else {
+		payload["gender"] = nil
+	}
+	if user.PhoneNumber.Valid {
+		payload["phone_number"] = user.PhoneNumber.String
+	} else {
+		payload["phone_number"] = nil
+	}
 	if pictureURL != "" {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
@@ -819,15 +880,30 @@ func (s *routerImpl) resolveTrainerIDFromJWT(c *gin.Context) (uuid.UUID, bool) {
 // benefits). Pulled out so /trainers/{id} and /trainers/me share the
 // identical payload contract.
 func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUID) {
+	payload, status, errResp := s.buildTrainerProfilePayload(c, trainerID)
+	if errResp != nil {
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+}
+
+// buildTrainerProfilePayload loads the trainer + joined user + benefits
+// and returns the JSON map every "Trainer" response uses. Centralized
+// so PATCH /trainers/{id} and GET /trainers/{id} can't drift on
+// fields they include — both go through this builder. Returns the
+// payload OR (status, errResp) for the error path so the caller picks
+// its own success message.
+func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.UUID) (map[string]interface{}, int, *api.ErrorResponse) {
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
-			return
+			resp := api.NewNotFoundError("trainer")
+			return nil, http.StatusNotFound, &resp
 		}
 		s.logger.Warn("render trainer profile: DB error", "trainerID", trainerID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer", api.CodeServerError))
-		return
+		resp := api.NewError("failed to get trainer", api.CodeServerError)
+		return nil, http.StatusInternalServerError, &resp
 	}
 
 	benefits, err := s.trainers.q.ListTrainerBenefits(c.Request.Context(), trainerID)
@@ -855,9 +931,18 @@ func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUI
 	})
 	payload["name"] = row.TrainerName
 	payload["email"] = row.TrainerEmail
+	if row.TrainerGender.Valid {
+		payload["gender"] = row.TrainerGender.String
+	} else {
+		payload["gender"] = nil
+	}
+	if row.TrainerPhoneNumber.Valid {
+		payload["phone_number"] = row.TrainerPhoneNumber.String
+	} else {
+		payload["phone_number"] = nil
+	}
 	payload["benefits"] = benefitsOut(benefits)
-
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+	return payload, http.StatusOK, nil
 }
 
 // PATCH /trainers/{id}
@@ -975,7 +1060,20 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, trainerToMap(updated)))
+	// Re-load via the joined builder so the PATCH response includes the
+	// users-side fields (name, email, gender, phone_number, benefits) —
+	// the UpdateTrainer query returns only the trainers row, which on
+	// its own would omit those and silently drift from the contract
+	// GET /trainers/{id} advertises.
+	payload, status, errResp := s.buildTrainerProfilePayload(c, updated.ID)
+	if errResp != nil {
+		// Update succeeded; only the re-load failed. Surface that
+		// distinctly so the FE knows the write landed.
+		s.logger.Warn("update trainer: post-update reload failed", "trainerID", trainerID, "status", status)
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, payload))
 }
 
 // DELETE /trainers/{id}
