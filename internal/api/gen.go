@@ -630,6 +630,24 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for ResendTrainerSetup200JSONResponseBodyStatus.
+const (
+	ResendTrainerSetup200JSONResponseBodyStatusError   ResendTrainerSetup200JSONResponseBodyStatus = "error"
+	ResendTrainerSetup200JSONResponseBodyStatusSuccess ResendTrainerSetup200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ResendTrainerSetup200JSONResponseBodyStatus enum.
+func (e ResendTrainerSetup200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case ResendTrainerSetup200JSONResponseBodyStatusError:
+		return true
+	case ResendTrainerSetup200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
 	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
@@ -809,16 +827,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -1544,6 +1562,15 @@ type GetTrainersMeSessionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ResendTrainerSetupJSONBody defines parameters for ResendTrainerSetup.
+type ResendTrainerSetupJSONBody struct {
+	// Email Email address of the trainer to re-invite.
+	Email openapi_types.Email `json:"email"`
+}
+
+// ResendTrainerSetup200JSONResponseBodyStatus defines parameters for ResendTrainerSetup.
+type ResendTrainerSetup200JSONResponseBodyStatus string
+
 // ListTrainerSessionsParams defines parameters for ListTrainerSessions.
 type ListTrainerSessionsParams struct {
 	// TrainerId The trainer whose sessions to list
@@ -1694,6 +1721,9 @@ type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+
+// ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
+type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
 
 // HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
 type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
@@ -1865,6 +1895,9 @@ type ServerInterface interface {
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
+	// Resend the account-setup link to a trainer
+	// (POST /trainers/resend-setup)
+	ResendTrainerSetup(c *gin.Context)
 	// List sessions booked with a specific trainer — paginated
 	// (GET /trainers/sessions)
 	ListTrainerSessions(c *gin.Context, params ListTrainerSessionsParams)
@@ -2972,6 +3005,21 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 	siw.Handler.GetTrainersMeSessions(c, params)
 }
 
+// ResendTrainerSetup operation middleware
+func (siw *ServerInterfaceWrapper) ResendTrainerSetup(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendTrainerSetup(c)
+}
+
 // ListTrainerSessions operation middleware
 func (siw *ServerInterfaceWrapper) ListTrainerSessions(c *gin.Context) {
 
@@ -3604,6 +3652,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
+	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
 	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
