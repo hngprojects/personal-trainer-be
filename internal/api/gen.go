@@ -378,6 +378,24 @@ func (e TrainerOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for TrainerClientsListResponseStatus.
+const (
+	TrainerClientsListResponseStatusError   TrainerClientsListResponseStatus = "error"
+	TrainerClientsListResponseStatusSuccess TrainerClientsListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainerClientsListResponseStatus enum.
+func (e TrainerClientsListResponseStatus) Valid() bool {
+	switch e {
+	case TrainerClientsListResponseStatusError:
+		return true
+	case TrainerClientsListResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainerResponseStatus.
 const (
 	TrainerResponseStatusError   TrainerResponseStatus = "error"
@@ -878,16 +896,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UploadProfilePicture202JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1393,6 +1411,34 @@ type TrainerBenefitInput struct {
 	Title string `json:"title"`
 }
 
+// TrainerClient defines model for TrainerClient.
+type TrainerClient struct {
+	ClientAvatar       *string              `json:"client_avatar,omitempty"`
+	ClientEmail        *openapi_types.Email `json:"client_email,omitempty"`
+	ClientFitnessGoals *[]string            `json:"client_fitness_goals,omitempty"`
+	ClientFitnessLevel *string              `json:"client_fitness_level,omitempty"`
+	ClientGender       *string              `json:"client_gender,omitempty"`
+	ClientId           *openapi_types.UUID  `json:"client_id,omitempty"`
+	ClientName         *string              `json:"client_name,omitempty"`
+	LastBookingDate    *time.Time           `json:"last_booking_date,omitempty"`
+	TotalBookings      *int64               `json:"total_bookings,omitempty"`
+}
+
+// TrainerClientsListResponse defines model for TrainerClientsListResponse.
+type TrainerClientsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string           `json:"code"`
+	Data    *[]TrainerClient `json:"data,omitempty"`
+	Message string           `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                     `json:"meta,omitempty"`
+	Status TrainerClientsListResponseStatus `json:"status"`
+}
+
+// TrainerClientsListResponseStatus defines model for TrainerClientsListResponse.Status.
+type TrainerClientsListResponseStatus string
+
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -1636,6 +1682,12 @@ type GetTrainersParams struct {
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
 	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
 	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
+type GetTrainersMeClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
@@ -1974,6 +2026,9 @@ type ServerInterface interface {
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
+	// List distinct clients who have booked with the authenticated trainer
+	// (GET /trainers/me/clients)
+	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
@@ -3050,6 +3105,43 @@ func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Conte
 	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
 }
 
+// GetTrainersMeClients operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeClients(c, params)
+}
+
 // GetTrainersMeSessions operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 
@@ -3733,6 +3825,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
+	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)

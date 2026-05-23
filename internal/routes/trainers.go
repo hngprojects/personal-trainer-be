@@ -1258,6 +1258,96 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
 }
 
+// GetTrainersMeClients handles GET /trainers/me/clients — paginated list of
+// distinct clients who have at least one booking with the authenticated trainer.
+func (s *routerImpl) GetTrainersMeClients(c *gin.Context, params api.GetTrainersMeClientsParams) {
+	if s.trainers == nil {
+		s.logger.Warn("GetTrainersMeClients: trainers store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		s.logger.Warn("GetTrainersMeClients: missing authenticated user in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		s.logger.Warn("GetTrainersMeClients: invalid user id type in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("GetTrainersMeClients: trainer profile not found", "userID", userID)
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			return
+		}
+		s.logger.Error("GetTrainersMeClients: get trainer by user id failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return
+	}
+
+	total, err := s.trainers.q.CountTrainerClients(ctx, trainer.ID)
+	if err != nil {
+		s.logger.Error("GetTrainersMeClients: count failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list clients", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.trainers.q.ListTrainerClients(ctx, db.ListTrainerClientsParams{
+		TrainerID:  trainer.ID,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("GetTrainersMeClients: list failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list clients", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, trainerClientRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("CLIENTS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+func trainerClientRowToMap(r db.ListTrainerClientsRow) map[string]interface{} {
+	m := map[string]interface{}{
+		"client_id":    r.ClientID.String(),
+		"client_name":  r.ClientName,
+		"client_email": r.ClientEmail,
+		"total_bookings": r.TotalBookings,
+	}
+	if r.ClientAvatar.Valid {
+		m["client_avatar"] = r.ClientAvatar.String
+	}
+	if r.ClientGender.Valid {
+		m["client_gender"] = r.ClientGender.String
+	}
+	if len(r.ClientFitnessGoals) > 0 {
+		m["client_fitness_goals"] = r.ClientFitnessGoals
+	}
+	if r.ClientFitnessLevel.Valid {
+		m["client_fitness_level"] = r.ClientFitnessLevel.String
+	}
+	m["last_booking_date"] = r.LastBookingDate
+	return m
+}
+
 func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{} {
 	m := map[string]interface{}{
 		"id":           r.ID.String(),
