@@ -45,6 +45,10 @@ func (f *fakeAdminUser) MarkVerified(_ context.Context, email string) (*db.User,
 	return nil, nil
 }
 
+func (f *fakeAdminUser) LookupRoleIDs(_ context.Context, _ uuid.UUID) (auth.RoleIDs, error) {
+	return auth.RoleIDs{}, nil
+}
+
 func (f *fakeAdminUserRole) UserHasRole(_ context.Context, userID uuid.UUID, roleName string) (bool, error) {
 	return f.hasRole, f.hasRoleErr
 }

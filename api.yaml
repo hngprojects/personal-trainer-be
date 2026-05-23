@@ -120,6 +120,9 @@ components:
         id:
           type: string
           format: uuid
+          description: |
+            Universal user identifier (users.id). Stable across every
+            auth flow regardless of role.
         email:
           type: string
         name:
@@ -129,6 +132,17 @@ components:
           enum: [client, trainer, admin]
         profile_complete:
           type: boolean
+        trainer_id:
+          type: string
+          format: uuid
+          description: |
+            Trainer profile UUID (trainers.id) for users whose role is
+            "trainer". Populated only when the user has a trainer profile
+            — omitted otherwise so a client/admin response doesn't carry
+            a meaningless null. FE uses this when calling endpoints that
+            target a trainer by trainers.id (e.g. GET /trainers/{id},
+            GET /trainers/sessions?trainer_id=…), distinct from the
+            users.id returned in `id`.
 
     GoogleAuthData:
       type: object
