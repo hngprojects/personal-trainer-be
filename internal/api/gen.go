@@ -141,6 +141,30 @@ func (e CancelBookingResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for CreateTrainerRequestGender.
+const (
+	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
+	CreateTrainerRequestGenderMale           CreateTrainerRequestGender = "male"
+	CreateTrainerRequestGenderOther          CreateTrainerRequestGender = "other"
+	CreateTrainerRequestGenderPreferNotToSay CreateTrainerRequestGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the CreateTrainerRequestGender enum.
+func (e CreateTrainerRequestGender) Valid() bool {
+	switch e {
+	case CreateTrainerRequestGenderFemale:
+		return true
+	case CreateTrainerRequestGenderMale:
+		return true
+	case CreateTrainerRequestGenderOther:
+		return true
+	case CreateTrainerRequestGenderPreferNotToSay:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestOnboardingStatus.
 const (
 	CreateTrainerRequestOnboardingStatusApproved  CreateTrainerRequestOnboardingStatus = "approved"
@@ -297,6 +321,33 @@ func (e SuccessResponseStatus) Valid() bool {
 	case SuccessResponseStatusError:
 		return true
 	case SuccessResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerGender.
+const (
+	TrainerGenderFemale         TrainerGender = "female"
+	TrainerGenderLessThannil    TrainerGender = "<nil>"
+	TrainerGenderMale           TrainerGender = "male"
+	TrainerGenderOther          TrainerGender = "other"
+	TrainerGenderPreferNotToSay TrainerGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the TrainerGender enum.
+func (e TrainerGender) Valid() bool {
+	switch e {
+	case TrainerGenderFemale:
+		return true
+	case TrainerGenderLessThannil:
+		return true
+	case TrainerGenderMale:
+		return true
+	case TrainerGenderOther:
+		return true
+	case TrainerGenderPreferNotToSay:
 		return true
 	default:
 		return false
@@ -1044,11 +1095,21 @@ type CreateTrainerRequest struct {
 	// Email Trainer's login email. Used to create the user account and to mail the generated credentials.
 	Email openapi_types.Email `json:"email"`
 
+	// Gender Optional. Stored on the underlying users row. Closed enum
+	// enforced server-side and by the DB CHECK constraint added
+	// in migration 000047 — any other value returns 400.
+	Gender *CreateTrainerRequestGender `json:"gender,omitempty"`
+
 	// Name Display name for the trainer.
 	Name string `json:"name"`
 
 	// OnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 	OnboardingStatus *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
+
+	// PhoneNumber Optional. E.164 format (e.g. +2348012345678) — same shape
+	// the discovery-call phone_callback field requires. Stored
+	// on users.phone_number. Invalid format returns 400.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations One or more specializations from the fixed catalog
 	// (yoga, speed, cardio, endurance, strength). At least one is required
@@ -1060,6 +1121,11 @@ type CreateTrainerRequest struct {
 	TrainingStyles    *[]string `json:"training_styles,omitempty"`
 	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
 }
+
+// CreateTrainerRequestGender Optional. Stored on the underlying users row. Closed enum
+// enforced server-side and by the DB CHECK constraint added
+// in migration 000047 — any other value returns 400.
+type CreateTrainerRequestGender string
 
 // CreateTrainerRequestOnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 type CreateTrainerRequestOnboardingStatus string
@@ -1261,9 +1327,15 @@ type Trainer struct {
 	// Email Trainer's email, joined from users.email. Same population
 	// rules as `name` — present on the user-joined endpoints, may
 	// be absent elsewhere.
-	Email         *openapi_types.Email `json:"email,omitempty"`
-	Id            openapi_types.UUID   `json:"id"`
-	IntroVideoUrl *string              `json:"intro_video_url,omitempty"`
+	Email *openapi_types.Email `json:"email,omitempty"`
+
+	// Gender Trainer's gender, joined from users.gender. Closed set
+	// enforced by the users_gender_valid CHECK constraint
+	// (migration 000047); existing pre-constraint rows whose
+	// value didn't match were normalized to NULL.
+	Gender        *TrainerGender     `json:"gender,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+	IntroVideoUrl *string            `json:"intro_video_url,omitempty"`
 
 	// Name Trainer's display name, joined from users.name. Populated on
 	// responses that join users (GET /trainers, GET /trainers/{id},
@@ -1272,6 +1344,10 @@ type Trainer struct {
 	// result, internal admin queries).
 	Name             *string                 `json:"name,omitempty"`
 	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
+
+	// PhoneNumber E.164 phone number from users.phone_number. Optional on
+	// create; null when never supplied.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
 	Specializations []TrainerSpecialization `json:"specializations"`
@@ -1283,6 +1359,12 @@ type Trainer struct {
 	UserId            openapi_types.UUID `json:"user_id"`
 	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
 }
+
+// TrainerGender Trainer's gender, joined from users.gender. Closed set
+// enforced by the users_gender_valid CHECK constraint
+// (migration 000047); existing pre-constraint rows whose
+// value didn't match were normalized to NULL.
+type TrainerGender string
 
 // TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
 type TrainerOnboardingStatus string

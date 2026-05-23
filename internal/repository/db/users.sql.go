@@ -44,7 +44,7 @@ INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
 ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 `
 
 type CreateUserParams struct {
@@ -70,6 +70,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -125,7 +126,7 @@ func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (GetClientByI
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 FROM users
 WHERE email = $1
 LIMIT 1
@@ -148,12 +149,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 FROM users
 WHERE email = $1 AND auth_provider = $2
 LIMIT 1
@@ -181,12 +183,13 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 FROM users
 WHERE id = $1
 LIMIT 1
@@ -209,6 +212,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -326,7 +330,7 @@ SET
     avatar_url     = COALESCE(NULLIF($5::text, ''), avatar_url),
     updated_at     = NOW()
 WHERE id = $6
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 `
 
 type UpdateUserOnboardingParams struct {
@@ -362,6 +366,7 @@ func (q *Queries) UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboar
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -375,7 +380,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role       = 'admin',
        is_active  = true,
        updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 `
 
 type UpsertAdminUserParams struct {
@@ -401,37 +406,60 @@ func (q *Queries) UpsertAdminUser(ctx context.Context, arg UpsertAdminUserParams
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
 
 const upsertTrainerUser = `-- name: UpsertTrainerUser :one
-INSERT INTO users (email, name, password, auth_provider, role, is_active)
-VALUES ($1, $2, $3, 'local', 'trainer', true)
+INSERT INTO users (email, name, password, gender, phone_number, auth_provider, role, is_active)
+VALUES (
+    $1,
+    $2,
+    $3,
+    NULLIF($4::text, ''),
+    NULLIF($5::text, ''),
+    'local',
+    'trainer',
+    true
+)
 ON CONFLICT (email, auth_provider) DO UPDATE
-   SET password   = EXCLUDED.password,
-       name       = EXCLUDED.name,
-       role       = 'trainer',
-       is_active  = true,
-       updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url
+   SET password     = EXCLUDED.password,
+       name         = EXCLUDED.name,
+       gender       = COALESCE(EXCLUDED.gender, users.gender),
+       phone_number = COALESCE(EXCLUDED.phone_number, users.phone_number),
+       role         = 'trainer',
+       is_active    = true,
+       updated_at   = NOW()
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
 `
 
 type UpsertTrainerUserParams struct {
-	Email    string
-	Name     string
-	Password sql.NullString
+	Email       string
+	Name        string
+	Password    sql.NullString
+	Gender      string
+	PhoneNumber string
 }
 
 // Mirror of UpsertAdminUser, used by POST /trainers (admin-creates-trainer).
-// The admin enters the trainer's email + name; we provision a local-auth user
-// with role='trainer' and a generated password (hashed). Re-inviting the same
-// email is idempotent — the password rotates, the name is overwritten, and
-// the role is forced back to 'trainer' so a previously-suspended account is
-// reactivated cleanly. The plaintext password is mailed exactly once by the
-// caller and never persisted.
+// The admin enters the trainer's email + name (+ optional gender +
+// phone_number); we provision a local-auth user with role='trainer'
+// and a generated password (hashed). Re-inviting the same email is
+// idempotent — the password rotates, the name is overwritten, gender
+// and phone_number are overwritten ONLY when the caller supplies a
+// non-empty value (NULLIF guard) so a re-invite that omits them keeps
+// existing data, and the role is forced back to 'trainer' so a
+// previously-suspended account is reactivated cleanly. The plaintext
+// password is mailed exactly once by the caller and never persisted.
 func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, upsertTrainerUser, arg.Email, arg.Name, arg.Password)
+	row := q.db.QueryRowContext(ctx, upsertTrainerUser,
+		arg.Email,
+		arg.Name,
+		arg.Password,
+		arg.Gender,
+		arg.PhoneNumber,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -447,6 +475,7 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 		pq.Array(&i.FitnessGoals),
 		&i.FitnessLevel,
 		&i.AvatarUrl,
+		&i.PhoneNumber,
 	)
 	return i, err
 }

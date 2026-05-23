@@ -295,6 +295,21 @@ components:
         display_picture:
           type: string
           nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other, prefer_not_to_say, null]
+          description: |
+            Trainer's gender, joined from users.gender. Closed set
+            enforced by the users_gender_valid CHECK constraint
+            (migration 000047); existing pre-constraint rows whose
+            value didn't match were normalized to NULL.
+        phone_number:
+          type: string
+          nullable: true
+          description: |
+            E.164 phone number from users.phone_number. Optional on
+            create; null when never supplied.
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
@@ -400,6 +415,20 @@ components:
           type: string
           enum: [pending, approved, rejected, suspended]
           description: Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          description: |
+            Optional. Stored on the underlying users row. Closed enum
+            enforced server-side and by the DB CHECK constraint added
+            in migration 000047 — any other value returns 400.
+        phone_number:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: |
+            Optional. E.164 format (e.g. +2348012345678) — same shape
+            the discovery-call phone_callback field requires. Stored
+            on users.phone_number. Invalid format returns 400.
         display_picture:
           type: string
           format: binary
