@@ -761,16 +761,71 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
+	s.renderTrainerProfileByID(c, uuid.UUID(id))
+}
 
-	trainerID := uuid.UUID(id)
+// GetTrainersMe handles GET /trainers/me — returns the trainer profile
+// for the authenticated user. The FE uses this to learn its own
+// trainer.id without ever needing it in the URL: login -> JWT ->
+// GET /trainers/me -> read trainer.id from response.
+//
+// Returns 404 when the calling user has no trainer profile (e.g. a
+// plain client hitting the endpoint).
+func (s *routerImpl) GetTrainersMe(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("get trainers me: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+	s.renderTrainerProfileByID(c, trainerID)
+}
 
+// resolveTrainerIDFromJWT pulls the trainer.id for the authenticated
+// user, writing the appropriate error response (401 / 404 / 500) and
+// returning ok=false if anything goes wrong. Shared by the /trainers/me
+// family.
+func (s *routerImpl) resolveTrainerIDFromJWT(c *gin.Context) (uuid.UUID, bool) {
+	userIDVal, exists := c.Get(string(common.ContextKeyUserID))
+	if !exists {
+		s.logger.Warn("trainers/me: missing authenticated user in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return uuid.Nil, false
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		s.logger.Warn("trainers/me: invalid user id type in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return uuid.Nil, false
+	}
+	trainer, err := s.trainers.q.GetTrainerByUserID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			return uuid.Nil, false
+		}
+		s.logger.Error("trainers/me: trainer lookup failed", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return uuid.Nil, false
+	}
+	return trainer.ID, true
+}
+
+// renderTrainerProfileByID writes the same response shape as
+// GetTrainerByID (trainer fields + name/email joined from users +
+// benefits). Pulled out so /trainers/{id} and /trainers/me share the
+// identical payload contract.
+func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUID) {
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
-		s.logger.Warn("get trainer by id: DB error", "trainerID", trainerID, "err", err)
+		s.logger.Warn("render trainer profile: DB error", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer", api.CodeServerError))
 		return
 	}
@@ -1044,6 +1099,55 @@ func (s *routerImpl) ListTrainerSessions(c *gin.Context, params api.ListTrainerS
 	})
 	if err != nil {
 		s.logger.Error("list trainer bookings failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, trainerBookingRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+// GetTrainersMeSessions handles GET /trainers/me/sessions — convenience
+// variant of /trainers/sessions?trainer_id=... that resolves the
+// trainer from the JWT, so a trainer never has to look up their own
+// trainer.id. Returns 404 when the caller has no trainer profile.
+func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
+	if s.trainers == nil {
+		s.logger.Warn("GetTrainersMeSessions: trainers store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.trainers.q.CountBookingsByTrainer(ctx, trainerID)
+	if err != nil {
+		s.logger.Error("GetTrainersMeSessions: count failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.trainers.q.ListBookingsByTrainer(ctx, db.ListBookingsByTrainerParams{
+		TrainerID:  trainerID,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("GetTrainersMeSessions: list failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
 		return
 	}
