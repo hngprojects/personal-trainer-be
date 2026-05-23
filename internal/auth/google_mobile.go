@@ -135,14 +135,9 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 
 	h.log.Info("mobile google sign-in successful", "user_id", userIDStr, "is_new_user", isNewUser)
 
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.GoogleAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        toAuthUserType(user.Role),
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		IsNewUser:    isNewUser,

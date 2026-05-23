@@ -118,14 +118,25 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 
 	h.log.Info("google oauth successful", "email", userInfo.Email, "is_new_user", isNewUser)
 
+	userPayload := map[string]interface{}{
+		"id":               user.ID.String(),
+		"email":            user.Email,
+		"name":             user.Name,
+		"user_type":        string(toAuthUserType(user.Role)),
+		"profile_complete": !isNewUser,
+	}
+	if roleIDs, err := h.users.LookupRoleIDs(c.Request.Context(), user.ID); err == nil {
+		// trainer_id is omitted when nil (no trainer profile) — matches
+		// the AuthUser omitempty contract in the typed response paths.
+		if roleIDs.TrainerID != nil {
+			userPayload["trainer_id"] = roleIDs.TrainerID.String()
+		}
+	} else {
+		h.log.Warn("google oauth: role ID lookup failed, omitting trainer_id", "user_id", user.ID, "err", err)
+	}
+
 	googleData := map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":               user.ID.String(),
-			"email":            user.Email,
-			"name":             user.Name,
-			"user_type":        string(toAuthUserType(user.Role)),
-			"profile_complete": !isNewUser,
-		},
+		"user":          userPayload,
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"is_new_user":   isNewUser,
