@@ -295,6 +295,73 @@ RETURNING id`,
 	})
 
 	// -----------------------------------------------------------------
+	// GET /trainers/me  &  GET /trainers/me/sessions
+	// (resolve trainer.id from JWT — FE doesn't need to know its own
+	//  trainer_id to read its profile / sessions)
+	// -----------------------------------------------------------------
+	t.Run("trainers me: returns the calling trainer's profile with id", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		// The response must echo trainer.id, not user.id — that's the
+		// whole point of this endpoint (FE gets trainer.id to use
+		// downstream).
+		require.Equal(t, trainerID, body.Data["id"],
+			"GET /trainers/me must return trainers.id, not users.id")
+		// name + email come from the joined users row.
+		require.NotEmpty(t, body.Data["name"])
+		require.NotEmpty(t, body.Data["email"])
+	})
+
+	t.Run("trainers me: 404 when caller has no trainer profile", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		req.Header.Set("Authorization", "Bearer "+clientToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("trainers me: 401 without token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("trainers me sessions: returns calling trainer's bookings", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			Data []map[string]any `json:"data"`
+			Meta struct {
+				TotalCount int `json:"total_count"`
+			} `json:"meta"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, 3, body.Meta.TotalCount,
+			"should match the bookings seeded against this trainer")
+	})
+
+	t.Run("trainers me sessions: 404 when caller has no trainer profile", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+clientToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	// -----------------------------------------------------------------
 	// GET /trainers — paginated + includes name
 	// -----------------------------------------------------------------
 	t.Run("get trainers: returns paginated list with name + email", func(t *testing.T) {
