@@ -661,7 +661,7 @@ SELECT
   u.fitness_goals                                     AS client_fitness_goals,
   u.fitness_level                                     AS client_fitness_level,
   COUNT(b.id)::BIGINT                                 AS total_bookings,
-  MAX(b.scheduled_start)                              AS last_booking_date
+  MAX(b.scheduled_start)::TIMESTAMPTZ                AS last_booking_date
 FROM users u
 JOIN bookings b ON b.client_id = u.id
 WHERE b.trainer_id = $1
@@ -686,13 +686,16 @@ type ListTrainerClientsRow struct {
 	ClientFitnessGoals []string
 	ClientFitnessLevel sql.NullString
 	TotalBookings      int64
-	LastBookingDate    interface{}
+	LastBookingDate    time.Time
 }
 
 // Distinct clients who have at least one booking with this trainer.
 // Returns the client's profile details plus aggregate booking counts and
 // the most recent booking date, so the trainer dashboard can render a
 // client roster without extra per-row lookups.
+// NOTE: all booking statuses (including cancelled) are counted. This is
+// intentional — a cancellation still records a relationship between the
+// trainer and client.
 func (q *Queries) ListTrainerClients(ctx context.Context, arg ListTrainerClientsParams) ([]ListTrainerClientsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTrainerClients, arg.TrainerID, arg.PageOffset, arg.PageLimit)
 	if err != nil {

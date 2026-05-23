@@ -12,7 +12,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -1247,14 +1246,7 @@ func trainerClientRowToMap(r db.ListTrainerClientsRow) map[string]interface{} {
 	if r.ClientFitnessLevel.Valid {
 		m["client_fitness_level"] = r.ClientFitnessLevel.String
 	}
-	switch t := r.LastBookingDate.(type) {
-	case time.Time:
-		m["last_booking_date"] = t
-	case *time.Time:
-		if t != nil {
-			m["last_booking_date"] = *t
-		}
-	}
+	m["last_booking_date"] = r.LastBookingDate
 	return m
 }
 

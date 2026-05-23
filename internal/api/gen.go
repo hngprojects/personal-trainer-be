@@ -327,6 +327,24 @@ func (e TrainerOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for TrainerClientsListResponseStatus.
+const (
+	TrainerClientsListResponseStatusError   TrainerClientsListResponseStatus = "error"
+	TrainerClientsListResponseStatusSuccess TrainerClientsListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainerClientsListResponseStatus enum.
+func (e TrainerClientsListResponseStatus) Valid() bool {
+	switch e {
+	case TrainerClientsListResponseStatusError:
+		return true
+	case TrainerClientsListResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainerResponseStatus.
 const (
 	TrainerResponseStatusError   TrainerResponseStatus = "error"
@@ -827,16 +845,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
+	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Error:
+	case UploadProfilePicture202JSONResponseBodyStatusError:
 		return true
-	case Success:
+	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -1310,6 +1328,34 @@ type TrainerBenefitInput struct {
 	// Title Short benefit headline (e.g. "Personalized plans").
 	Title string `json:"title"`
 }
+
+// TrainerClient defines model for TrainerClient.
+type TrainerClient struct {
+	ClientAvatar       *string              `json:"client_avatar,omitempty"`
+	ClientEmail        *openapi_types.Email `json:"client_email,omitempty"`
+	ClientFitnessGoals *[]string            `json:"client_fitness_goals,omitempty"`
+	ClientFitnessLevel *string              `json:"client_fitness_level,omitempty"`
+	ClientGender       *string              `json:"client_gender,omitempty"`
+	ClientId           *openapi_types.UUID  `json:"client_id,omitempty"`
+	ClientName         *string              `json:"client_name,omitempty"`
+	LastBookingDate    *time.Time           `json:"last_booking_date,omitempty"`
+	TotalBookings      *int64               `json:"total_bookings,omitempty"`
+}
+
+// TrainerClientsListResponse defines model for TrainerClientsListResponse.
+type TrainerClientsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string           `json:"code"`
+	Data    *[]TrainerClient `json:"data,omitempty"`
+	Message string           `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                     `json:"meta,omitempty"`
+	Status TrainerClientsListResponseStatus `json:"status"`
+}
+
+// TrainerClientsListResponseStatus defines model for TrainerClientsListResponse.Status.
+type TrainerClientsListResponseStatus string
 
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {

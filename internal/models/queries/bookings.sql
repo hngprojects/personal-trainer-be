@@ -312,7 +312,7 @@ SELECT
   u.fitness_goals                                     AS client_fitness_goals,
   u.fitness_level                                     AS client_fitness_level,
   COUNT(b.id)::BIGINT                                 AS total_bookings,
-  MAX(b.scheduled_start)                              AS last_booking_date
+  MAX(b.scheduled_start)::TIMESTAMPTZ                AS last_booking_date
 FROM users u
 JOIN bookings b ON b.client_id = u.id
 WHERE b.trainer_id = sqlc.arg(trainer_id)
