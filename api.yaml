@@ -2407,6 +2407,103 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/resend-setup:
+    post:
+      operationId: ResendTrainerSetup
+      summary: Resend the account-setup link to a trainer
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Admin-only. Rotates the trainer's account-setup token and re-sends
+        the activation link to the trainer's email. Identifies the trainer
+        by email (the value the admin entered when the trainer was first
+        invited), so the admin doesn't need to know the internal
+        trainers.id.
+
+        Use this when the original invite email was lost, rate-limited by
+        the SMTP provider, or otherwise needs to be re-issued — preferable
+        to calling POST /trainers again (which would attempt to recreate
+        the user/trainer row pair).
+
+        The handler intentionally returns the same 404 for "no such email"
+        and "email exists but isn't a trainer" — a small guard against
+        admin-side enumeration of which emails belong to trainers.
+
+        Returns 409 if the trainer has already activated their account.
+        The trainer should use the existing forgot-password flow to set a
+        new password instead of receiving another setup link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address of the trainer to re-invite.
+      responses:
+        "200":
+          description: Setup link resent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+              example:
+                status: success
+                message: setup link resent
+                code: OK
+                data:
+                  email: trainer@example.com
+        "400":
+          description: Missing or malformed email in the request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile found for the supplied email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer has already activated their account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Email delivery or token persistence failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/me:
     get:
       operationId: GetTrainersMe
