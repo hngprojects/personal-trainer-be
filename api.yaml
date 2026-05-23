@@ -233,6 +233,21 @@ components:
         user_id:
           type: string
           format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
         specializations:
           type: array
           items:

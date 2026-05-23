@@ -1223,12 +1223,24 @@ type Trainer struct {
 	// Benefits Marketing-style "what you get working with this trainer" copy.
 	// Populated on Trainer responses that join the trainer_benefits
 	// table; absent when the source query doesn't fetch them.
-	Benefits         *[]TrainerBenefit       `json:"benefits,omitempty"`
-	Bio              *string                 `json:"bio,omitempty"`
-	CreatedAt        time.Time               `json:"created_at"`
-	DisplayPicture   *string                 `json:"display_picture,omitempty"`
-	Id               openapi_types.UUID      `json:"id"`
-	IntroVideoUrl    *string                 `json:"intro_video_url,omitempty"`
+	Benefits       *[]TrainerBenefit `json:"benefits,omitempty"`
+	Bio            *string           `json:"bio,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	DisplayPicture *string           `json:"display_picture,omitempty"`
+
+	// Email Trainer's email, joined from users.email. Same population
+	// rules as `name` — present on the user-joined endpoints, may
+	// be absent elsewhere.
+	Email         *openapi_types.Email `json:"email,omitempty"`
+	Id            openapi_types.UUID   `json:"id"`
+	IntroVideoUrl *string              `json:"intro_video_url,omitempty"`
+
+	// Name Trainer's display name, joined from users.name. Populated on
+	// responses that join users (GET /trainers, GET /trainers/{id},
+	// GET /trainers/me); absent on response paths that return the
+	// raw trainers row without the join (e.g. POST/PATCH /trainers
+	// result, internal admin queries).
+	Name             *string                 `json:"name,omitempty"`
 	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
 
 	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
