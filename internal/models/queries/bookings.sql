@@ -294,3 +294,33 @@ OFFSET sqlc.arg(page_offset);
 
 -- name: CountBookingsByTrainer :one
 SELECT COUNT(*) FROM bookings WHERE trainer_id = sqlc.arg(trainer_id);
+
+-- name: ListTrainerClients :many
+-- Distinct clients who have at least one booking with this trainer.
+-- Returns the client's profile details plus aggregate booking counts and
+-- the most recent booking date, so the trainer dashboard can render a
+-- client roster without extra per-row lookups.
+-- NOTE: all booking statuses (including cancelled) are counted. This is
+-- intentional — a cancellation still records a relationship between the
+-- trainer and client.
+SELECT
+  u.id                                                AS client_id,
+  u.name                                              AS client_name,
+  u.email                                             AS client_email,
+  u.avatar_url                                        AS client_avatar,
+  u.gender                                            AS client_gender,
+  u.fitness_goals                                     AS client_fitness_goals,
+  u.fitness_level                                     AS client_fitness_level,
+  COUNT(b.id)::BIGINT                                 AS total_bookings,
+  MAX(b.scheduled_start)::TIMESTAMPTZ                AS last_booking_date
+FROM users u
+JOIN bookings b ON b.client_id = u.id
+WHERE b.trainer_id = sqlc.arg(trainer_id)
+GROUP BY u.id
+ORDER BY last_booking_date DESC NULLS LAST, u.id DESC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountTrainerClients :one
+-- Count of distinct clients who have booked with this trainer.
+SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = sqlc.arg(trainer_id);
