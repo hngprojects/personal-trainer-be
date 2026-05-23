@@ -1198,6 +1198,106 @@ func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{
 	return m
 }
 
+// ResendTrainerSetup handles POST /trainers/resend-setup. Rotates the
+// activation token for the trainer identified by email and re-sends
+// the setup link — the same email body POST /trainers issues on first
+// invite. Identifies by email (not trainer.id) because the admin
+// inputting "the trainer didn't get my invite, send it again" already
+// knows the email, never the internal UUID.
+//
+// 404 is returned for both "no such email" and "user exists but isn't
+// a trainer" — same message in both cases as a small guard against
+// admins probing which emails are trainers. (Less critical here than
+// on unauthenticated endpoints, but still good practice.)
+//
+// 409 if the trainer has already activated. The right recovery path
+// for an activated trainer who's locked out is forgot-password, not
+// another setup link.
+func (s *routerImpl) ResendTrainerSetup(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("resend trainer setup: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	if s.accountSetup == nil {
+		s.logger.Warn("resend trainer setup: account setup handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("account setup is not configured on this server", api.CodeServerError))
+		return
+	}
+
+	var req api.ResendTrainerSetupJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		s.logger.Warn("resend trainer setup: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	if emailAddr == "" || !common.IsValidEmail(emailAddr) || len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "valid email is required"},
+		}))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	user, err := s.trainers.q.GetUserByEmail(ctx, emailAddr)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this email"))
+			return
+		}
+		s.logger.Error("resend trainer setup: user lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up user", api.CodeServerError))
+		return
+	}
+
+	// Same 404 for "user found but not a trainer" so an admin can't
+	// distinguish unregistered emails from non-trainer accounts.
+	if _, err := s.trainers.q.GetTrainerByUserID(ctx, user.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this email"))
+			return
+		}
+		s.logger.Error("resend trainer setup: trainer lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	activated, err := s.accountSetup.IsActivated(ctx, user.ID)
+	if err != nil {
+		s.logger.Error("resend trainer setup: activation check failed", "err", err, "user_id", user.ID)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if activated {
+		c.JSON(http.StatusConflict, api.NewError("this account is already activated; ask the trainer to use forgot-password instead", api.CodeConflict))
+		return
+	}
+
+	if err := s.accountSetup.IssueAndSend(ctx, user.ID, user.Email, user.Name); err != nil {
+		s.logger.Error("resend trainer setup: issue + send failed", "err", err, "user_id", user.ID)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to send setup link; please retry", api.CodeServerError))
+		return
+	}
+
+	s.logger.Info("resend trainer setup: link resent", "user_id", user.ID, "email_domain", emailDomainOrEmpty(user.Email))
+
+	c.JSON(http.StatusOK, api.NewSuccess("setup link resent", api.CodeOK, map[string]interface{}{
+		"email": user.Email,
+	}))
+}
+
+// emailDomainOrEmpty pulls the domain off an email for log fields,
+// avoiding logging the local-part. Returns "" if the input has no '@'.
+func emailDomainOrEmpty(addr string) string {
+	if i := strings.IndexByte(addr, '@'); i >= 0 && i+1 < len(addr) {
+		return addr[i+1:]
+	}
+	return ""
+}
+
 // silenceUnusedImports keeps imports compiled in if certain code paths get
 // pruned. Currently a no-op — referenced names below.
 var (
