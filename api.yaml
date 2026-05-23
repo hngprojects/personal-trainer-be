@@ -233,6 +233,21 @@ components:
         user_id:
           type: string
           format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
         specializations:
           type: array
           items:
@@ -2373,6 +2388,108 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me:
+    get:
+      operationId: GetTrainersMe
+      summary: Get the authenticated trainer's own profile
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Resolves the trainer profile (including trainer.id) from the JWT
+        user_id, so the FE doesn't need to know its own trainer.id to
+        fetch records. Returns the same payload shape as
+        GET /trainers/{id} (trainer fields + name/email joined from
+        users + benefits). 404 when the authenticated user has no
+        trainer profile (e.g. plain client trying to use a trainer-only
+        endpoint).
+      responses:
+        "200":
+          description: Trainer profile fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/sessions:
+    get:
+      operationId: GetTrainersMeSessions
+      summary: List sessions booked with the authenticated trainer — paginated
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Convenience variant of GET /trainers/sessions?trainer_id=... that
+        resolves the trainer from the JWT, so a trainer never has to
+        send their own trainer.id. Same response shape and pagination
+        semantics as the trainer_id-explicit endpoint. 404 when the
+        authenticated user has no trainer profile.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Sessions fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
           content:
             application/json:
               schema:
