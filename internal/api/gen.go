@@ -838,11 +838,23 @@ type AddAvailabilityRequest struct {
 
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
-	Email           string             `json:"email"`
+	Email string `json:"email"`
+
+	// Id Universal user identifier (users.id). Stable across every
+	// auth flow regardless of role.
 	Id              openapi_types.UUID `json:"id"`
 	Name            string             `json:"name"`
 	ProfileComplete bool               `json:"profile_complete"`
-	UserType        AuthUserUserType   `json:"user_type"`
+
+	// TrainerId Trainer profile UUID (trainers.id) for users whose role is
+	// "trainer". Populated only when the user has a trainer profile
+	// — omitted otherwise so a client/admin response doesn't carry
+	// a meaningless null. FE uses this when calling endpoints that
+	// target a trainer by trainers.id (e.g. GET /trainers/{id},
+	// GET /trainers/sessions?trainer_id=…), distinct from the
+	// users.id returned in `id`.
+	TrainerId *openapi_types.UUID `json:"trainer_id,omitempty"`
+	UserType  AuthUserUserType    `json:"user_type"`
 }
 
 // AuthUserUserType defines model for AuthUser.UserType.
