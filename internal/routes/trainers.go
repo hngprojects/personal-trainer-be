@@ -880,15 +880,30 @@ func (s *routerImpl) resolveTrainerIDFromJWT(c *gin.Context) (uuid.UUID, bool) {
 // benefits). Pulled out so /trainers/{id} and /trainers/me share the
 // identical payload contract.
 func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUID) {
+	payload, status, errResp := s.buildTrainerProfilePayload(c, trainerID)
+	if errResp != nil {
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+}
+
+// buildTrainerProfilePayload loads the trainer + joined user + benefits
+// and returns the JSON map every "Trainer" response uses. Centralized
+// so PATCH /trainers/{id} and GET /trainers/{id} can't drift on
+// fields they include — both go through this builder. Returns the
+// payload OR (status, errResp) for the error path so the caller picks
+// its own success message.
+func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.UUID) (map[string]interface{}, int, *api.ErrorResponse) {
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
-			return
+			resp := api.NewNotFoundError("trainer")
+			return nil, http.StatusNotFound, &resp
 		}
 		s.logger.Warn("render trainer profile: DB error", "trainerID", trainerID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer", api.CodeServerError))
-		return
+		resp := api.NewError("failed to get trainer", api.CodeServerError)
+		return nil, http.StatusInternalServerError, &resp
 	}
 
 	benefits, err := s.trainers.q.ListTrainerBenefits(c.Request.Context(), trainerID)
@@ -927,8 +942,7 @@ func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUI
 		payload["phone_number"] = nil
 	}
 	payload["benefits"] = benefitsOut(benefits)
-
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+	return payload, http.StatusOK, nil
 }
 
 // PATCH /trainers/{id}
@@ -1046,7 +1060,20 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, trainerToMap(updated)))
+	// Re-load via the joined builder so the PATCH response includes the
+	// users-side fields (name, email, gender, phone_number, benefits) —
+	// the UpdateTrainer query returns only the trainers row, which on
+	// its own would omit those and silently drift from the contract
+	// GET /trainers/{id} advertises.
+	payload, status, errResp := s.buildTrainerProfilePayload(c, updated.ID)
+	if errResp != nil {
+		// Update succeeded; only the re-load failed. Surface that
+		// distinctly so the FE knows the write landed.
+		s.logger.Warn("update trainer: post-update reload failed", "trainerID", trainerID, "status", status)
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, payload))
 }
 
 // DELETE /trainers/{id}

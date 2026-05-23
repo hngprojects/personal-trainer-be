@@ -137,5 +137,31 @@ func TestCreateTrainer_GenderPhone(t *testing.T) {
 		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
+
+	// PATCH /trainers/{id} must surface gender + phone_number too —
+	// before this fix the handler returned trainerToMap(updated) which
+	// only sees the trainers row, so users-side fields drifted off the
+	// PATCH response even though GET /trainers/{id} included them.
+	t.Run("update: PATCH response keeps gender + phone from prior create", func(t *testing.T) {
+		require.NotEmpty(t, newTrainerID, "depends on earlier create subtest")
+		patchBody, _ := json.Marshal(map[string]any{
+			"bio": "updated bio",
+		})
+		req, _ := http.NewRequest(http.MethodPatch, apiBase+"/trainers/"+newTrainerID, bytes.NewReader(patchBody))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var resp struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, "updated bio", resp.Data["bio"])
+		require.Equal(t, "male", resp.Data["gender"],
+			"PATCH response must include gender (seeded by the earlier create); the regression check for the shared payload builder")
+		require.Equal(t, "+2348087654321", resp.Data["phone_number"])
+	})
 }
 
