@@ -1514,6 +1514,12 @@ type GetTrainersParams struct {
 	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
+type GetTrainersMeSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListTrainerSessionsParams defines parameters for ListTrainerSessions.
 type ListTrainerSessionsParams struct {
 	// TrainerId The trainer whose sessions to list
@@ -1817,6 +1823,9 @@ type ServerInterface interface {
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
+	// Get the authenticated trainer's own profile
+	// (GET /trainers/me)
+	GetTrainersMe(c *gin.Context)
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
@@ -1829,6 +1838,9 @@ type ServerInterface interface {
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
+	// List sessions booked with the authenticated trainer — paginated
+	// (GET /trainers/me/sessions)
+	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
 	// List sessions booked with a specific trainer — paginated
 	// (GET /trainers/sessions)
 	ListTrainerSessions(c *gin.Context, params ListTrainerSessionsParams)
@@ -2812,6 +2824,21 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
+// GetTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMe(c)
+}
+
 // GetTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 
@@ -2882,6 +2909,43 @@ func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Conte
 	}
 
 	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
+}
+
+// GetTrainersMeSessions operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeSessionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeSessions(c, params)
 }
 
 // ListTrainerSessions operation middleware
@@ -3510,10 +3574,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
+	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
+	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
 	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
