@@ -309,6 +309,24 @@ func (e SetAvailabilityResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for SubscriptionPlansResponseStatus.
+const (
+	SubscriptionPlansResponseStatusError   SubscriptionPlansResponseStatus = "error"
+	SubscriptionPlansResponseStatusSuccess SubscriptionPlansResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlansResponseStatus enum.
+func (e SubscriptionPlansResponseStatus) Valid() bool {
+	switch e {
+	case SubscriptionPlansResponseStatusError:
+		return true
+	case SubscriptionPlansResponseStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SuccessResponseStatus.
 const (
 	SuccessResponseStatusError   SuccessResponseStatus = "error"
@@ -896,16 +914,16 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 
 // Defines values for UploadProfilePicture202JSONResponseBodyStatus.
 const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
+	Error   UploadProfilePicture202JSONResponseBodyStatus = "error"
+	Success UploadProfilePicture202JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
 func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
+	case Error:
 		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -1311,6 +1329,57 @@ type SetAvailabilityResponse struct {
 
 // SetAvailabilityResponseStatus defines model for SetAvailabilityResponse.Status.
 type SetAvailabilityResponseStatus string
+
+// SubscriptionPlan defines model for SubscriptionPlan.
+type SubscriptionPlan struct {
+	// Amount Price in minor currency units (e.g. cents / kobo)
+	Amount *int `json:"amount,omitempty"`
+
+	// AmountDisplay Human-readable price string (e.g. "$80/month")
+	AmountDisplay *string `json:"amount_display,omitempty"`
+
+	// AppleProductId Apple App Store product identifier for IAP
+	AppleProductId *string `json:"apple_product_id,omitempty"`
+
+	// Currency ISO 4217 currency code
+	Currency *string `json:"currency,omitempty"`
+
+	// Features List of feature highlights shown on the plan card
+	Features *[]string `json:"features,omitempty"`
+
+	// GoogleProductId Google Play product identifier for billing
+	GoogleProductId *string `json:"google_product_id,omitempty"`
+
+	// Id Unique plan identifier (casual, committed, consistent)
+	Id *string `json:"id,omitempty"`
+
+	// Name Display name (e.g. "The Casual")
+	Name *string `json:"name,omitempty"`
+
+	// SessionsPerMonth Number of guided sessions included per month
+	SessionsPerMonth *int `json:"sessions_per_month,omitempty"`
+
+	// Tag Optional badge label (e.g. "Most Popular")
+	Tag *string `json:"tag,omitempty"`
+
+	// TrialDays Number of free trial days before billing starts
+	TrialDays *int `json:"trial_days,omitempty"`
+}
+
+// SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
+type SubscriptionPlansResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string              `json:"code"`
+	Data    *[]SubscriptionPlan `json:"data,omitempty"`
+	Message string              `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                    `json:"meta,omitempty"`
+	Status SubscriptionPlansResponseStatus `json:"status"`
+}
+
+// SubscriptionPlansResponseStatus defines model for SubscriptionPlansResponse.Status.
+type SubscriptionPlansResponseStatus string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -2005,6 +2074,9 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// List available subscription plans
+	// (GET /subscriptions/plans)
+	GetSubscriptionPlans(c *gin.Context)
 	// Get trainers (admin only) — paginated
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -2958,6 +3030,21 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	siw.Handler.HandleStartSession(c, id)
 }
 
+// GetSubscriptionPlans operation middleware
+func (siw *ServerInterfaceWrapper) GetSubscriptionPlans(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSubscriptionPlans(c)
+}
+
 // GetTrainers operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
@@ -3818,6 +3905,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)

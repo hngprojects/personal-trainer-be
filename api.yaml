@@ -335,6 +335,56 @@ components:
             data:
               $ref: "#/components/schemas/Trainer"
 
+    SubscriptionPlan:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique plan identifier (casual, committed, consistent)
+        name:
+          type: string
+          description: Display name (e.g. "The Casual")
+        tag:
+          type: string
+          nullable: true
+          description: Optional badge label (e.g. "Most Popular")
+        sessions_per_month:
+          type: integer
+          description: Number of guided sessions included per month
+        amount:
+          type: integer
+          description: Price in minor currency units (e.g. cents / kobo)
+        currency:
+          type: string
+          description: ISO 4217 currency code
+        amount_display:
+          type: string
+          description: Human-readable price string (e.g. "$80/month")
+        trial_days:
+          type: integer
+          description: Number of free trial days before billing starts
+        features:
+          type: array
+          items:
+            type: string
+          description: List of feature highlights shown on the plan card
+        apple_product_id:
+          type: string
+          description: Apple App Store product identifier for IAP
+        google_product_id:
+          type: string
+          description: Google Play product identifier for billing
+
+    SubscriptionPlansResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/SubscriptionPlan"
+
     TrainerClient:
       type: object
       properties:
@@ -1579,6 +1629,37 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /subscriptions/plans:
+    get:
+      operationId: GetSubscriptionPlans
+      summary: List available subscription plans
+      tags: [Subscriptions]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the fixed catalogue of subscription plans a client can
+        choose from. Plans are ordered by price. Each plan includes the
+        trial period, sessions per month, amount, and feature highlights.
+      responses:
+        "200":
+          description: Plans fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlansResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /bookings:
     post:
       operationId: CreateBooking
