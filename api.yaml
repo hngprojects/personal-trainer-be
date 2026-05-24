@@ -24,6 +24,8 @@ tags:
     description: Trainer endpoints to manage all trainer activities.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
+  - name: Subscriptions
+    description: Subscription plan listing and lifecycle management.
   - name: User
     description: User profile and onboarding endpoints.
 
@@ -337,6 +339,17 @@ components:
 
     SubscriptionPlan:
       type: object
+      required:
+        - id
+        - name
+        - sessions_per_month
+        - amount
+        - currency
+        - amount_display
+        - trial_days
+        - features
+        - apple_product_id
+        - google_product_id
       properties:
         id:
           type: string
@@ -379,6 +392,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
+          required:
+            - data
           properties:
             data:
               type: array

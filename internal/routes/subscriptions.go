@@ -14,7 +14,6 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 		{
 			Id:               ptr("casual"),
 			Name:             ptr("The Casual"),
-			Tag:              nil,
 			SessionsPerMonth: ptr(1),
 			Amount:           ptr(2000),
 			Currency:         ptr("USD"),
@@ -49,7 +48,6 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 		{
 			Id:               ptr("consistent"),
 			Name:             ptr("The Consistent"),
-			Tag:              nil,
 			SessionsPerMonth: ptr(18),
 			Amount:           ptr(12000),
 			Currency:         ptr("USD"),
@@ -67,11 +65,10 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 		},
 	}
 
-	var data interface{} = plans
-	c.JSON(http.StatusOK, api.SuccessResponse{
-		Code:    api.CodeOK,
+	c.JSON(http.StatusOK, api.SubscriptionPlansResponse{
+		Code:    string(api.CodeOK),
 		Message: "PLANS_FETCHED",
-		Status:  "success",
-		Data:    &data,
+		Status:  api.SubscriptionPlansResponseStatusSuccess,
+		Data:    &plans,
 	})
 }
