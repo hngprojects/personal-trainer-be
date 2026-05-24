@@ -79,8 +79,10 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
-  u.name  AS trainer_name,
-  u.email AS trainer_email
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
 WHERE t.id = $1
@@ -108,8 +110,10 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
-  u.name  AS trainer_name,
-  u.email AS trainer_email
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
 WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[])

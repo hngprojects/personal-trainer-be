@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -24,6 +25,11 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
+
+// trainerPhoneE164Regex validates the phone_number form field on
+// POST /trainers. Same shape the discovery-call phone_callback path
+// uses so trainers and that flow share one phone format.
+var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing
@@ -240,6 +246,16 @@ func trainerListRowToMap(t db.ListTrainersRow) map[string]interface{} {
 	} else {
 		out["display_picture"] = nil
 	}
+	if t.TrainerGender.Valid {
+		out["gender"] = t.TrainerGender.String
+	} else {
+		out["gender"] = nil
+	}
+	if t.TrainerPhoneNumber.Valid {
+		out["phone_number"] = t.TrainerPhoneNumber.String
+	} else {
+		out["phone_number"] = nil
+	}
 	return out
 }
 
@@ -376,6 +392,35 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}
 
+	// gender is optional. Closed enum (mirrored by the users_gender_valid
+	// CHECK constraint added in migration 000047) so a typo on the admin
+	// form gets a clean 400 instead of a constraint violation at TX commit.
+	// Empty/missing -> store NULL (handled by NULLIF in the SQL).
+	gender := ""
+	if v := strings.TrimSpace(c.Request.FormValue("gender")); v != "" {
+		switch strings.ToLower(v) {
+		case "male", "female", "other", "prefer_not_to_say":
+			gender = strings.ToLower(v)
+		default:
+			s.logger.Warn("create trainer: invalid gender", "email", emailAddr, "gender", v)
+			c.JSON(http.StatusBadRequest, api.NewError("gender must be one of male, female, other, prefer_not_to_say", api.CodeBadRequest))
+			return
+		}
+	}
+
+	// phone_number is optional. Must be E.164 if supplied — same regex
+	// the discovery-call phone_callback field uses, so trainers and
+	// callbacks share one shape.
+	phoneNumber := ""
+	if v := strings.TrimSpace(c.Request.FormValue("phone_number")); v != "" {
+		if !trainerPhoneE164Regex.MatchString(v) {
+			s.logger.Warn("create trainer: invalid phone number", "email", emailAddr)
+			c.JSON(http.StatusBadRequest, api.NewError("phone_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		phoneNumber = v
+	}
+
 	// Optional picture — validate up-front so we can refuse with NO trainer
 	// row created if the picture is bad / the uploader is missing.
 	var (
@@ -452,9 +497,11 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	qtx := s.trainers.q.WithTx(tx)
 
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
-		Email:    emailAddr,
-		Name:     name,
-		Password: sql.NullString{Valid: false},
+		Email:       emailAddr,
+		Name:        name,
+		Password:    sql.NullString{Valid: false},
+		Gender:      gender,
+		PhoneNumber: phoneNumber,
 	})
 	if err != nil {
 		s.logger.Error("create trainer: upsert user failed", "err", err)
@@ -568,6 +615,20 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	payload := trainerToMapWithBenefits(trainer, insertedBenefits)
 	payload["email"] = user.Email
 	payload["name"] = user.Name
+	// Echo gender + phone_number from the freshly-upserted user row so
+	// admins get a confirmation of what was saved. Sourced from the
+	// returned User (post-NULLIF) — if the admin omitted them the
+	// stored value is NULL and we emit JSON null.
+	if user.Gender.Valid {
+		payload["gender"] = user.Gender.String
+	} else {
+		payload["gender"] = nil
+	}
+	if user.PhoneNumber.Valid {
+		payload["phone_number"] = user.PhoneNumber.String
+	} else {
+		payload["phone_number"] = nil
+	}
 	if pictureURL != "" {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
@@ -761,19 +822,89 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
+	s.renderTrainerProfileByID(c, uuid.UUID(id))
+}
 
-	trainerID := uuid.UUID(id)
+// GetTrainersMe handles GET /trainers/me — returns the trainer profile
+// for the authenticated user. The FE uses this to learn its own
+// trainer.id without ever needing it in the URL: login -> JWT ->
+// GET /trainers/me -> read trainer.id from response.
+//
+// Returns 404 when the calling user has no trainer profile (e.g. a
+// plain client hitting the endpoint).
+func (s *routerImpl) GetTrainersMe(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("get trainers me: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+	s.renderTrainerProfileByID(c, trainerID)
+}
 
+// resolveTrainerIDFromJWT pulls the trainer.id for the authenticated
+// user, writing the appropriate error response (401 / 404 / 500) and
+// returning ok=false if anything goes wrong. Shared by the /trainers/me
+// family.
+func (s *routerImpl) resolveTrainerIDFromJWT(c *gin.Context) (uuid.UUID, bool) {
+	userIDVal, exists := c.Get(string(common.ContextKeyUserID))
+	if !exists {
+		s.logger.Warn("trainers/me: missing authenticated user in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return uuid.Nil, false
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		s.logger.Warn("trainers/me: invalid user id type in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return uuid.Nil, false
+	}
+	trainer, err := s.trainers.q.GetTrainerByUserID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			return uuid.Nil, false
+		}
+		s.logger.Error("trainers/me: trainer lookup failed", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return uuid.Nil, false
+	}
+	return trainer.ID, true
+}
+
+// renderTrainerProfileByID writes the same response shape as
+// GetTrainerByID (trainer fields + name/email joined from users +
+// benefits). Pulled out so /trainers/{id} and /trainers/me share the
+// identical payload contract.
+func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUID) {
+	payload, status, errResp := s.buildTrainerProfilePayload(c, trainerID)
+	if errResp != nil {
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+}
+
+// buildTrainerProfilePayload loads the trainer + joined user + benefits
+// and returns the JSON map every "Trainer" response uses. Centralized
+// so PATCH /trainers/{id} and GET /trainers/{id} can't drift on
+// fields they include — both go through this builder. Returns the
+// payload OR (status, errResp) for the error path so the caller picks
+// its own success message.
+func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.UUID) (map[string]interface{}, int, *api.ErrorResponse) {
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
 		s.logger.Warn("failed to get trainer by ID", "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
-			return
+			resp := api.NewNotFoundError("trainer")
+			return nil, http.StatusNotFound, &resp
 		}
-		s.logger.Warn("get trainer by id: DB error", "trainerID", trainerID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer", api.CodeServerError))
-		return
+		s.logger.Warn("render trainer profile: DB error", "trainerID", trainerID, "err", err)
+		resp := api.NewError("failed to get trainer", api.CodeServerError)
+		return nil, http.StatusInternalServerError, &resp
 	}
 
 	benefits, err := s.trainers.q.ListTrainerBenefits(c.Request.Context(), trainerID)
@@ -801,9 +932,18 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	})
 	payload["name"] = row.TrainerName
 	payload["email"] = row.TrainerEmail
+	if row.TrainerGender.Valid {
+		payload["gender"] = row.TrainerGender.String
+	} else {
+		payload["gender"] = nil
+	}
+	if row.TrainerPhoneNumber.Valid {
+		payload["phone_number"] = row.TrainerPhoneNumber.String
+	} else {
+		payload["phone_number"] = nil
+	}
 	payload["benefits"] = benefitsOut(benefits)
-
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_FETCHED", api.CodeOK, payload))
+	return payload, http.StatusOK, nil
 }
 
 // PATCH /trainers/{id}
@@ -922,7 +1062,20 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, trainerToMap(updated)))
+	// Re-load via the joined builder so the PATCH response includes the
+	// users-side fields (name, email, gender, phone_number, benefits) —
+	// the UpdateTrainer query returns only the trainers row, which on
+	// its own would omit those and silently drift from the contract
+	// GET /trainers/{id} advertises.
+	payload, status, errResp := s.buildTrainerProfilePayload(c, updated.ID)
+	if errResp != nil {
+		// Update succeeded; only the re-load failed. Surface that
+		// distinctly so the FE knows the write landed.
+		s.logger.Warn("update trainer: post-update reload failed", "trainerID", trainerID, "status", status)
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_UPDATED", api.CodeOK, payload))
 }
 
 // DELETE /trainers/{id}
@@ -956,22 +1109,33 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 // authenticated user_id is mapped to a trainers.id via GetTrainerByUserID
 // — non-trainers get 404 (no trainer profile) rather than 403, mirroring
 // the existing /trainers/me/* behaviour.
-func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
+// ListTrainerSessions handles GET /trainers/sessions?trainer_id=...
+//
+// Trainer_id is supplied as a query parameter rather than derived from
+// the JWT — the earlier GET /trainers/me/sessions used to resolve the
+// trainer via GetTrainerByUserID and 404'd whenever the caller wasn't
+// a trainer themselves (admin dashboards, etc.). With the explicit
+// trainer_id, admins can query any trainer's schedule and the trainer
+// themselves can pass their own id.
+//
+// Authz: caller must be EITHER the owner of the trainer profile
+// (caller.user_id == trainers.user_id) OR admin / super_admin.
+func (s *routerImpl) ListTrainerSessions(c *gin.Context, params api.ListTrainerSessionsParams) {
 	if s.trainers == nil {
-		s.logger.Warn("GetTrainersMeSessions: trainers store is nil")
+		s.logger.Warn("ListTrainerSessions: trainers store is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
-		s.logger.Warn("GetTrainersMeSessions: missing authenticated user in context")
+		s.logger.Warn("ListTrainerSessions: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
-	userID, ok := userIDVal.(uuid.UUID)
+	callerUserID, ok := userIDVal.(uuid.UUID)
 	if !ok {
-		s.logger.Warn("GetTrainersMeSessions: invalid user id type in context")
+		s.logger.Warn("ListTrainerSessions: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
@@ -981,18 +1145,44 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 		return
 	}
 
+	trainerID := uuid.UUID(params.TrainerId)
+	if trainerID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "trainer_id", Message: "trainer_id is required"},
+		}))
+		return
+	}
+
 	ctx := c.Request.Context()
 
-	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
+	// Look up the target trainer first — needed both for the 404 path
+	// and for the authz check (we compare callerUserID against
+	// trainer.UserID).
+	trainer, err := s.trainers.q.GetTrainerByID(ctx, trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			s.logger.Warn("GetTrainersMeSessions: trainer profile not found", "userID", userID)
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return
 		}
-		s.logger.Error("get trainer by user id failed", "err", err)
+		s.logger.Error("ListTrainerSessions: trainer lookup failed", "trainerID", trainerID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
 		return
+	}
+
+	// Authz: trainer owner OR admin/super_admin. Owner check is the
+	// cheap path; only hit the roles table if the caller isn't the
+	// owner.
+	if trainer.UserID != callerUserID {
+		role, err := s.trainers.q.GetUserRoleByID(ctx, callerUserID)
+		if err != nil {
+			s.logger.Error("ListTrainerSessions: caller role lookup failed", "callerUserID", callerUserID, "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to verify caller", api.CodeServerError))
+			return
+		}
+		if role != "admin" && role != "super_admin" {
+			c.JSON(http.StatusForbidden, api.NewError("you are not authorized to view this trainer's sessions", api.CodeForbidden))
+			return
+		}
 	}
 
 	total, err := s.trainers.q.CountBookingsByTrainer(ctx, trainer.ID)
@@ -1019,6 +1209,145 @@ func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainer
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+// GetTrainersMeSessions handles GET /trainers/me/sessions — convenience
+// variant of /trainers/sessions?trainer_id=... that resolves the
+// trainer from the JWT, so a trainer never has to look up their own
+// trainer.id. Returns 404 when the caller has no trainer profile.
+func (s *routerImpl) GetTrainersMeSessions(c *gin.Context, params api.GetTrainersMeSessionsParams) {
+	if s.trainers == nil {
+		s.logger.Warn("GetTrainersMeSessions: trainers store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.trainers.q.CountBookingsByTrainer(ctx, trainerID)
+	if err != nil {
+		s.logger.Error("GetTrainersMeSessions: count failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.trainers.q.ListBookingsByTrainer(ctx, db.ListBookingsByTrainerParams{
+		TrainerID:  trainerID,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("GetTrainersMeSessions: list failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, trainerBookingRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+// GetTrainersMeClients handles GET /trainers/me/clients — paginated list of
+// distinct clients who have at least one booking with the authenticated trainer.
+func (s *routerImpl) GetTrainersMeClients(c *gin.Context, params api.GetTrainersMeClientsParams) {
+	if s.trainers == nil {
+		s.logger.Warn("GetTrainersMeClients: trainers store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
+	if !ok {
+		s.logger.Warn("GetTrainersMeClients: missing authenticated user in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		s.logger.Warn("GetTrainersMeClients: invalid user id type in context")
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
+		return
+	}
+
+	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
+	if !ok {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	trainer, err := s.trainers.q.GetTrainerByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("GetTrainersMeClients: trainer profile not found", "userID", userID)
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this user"))
+			return
+		}
+		s.logger.Error("GetTrainersMeClients: get trainer by user id failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return
+	}
+
+	total, err := s.trainers.q.CountTrainerClients(ctx, trainer.ID)
+	if err != nil {
+		s.logger.Error("GetTrainersMeClients: count failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list clients", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.trainers.q.ListTrainerClients(ctx, db.ListTrainerClientsParams{
+		TrainerID:  trainer.ID,
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("GetTrainersMeClients: list failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list clients", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		list = append(list, trainerClientRowToMap(r))
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("CLIENTS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+func trainerClientRowToMap(r db.ListTrainerClientsRow) map[string]interface{} {
+	m := map[string]interface{}{
+		"client_id":    r.ClientID.String(),
+		"client_name":  r.ClientName,
+		"client_email": r.ClientEmail,
+		"total_bookings": r.TotalBookings,
+	}
+	if r.ClientAvatar.Valid {
+		m["client_avatar"] = r.ClientAvatar.String
+	}
+	if r.ClientGender.Valid {
+		m["client_gender"] = r.ClientGender.String
+	}
+	if len(r.ClientFitnessGoals) > 0 {
+		m["client_fitness_goals"] = r.ClientFitnessGoals
+	}
+	if r.ClientFitnessLevel.Valid {
+		m["client_fitness_level"] = r.ClientFitnessLevel.String
+	}
+	m["last_booking_date"] = r.LastBookingDate
+	return m
 }
 
 func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{} {
@@ -1057,6 +1386,106 @@ func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{
 		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
 	}
 	return m
+}
+
+// ResendTrainerSetup handles POST /trainers/resend-setup. Rotates the
+// activation token for the trainer identified by email and re-sends
+// the setup link — the same email body POST /trainers issues on first
+// invite. Identifies by email (not trainer.id) because the admin
+// inputting "the trainer didn't get my invite, send it again" already
+// knows the email, never the internal UUID.
+//
+// 404 is returned for both "no such email" and "user exists but isn't
+// a trainer" — same message in both cases as a small guard against
+// admins probing which emails are trainers. (Less critical here than
+// on unauthenticated endpoints, but still good practice.)
+//
+// 409 if the trainer has already activated. The right recovery path
+// for an activated trainer who's locked out is forgot-password, not
+// another setup link.
+func (s *routerImpl) ResendTrainerSetup(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("resend trainer setup: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	if s.accountSetup == nil {
+		s.logger.Warn("resend trainer setup: account setup handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("account setup is not configured on this server", api.CodeServerError))
+		return
+	}
+
+	var req api.ResendTrainerSetupJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		s.logger.Warn("resend trainer setup: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	if emailAddr == "" || !common.IsValidEmail(emailAddr) || len(emailAddr) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "email", Message: "valid email is required"},
+		}))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	user, err := s.trainers.q.GetUserByEmail(ctx, emailAddr)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this email"))
+			return
+		}
+		s.logger.Error("resend trainer setup: user lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up user", api.CodeServerError))
+		return
+	}
+
+	// Same 404 for "user found but not a trainer" so an admin can't
+	// distinguish unregistered emails from non-trainer accounts.
+	if _, err := s.trainers.q.GetTrainerByUserID(ctx, user.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer profile for this email"))
+			return
+		}
+		s.logger.Error("resend trainer setup: trainer lookup failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	activated, err := s.accountSetup.IsActivated(ctx, user.ID)
+	if err != nil {
+		s.logger.Error("resend trainer setup: activation check failed", "err", err, "user_id", user.ID)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if activated {
+		c.JSON(http.StatusConflict, api.NewError("this account is already activated; ask the trainer to use forgot-password instead", api.CodeConflict))
+		return
+	}
+
+	if err := s.accountSetup.IssueAndSend(ctx, user.ID, user.Email, user.Name); err != nil {
+		s.logger.Error("resend trainer setup: issue + send failed", "err", err, "user_id", user.ID)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to send setup link; please retry", api.CodeServerError))
+		return
+	}
+
+	s.logger.Info("resend trainer setup: link resent", "user_id", user.ID, "email_domain", emailDomainOrEmpty(user.Email))
+
+	c.JSON(http.StatusOK, api.NewSuccess("setup link resent", api.CodeOK, map[string]interface{}{
+		"email": user.Email,
+	}))
+}
+
+// emailDomainOrEmpty pulls the domain off an email for log fields,
+// avoiding logging the local-part. Returns "" if the input has no '@'.
+func emailDomainOrEmpty(addr string) string {
+	if i := strings.IndexByte(addr, '@'); i >= 0 && i+1 < len(addr) {
+		return addr[i+1:]
+	}
+	return ""
 }
 
 // silenceUnusedImports keeps imports compiled in if certain code paths get

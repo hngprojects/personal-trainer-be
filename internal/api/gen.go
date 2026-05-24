@@ -141,6 +141,30 @@ func (e CancelBookingResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for CreateTrainerRequestGender.
+const (
+	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
+	CreateTrainerRequestGenderMale           CreateTrainerRequestGender = "male"
+	CreateTrainerRequestGenderOther          CreateTrainerRequestGender = "other"
+	CreateTrainerRequestGenderPreferNotToSay CreateTrainerRequestGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the CreateTrainerRequestGender enum.
+func (e CreateTrainerRequestGender) Valid() bool {
+	switch e {
+	case CreateTrainerRequestGenderFemale:
+		return true
+	case CreateTrainerRequestGenderMale:
+		return true
+	case CreateTrainerRequestGenderOther:
+		return true
+	case CreateTrainerRequestGenderPreferNotToSay:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestOnboardingStatus.
 const (
 	CreateTrainerRequestOnboardingStatusApproved  CreateTrainerRequestOnboardingStatus = "approved"
@@ -303,6 +327,33 @@ func (e SuccessResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for TrainerGender.
+const (
+	TrainerGenderFemale         TrainerGender = "female"
+	TrainerGenderLessThannil    TrainerGender = "<nil>"
+	TrainerGenderMale           TrainerGender = "male"
+	TrainerGenderOther          TrainerGender = "other"
+	TrainerGenderPreferNotToSay TrainerGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the TrainerGender enum.
+func (e TrainerGender) Valid() bool {
+	switch e {
+	case TrainerGenderFemale:
+		return true
+	case TrainerGenderLessThannil:
+		return true
+	case TrainerGenderMale:
+		return true
+	case TrainerGenderOther:
+		return true
+	case TrainerGenderPreferNotToSay:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainerOnboardingStatus.
 const (
 	TrainerOnboardingStatusApproved  TrainerOnboardingStatus = "approved"
@@ -321,6 +372,24 @@ func (e TrainerOnboardingStatus) Valid() bool {
 	case TrainerOnboardingStatusRejected:
 		return true
 	case TrainerOnboardingStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerClientsListResponseStatus.
+const (
+	TrainerClientsListResponseStatusError   TrainerClientsListResponseStatus = "error"
+	TrainerClientsListResponseStatusSuccess TrainerClientsListResponseStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the TrainerClientsListResponseStatus enum.
+func (e TrainerClientsListResponseStatus) Valid() bool {
+	switch e {
+	case TrainerClientsListResponseStatusError:
+		return true
+	case TrainerClientsListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -630,6 +699,24 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
+// Defines values for ResendTrainerSetup200JSONResponseBodyStatus.
+const (
+	ResendTrainerSetup200JSONResponseBodyStatusError   ResendTrainerSetup200JSONResponseBodyStatus = "error"
+	ResendTrainerSetup200JSONResponseBodyStatusSuccess ResendTrainerSetup200JSONResponseBodyStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the ResendTrainerSetup200JSONResponseBodyStatus enum.
+func (e ResendTrainerSetup200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case ResendTrainerSetup200JSONResponseBodyStatusError:
+		return true
+	case ResendTrainerSetup200JSONResponseBodyStatusSuccess:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
 	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
@@ -838,11 +925,23 @@ type AddAvailabilityRequest struct {
 
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
-	Email           string             `json:"email"`
+	Email string `json:"email"`
+
+	// Id Universal user identifier (users.id). Stable across every
+	// auth flow regardless of role.
 	Id              openapi_types.UUID `json:"id"`
 	Name            string             `json:"name"`
 	ProfileComplete bool               `json:"profile_complete"`
-	UserType        AuthUserUserType   `json:"user_type"`
+
+	// TrainerId Trainer profile UUID (trainers.id) for users whose role is
+	// "trainer". Populated only when the user has a trainer profile
+	// — omitted otherwise so a client/admin response doesn't carry
+	// a meaningless null. FE uses this when calling endpoints that
+	// target a trainer by trainers.id (e.g. GET /trainers/{id},
+	// GET /trainers/sessions?trainer_id=…), distinct from the
+	// users.id returned in `id`.
+	TrainerId *openapi_types.UUID `json:"trainer_id,omitempty"`
+	UserType  AuthUserUserType    `json:"user_type"`
 }
 
 // AuthUserUserType defines model for AuthUser.UserType.
@@ -1014,11 +1113,21 @@ type CreateTrainerRequest struct {
 	// Email Trainer's login email. Used to create the user account and to mail the generated credentials.
 	Email openapi_types.Email `json:"email"`
 
+	// Gender Optional. Stored on the underlying users row. Closed enum
+	// enforced server-side and by the DB CHECK constraint added
+	// in migration 000047 — any other value returns 400.
+	Gender *CreateTrainerRequestGender `json:"gender,omitempty"`
+
 	// Name Display name for the trainer.
 	Name string `json:"name"`
 
 	// OnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 	OnboardingStatus *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
+
+	// PhoneNumber Optional. E.164 format (e.g. +2348012345678) — same shape
+	// the discovery-call phone_callback field requires. Stored
+	// on users.phone_number. Invalid format returns 400.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations One or more specializations from the fixed catalog
 	// (yoga, speed, cardio, endurance, strength). At least one is required
@@ -1030,6 +1139,11 @@ type CreateTrainerRequest struct {
 	TrainingStyles    *[]string `json:"training_styles,omitempty"`
 	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
 }
+
+// CreateTrainerRequestGender Optional. Stored on the underlying users row. Closed enum
+// enforced server-side and by the DB CHECK constraint added
+// in migration 000047 — any other value returns 400.
+type CreateTrainerRequestGender string
 
 // CreateTrainerRequestOnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 type CreateTrainerRequestOnboardingStatus string
@@ -1223,13 +1337,35 @@ type Trainer struct {
 	// Benefits Marketing-style "what you get working with this trainer" copy.
 	// Populated on Trainer responses that join the trainer_benefits
 	// table; absent when the source query doesn't fetch them.
-	Benefits         *[]TrainerBenefit       `json:"benefits,omitempty"`
-	Bio              *string                 `json:"bio,omitempty"`
-	CreatedAt        time.Time               `json:"created_at"`
-	DisplayPicture   *string                 `json:"display_picture,omitempty"`
-	Id               openapi_types.UUID      `json:"id"`
-	IntroVideoUrl    *string                 `json:"intro_video_url,omitempty"`
+	Benefits       *[]TrainerBenefit `json:"benefits,omitempty"`
+	Bio            *string           `json:"bio,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	DisplayPicture *string           `json:"display_picture,omitempty"`
+
+	// Email Trainer's email, joined from users.email. Same population
+	// rules as `name` — present on the user-joined endpoints, may
+	// be absent elsewhere.
+	Email *openapi_types.Email `json:"email,omitempty"`
+
+	// Gender Trainer's gender, joined from users.gender. Closed set
+	// enforced by the users_gender_valid CHECK constraint
+	// (migration 000047); existing pre-constraint rows whose
+	// value didn't match were normalized to NULL.
+	Gender        *TrainerGender     `json:"gender,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+	IntroVideoUrl *string            `json:"intro_video_url,omitempty"`
+
+	// Name Trainer's display name, joined from users.name. Populated on
+	// responses that join users (GET /trainers, GET /trainers/{id},
+	// GET /trainers/me); absent on response paths that return the
+	// raw trainers row without the join (e.g. POST/PATCH /trainers
+	// result, internal admin queries).
+	Name             *string                 `json:"name,omitempty"`
 	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
+
+	// PhoneNumber E.164 phone number from users.phone_number. Optional on
+	// create; null when never supplied.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
 	Specializations []TrainerSpecialization `json:"specializations"`
@@ -1241,6 +1377,12 @@ type Trainer struct {
 	UserId            openapi_types.UUID `json:"user_id"`
 	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
 }
+
+// TrainerGender Trainer's gender, joined from users.gender. Closed set
+// enforced by the users_gender_valid CHECK constraint
+// (migration 000047); existing pre-constraint rows whose
+// value didn't match were normalized to NULL.
+type TrainerGender string
 
 // TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
 type TrainerOnboardingStatus string
@@ -1268,6 +1410,34 @@ type TrainerBenefitInput struct {
 	// Title Short benefit headline (e.g. "Personalized plans").
 	Title string `json:"title"`
 }
+
+// TrainerClient defines model for TrainerClient.
+type TrainerClient struct {
+	ClientAvatar       *string              `json:"client_avatar,omitempty"`
+	ClientEmail        *openapi_types.Email `json:"client_email,omitempty"`
+	ClientFitnessGoals *[]string            `json:"client_fitness_goals,omitempty"`
+	ClientFitnessLevel *string              `json:"client_fitness_level,omitempty"`
+	ClientGender       *string              `json:"client_gender,omitempty"`
+	ClientId           *openapi_types.UUID  `json:"client_id,omitempty"`
+	ClientName         *string              `json:"client_name,omitempty"`
+	LastBookingDate    *time.Time           `json:"last_booking_date,omitempty"`
+	TotalBookings      *int64               `json:"total_bookings,omitempty"`
+}
+
+// TrainerClientsListResponse defines model for TrainerClientsListResponse.
+type TrainerClientsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string           `json:"code"`
+	Data    *[]TrainerClient `json:"data,omitempty"`
+	Message string           `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta   *interface{}                     `json:"meta,omitempty"`
+	Status TrainerClientsListResponseStatus `json:"status"`
+}
+
+// TrainerClientsListResponseStatus defines model for TrainerClientsListResponse.Status.
+type TrainerClientsListResponseStatus string
 
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {
@@ -1514,10 +1684,33 @@ type GetTrainersParams struct {
 	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
+type GetTrainersMeClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
 type GetTrainersMeSessionsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ResendTrainerSetupJSONBody defines parameters for ResendTrainerSetup.
+type ResendTrainerSetupJSONBody struct {
+	// Email Email address of the trainer to re-invite.
+	Email openapi_types.Email `json:"email"`
+}
+
+// ResendTrainerSetup200JSONResponseBodyStatus defines parameters for ResendTrainerSetup.
+type ResendTrainerSetup200JSONResponseBodyStatus string
+
+// ListTrainerSessionsParams defines parameters for ListTrainerSessions.
+type ListTrainerSessionsParams struct {
+	// TrainerId The trainer whose sessions to list
+	TrainerId openapi_types.UUID `form:"trainer_id" json:"trainer_id"`
+	Page      *int               `form:"page,omitempty" json:"page,omitempty"`
+	Limit     *int               `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // HandleSetPasswordJSONBody defines parameters for HandleSetPassword.
@@ -1662,6 +1855,9 @@ type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
+
+// ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
+type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
 
 // HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
 type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
@@ -1815,6 +2011,9 @@ type ServerInterface interface {
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
+	// Get the authenticated trainer's own profile
+	// (GET /trainers/me)
+	GetTrainersMe(c *gin.Context)
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
@@ -1827,9 +2026,18 @@ type ServerInterface interface {
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
+	// List distinct clients who have booked with the authenticated trainer
+	// (GET /trainers/me/clients)
+	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
+	// Resend the account-setup link to a trainer
+	// (POST /trainers/resend-setup)
+	ResendTrainerSetup(c *gin.Context)
+	// List sessions booked with a specific trainer — paginated
+	// (GET /trainers/sessions)
+	ListTrainerSessions(c *gin.Context, params ListTrainerSessionsParams)
 	// Set the initial password for an admin-provisioned trainer account
 	// (POST /trainers/set-password)
 	HandleSetPassword(c *gin.Context)
@@ -2810,6 +3018,21 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
+// GetTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMe(c)
+}
+
 // GetTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 
@@ -2882,6 +3105,43 @@ func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Conte
 	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
 }
 
+// GetTrainersMeClients operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeClients(c, params)
+}
+
 // GetTrainersMeSessions operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 
@@ -2917,6 +3177,66 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainersMeSessions(c, params)
+}
+
+// ResendTrainerSetup operation middleware
+func (siw *ServerInterfaceWrapper) ResendTrainerSetup(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendTrainerSetup(c)
+}
+
+// ListTrainerSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListTrainerSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTrainerSessionsParams
+
+	// ------------- Required query parameter "trainer_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "trainer_id", c.Request.URL.Query(), &params.TrainerId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainer_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListTrainerSessions(c, params)
 }
 
 // HandleSetPassword operation middleware
@@ -3500,11 +3820,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
+	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
+	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
+	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
+	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
 	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
 	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)

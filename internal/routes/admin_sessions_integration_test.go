@@ -1,6 +1,7 @@
 package routes_test
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -216,10 +218,14 @@ RETURNING id`,
 	})
 
 	// -----------------------------------------------------------------
-	// GET /trainers/me/sessions
+	// GET /trainers/sessions?trainer_id=...
 	// -----------------------------------------------------------------
-	t.Run("trainer me sessions: returns trainer's own bookings with session_id", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+	sessionsURL := func(id string) string {
+		return apiBase + "/trainers/sessions?trainer_id=" + id
+	}
+
+	t.Run("trainer sessions: trainer can read their own", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
 		req.Header.Set("Authorization", "Bearer "+trainerToken)
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
@@ -248,7 +254,107 @@ RETURNING id`,
 		require.Equal(t, 2, seenSession, "exactly 2 bookings have associated sessions")
 	})
 
-	t.Run("trainer me sessions: 404 when caller has no trainer profile", func(t *testing.T) {
+	t.Run("trainer sessions: admin can read any trainer's", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("trainer sessions: non-owner non-admin gets 403", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
+		req.Header.Set("Authorization", "Bearer "+clientToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusForbidden, res.StatusCode,
+			"plain client trying to view someone else's trainer sessions must be 403, not 200/404")
+	})
+
+	t.Run("trainer sessions: unknown trainer_id returns 404", func(t *testing.T) {
+		bogus := uuid.New().String()
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(bogus), nil)
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("trainer sessions: missing trainer_id returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("trainer sessions: 401 without token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, sessionsURL(trainerID), nil)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	// -----------------------------------------------------------------
+	// GET /trainers/me  &  GET /trainers/me/sessions
+	// (resolve trainer.id from JWT — FE doesn't need to know its own
+	//  trainer_id to read its profile / sessions)
+	// -----------------------------------------------------------------
+	t.Run("trainers me: returns the calling trainer's profile with id", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			Data map[string]any `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		// The response must echo trainer.id, not user.id — that's the
+		// whole point of this endpoint (FE gets trainer.id to use
+		// downstream).
+		require.Equal(t, trainerID, body.Data["id"],
+			"GET /trainers/me must return trainers.id, not users.id")
+		// name + email come from the joined users row.
+		require.NotEmpty(t, body.Data["name"])
+		require.NotEmpty(t, body.Data["email"])
+	})
+
+	t.Run("trainers me: 404 when caller has no trainer profile", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		req.Header.Set("Authorization", "Bearer "+clientToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("trainers me: 401 without token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me", nil)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("trainers me sessions: returns calling trainer's bookings", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+		req.Header.Set("Authorization", "Bearer "+trainerToken)
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			Data []map[string]any `json:"data"`
+			Meta struct {
+				TotalCount int `json:"total_count"`
+			} `json:"meta"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, 3, body.Meta.TotalCount,
+			"should match the bookings seeded against this trainer")
+	})
+
+	t.Run("trainers me sessions: 404 when caller has no trainer profile", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
 		req.Header.Set("Authorization", "Bearer "+clientToken)
 		res := doReq(t, httpClient, req)
@@ -256,11 +362,113 @@ RETURNING id`,
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("trainer me sessions: 401 without token", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, apiBase+"/trainers/me/sessions", nil)
+	// -----------------------------------------------------------------
+	// POST /trainers/resend-setup
+	// -----------------------------------------------------------------
+	resendBody := func(emailAddr string) []byte {
+		b, _ := json.Marshal(map[string]string{"email": emailAddr})
+		return b
+	}
+	resendURL := apiBase + "/trainers/resend-setup"
+
+	t.Run("resend setup: super_admin succeeds, response echoes email", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("trainer@listing.test")))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			Data struct {
+				Email string `json:"email"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, "trainer@listing.test", body.Data.Email)
+	})
+
+	t.Run("resend setup: plain admin also allowed", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("trainer@listing.test")))
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("resend setup: client (non-admin) gets 403", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("trainer@listing.test")))
+		req.Header.Set("Authorization", "Bearer "+clientToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("resend setup: 401 without token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("trainer@listing.test")))
+		req.Header.Set("Content-Type", "application/json")
 		res := doReq(t, httpClient, req)
 		defer func() { _ = res.Body.Close() }()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("resend setup: malformed email returns 400", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("not-an-email")))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("resend setup: unknown email returns 404", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("nobody@listing.test")))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("resend setup: client email (not a trainer) returns 404 — same as unknown", func(t *testing.T) {
+		// Same 404 as "unknown email" — small enumeration guard so the
+		// admin can't trivially probe "is this email a trainer or just
+		// a client?" via the difference.
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("client@listing.test")))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("resend setup: already-activated trainer returns 409", func(t *testing.T) {
+		// Seed an extra trainer + a CONSUMED account_setup_tokens row
+		// so the activation check fires.
+		activatedUserID := insertUser(t, db, "activated@resend.test", "Activated Trainer", "trainer")
+		insertTrainerWithSpecs(t, db, activatedUserID, "approved")
+		_, err := db.Exec(`
+INSERT INTO account_setup_tokens (user_id, token_hash, expires_at, consumed_at)
+VALUES ($1, $2, NOW() + INTERVAL '1 day', NOW())`,
+			activatedUserID, "consumed-test-hash")
+		require.NoError(t, err)
+
+		req, _ := http.NewRequest(http.MethodPost, resendURL,
+			bytes.NewReader(resendBody("activated@resend.test")))
+		req.Header.Set("Authorization", "Bearer "+superToken)
+		req.Header.Set("Content-Type", "application/json")
+		res := doReq(t, httpClient, req)
+		defer func() { _ = res.Body.Close() }()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
 	})
 
 	// -----------------------------------------------------------------

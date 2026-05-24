@@ -120,6 +120,9 @@ components:
         id:
           type: string
           format: uuid
+          description: |
+            Universal user identifier (users.id). Stable across every
+            auth flow regardless of role.
         email:
           type: string
         name:
@@ -129,6 +132,17 @@ components:
           enum: [client, trainer, admin]
         profile_complete:
           type: boolean
+        trainer_id:
+          type: string
+          format: uuid
+          description: |
+            Trainer profile UUID (trainers.id) for users whose role is
+            "trainer". Populated only when the user has a trainer profile
+            — omitted otherwise so a client/admin response doesn't carry
+            a meaningless null. FE uses this when calling endpoints that
+            target a trainer by trainers.id (e.g. GET /trainers/{id},
+            GET /trainers/sessions?trainer_id=…), distinct from the
+            users.id returned in `id`.
 
     GoogleAuthData:
       type: object
@@ -233,6 +247,21 @@ components:
         user_id:
           type: string
           format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
         specializations:
           type: array
           items:
@@ -266,6 +295,21 @@ components:
         display_picture:
           type: string
           nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other, prefer_not_to_say, null]
+          description: |
+            Trainer's gender, joined from users.gender. Closed set
+            enforced by the users_gender_valid CHECK constraint
+            (migration 000047); existing pre-constraint rows whose
+            value didn't match were normalized to NULL.
+        phone_number:
+          type: string
+          nullable: true
+          description: |
+            E.164 phone number from users.phone_number. Optional on
+            create; null when never supplied.
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
@@ -290,6 +334,48 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/Trainer"
+
+    TrainerClient:
+      type: object
+      properties:
+        client_id:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+        client_email:
+          type: string
+          format: email
+        client_avatar:
+          type: string
+          nullable: true
+        client_gender:
+          type: string
+          nullable: true
+        client_fitness_goals:
+          type: array
+          items:
+            type: string
+          nullable: true
+        client_fitness_level:
+          type: string
+          nullable: true
+        total_bookings:
+          type: integer
+          format: int64
+        last_booking_date:
+          type: string
+          format: date-time
+
+    TrainerClientsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrainerClient"
 
     TrainersListResponse:
       allOf:
@@ -371,6 +457,20 @@ components:
           type: string
           enum: [pending, approved, rejected, suspended]
           description: Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          description: |
+            Optional. Stored on the underlying users row. Closed enum
+            enforced server-side and by the DB CHECK constraint added
+            in migration 000047 — any other value returns 400.
+        phone_number:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: |
+            Optional. E.164 format (e.g. +2348012345678) — same shape
+            the discovery-call phone_callback field requires. Stored
+            on users.phone_number. Invalid format returns 400.
         display_picture:
           type: string
           format: binary
@@ -2378,6 +2478,265 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/resend-setup:
+    post:
+      operationId: ResendTrainerSetup
+      summary: Resend the account-setup link to a trainer
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Admin-only. Rotates the trainer's account-setup token and re-sends
+        the activation link to the trainer's email. Identifies the trainer
+        by email (the value the admin entered when the trainer was first
+        invited), so the admin doesn't need to know the internal
+        trainers.id.
+
+        Use this when the original invite email was lost, rate-limited by
+        the SMTP provider, or otherwise needs to be re-issued — preferable
+        to calling POST /trainers again (which would attempt to recreate
+        the user/trainer row pair).
+
+        The handler intentionally returns the same 404 for "no such email"
+        and "email exists but isn't a trainer" — a small guard against
+        admin-side enumeration of which emails belong to trainers.
+
+        Returns 409 if the trainer has already activated their account.
+        The trainer should use the existing forgot-password flow to set a
+        new password instead of receiving another setup link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address of the trainer to re-invite.
+      responses:
+        "200":
+          description: Setup link resent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+              example:
+                status: success
+                message: setup link resent
+                code: OK
+                data:
+                  email: trainer@example.com
+        "400":
+          description: Missing or malformed email in the request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile found for the supplied email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer has already activated their account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Email delivery or token persistence failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me:
+    get:
+      operationId: GetTrainersMe
+      summary: Get the authenticated trainer's own profile
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Resolves the trainer profile (including trainer.id) from the JWT
+        user_id, so the FE doesn't need to know its own trainer.id to
+        fetch records. Returns the same payload shape as
+        GET /trainers/{id} (trainer fields + name/email joined from
+        users + benefits). 404 when the authenticated user has no
+        trainer profile (e.g. plain client trying to use a trainer-only
+        endpoint).
+      responses:
+        "200":
+          description: Trainer profile fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/clients:
+    get:
+      operationId: GetTrainersMeClients
+      summary: List distinct clients who have booked with the authenticated trainer
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated list of distinct clients (users) who have booked
+        at least one session with the authenticated trainer. Includes client
+        profile details and aggregate booking stats so the trainer dashboard
+        can render a full client roster without per-row user lookups.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Clients fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerClientsListResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/sessions:
+    get:
+      operationId: GetTrainersMeSessions
+      summary: List sessions booked with the authenticated trainer — paginated
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Convenience variant of GET /trainers/sessions?trainer_id=... that
+        resolves the trainer from the JWT, so a trainer never has to
+        send their own trainer.id. Same response shape and pagination
+        semantics as the trainer_id-explicit endpoint. 404 when the
+        authenticated user has no trainer profile.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Sessions fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/me/availability:
     put:
       operationId: PutTrainersMeAvailability
@@ -2551,19 +2910,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /trainers/me/sessions:
+  /trainers/sessions:
     get:
-      operationId: GetTrainersMeSessions
-      summary: List sessions booked with the authenticated trainer — paginated
+      operationId: ListTrainerSessions
+      summary: List sessions booked with a specific trainer — paginated
       tags: [Trainer]
       security:
         - bearerAuth: []
       description: |
-        Returns a paginated list of bookings (paid training sessions) where
-        the trainer of record is the calling user. Includes the client's
-        name + email per booking so the trainer dashboard doesn't have to
-        do per-row user lookups. Newest scheduled first.
+        Returns a paginated list of bookings (paid training sessions)
+        where the trainer of record matches the supplied trainer_id
+        query parameter. Includes the client's name + email per booking
+        so the trainer dashboard doesn't have to do per-row user
+        lookups. Newest scheduled first.
+
+        Replaces the earlier GET /trainers/me/sessions which derived
+        the trainer from the JWT user — that path 404'd whenever the
+        caller wasn't a trainer (admin tools, etc.). This endpoint
+        takes the trainer_id explicitly and authorizes either the
+        trainer owner (caller.user_id matches trainers.user_id) OR an
+        admin / super_admin.
       parameters:
+        - name: trainer_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The trainer whose sessions to list
         - name: page
           in: query
           required: false
@@ -2587,7 +2961,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
         "400":
-          description: Invalid pagination parameters
+          description: Invalid or missing trainer_id / pagination params
           content:
             application/json:
               schema:
@@ -2598,8 +2972,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is neither the owner of this trainer profile nor an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Trainer profile not found for this user
+          description: Trainer not found
           content:
             application/json:
               schema:

@@ -124,6 +124,10 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Warn("HandleCreateBookingSession: scheduled_end before scheduled_start")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking end time must be after start time"})
 	}
+	if !request.ScheduledStart.IsZero() && request.ScheduledStart.Before(time.Now()) {
+		h.log.Warn("HandleCreateBookingSession: scheduled_start is in the past")
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking start time must be in the future"})
+	}
 	if !common.IsNotEmpty(string(request.SessionPlatform)) {
 		h.log.Warn("HandleCreateBookingSession: session_platform is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})

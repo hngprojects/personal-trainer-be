@@ -233,6 +233,7 @@ type User struct {
 	FitnessGoals []string
 	FitnessLevel sql.NullString
 	AvatarUrl    sql.NullString
+	PhoneNumber  sql.NullString
 }
 
 type UserRole struct {

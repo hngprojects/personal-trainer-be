@@ -240,14 +240,9 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 	h.log.Info("user verified and logged in", "user_id", userIDStr)
 
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.LocalAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        toAuthUserType(user.Role),
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
@@ -334,14 +329,9 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 
 	h.log.Info("user signed in", "user_id", userIDStr)
 
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.LocalAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        toAuthUserType(user.Role),
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
