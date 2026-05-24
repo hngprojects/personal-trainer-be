@@ -6,5 +6,6 @@ CREATE INDEX IF NOT EXISTS idx_booking_slots_trainer_id ON booking_slots(trainer
 
 -- +goose Down
 DROP INDEX IF EXISTS idx_booking_slots_trainer_id;
-ALTER TABLE booking_slots
-DROP COLUMN trainer_id;
+
+ALTER TABLE IF EXISTS booking_slots
+DROP COLUMN IF EXISTS trainer_id;
