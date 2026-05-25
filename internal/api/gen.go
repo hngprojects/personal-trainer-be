@@ -507,6 +507,27 @@ func (e ListOrganisationMediaParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for HandleRegisterDeviceJSONBodyPlatform.
+const (
+	Android HandleRegisterDeviceJSONBodyPlatform = "android"
+	Ios     HandleRegisterDeviceJSONBodyPlatform = "ios"
+	Web     HandleRegisterDeviceJSONBodyPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the HandleRegisterDeviceJSONBodyPlatform enum.
+func (e HandleRegisterDeviceJSONBodyPlatform) Valid() bool {
+	switch e {
+	case Android:
+		return true
+	case Ios:
+		return true
+	case Web:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
 	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
@@ -1388,6 +1409,22 @@ type UploadOrganisationVideoMultipartBody struct {
 	Title string             `json:"title"`
 }
 
+// HandleSendNotificationJSONBody defines parameters for HandleSendNotification.
+type HandleSendNotificationJSONBody struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Message        string `json:"message"`
+	Title          string `json:"title"`
+}
+
+// HandleRegisterDeviceJSONBody defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBody struct {
+	DeviceToken string                               `json:"device_token"`
+	Platform    HandleRegisterDeviceJSONBodyPlatform `json:"platform"`
+}
+
+// HandleRegisterDeviceJSONBodyPlatform defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBodyPlatform string
+
 // HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
 type HandleTrainersNoteJSONBody struct {
 	Note string `json:"note"`
@@ -1539,6 +1576,12 @@ type UploadOrganisationImageMultipartRequestBody UploadOrganisationImageMultipar
 
 // UploadOrganisationVideoMultipartRequestBody defines body for UploadOrganisationVideo for multipart/form-data ContentType.
 type UploadOrganisationVideoMultipartRequestBody UploadOrganisationVideoMultipartBody
+
+// HandleSendNotificationJSONRequestBody defines body for HandleSendNotification for application/json ContentType.
+type HandleSendNotificationJSONRequestBody HandleSendNotificationJSONBody
+
+// HandleRegisterDeviceJSONRequestBody defines body for HandleRegisterDevice for application/json ContentType.
+type HandleRegisterDeviceJSONRequestBody HandleRegisterDeviceJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
@@ -1701,6 +1744,15 @@ type ServerInterface interface {
 	// Get one organisation-media record (public)
 	// (GET /media/{id})
 	GetOrganisationMediaByID(c *gin.Context, id openapi_types.UUID)
+	// Get a list of notifications for the authenticated user
+	// (GET /notifications)
+	HandleGetUserNotifications(c *gin.Context)
+	// Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+	// (POST /notifications)
+	HandleSendNotification(c *gin.Context)
+	// Register a device for push notifications (FCM)
+	// (POST /register/device)
+	HandleRegisterDevice(c *gin.Context)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -2664,6 +2716,51 @@ func (siw *ServerInterfaceWrapper) GetOrganisationMediaByID(c *gin.Context) {
 	}
 
 	siw.Handler.GetOrganisationMediaByID(c, id)
+}
+
+// HandleGetUserNotifications operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetUserNotifications(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetUserNotifications(c)
+}
+
+// HandleSendNotification operation middleware
+func (siw *ServerInterfaceWrapper) HandleSendNotification(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSendNotification(c)
+}
+
+// HandleRegisterDevice operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegisterDevice(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegisterDevice(c)
 }
 
 // CreateReview operation middleware
@@ -3688,6 +3785,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/media/videos", wrapper.UploadOrganisationVideo)
 	router.DELETE(options.BaseURL+"/media/:id", wrapper.DeleteOrganisationMedia)
 	router.GET(options.BaseURL+"/media/:id", wrapper.GetOrganisationMediaByID)
+	router.GET(options.BaseURL+"/notifications", wrapper.HandleGetUserNotifications)
+	router.POST(options.BaseURL+"/notifications", wrapper.HandleSendNotification)
+	router.POST(options.BaseURL+"/register/device", wrapper.HandleRegisterDevice)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)

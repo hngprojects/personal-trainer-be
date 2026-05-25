@@ -59,7 +59,9 @@ type Config struct {
 	// VideoTempDir is where the video-upload handler writes incoming files
 	// before the worker transcodes them. Empty = os.TempDir. Set this to a
 	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
-	VideoTempDir string
+	VideoTempDir       string
+	FCMCredentialsFile string
+	FCMProjectID       string
 }
 
 func Load() (*Config, error) {
@@ -115,6 +117,10 @@ func Load() (*Config, error) {
 		// Matches the comment on the field and the previous behaviour in
 		// streamUploadToTemp (which still defends if the value is empty).
 		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
+
+		// FCM credentials for push notifications to trainers
+		FCMCredentialsFile: os.Getenv("FCM_CREDENTIALS_FILE"),
+		FCMProjectID:       os.Getenv("FCM_PROJECT_ID"),
 	}
 
 	if cfg.DatabaseURL == "" {

@@ -5515,3 +5515,200 @@ paths:
         "500":
           description: Internal server error
           content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+  /register/device:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleRegisterDevice
+      tags:
+        - Device
+      summary: Register a device for push notifications (FCM)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token, platform]
+              properties:
+                device_token:
+                  type: string
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+      responses:
+        "200":
+          description: Device registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Device registered for notifications
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /notifications:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: HandleGetUserNotifications
+      tags:
+        - Notification
+      summary: Get a list of notifications for the authenticated user
+      responses:
+        "200":
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "404": 
+          description: Could not retrieve notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: failedto retrieve notification
+                code: NOT_FOUND
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleSendNotification
+      tags:
+        - Notification
+      summary: Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, title, message, idempotency_key]
+              properties:
+                title:
+                  type: string
+                message:
+                  type: string
+                idempotency_key:
+                  type: string
+      responses:
+        "200":
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. FCM send failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
