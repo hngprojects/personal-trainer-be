@@ -27,6 +27,9 @@ func (h *Handler) HandleCreateDevToken(c *gin.Context) {
 	userID := c.Query("user_id")
 	if userID == "" {
 		userID = uuid.New().String()
+	} else if _, err := uuid.Parse(userID); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("user_id must be a valid UUID", api.CodeBadRequest))
+		return
 	}
 
 	generatedToken, err := auth.GenerateJWTToken(userID, "access")

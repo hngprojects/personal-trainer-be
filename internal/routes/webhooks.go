@@ -280,8 +280,11 @@ func googleResolveStatus(notifType int) string {
 		return "active"
 	case googleNotifCanceled, googleNotifRevoked:
 		return "cancelled"
-	case googleNotifExpired, googleNotifOnHold:
+	case googleNotifExpired:
 		return "expired"
+	case googleNotifOnHold:
+		// Payment failed but still in grace period — keep active until type 13 fires.
+		return "active"
 	default:
 		return ""
 	}
