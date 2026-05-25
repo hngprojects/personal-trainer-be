@@ -602,14 +602,13 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}
 
-	// Issue the activation token + send the setup link. Mirrors the previous
-	// "send credentials" failure mode: the trainer row already exists, so a
-	// 500 here is the right signal for the admin to retry. UpsertToken is
-	// idempotent on user_id so retrying rotates the token cleanly.
+	// Issue the activation token + send the setup link. UpsertToken is
+	// idempotent on user_id so retrying (via a future resend endpoint) rotates
+	// the token cleanly.
+	setupLinkSent := true
 	if err := s.accountSetup.IssueAndSend(ctx, user.ID, emailAddr, name); err != nil {
 		s.logger.Error("create trainer: issue setup link failed", "err", err, "user_id", user.ID.String())
-		c.JSON(http.StatusInternalServerError, api.NewError("trainer created but setup link failed; please retry", api.CodeServerError))
-		return
+		setupLinkSent = false
 	}
 
 	payload := trainerToMapWithBenefits(trainer, insertedBenefits)
@@ -634,7 +633,11 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		payload["display_picture_status"] = "processing"
 	}
 
-	c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; setup link emailed", api.CodeCreated, payload))
+	if setupLinkSent {
+		c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; setup link emailed", api.CodeCreated, payload))
+	} else {
+		c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; setup link could not be sent — use the resend endpoint to retry", api.CodeCreated, payload))
+	}
 }
 
 // parseTrainerSpecializations accepts both a single CSV field
@@ -1327,9 +1330,9 @@ func (s *routerImpl) GetTrainersMeClients(c *gin.Context, params api.GetTrainers
 
 func trainerClientRowToMap(r db.ListTrainerClientsRow) map[string]interface{} {
 	m := map[string]interface{}{
-		"client_id":    r.ClientID.String(),
-		"client_name":  r.ClientName,
-		"client_email": r.ClientEmail,
+		"client_id":      r.ClientID.String(),
+		"client_name":    r.ClientName,
+		"client_email":   r.ClientEmail,
 		"total_bookings": r.TotalBookings,
 	}
 	if r.ClientAvatar.Valid {

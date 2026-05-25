@@ -117,6 +117,22 @@ type FailedVideoUpload struct {
 	CreatedAt time.Time
 }
 
+type OrganisationMedium struct {
+	ID          uuid.UUID
+	MediaType   string
+	Title       string
+	Description sql.NullString
+	Category    sql.NullString
+	ObjectKey   string
+	PublicUrl   string
+	MimeType    string
+	SizeBytes   int64
+	UploadedBy  uuid.NullUUID
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type PaidBookingRescheduleHistory struct {
 	ID            uuid.UUID
 	BookingID     uuid.UUID

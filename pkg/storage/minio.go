@@ -72,3 +72,13 @@ func (s *MinioStorage) PutObject(ctx context.Context, key string, body io.Reader
 	}
 	return nil
 }
+
+// RemoveObject deletes the object at the given key. MinIO returns nil
+// for a missing key by default (no NoSuchKey distinction), so this is
+// effectively idempotent — callers don't need to pre-check existence.
+func (s *MinioStorage) RemoveObject(ctx context.Context, key string) error {
+	if err := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("storage: remove %q: %w", key, err)
+	}
+	return nil
+}
