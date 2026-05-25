@@ -900,6 +900,7 @@ func (s *routerImpl) renderTrainerProfileByID(c *gin.Context, trainerID uuid.UUI
 func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.UUID) (map[string]interface{}, int, *api.ErrorResponse) {
 	row, err := s.trainers.q.GetTrainerWithUserByID(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("failed to get trainer by ID", "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			resp := api.NewNotFoundError("trainer")
 			return nil, http.StatusNotFound, &resp
@@ -972,6 +973,7 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	existing, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("failed to get trainer by ID ", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 			return

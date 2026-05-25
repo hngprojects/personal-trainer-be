@@ -117,6 +117,20 @@ type FailedVideoUpload struct {
 	CreatedAt time.Time
 }
 
+type Notification struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Title          string
+	Message        string
+	Type           string
+	Status         string
+	IdempotencyKey string
+	RetryCount     int32
+	SentAt         sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type OrganisationMedium struct {
 	ID          uuid.UUID
 	MediaType   string
@@ -250,6 +264,17 @@ type User struct {
 	FitnessLevel sql.NullString
 	AvatarUrl    sql.NullString
 	PhoneNumber  sql.NullString
+}
+
+type UserDevice struct {
+	ID                        uuid.UUID
+	UserID                    uuid.UUID
+	DeviceToken               string
+	IsPushNotificationEnabled bool
+	Platform                  string
+	IsActive                  bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
 }
 
 type UserRole struct {

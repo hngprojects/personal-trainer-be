@@ -22,14 +22,17 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	"github.com/hngprojects/personal-trainer-be/internal/observability"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
+	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
+	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 	"github.com/hngprojects/personal-trainer-be/pkg/storage"
@@ -168,6 +171,10 @@ type routerImpl struct {
 	// per-request handler methods don't need to dig back into the Router.
 	logger *slog.Logger
 	mailer email.Mailer
+
+	// notificationService *notification.NotificationService
+	userDeviceHandler   *userdevice.UserDeviceHandler
+	notificationHandler *notification.NotificationHandler
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -269,6 +276,18 @@ func (s *Router) Routes() *gin.Engine {
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+
+			// User devices for push notifications
+			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
+			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
+			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
+
+			// Notifications
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
+			notificationRepo := notification.NewRepository(q)
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, s.log)
+			// impl.notificationService = notificationService
+			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
