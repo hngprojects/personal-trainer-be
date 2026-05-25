@@ -1023,10 +1023,9 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	// argument leaves the column untouched. We only set Valid=true when the
 	// caller actually supplied a new value; otherwise we pass an
 	// invalid-NullString which COALESCE folds back to the existing column.
-
 	var onboardingStatus sql.NullString
 	if body.OnboardingStatus != nil {
-		if *body.OnboardingStatus != api.Pending && *body.OnboardingStatus != api.Approved && *body.OnboardingStatus != api.Rejected && *body.OnboardingStatus != api.Suspended {
+		if !body.OnboardingStatus.Valid() {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid onboarding_status", api.CodeBadRequest))
 			return
 		}
