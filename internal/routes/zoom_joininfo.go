@@ -106,11 +106,11 @@ func (h *zoomJoinInfoHandler) joinInfo(c *gin.Context) {
 		return
 	}
 
-	role := zoom.SDKRoleParticipant
-	switch {
-	case userID == booking.ClientID:
+	var role zoom.SDKRole
+	switch userID {
+	case booking.ClientID:
 		role = zoom.SDKRoleParticipant
-	case userID == trainerRow.ID:
+	case trainerRow.ID:
 		role = zoom.SDKRoleHost
 	default:
 		c.JSON(http.StatusForbidden, api.NewError("you are not a participant of this session", api.CodeForbidden))
