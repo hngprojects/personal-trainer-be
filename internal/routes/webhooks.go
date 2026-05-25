@@ -119,7 +119,7 @@ func (s *routerImpl) HandleAppleWebhook(c *gin.Context) {
 		return
 	}
 
-	newStatus, newEnd := appleResolveStatus(notif.NotificationType, tx.ExpiresDate)
+	newStatus, newEnd := appleResolveStatus(notif.NotificationType, tx.ExpiresDate, sub.CurrentPeriodEnd.Time)
 	if newStatus == "" {
 		log.Info("apple webhook: unhandled notification type, ignoring")
 		c.Status(http.StatusOK)
@@ -142,15 +142,16 @@ func (s *routerImpl) HandleAppleWebhook(c *gin.Context) {
 
 // appleResolveStatus maps an Apple notification type to (status, periodEnd).
 // Returns ("", zero) for notification types we intentionally ignore.
-func appleResolveStatus(notifType string, expiresDateMS int64) (string, time.Time) {
+func appleResolveStatus(notifType string, expiresDateMS int64, currentEnd time.Time) (string, time.Time) {
 	expiresAt := time.UnixMilli(expiresDateMS).UTC()
 	switch notifType {
 	case appleNotifSubscribed, appleNotifDidRenew:
 		return "active", expiresAt
 	case appleNotifExpired, appleNotifGracePeriodExpired, appleNotifDidFailToRenew:
-		return "expired", expiresAt
+		// Keep existing period_end — just flip the status.
+		return "expired", currentEnd
 	case appleNotifRefund:
-		return "cancelled", expiresAt
+		return "cancelled", currentEnd
 	default:
 		return "", time.Time{}
 	}
@@ -241,14 +242,15 @@ func (s *routerImpl) HandleGoogleWebhook(c *gin.Context) {
 		return
 	}
 
-	newStatus, newEnd := googleResolveStatus(notif.NotificationType, sub.CurrentPeriodEnd.Time)
+	newStatus := googleResolveStatus(notif.NotificationType)
 	if newStatus == "" {
 		log.Info("google webhook: unhandled notification type, ignoring", "type", notif.NotificationType)
 		c.Status(http.StatusOK)
 		return
 	}
 
-	// For renewal events, try to fetch the fresh expiry from the Play API.
+	// For renewals, fetch the fresh expiry; for everything else keep the existing period_end.
+	newEnd := sub.CurrentPeriodEnd.Time
 	if notif.NotificationType == googleNotifRenewed ||
 		notif.NotificationType == googleNotifRecovered ||
 		notif.NotificationType == googleNotifRestarted {
@@ -272,16 +274,16 @@ func (s *routerImpl) HandleGoogleWebhook(c *gin.Context) {
 }
 
 // googleResolveStatus maps a Google notification type to (status, periodEnd).
-func googleResolveStatus(notifType int, currentEnd time.Time) (string, time.Time) {
+func googleResolveStatus(notifType int) string {
 	switch notifType {
 	case googleNotifRecovered, googleNotifRenewed, googleNotifPurchased, googleNotifRestarted:
-		return "active", currentEnd
+		return "active"
 	case googleNotifCanceled, googleNotifRevoked:
-		return "cancelled", currentEnd
+		return "cancelled"
 	case googleNotifExpired, googleNotifOnHold:
-		return "expired", currentEnd
+		return "expired"
 	default:
-		return "", time.Time{}
+		return ""
 	}
 }
 
