@@ -49,3 +49,11 @@ func (r *Repository) GetUserNotification(ctx context.Context, userID uuid.UUID) 
 	}
 	return &notifications, nil
 }
+
+func (r *Repository) GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDevice, error) {
+	devices, err := r.q.GetAllActiveUsersDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &devices, nil
+}

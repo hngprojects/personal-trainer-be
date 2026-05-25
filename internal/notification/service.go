@@ -11,7 +11,7 @@ import (
 )
 
 type NotificationService struct {
-	repo      *Repository
+	repo      RepositoryInterface
 	log       *slog.Logger
 	fcmClient *fcmnotif.PushNotification
 	// redis *redis.Client
@@ -28,7 +28,7 @@ type NotificationResponse struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
-func NewNotificationService(repo *Repository, fcmClient *fcmnotif.PushNotification, log *slog.Logger) *NotificationService {
+func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNotification, log *slog.Logger) *NotificationService {
 	return &NotificationService{
 		repo:      repo,
 		log:       log,
@@ -40,7 +40,7 @@ func NewNotificationService(repo *Repository, fcmClient *fcmnotif.PushNotificati
 type NotificationServiceInterface interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
-	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
 func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {

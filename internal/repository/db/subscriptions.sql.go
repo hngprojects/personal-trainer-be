@@ -7,12 +7,16 @@ package db
 
 import (
 	"context"
+<<<<<<< HEAD
 	"database/sql"
 	"time"
+=======
+>>>>>>> 7c88388 (feat(notifications): add tests to notification and user_device system)
 
 	"github.com/google/uuid"
 )
 
+<<<<<<< HEAD
 const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
 SET status = 'cancelled',
@@ -185,8 +189,24 @@ func (q *Queries) GetActiveSubscriptionByClientID(ctx context.Context, clientID 
 	return i, err
 }
 
+=======
+>>>>>>> 7c88388 (feat(notifications): add tests to notification and user_device system)
 const getActiveSubscriptionForClient = `-- name: GetActiveSubscriptionForClient :one
-SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+SELECT
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  created_at,
+  cancelled_at
+FROM subscriptions
 WHERE client_id = $1
   AND trainer_id = $2
   AND status = 'active'
@@ -216,6 +236,7 @@ func (q *Queries) GetActiveSubscriptionForClient(ctx context.Context, arg GetAct
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
+<<<<<<< HEAD
 		&i.PlanID,
 		&i.Platform,
 		&i.TrialEndsAt,
@@ -357,12 +378,28 @@ func (q *Queries) GetSubscriptionByGooglePurchaseToken(ctx context.Context, goog
 		&i.TrialEndsAt,
 		&i.AppleOriginalTransactionID,
 		&i.GooglePurchaseToken,
+=======
+>>>>>>> 7c88388 (feat(notifications): add tests to notification and user_device system)
 	)
 	return i, err
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+SELECT
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  created_at,
+  cancelled_at
+FROM subscriptions
 WHERE id = $1
 LIMIT 1
 `
@@ -384,11 +421,6 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscr
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
-		&i.PlanID,
-		&i.Platform,
-		&i.TrialEndsAt,
-		&i.AppleOriginalTransactionID,
-		&i.GooglePurchaseToken,
 	)
 	return i, err
 }
@@ -397,7 +429,20 @@ const refundSessionCredit = `-- name: RefundSessionCredit :one
 UPDATE subscriptions
 SET sessions_used_this_month = GREATEST(0, sessions_used_this_month - 1)
 WHERE id = $1
-RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+RETURNING
+  id,
+  client_id,
+  trainer_id,
+  plan_type,
+  sessions_per_month,
+  sessions_used_this_month,
+  amount,
+  currency,
+  status,
+  current_period_start,
+  current_period_end,
+  created_at,
+  cancelled_at
 `
 
 func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -417,11 +462,6 @@ func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscr
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
-		&i.PlanID,
-		&i.Platform,
-		&i.TrialEndsAt,
-		&i.AppleOriginalTransactionID,
-		&i.GooglePurchaseToken,
 	)
 	return i, err
 }

@@ -13,7 +13,7 @@ import (
 )
 
 type UserDeviceHandler struct {
-	service *userDeviceService
+	service UserDeviceServiceInterface
 	log     *slog.Logger
 }
 
@@ -21,7 +21,7 @@ type UserDeviceHandlerInterface interface {
 	HandleRegisterDevice(c *gin.Context)
 }
 
-func NewUserDeviceHandler(service *userDeviceService, log *slog.Logger) *UserDeviceHandler {
+func NewUserDeviceHandler(service UserDeviceServiceInterface, log *slog.Logger) *UserDeviceHandler {
 	return &UserDeviceHandler{
 		service: service,
 		log:     log,
