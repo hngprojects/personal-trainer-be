@@ -28,15 +28,7 @@ func TestServiceSendNotificationToUser_Success(t *testing.T) {
 			}, nil
 		},
 		getUserDeviceTokenFn: func(_ context.Context, _ uuid.UUID) (*[]db.UserDevice, error) {
-			return &[]db.UserDevice{
-				{DeviceToken: "token-1", IsPushNotificationEnabled: true},
-			}, nil
-		},
-		updateNotificationStatusFn: func(_ context.Context, args db.UpdateNotificationStatusParams) error {
-			if args.Status != "sent" {
-				t.Errorf("expected status 'sent', got %q", args.Status)
-			}
-			return nil
+			return &[]db.UserDevice{}, nil
 		},
 	}
 	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
@@ -45,8 +37,8 @@ func TestServiceSendNotificationToUser_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if resp.Status != "sent" {
-		t.Errorf("expected status 'sent', got %q", resp.Status)
+	if resp.Status != "pending" {
+		t.Errorf("expected status 'pending', got %q", resp.Status)
 	}
 	if resp.Title != "Title" {
 		t.Errorf("expected title 'Title', got %q", resp.Title)
@@ -112,6 +104,41 @@ func TestServiceSendNotificationToUser_DeviceTokenError(t *testing.T) {
 	}
 	if resp == nil {
 		t.Fatal("expected response even on error, got nil")
+	}
+}
+
+func TestServiceSendNotificationToUser_FCMDisabled(t *testing.T) {
+	userID := uuid.New()
+	now := time.Now()
+	var statusUpdated bool
+	repo := &mockRepository{
+		createNotificationFn: func(_ context.Context, args db.CreateNotificationParams) (db.Notification, error) {
+			return db.Notification{
+				ID: uuid.New(), UserID: args.UserID, Title: args.Title,
+				Message: args.Message, Status: "pending", CreatedAt: now, UpdatedAt: now,
+			}, nil
+		},
+		getUserDeviceTokenFn: func(_ context.Context, _ uuid.UUID) (*[]db.UserDevice, error) {
+			return &[]db.UserDevice{
+				{DeviceToken: "token-1", IsPushNotificationEnabled: true},
+			}, nil
+		},
+		updateNotificationStatusFn: func(_ context.Context, args db.UpdateNotificationStatusParams) error {
+			if args.Status != "failed" {
+				t.Errorf("expected status 'failed', got %q", args.Status)
+			}
+			statusUpdated = true
+			return nil
+		},
+	}
+	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+
+	_, err := svc.SendNotificationToUser(context.Background(), userID, "Title", "Msg", "key")
+	if err == nil {
+		t.Fatal("expected error from disabled FCM, got nil")
+	}
+	if !statusUpdated {
+		t.Error("expected notification status to be updated to 'failed'")
 	}
 }
 

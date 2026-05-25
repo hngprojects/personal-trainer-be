@@ -91,9 +91,14 @@ func (h *NotificationHandler) GetUserNotifications(c *gin.Context) {
 		return
 	}
 
-	notifications, _ := h.service.GetUserNotification(c.Request.Context(), userID)
-	if len(*notifications) < 1 {
-		h.log.Error("could not fetch user notifications", "userID", userID)
+	notifications, err := h.service.GetUserNotification(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch notifications", api.CodeServerError))
+		return
+	}
+	if len(*notifications) == 0 {
+		h.log.Info("no notifications found for user", "userID", userID)
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("notifications retrieved successfully", api.CodeOK, notifications))
 }

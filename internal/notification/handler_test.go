@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hngprojects/personal-trainer-be/internal/common"
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
@@ -59,7 +60,8 @@ func TestHandleSendNotification_Success(t *testing.T) {
 		t.Errorf("expected 201, got %d", w.Code)
 	}
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
 	if resp["code"] != "CREATED" {
 		t.Errorf("expected CREATED, got %v", resp["code"])
 	}
@@ -226,7 +228,8 @@ func TestHandleGetUserNotifications_Success(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
 	if resp["code"] != "OK" {
 		t.Errorf("expected OK, got %v", resp["code"])
 	}

@@ -43,8 +43,13 @@ type NotificationServiceInterface interface {
 	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
-func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {
-	return s.repo.GetUserDeviceToken(ctx, userID)
+func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
+	devices, err := s.repo.GetUserDeviceToken(ctx, userID)
+	if err != nil {
+		s.log.Error("Failed to get user device tokens", "userID", userID, "error", err)
+		return nil, err
+	}
+	return *devices, nil
 }
 
 func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error) {
@@ -99,7 +104,11 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 }
 
 func (s *NotificationService) GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error) {
-	notifications, _ := s.repo.GetUserNotification(ctx, userID)
+	notifications, err := s.repo.GetUserNotification(ctx, userID)
+	if err != nil {
+		s.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
+		return nil, err
+	}
 	var resp []NotificationResponse
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)

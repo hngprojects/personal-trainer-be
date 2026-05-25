@@ -35,7 +35,8 @@ func (h *UserDeviceHandler) HandleRegisterDevice(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
-	if strings.TrimSpace(req.DeviceToken) == "" {
+	deviceToken := strings.TrimSpace(req.DeviceToken)
+	if deviceToken == "" {
 		c.JSON(http.StatusBadRequest, api.NewError("device_token is required", api.CodeBadRequest))
 		return
 	}
@@ -57,7 +58,7 @@ func (h *UserDeviceHandler) HandleRegisterDevice(c *gin.Context) {
 	}
 	var args = &db.CreateUserDeviceParams{
 		UserID:      userID,
-		DeviceToken: req.DeviceToken,
+		DeviceToken: deviceToken,
 		Platform:    string(req.Platform),
 	}
 	userDevice, err := h.service.RegisterDevice(c.Request.Context(), args.UserID, args.DeviceToken, args.Platform)

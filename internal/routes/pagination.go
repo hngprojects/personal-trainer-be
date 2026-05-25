@@ -25,7 +25,7 @@ func parsePagination(c *gin.Context, pageParam, limitParam *int, log *slog.Logge
 	}
 	if limitParam != nil {
 		if *limitParam < 1 || *limitParam > 100 {
-			log.Warn("parsePagination: liminternal/repository/db/password_reset.goit out of range", "limit", *limitParam)
+			log.Warn("parsePagination: limit out of range", "limit", *limitParam)
 			c.JSON(http.StatusBadRequest, api.NewError("limit must be between 1 and 100", api.CodeBadRequest))
 			return 0, 0, false
 		}
