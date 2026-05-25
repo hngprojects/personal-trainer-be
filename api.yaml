@@ -6168,7 +6168,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 status: error
-                message: failedto retrieve notification
+                message: failed to retrieve notification
                 code: NOT_FOUND
         "500":
           description: Internal server error (e.g. database failure)
@@ -6193,7 +6193,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [user_id, title, message, idempotency_key]
+              required: [title, message, idempotency_key]
               properties:
                 title:
                   type: string
