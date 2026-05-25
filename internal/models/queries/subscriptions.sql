@@ -71,7 +71,8 @@ LIMIT 1;
 
 -- name: CancelSubscription :one
 UPDATE subscriptions
-SET status = 'cancelled'
+SET status = 'cancelled',
+    cancelled_at = NOW()
 WHERE id = sqlc.arg(id)
   AND status = 'active'
 RETURNING *;

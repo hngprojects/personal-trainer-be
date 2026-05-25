@@ -32,3 +32,10 @@ ALTER TABLE subscriptions
     DROP COLUMN IF EXISTS trial_ends_at,
     DROP COLUMN IF EXISTS platform,
     DROP COLUMN IF EXISTS plan_id;
+
+ALTER TABLE subscriptions
+    ADD CONSTRAINT subscriptions_platform_token_consistency CHECK (
+        (platform = 'apple'  AND apple_original_transaction_id IS NOT NULL AND google_purchase_token IS NULL) OR
+        (platform = 'google' AND google_purchase_token IS NOT NULL AND apple_original_transaction_id IS NULL) OR
+        platform IS NULL
+    );

@@ -17,13 +17,15 @@ import (
 // planMeta holds the static details for each subscription tier.
 // planType must match plan_type FK in the subscription_plans table.
 var planMeta = map[string]struct {
-	sessions int
-	amount   int64
-	planType string
+	sessions       int
+	amount         int64
+	planType       string
+	appleProductID string
+	googleProductID string
 }{
-	"casual":     {sessions: 1, amount: 2000, planType: "single"},
-	"committed":  {sessions: 12, amount: 8000, planType: "monthly_12"},
-	"consistent": {sessions: 18, amount: 12000, planType: "monthly_18"},
+	"casual":     {sessions: 1, amount: 2000, planType: "single", appleProductID: "com.fitcal.plan.casual.monthly", googleProductID: "fitcal_plan_casual_monthly"},
+	"committed":  {sessions: 12, amount: 8000, planType: "monthly_12", appleProductID: "com.fitcal.plan.committed.monthly", googleProductID: "fitcal_plan_committed_monthly"},
+	"consistent": {sessions: 18, amount: 12000, planType: "monthly_18", appleProductID: "com.fitcal.plan.consistent.monthly", googleProductID: "fitcal_plan_consistent_monthly"},
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -101,19 +103,39 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		return
 	}
 
-	// Validate platform-specific field presence
-	if body.Platform == "apple" && (body.ReceiptData == nil || *body.ReceiptData == "") {
-		c.JSON(http.StatusBadRequest, api.NewError("receipt_data is required for Apple platform", api.CodeBadRequest))
-		return
-	}
-	if body.Platform == "google" && (body.PurchaseToken == nil || *body.PurchaseToken == "") {
-		c.JSON(http.StatusBadRequest, api.NewError("purchase_token is required for Google platform", api.CodeBadRequest))
+	// Validate platform and platform-specific proof fields
+	switch body.Platform {
+	case "apple":
+		if body.ReceiptData == nil || *body.ReceiptData == "" {
+			c.JSON(http.StatusBadRequest, api.NewError("receipt_data is required for Apple platform", api.CodeBadRequest))
+			return
+		}
+	case "google":
+		if body.PurchaseToken == nil || *body.PurchaseToken == "" {
+			c.JSON(http.StatusBadRequest, api.NewError("purchase_token is required for Google platform", api.CodeBadRequest))
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, api.NewError("unsupported platform", api.CodeBadRequest))
 		return
 	}
 
 	meta, ok := planMeta[string(body.PlanId)]
 	if !ok {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid plan_id", api.CodeBadRequest))
+		return
+	}
+
+	// Enforce product_id <-> plan_id consistency so a cheaper SKU cannot
+	// be verified while claiming a higher-tier plan_id.
+	var expectedProductID string
+	if body.Platform == "apple" {
+		expectedProductID = meta.appleProductID
+	} else {
+		expectedProductID = meta.googleProductID
+	}
+	if body.ProductId != expectedProductID {
+		c.JSON(http.StatusBadRequest, api.NewError("product_id does not match plan_id", api.CodeBadRequest))
 		return
 	}
 

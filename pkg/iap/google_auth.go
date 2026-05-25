@@ -50,11 +50,16 @@ func googleAccessToken(ctx context.Context, serviceAccountJSON string) (string, 
 		return "", fmt.Errorf("private key is not RSA")
 	}
 
+	tokenURI := sa.TokenURI
+	if tokenURI == "" {
+		tokenURI = "https://oauth2.googleapis.com/token"
+	}
+
 	now := time.Now()
 	claims := jwt.MapClaims{
 		"iss":   sa.ClientEmail,
 		"scope": "https://www.googleapis.com/auth/androidpublisher",
-		"aud":   sa.TokenURI,
+		"aud":   tokenURI,
 		"iat":   now.Unix(),
 		"exp":   now.Add(time.Hour).Unix(),
 	}
@@ -62,11 +67,6 @@ func googleAccessToken(ctx context.Context, serviceAccountJSON string) (string, 
 	signed, err := tok.SignedString(rsaKey)
 	if err != nil {
 		return "", fmt.Errorf("sign JWT: %w", err)
-	}
-
-	tokenURI := sa.TokenURI
-	if tokenURI == "" {
-		tokenURI = "https://oauth2.googleapis.com/token"
 	}
 
 	form := url.Values{
@@ -84,6 +84,10 @@ func googleAccessToken(ctx context.Context, serviceAccountJSON string) (string, 
 		return "", fmt.Errorf("token request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("google token endpoint returned %d", resp.StatusCode)
+	}
 
 	var gtr googleTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&gtr); err != nil {

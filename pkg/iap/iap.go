@@ -72,7 +72,7 @@ func VerifyApple(ctx context.Context, receiptData, sharedSecret, productID strin
 	for i := range result.LatestReceiptInfo {
 		info := &result.LatestReceiptInfo[i]
 		if info.ProductID == productID && info.CancellationDate == "" {
-			if latest == nil || info.ExpiresDateMS > latest.ExpiresDateMS {
+			if latest == nil || msToTime(info.ExpiresDateMS).After(msToTime(latest.ExpiresDateMS)) {
 				latest = info
 			}
 		}
@@ -165,6 +165,9 @@ func VerifyGoogle(ctx context.Context, packageName, subscriptionID, purchaseToke
 	// paymentState: 0 = payment pending, 1 = payment received, 2 = free trial
 	if sub.PaymentState == nil {
 		return nil, fmt.Errorf("google purchase token is invalid or expired")
+	}
+	if *sub.PaymentState == 0 {
+		return nil, fmt.Errorf("google subscription payment is still pending")
 	}
 	isTrial := *sub.PaymentState == 2
 

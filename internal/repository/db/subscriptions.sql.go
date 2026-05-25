@@ -14,7 +14,8 @@ import (
 
 const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
-SET status = 'cancelled'
+SET status = 'cancelled',
+    cancelled_at = NOW()
 WHERE id = $1
   AND status = 'active'
 RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token

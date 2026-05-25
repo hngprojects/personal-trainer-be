@@ -149,6 +149,18 @@ func Load() (*Config, error) {
 		return nil, errors.New("JWT_SECRET is required")
 	}
 
+	if cfg.IAPSkipVerification && cfg.Env == "production" {
+		return nil, errors.New("IAP_SKIP_VERIFICATION must not be enabled in production")
+	}
+	if !cfg.IAPSkipVerification {
+		if cfg.AppleSharedSecret == "" {
+			return nil, errors.New("APPLE_SHARED_SECRET is required when IAP_SKIP_VERIFICATION is false")
+		}
+		if cfg.GoogleServiceAccountJSON == "" {
+			return nil, errors.New("GOOGLE_SERVICE_ACCOUNT_JSON is required when IAP_SKIP_VERIFICATION is false")
+		}
+	}
+
 	return cfg, nil
 }
 
