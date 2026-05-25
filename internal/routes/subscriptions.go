@@ -31,22 +31,6 @@ func ptr[T any](v T) *T { return &v }
 func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 	plans := []api.SubscriptionPlan{
 		{
-			Id:               "casual",
-			Name:             "The Casual",
-			SessionsPerMonth: 1,
-			Amount:           2000,
-			Currency:         "USD",
-			AmountDisplay:    "$20/month",
-			TrialDays:        7,
-			AppleProductId:   "com.fitcal.plan.casual.monthly",
-			GoogleProductId:  "fitcal_plan_casual_monthly",
-			Features: []string{
-				"1 guided session",
-				"Expert guidance during sessions",
-				"Workout reminders",
-			},
-		},
-		{
 			Id:               "committed",
 			Name:             "The Committed",
 			Tag:              ptr("Most Popular"),
@@ -54,15 +38,28 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 			Amount:           8000,
 			Currency:         "USD",
 			AmountDisplay:    "$80/month",
-			TrialDays:        7,
 			AppleProductId:   "com.fitcal.plan.committed.monthly",
 			GoogleProductId:  "fitcal_plan_committed_monthly",
 			Features: []string{
-				"12 guided sessions per month",
-				"Session duration: 60 minutes",
-				"Trainer calls you at scheduled time",
-				"Expert guidance during sessions",
-				"Workout reminders",
+				"12 guided sessions",
+				"Trained expert guidance",
+				"Workout reminder",
+				"Cancel anytime",
+			},
+		},
+		{
+			Id:               "casual",
+			Name:             "The Casual",
+			SessionsPerMonth: 1,
+			Amount:           2000,
+			Currency:         "USD",
+			AmountDisplay:    "$20/month",
+			AppleProductId:   "com.fitcal.plan.casual.monthly",
+			GoogleProductId:  "fitcal_plan_casual_monthly",
+			Features: []string{
+				"1 guided session",
+				"Trained expert guidance",
+				"Workout reminder",
 			},
 		},
 		{
@@ -72,13 +69,13 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 			Amount:           12000,
 			Currency:         "USD",
 			AmountDisplay:    "$120/month",
-			TrialDays:        7,
 			AppleProductId:   "com.fitcal.plan.consistent.monthly",
 			GoogleProductId:  "fitcal_plan_consistent_monthly",
 			Features: []string{
-				"18 guided sessions per month",
-				"Expert guidance during sessions",
-				"Workout reminders",
+				"18 guided sessions",
+				"Trained expert guidance",
+				"Workout reminder",
+				"Cancel anytime",
 				"Meal recommendations",
 			},
 		},
@@ -149,18 +146,20 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 			ProductID:             body.ProductId,
 			PurchasedAt:           time.Now().UTC(),
 			ExpiresAt:             time.Now().UTC().AddDate(0, 1, 0),
-			IsTrialPeriod:         true,
+			IsTrialPeriod:         false,
 		}
 	} else if body.Platform == "apple" {
 		verified, verifyErr = iap.VerifyApple(ctx, *body.ReceiptData, s.cfg.AppleSharedSecret, body.ProductId)
 		if verifyErr != nil {
-			c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed: "+verifyErr.Error(), api.CodeBadRequest))
+			s.logger.Error("apple receipt verification failed", "err", verifyErr)
+		c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed", api.CodeBadRequest))
 			return
 		}
 	} else {
 		verified, verifyErr = iap.VerifyGoogle(ctx, s.cfg.GooglePackageName, body.ProductId, *body.PurchaseToken, s.cfg.GoogleServiceAccountJSON)
 		if verifyErr != nil {
-			c.JSON(http.StatusBadRequest, api.NewError("google purchase verification failed: "+verifyErr.Error(), api.CodeBadRequest))
+			s.logger.Error("google purchase verification failed", "err", verifyErr)
+		c.JSON(http.StatusBadRequest, api.NewError("google purchase verification failed", api.CodeBadRequest))
 			return
 		}
 	}
@@ -182,12 +181,6 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		}
 	}
 
-	// ── Trial window ─────────────────────────────────────────────────────────
-	trialEndsAt := sql.NullTime{}
-	if verified.IsTrialPeriod {
-		trialEndsAt = sql.NullTime{Time: time.Now().UTC().Add(7 * 24 * time.Hour), Valid: true}
-	}
-
 	// ── Persist ──────────────────────────────────────────────────────────────
 	sub, err := s.trainers.q.CreateSubscription(ctx, db.CreateSubscriptionParams{
 		ClientID:                   userID,
@@ -197,7 +190,7 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		Platform:                   sql.NullString{String: string(body.Platform), Valid: true},
 		SessionsPerMonth:           sql.NullInt32{Int32: int32(meta.sessions), Valid: true},
 		Amount:                     sql.NullInt64{Int64: meta.amount, Valid: true},
-		TrialEndsAt:                trialEndsAt,
+		TrialEndsAt:                sql.NullTime{},
 		CurrentPeriodStart:         sql.NullTime{Time: verified.PurchasedAt, Valid: true},
 		CurrentPeriodEnd:           sql.NullTime{Time: verified.ExpiresAt, Valid: true},
 		AppleOriginalTransactionID: appleOriginalTxID,
@@ -238,9 +231,6 @@ func subscriptionToMap(s db.Subscription) map[string]interface{} {
 	if s.Amount.Valid {
 		m["amount"] = s.Amount.Int64
 	}
-	if s.TrialEndsAt.Valid {
-		m["trial_ends_at"] = s.TrialEndsAt.Time
-	}
 	if s.CurrentPeriodStart.Valid {
 		m["current_period_start"] = s.CurrentPeriodStart.Time
 	}
@@ -248,4 +238,100 @@ func subscriptionToMap(s db.Subscription) map[string]interface{} {
 		m["current_period_end"] = s.CurrentPeriodEnd.Time
 	}
 	return m
+}
+
+func (s *routerImpl) GetMySubscription(c *gin.Context) {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("unauthorized", api.CodeUnauthorized))
+		return
+	}
+
+	ctx := c.Request.Context()
+	sub, err := s.trainers.q.GetActiveSubscriptionByClientID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("no active subscription found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch subscription", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_FETCHED", api.CodeOK, subscriptionToMap(sub)))
+}
+
+func (s *routerImpl) GetMySubscriptionUsage(c *gin.Context) {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("unauthorized", api.CodeUnauthorized))
+		return
+	}
+
+	ctx := c.Request.Context()
+	sub, err := s.trainers.q.GetActiveSubscriptionByClientID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("no active subscription found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch subscription", api.CodeServerError))
+		return
+	}
+
+	sessionsPerMonth := 0
+	if sub.SessionsPerMonth.Valid {
+		sessionsPerMonth = int(sub.SessionsPerMonth.Int32)
+	}
+	used := int(sub.SessionsUsedThisMonth)
+	remaining := sessionsPerMonth - used
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	usage := api.SubscriptionUsage{
+		SessionsPerMonth:   sessionsPerMonth,
+		SessionsUsed:       used,
+		SessionsRemaining:  remaining,
+	}
+	if sub.CurrentPeriodStart.Valid {
+		usage.CurrentPeriodStart = sub.CurrentPeriodStart.Time
+	}
+	if sub.CurrentPeriodEnd.Valid {
+		usage.CurrentPeriodEnd = sub.CurrentPeriodEnd.Time
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("USAGE_FETCHED", api.CodeOK, usage))
+}
+
+func (s *routerImpl) CancelMySubscription(c *gin.Context) {
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("unauthorized", api.CodeUnauthorized))
+		return
+	}
+
+	ctx := c.Request.Context()
+	sub, err := s.trainers.q.GetActiveSubscriptionByClientID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("no active subscription found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch subscription", api.CodeServerError))
+		return
+	}
+
+	cancelled, err := s.trainers.q.CancelSubscription(ctx, sub.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("subscription already cancelled", api.CodeConflict))
+			return
+		}
+		s.logger.Error("cancel subscription: db error", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to cancel subscription", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_CANCELLED", api.CodeOK, subscriptionToMap(cancelled)))
 }

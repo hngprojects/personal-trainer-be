@@ -367,6 +367,14 @@ components:
 
     Subscription:
       type: object
+      required:
+        - id
+        - client_id
+        - trainer_id
+        - status
+        - sessions_used_this_month
+        - currency
+        - created_at
       properties:
         id:
           type: string
@@ -395,10 +403,6 @@ components:
         status:
           type: string
           enum: [active, cancelled, expired]
-        trial_ends_at:
-          type: string
-          format: date-time
-          nullable: true
         current_period_start:
           type: string
           format: date-time
@@ -417,6 +421,37 @@ components:
             data:
               $ref: "#/components/schemas/Subscription"
 
+
+    SubscriptionUsage:
+      type: object
+      required:
+        - sessions_per_month
+        - sessions_used
+        - sessions_remaining
+        - current_period_start
+        - current_period_end
+      properties:
+        sessions_per_month:
+          type: integer
+        sessions_used:
+          type: integer
+        sessions_remaining:
+          type: integer
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+
+    SubscriptionUsageResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SubscriptionUsage"
+
     SubscriptionPlan:
       type: object
       required:
@@ -426,7 +461,6 @@ components:
         - amount
         - currency
         - amount_display
-        - trial_days
         - features
         - apple_product_id
         - google_product_id
@@ -453,9 +487,6 @@ components:
         amount_display:
           type: string
           description: Human-readable price string (e.g. "$80/month")
-        trial_days:
-          type: integer
-          description: Number of free trial days before billing starts
         features:
           type: array
           items:
@@ -1813,6 +1844,72 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error or IAP verification failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me:
+    get:
+      summary: Get my active subscription
+      description: Returns the authenticated client's current active subscription.
+      tags: [Subscriptions]
+      operationId: GetMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active subscription returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me/usage:
+    get:
+      summary: Get session usage for my subscription
+      description: Returns sessions used and remaining for the current billing period.
+      tags: [Subscriptions]
+      operationId: GetMySubscriptionUsage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usage stats returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionUsageResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /client/cancel/subscription:
+    post:
+      summary: Cancel my subscription
+      description: Cancels the authenticated client's active subscription immediately.
+      tags: [Subscriptions]
+      operationId: CancelMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
           content:
             application/json:
               schema:

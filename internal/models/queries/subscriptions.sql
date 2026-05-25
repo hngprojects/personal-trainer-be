@@ -60,3 +60,18 @@ LIMIT 1;
 SELECT * FROM subscriptions
 WHERE google_purchase_token = sqlc.arg(google_purchase_token)
 LIMIT 1;
+
+-- name: GetActiveSubscriptionByClientID :one
+SELECT * FROM subscriptions
+WHERE client_id = sqlc.arg(client_id)
+  AND status = 'active'
+  AND current_period_end > NOW()
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: CancelSubscription :one
+UPDATE subscriptions
+SET status = 'cancelled'
+WHERE id = sqlc.arg(id)
+  AND status = 'active'
+RETURNING *;

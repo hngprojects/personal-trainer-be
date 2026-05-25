@@ -1126,19 +1126,18 @@ type SetAvailabilityResponse struct {
 type Subscription struct {
 	// Amount Price in cents
 	Amount                *int                  `json:"amount,omitempty"`
-	ClientId              *openapi_types.UUID   `json:"client_id,omitempty"`
-	CreatedAt             *time.Time            `json:"created_at,omitempty"`
-	Currency              *string               `json:"currency,omitempty"`
+	ClientId              openapi_types.UUID    `json:"client_id"`
+	CreatedAt             time.Time             `json:"created_at"`
+	Currency              string                `json:"currency"`
 	CurrentPeriodEnd      *time.Time            `json:"current_period_end,omitempty"`
 	CurrentPeriodStart    *time.Time            `json:"current_period_start,omitempty"`
-	Id                    *openapi_types.UUID   `json:"id,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
 	PlanId                *SubscriptionPlanId   `json:"plan_id,omitempty"`
 	Platform              *SubscriptionPlatform `json:"platform,omitempty"`
 	SessionsPerMonth      *int                  `json:"sessions_per_month,omitempty"`
-	SessionsUsedThisMonth *int                  `json:"sessions_used_this_month,omitempty"`
-	Status                *SubscriptionStatus   `json:"status,omitempty"`
-	TrainerId             *openapi_types.UUID   `json:"trainer_id,omitempty"`
-	TrialEndsAt           *time.Time            `json:"trial_ends_at,omitempty"`
+	SessionsUsedThisMonth int                   `json:"sessions_used_this_month"`
+	Status                SubscriptionStatus    `json:"status"`
+	TrainerId             openapi_types.UUID    `json:"trainer_id"`
 }
 
 // SubscriptionPlanId defines model for Subscription.PlanId.
@@ -1181,9 +1180,6 @@ type SubscriptionPlan struct {
 
 	// Tag Optional badge label (e.g. "Most Popular")
 	Tag *string `json:"tag,omitempty"`
-
-	// TrialDays Number of free trial days before billing starts
-	TrialDays int `json:"trial_days"`
 }
 
 // SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
@@ -1203,6 +1199,26 @@ type SubscriptionResponse struct {
 	Code    string        `json:"code"`
 	Data    *Subscription `json:"data,omitempty"`
 	Message string        `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionUsage defines model for SubscriptionUsage.
+type SubscriptionUsage struct {
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	SessionsPerMonth   int       `json:"sessions_per_month"`
+	SessionsRemaining  int       `json:"sessions_remaining"`
+	SessionsUsed       int       `json:"sessions_used"`
+}
+
+// SubscriptionUsageResponse defines model for SubscriptionUsageResponse.
+type SubscriptionUsageResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    *SubscriptionUsage `json:"data,omitempty"`
+	Message string             `json:"message"`
 
 	// Meta Any JSON value (usually object)
 	Meta *interface{} `json:"meta,omitempty"`
@@ -1873,6 +1889,9 @@ type ServerInterface interface {
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
+	// Cancel my subscription
+	// (POST /client/cancel/subscription)
+	CancelMySubscription(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -1942,6 +1961,12 @@ type ServerInterface interface {
 	// Create a subscription via Apple/Google IAP
 	// (POST /subscriptions)
 	CreateSubscription(c *gin.Context)
+	// Get my active subscription
+	// (GET /subscriptions/me)
+	GetMySubscription(c *gin.Context)
+	// Get session usage for my subscription
+	// (GET /subscriptions/me/usage)
+	GetMySubscriptionUsage(c *gin.Context)
 	// List available subscription plans
 	// (GET /subscriptions/plans)
 	GetSubscriptionPlans(c *gin.Context)
@@ -2598,6 +2623,21 @@ func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 	siw.Handler.RescheduleDiscoveryCall(c, id)
 }
 
+// CancelMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelMySubscription(c)
+}
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -3097,6 +3137,36 @@ func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
 	}
 
 	siw.Handler.CreateSubscription(c)
+}
+
+// GetMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscription(c)
+}
+
+// GetMySubscriptionUsage operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscriptionUsage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscriptionUsage(c)
 }
 
 // GetSubscriptionPlans operation middleware
@@ -3958,6 +4028,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
+	router.POST(options.BaseURL+"/client/cancel/subscription", wrapper.CancelMySubscription)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
@@ -3981,6 +4052,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
 	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
+	router.GET(options.BaseURL+"/subscriptions/me", wrapper.GetMySubscription)
+	router.GET(options.BaseURL+"/subscriptions/me/usage", wrapper.GetMySubscriptionUsage)
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)

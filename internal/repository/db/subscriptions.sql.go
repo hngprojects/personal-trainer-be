@@ -12,6 +12,40 @@ import (
 	"github.com/google/uuid"
 )
 
+const cancelSubscription = `-- name: CancelSubscription :one
+UPDATE subscriptions
+SET status = 'cancelled'
+WHERE id = $1
+  AND status = 'active'
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+`
+
+func (q *Queries) CancelSubscription(ctx context.Context, id uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, cancelSubscription, id)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 INSERT INTO subscriptions (
     client_id,
@@ -77,6 +111,41 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 		arg.AppleOriginalTransactionID,
 		arg.GooglePurchaseToken,
 	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const getActiveSubscriptionByClientID = `-- name: GetActiveSubscriptionByClientID :one
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+WHERE client_id = $1
+  AND status = 'active'
+  AND current_period_end > NOW()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetActiveSubscriptionByClientID(ctx context.Context, clientID uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, getActiveSubscriptionByClientID, clientID)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
