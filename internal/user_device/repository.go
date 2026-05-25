@@ -19,7 +19,7 @@ func NewUserDeviceRepository(q *db.Queries) *userDeviceRepository {
 
 type UserDeviceInterface interface {
 	RegisterDevice(ctx context.Context, userID uuid.UUID, deviceToken string, platform string) (db.UserDevice, error)
-	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
 func (r *userDeviceRepository) RegisterDevice(ctx context.Context, userID uuid.UUID, deviceToken string, platform string) (db.UserDevice, error) {
@@ -31,10 +31,10 @@ func (r *userDeviceRepository) RegisterDevice(ctx context.Context, userID uuid.U
 	return r.q.CreateUserDevice(ctx, args)
 }
 
-func (r *userDeviceRepository) GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {
+func (r *userDeviceRepository) GetUserDeviceToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
 	device, err := r.q.GetUserDevicesByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return &device, nil
+	return device, nil
 }

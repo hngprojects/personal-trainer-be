@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,6 +40,21 @@ func (h *NotificationHandler) SendNotificationToUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
+	if strings.TrimSpace(req.Title) == "" {
+		h.log.Warn("Validation error: No notification title provided")
+		c.JSON(http.StatusBadRequest, api.NewError("notification title is required", api.CodeBadRequest))
+		return
+	}
+	if strings.TrimSpace(req.Message) == "" {
+		h.log.Warn("Validation error: No notification message provided")
+		c.JSON(http.StatusBadRequest, api.NewError("notification message is required", api.CodeBadRequest))
+		return
+	}
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		h.log.Warn("Validation error: No notification idempotency key provided")
+		c.JSON(http.StatusBadRequest, api.NewError("notification idempotency key is required", api.CodeBadRequest))
+		return
+	}
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
 		h.log.Error("SendNotificationToUser-handler: User ID not found in context")
@@ -52,7 +68,7 @@ func (h *NotificationHandler) SendNotificationToUser(c *gin.Context) {
 		return
 	}
 	// Send notification to user
-	notification, err := h.service.SendNotificationToUser(c.Request.Context(), userID, req.Title, req.Message)
+	notification, err := h.service.SendNotificationToUser(c.Request.Context(), userID, req.Title, req.Message, req.IdempotencyKey)
 	if err != nil {
 		h.log.Error("Failed to send notification to user", "error", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send notification", api.CodeServerError))
@@ -75,15 +91,9 @@ func (h *NotificationHandler) GetUserNotifications(c *gin.Context) {
 		return
 	}
 
-	notifications, err := h.service.GetUserNotification(c.Request.Context(), userID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			c.JSON(http.StatusNotFound, api.NewError("notifications not found", api.CodeNotFound))
-			return
-		}
-		h.log.Error("Failed to get user notifications", "error", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to get notifications", api.CodeServerError))
-		return
+	notifications, _ := h.service.GetUserNotification(c.Request.Context(), userID)
+	if len(*notifications) < 1 {
+		h.log.Error("could not fetch user notifications", "userID", userID)
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("notifications retrieved successfully", api.CodeOK, notifications))
 }

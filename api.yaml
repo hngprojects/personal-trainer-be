@@ -5651,14 +5651,13 @@ paths:
           application/json:
             schema:
               type: object
-              required: [user_id, title, message]
+              required: [user_id, title, message, idempotency_key]
               properties:
-                user_id:
-                  type: string
-                  format: uuid
                 title:
                   type: string
                 message:
+                  type: string
+                idempotency_key:
                   type: string
       responses:
         "200":

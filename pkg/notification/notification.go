@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"firebase.google.com/go/v4/messaging"
@@ -45,6 +46,7 @@ func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string,
 		p.log.Warn("Notifier: no device tokens available to push notification to")
 		return nil
 	}
+	failed := 0
 	for _, token := range deviceToken {
 		response, err := p.client.Send(ctx, &messaging.Message{
 			Token: token,
@@ -54,9 +56,14 @@ func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string,
 			},
 		})
 		if err != nil {
+			failed++
 			p.log.Error("Notification service: failed to send push notification", "err", err)
+			continue
 		}
 		p.log.Info("Notification service: push notification sent successfully", "response", response)
+	}
+	if failed > 0 {
+		return fmt.Errorf("failed to send push notification to %d device(s)", failed)
 	}
 	return nil
 }

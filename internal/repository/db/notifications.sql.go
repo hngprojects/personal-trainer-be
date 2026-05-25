@@ -298,7 +298,10 @@ func (q *Queries) GetUserNotification(ctx context.Context, userID uuid.UUID) ([]
 
 const updateNotificationStatus = `-- name: UpdateNotificationStatus :exec
 UPDATE notification
-SET status=$1, retry_count=retry_count + 1, sent_at=NOW(), updated_at=NOW()
+SET status=$1, 
+    retry_count=retry_count + 1, 
+    sent_at=CASE WHEN $1 = 'sent' THEN NOW() ELSE sent_at END,
+    updated_at=NOW()
 WHERE id=$2
 `
 

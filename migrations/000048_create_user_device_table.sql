@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS user_device (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    device_token VARCHAR(255) NOT NULL,
+    device_token TEXT NOT NULL,
     is_push_notification_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     platform VARCHAR(50) NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,

@@ -2,8 +2,6 @@ package notification
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -40,7 +38,8 @@ func NewNotificationService(repo *Repository, fcmClient *fcmnotif.PushNotificati
 }
 
 type NotificationServiceInterface interface {
-	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message string) (*db.Notification, error)
+	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
+	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
 	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
 }
 
@@ -48,12 +47,12 @@ func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uu
 	return s.repo.GetUserDeviceToken(ctx, userID)
 }
 
-func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message string) (*NotificationResponse, error) {
+func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error) {
 	data := &db.CreateNotificationParams{
 		UserID:         userID,
 		Title:          title,
 		Message:        message,
-		IdempotencyKey: uuid.New().String(),
+		IdempotencyKey: idempotency_key,
 	}
 	notification, err := s.repo.CreateNotification(ctx, *data)
 	if err != nil {
@@ -93,21 +92,14 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 		ID:     notification.ID,
 	}); err != nil {
 		s.log.Error("Failed to update notification status", "error", err)
-		return nil, err
+		// Notification was sent successfully; status update is best-effort
 	}
 	resp.Status = "sent"
 	return &resp, nil
 }
 
 func (s *NotificationService) GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error) {
-	notifications, err := s.repo.GetUserNotification(ctx, userID)
-	if err != nil {
-		s.log.Error("Failed to get user notifications", "userID", userID, "error", err)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
+	notifications, _ := s.repo.GetUserNotification(ctx, userID)
 	var resp []NotificationResponse
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)

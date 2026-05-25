@@ -3,6 +3,7 @@ package userdevice
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -32,6 +33,14 @@ func (h *UserDeviceHandler) HandleRegisterDevice(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Error("Error binding JSON", "error", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+	if strings.TrimSpace(req.DeviceToken) == "" {
+		c.JSON(http.StatusBadRequest, api.NewError("device_token is required", api.CodeBadRequest))
+		return
+	}
+	if !req.Platform.Valid() {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid platform", api.CodeBadRequest))
 		return
 	}
 	userIDVal, ok := c.Get(string(common.ContextKeyUserID))

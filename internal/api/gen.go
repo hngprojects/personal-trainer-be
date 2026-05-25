@@ -1411,9 +1411,9 @@ type UploadOrganisationVideoMultipartBody struct {
 
 // HandleSendNotificationJSONBody defines parameters for HandleSendNotification.
 type HandleSendNotificationJSONBody struct {
-	Message string             `json:"message"`
-	Title   string             `json:"title"`
-	UserId  openapi_types.UUID `json:"user_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	Message        string `json:"message"`
+	Title          string `json:"title"`
 }
 
 // HandleRegisterDeviceJSONBody defines parameters for HandleRegisterDevice.

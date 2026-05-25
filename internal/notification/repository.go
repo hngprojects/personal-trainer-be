@@ -18,6 +18,7 @@ func NewRepository(q *db.Queries) *Repository {
 type RepositoryInterface interface {
 	CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
 	UpdateNotificationStatus(ctx context.Context, args db.UpdateNotificationStatusParams) error
+	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
 	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
 	GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDevice, error)
 }

@@ -15,7 +15,7 @@ type userDeviceService struct {
 
 type UserDeviceServiceInterface interface {
 	RegisterDevice(ctx context.Context, userID uuid.UUID, deviceToken string, platform string) (*db.UserDevice, error)
-	GetUserDevicesTokens(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	GetUserDevicesTokens(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
 func NewUserDeviceService(repo *userDeviceRepository, log *slog.Logger) *userDeviceService {
@@ -33,7 +33,7 @@ func (s *userDeviceService) RegisterDevice(ctx context.Context, userID uuid.UUID
 	return &userDevice, nil
 }
 
-func (s *userDeviceService) GetUserDevicesTokens(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {
+func (s *userDeviceService) GetUserDevicesTokens(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
 	userDevices, err := s.repo.GetUserDeviceToken(ctx, userID)
 	if err != nil {
 		return nil, err
