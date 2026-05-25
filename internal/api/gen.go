@@ -105,6 +105,45 @@ func (e CancelBookingResponseDataRefundReason) Valid() bool {
 	}
 }
 
+// Defines values for CreateSubscriptionRequestPlanId.
+const (
+	CreateSubscriptionRequestPlanIdCasual     CreateSubscriptionRequestPlanId = "casual"
+	CreateSubscriptionRequestPlanIdCommitted  CreateSubscriptionRequestPlanId = "committed"
+	CreateSubscriptionRequestPlanIdConsistent CreateSubscriptionRequestPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlanId enum.
+func (e CreateSubscriptionRequestPlanId) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlanIdCasual:
+		return true
+	case CreateSubscriptionRequestPlanIdCommitted:
+		return true
+	case CreateSubscriptionRequestPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestPlatform.
+const (
+	CreateSubscriptionRequestPlatformApple  CreateSubscriptionRequestPlatform = "apple"
+	CreateSubscriptionRequestPlatformGoogle CreateSubscriptionRequestPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlatform enum.
+func (e CreateSubscriptionRequestPlatform) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlatformApple:
+		return true
+	case CreateSubscriptionRequestPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestGender.
 const (
 	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
@@ -216,6 +255,66 @@ func (e RescheduleReason) Valid() bool {
 	case RescheduleReasonTravel:
 		return true
 	case RescheduleReasonWorkConflict:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlanId.
+const (
+	SubscriptionPlanIdCasual     SubscriptionPlanId = "casual"
+	SubscriptionPlanIdCommitted  SubscriptionPlanId = "committed"
+	SubscriptionPlanIdConsistent SubscriptionPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlanId enum.
+func (e SubscriptionPlanId) Valid() bool {
+	switch e {
+	case SubscriptionPlanIdCasual:
+		return true
+	case SubscriptionPlanIdCommitted:
+		return true
+	case SubscriptionPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlatform.
+const (
+	SubscriptionPlatformApple  SubscriptionPlatform = "apple"
+	SubscriptionPlatformGoogle SubscriptionPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlatform enum.
+func (e SubscriptionPlatform) Valid() bool {
+	switch e {
+	case SubscriptionPlatformApple:
+		return true
+	case SubscriptionPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionStatus.
+const (
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
+	SubscriptionStatusExpired   SubscriptionStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionStatus enum.
+func (e SubscriptionStatus) Valid() bool {
+	switch e {
+	case SubscriptionStatusActive:
+		return true
+	case SubscriptionStatusCancelled:
+		return true
+	case SubscriptionStatusExpired:
 		return true
 	default:
 		return false
@@ -398,16 +497,16 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for GetAdminClientsParamsStatus.
 const (
-	Active   GetAdminClientsParamsStatus = "active"
-	Inactive GetAdminClientsParamsStatus = "inactive"
+	GetAdminClientsParamsStatusActive   GetAdminClientsParamsStatus = "active"
+	GetAdminClientsParamsStatusInactive GetAdminClientsParamsStatus = "inactive"
 )
 
 // Valid indicates whether the value is a known member of the GetAdminClientsParamsStatus enum.
 func (e GetAdminClientsParamsStatus) Valid() bool {
 	switch e {
-	case Active:
+	case GetAdminClientsParamsStatusActive:
 		return true
-	case Inactive:
+	case GetAdminClientsParamsStatusInactive:
 		return true
 	default:
 		return false
@@ -759,6 +858,33 @@ type CreateReviewRequest struct {
 	Review    *string            `json:"review,omitempty"`
 }
 
+// CreateSubscriptionRequest defines model for CreateSubscriptionRequest.
+type CreateSubscriptionRequest struct {
+	// PlanId The plan tier the client is subscribing to
+	PlanId CreateSubscriptionRequestPlanId `json:"plan_id"`
+
+	// Platform The payment platform used
+	Platform CreateSubscriptionRequestPlatform `json:"platform"`
+
+	// ProductId App store product ID (must match the plan)
+	ProductId string `json:"product_id"`
+
+	// PurchaseToken Google Play purchase token (required when platform=google)
+	PurchaseToken *string `json:"purchase_token,omitempty"`
+
+	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
+	ReceiptData *string `json:"receipt_data,omitempty"`
+
+	// TrainerId The trainer this subscription is for
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+}
+
+// CreateSubscriptionRequestPlanId The plan tier the client is subscribing to
+type CreateSubscriptionRequestPlanId string
+
+// CreateSubscriptionRequestPlatform The payment platform used
+type CreateSubscriptionRequestPlatform string
+
 // CreateTrainerRequest Multipart form body for POST /trainers. An admin (admin or super_admin
 // role) provisions a new trainer: we create the underlying user account
 // with role='trainer' and a generated password, insert the trainer row,
@@ -996,6 +1122,34 @@ type SetAvailabilityResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// Subscription defines model for Subscription.
+type Subscription struct {
+	// Amount Price in cents
+	Amount                *int                  `json:"amount,omitempty"`
+	ClientId              *openapi_types.UUID   `json:"client_id,omitempty"`
+	CreatedAt             *time.Time            `json:"created_at,omitempty"`
+	Currency              *string               `json:"currency,omitempty"`
+	CurrentPeriodEnd      *time.Time            `json:"current_period_end,omitempty"`
+	CurrentPeriodStart    *time.Time            `json:"current_period_start,omitempty"`
+	Id                    *openapi_types.UUID   `json:"id,omitempty"`
+	PlanId                *SubscriptionPlanId   `json:"plan_id,omitempty"`
+	Platform              *SubscriptionPlatform `json:"platform,omitempty"`
+	SessionsPerMonth      *int                  `json:"sessions_per_month,omitempty"`
+	SessionsUsedThisMonth *int                  `json:"sessions_used_this_month,omitempty"`
+	Status                *SubscriptionStatus   `json:"status,omitempty"`
+	TrainerId             *openapi_types.UUID   `json:"trainer_id,omitempty"`
+	TrialEndsAt           *time.Time            `json:"trial_ends_at,omitempty"`
+}
+
+// SubscriptionPlanId defines model for Subscription.PlanId.
+type SubscriptionPlanId string
+
+// SubscriptionPlatform defines model for Subscription.Platform.
+type SubscriptionPlatform string
+
+// SubscriptionStatus defines model for Subscription.Status.
+type SubscriptionStatus string
+
 // SubscriptionPlan defines model for SubscriptionPlan.
 type SubscriptionPlan struct {
 	// Amount Price in minor currency units (e.g. cents / kobo)
@@ -1038,6 +1192,17 @@ type SubscriptionPlansResponse struct {
 	Code    string             `json:"code"`
 	Data    []SubscriptionPlan `json:"data"`
 	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionResponse defines model for SubscriptionResponse.
+type SubscriptionResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string        `json:"code"`
+	Data    *Subscription `json:"data,omitempty"`
+	Message string        `json:"message"`
 
 	// Meta Any JSON value (usually object)
 	Meta *interface{} `json:"meta,omitempty"`
@@ -1589,6 +1754,9 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
+
 // CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
@@ -1771,6 +1939,9 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// Create a subscription via Apple/Google IAP
+	// (POST /subscriptions)
+	CreateSubscription(c *gin.Context)
 	// List available subscription plans
 	// (GET /subscriptions/plans)
 	GetSubscriptionPlans(c *gin.Context)
@@ -2913,6 +3084,21 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	siw.Handler.HandleStartSession(c, id)
 }
 
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubscription(c)
+}
+
 // GetSubscriptionPlans operation middleware
 func (siw *ServerInterfaceWrapper) GetSubscriptionPlans(c *gin.Context) {
 
@@ -3794,6 +3980,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
