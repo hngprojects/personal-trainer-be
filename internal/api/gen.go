@@ -39,24 +39,6 @@ func (e AuthUserUserType) Valid() bool {
 	}
 }
 
-// Defines values for BaseResponseStatus.
-const (
-	BaseResponseStatusError   BaseResponseStatus = "error"
-	BaseResponseStatusSuccess BaseResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the BaseResponseStatus enum.
-func (e BaseResponseStatus) Valid() bool {
-	switch e {
-	case BaseResponseStatusError:
-		return true
-	case BaseResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
 	PhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
@@ -123,24 +105,6 @@ func (e CancelBookingResponseDataRefundReason) Valid() bool {
 	}
 }
 
-// Defines values for CancelBookingResponseStatus.
-const (
-	CancelBookingResponseStatusError   CancelBookingResponseStatus = "error"
-	CancelBookingResponseStatusSuccess CancelBookingResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the CancelBookingResponseStatus enum.
-func (e CancelBookingResponseStatus) Valid() bool {
-	switch e {
-	case CancelBookingResponseStatusError:
-		return true
-	case CancelBookingResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateTrainerRequestGender.
 const (
 	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
@@ -189,42 +153,6 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
-// Defines values for ErrorResponseStatus.
-const (
-	ErrorResponseStatusError   ErrorResponseStatus = "error"
-	ErrorResponseStatusSuccess ErrorResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the ErrorResponseStatus enum.
-func (e ErrorResponseStatus) Valid() bool {
-	switch e {
-	case ErrorResponseStatusError:
-		return true
-	case ErrorResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GoogleAuthResponseStatus.
-const (
-	GoogleAuthResponseStatusError   GoogleAuthResponseStatus = "error"
-	GoogleAuthResponseStatusSuccess GoogleAuthResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GoogleAuthResponseStatus enum.
-func (e GoogleAuthResponseStatus) Valid() bool {
-	switch e {
-	case GoogleAuthResponseStatusError:
-		return true
-	case GoogleAuthResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RescheduleReason.
 const (
 	RescheduleReasonFeelingUnwell     RescheduleReason = "feeling_unwell"
@@ -249,78 +177,6 @@ func (e RescheduleReason) Valid() bool {
 	case RescheduleReasonTravel:
 		return true
 	case RescheduleReasonWorkConflict:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ReviewResponseStatus.
-const (
-	ReviewResponseStatusError   ReviewResponseStatus = "error"
-	ReviewResponseStatusSuccess ReviewResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the ReviewResponseStatus enum.
-func (e ReviewResponseStatus) Valid() bool {
-	switch e {
-	case ReviewResponseStatusError:
-		return true
-	case ReviewResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ReviewsListResponseStatus.
-const (
-	ReviewsListResponseStatusError   ReviewsListResponseStatus = "error"
-	ReviewsListResponseStatusSuccess ReviewsListResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the ReviewsListResponseStatus enum.
-func (e ReviewsListResponseStatus) Valid() bool {
-	switch e {
-	case ReviewsListResponseStatusError:
-		return true
-	case ReviewsListResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SetAvailabilityResponseStatus.
-const (
-	SetAvailabilityResponseStatusError   SetAvailabilityResponseStatus = "error"
-	SetAvailabilityResponseStatusSuccess SetAvailabilityResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the SetAvailabilityResponseStatus enum.
-func (e SetAvailabilityResponseStatus) Valid() bool {
-	switch e {
-	case SetAvailabilityResponseStatusError:
-		return true
-	case SetAvailabilityResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SuccessResponseStatus.
-const (
-	SuccessResponseStatusError   SuccessResponseStatus = "error"
-	SuccessResponseStatusSuccess SuccessResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the SuccessResponseStatus enum.
-func (e SuccessResponseStatus) Valid() bool {
-	switch e {
-	case SuccessResponseStatusError:
-		return true
-	case SuccessResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -378,42 +234,6 @@ func (e TrainerOnboardingStatus) Valid() bool {
 	}
 }
 
-// Defines values for TrainerClientsListResponseStatus.
-const (
-	TrainerClientsListResponseStatusError   TrainerClientsListResponseStatus = "error"
-	TrainerClientsListResponseStatusSuccess TrainerClientsListResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainerClientsListResponseStatus enum.
-func (e TrainerClientsListResponseStatus) Valid() bool {
-	switch e {
-	case TrainerClientsListResponseStatusError:
-		return true
-	case TrainerClientsListResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TrainerResponseStatus.
-const (
-	TrainerResponseStatusError   TrainerResponseStatus = "error"
-	TrainerResponseStatusSuccess TrainerResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainerResponseStatus enum.
-func (e TrainerResponseStatus) Valid() bool {
-	switch e {
-	case TrainerResponseStatusError:
-		return true
-	case TrainerResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for TrainerSpecialization.
 const (
 	Cardio    TrainerSpecialization = "cardio"
@@ -435,24 +255,6 @@ func (e TrainerSpecialization) Valid() bool {
 	case Strength:
 		return true
 	case Yoga:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TrainersListResponseStatus.
-const (
-	TrainersListResponseStatusError   TrainersListResponseStatus = "error"
-	TrainersListResponseStatusSuccess TrainersListResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainersListResponseStatus enum.
-func (e TrainersListResponseStatus) Valid() bool {
-	switch e {
-	case TrainersListResponseStatusError:
-		return true
-	case TrainersListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -573,87 +375,15 @@ func (e GetAdminClientsParamsStatus) Valid() bool {
 	}
 }
 
-// Defines values for GetUserTrainerCount200JSONResponseBodyStatus.
-const (
-	GetUserTrainerCount200JSONResponseBodyStatusError   GetUserTrainerCount200JSONResponseBodyStatus = "error"
-	GetUserTrainerCount200JSONResponseBodyStatusSuccess GetUserTrainerCount200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetUserTrainerCount200JSONResponseBodyStatus enum.
-func (e GetUserTrainerCount200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetUserTrainerCount200JSONResponseBodyStatusError:
-		return true
-	case GetUserTrainerCount200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for HandleLocalAuth200JSONResponseBodyStatus.
-const (
-	HandleLocalAuth200JSONResponseBodyStatusError   HandleLocalAuth200JSONResponseBodyStatus = "error"
-	HandleLocalAuth200JSONResponseBodyStatusSuccess HandleLocalAuth200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the HandleLocalAuth200JSONResponseBodyStatus enum.
-func (e HandleLocalAuth200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case HandleLocalAuth200JSONResponseBodyStatusError:
-		return true
-	case HandleLocalAuth200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
-	HandleRefresh200JSONResponseBodyStatusSuccess HandleRefresh200JSONResponseBodyStatus = "success"
+	Success HandleRefresh200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the HandleRefresh200JSONResponseBodyStatus enum.
 func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case HandleRefresh200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
-const (
-	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
-	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
-func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case HandleVerifyEmail200JSONResponseBodyStatusError:
-		return true
-	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
-const (
-	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
-	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
-func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
-		return true
-	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -699,24 +429,6 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
-// Defines values for ResendTrainerSetup200JSONResponseBodyStatus.
-const (
-	ResendTrainerSetup200JSONResponseBodyStatusError   ResendTrainerSetup200JSONResponseBodyStatus = "error"
-	ResendTrainerSetup200JSONResponseBodyStatusSuccess ResendTrainerSetup200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the ResendTrainerSetup200JSONResponseBodyStatus enum.
-func (e ResendTrainerSetup200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case ResendTrainerSetup200JSONResponseBodyStatusError:
-		return true
-	case ResendTrainerSetup200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
 	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
@@ -741,42 +453,6 @@ func (e HandleValidateSetupToken200JSONResponseBodyDataStatus) Valid() bool {
 	}
 }
 
-// Defines values for HandleValidateSetupToken200JSONResponseBodyStatus.
-const (
-	HandleValidateSetupToken200JSONResponseBodyStatusError   HandleValidateSetupToken200JSONResponseBodyStatus = "error"
-	HandleValidateSetupToken200JSONResponseBodyStatusSuccess HandleValidateSetupToken200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyStatus enum.
-func (e HandleValidateSetupToken200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case HandleValidateSetupToken200JSONResponseBodyStatusError:
-		return true
-	case HandleValidateSetupToken200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListTrainerImages200JSONResponseBodyStatus.
-const (
-	ListTrainerImages200JSONResponseBodyStatusError   ListTrainerImages200JSONResponseBodyStatus = "error"
-	ListTrainerImages200JSONResponseBodyStatusSuccess ListTrainerImages200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the ListTrainerImages200JSONResponseBodyStatus enum.
-func (e ListTrainerImages200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case ListTrainerImages200JSONResponseBodyStatusError:
-		return true
-	case ListTrainerImages200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UploadTrainerImages202JSONResponseBodyDataStatus.
 const (
 	UploadTrainerImages202JSONResponseBodyDataStatusProcessing UploadTrainerImages202JSONResponseBodyDataStatus = "processing"
@@ -786,24 +462,6 @@ const (
 func (e UploadTrainerImages202JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
 	case UploadTrainerImages202JSONResponseBodyDataStatusProcessing:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UploadTrainerImages202JSONResponseBodyStatus.
-const (
-	UploadTrainerImages202JSONResponseBodyStatusError   UploadTrainerImages202JSONResponseBodyStatus = "error"
-	UploadTrainerImages202JSONResponseBodyStatusSuccess UploadTrainerImages202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadTrainerImages202JSONResponseBodyStatus enum.
-func (e UploadTrainerImages202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadTrainerImages202JSONResponseBodyStatusError:
-		return true
-	case UploadTrainerImages202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -825,60 +483,6 @@ func (e UploadTrainerIntroVideo202JSONResponseBodyDataStatus) Valid() bool {
 	}
 }
 
-// Defines values for UploadTrainerIntroVideo202JSONResponseBodyStatus.
-const (
-	UploadTrainerIntroVideo202JSONResponseBodyStatusError   UploadTrainerIntroVideo202JSONResponseBodyStatus = "error"
-	UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess UploadTrainerIntroVideo202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadTrainerIntroVideo202JSONResponseBodyStatus enum.
-func (e UploadTrainerIntroVideo202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadTrainerIntroVideo202JSONResponseBodyStatusError:
-		return true
-	case UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetUserProfile200JSONResponseBodyStatus.
-const (
-	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
-	GetUserProfile200JSONResponseBodyStatusSuccess GetUserProfile200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetUserProfile200JSONResponseBodyStatus enum.
-func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetUserProfile200JSONResponseBodyStatusError:
-		return true
-	case GetUserProfile200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateUserProfile200JSONResponseBodyStatus.
-const (
-	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
-func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UpdateUserProfile200JSONResponseBodyStatusError:
-		return true
-	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UploadProfilePicture202JSONResponseBodyDataStatus.
 const (
 	Processing UploadProfilePicture202JSONResponseBodyDataStatus = "processing"
@@ -888,24 +492,6 @@ const (
 func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
 	case Processing:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UploadProfilePicture202JSONResponseBodyStatus.
-const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
-func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
-		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -965,13 +551,9 @@ type AvailabilitySlot struct {
 // BaseResponse defines model for BaseResponse.
 type BaseResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string             `json:"code"`
-	Message string             `json:"message"`
-	Status  BaseResponseStatus `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
-
-// BaseResponseStatus defines model for BaseResponse.Status.
-type BaseResponseStatus string
 
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
@@ -1065,15 +647,11 @@ type CancelBookingResponse struct {
 	Message string `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}                `json:"meta,omitempty"`
-	Status CancelBookingResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
 
 // CancelBookingResponseDataRefundReason Why the refund amount was calculated this way
 type CancelBookingResponseDataRefundReason string
-
-// CancelBookingResponseStatus defines model for CancelBookingResponse.Status.
-type CancelBookingResponseStatus string
 
 // CreateReviewRequest defines model for CreateReviewRequest.
 type CreateReviewRequest struct {
@@ -1159,14 +737,10 @@ type CursorPaginationMeta struct {
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string              `json:"code"`
-	Errors  *[]FieldError       `json:"errors,omitempty"`
-	Message string              `json:"message"`
-	Status  ErrorResponseStatus `json:"status"`
+	Code    string        `json:"code"`
+	Errors  *[]FieldError `json:"errors,omitempty"`
+	Message string        `json:"message"`
 }
-
-// ErrorResponseStatus defines model for ErrorResponse.Status.
-type ErrorResponseStatus string
 
 // FieldError defines model for FieldError.
 type FieldError struct {
@@ -1199,12 +773,8 @@ type GoogleAuthResponse struct {
 	Message string         `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}             `json:"meta,omitempty"`
-	Status GoogleAuthResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
-type GoogleAuthResponseStatus string
 
 // GoogleMobileSignInRequest defines model for GoogleMobileSignInRequest.
 type GoogleMobileSignInRequest struct {
@@ -1271,25 +841,17 @@ type ReviewResponse struct {
 	Message string `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}         `json:"meta,omitempty"`
-	Status ReviewResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// ReviewResponseStatus defines model for ReviewResponse.Status.
-type ReviewResponseStatus string
 
 // ReviewsListResponse defines model for ReviewsListResponse.
 type ReviewsListResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string                    `json:"code"`
-	Data    []Review                  `json:"data"`
-	Message string                    `json:"message"`
-	Meta    CursorPaginationMeta      `json:"meta"`
-	Status  ReviewsListResponseStatus `json:"status"`
+	Code    string               `json:"code"`
+	Data    []Review             `json:"data"`
+	Message string               `json:"message"`
+	Meta    CursorPaginationMeta `json:"meta"`
 }
-
-// ReviewsListResponseStatus defines model for ReviewsListResponse.Status.
-type ReviewsListResponseStatus string
 
 // SetAvailabilityRequest defines model for SetAvailabilityRequest.
 type SetAvailabilityRequest struct {
@@ -1305,12 +867,8 @@ type SetAvailabilityResponse struct {
 	Message string              `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}                  `json:"meta,omitempty"`
-	Status SetAvailabilityResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// SetAvailabilityResponseStatus defines model for SetAvailabilityResponse.Status.
-type SetAvailabilityResponseStatus string
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -1322,12 +880,8 @@ type SuccessResponse struct {
 	Message string       `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}          `json:"meta,omitempty"`
-	Status SuccessResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// SuccessResponseStatus defines model for SuccessResponse.Status.
-type SuccessResponseStatus string
 
 // Trainer defines model for Trainer.
 type Trainer struct {
@@ -1432,12 +986,8 @@ type TrainerClientsListResponse struct {
 	Message string           `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}                     `json:"meta,omitempty"`
-	Status TrainerClientsListResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// TrainerClientsListResponseStatus defines model for TrainerClientsListResponse.Status.
-type TrainerClientsListResponseStatus string
 
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {
@@ -1447,12 +997,8 @@ type TrainerResponse struct {
 	Message string   `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}          `json:"meta,omitempty"`
-	Status TrainerResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// TrainerResponseStatus defines model for TrainerResponse.Status.
-type TrainerResponseStatus string
 
 // TrainerSpecialization Canonical specialization tag. A trainer can hold multiple — the set
 // is fixed (yoga, speed, cardio, endurance, strength) and enforced
@@ -1468,12 +1014,8 @@ type TrainersListResponse struct {
 	Message string     `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}               `json:"meta,omitempty"`
-	Status TrainersListResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// TrainersListResponseStatus defines model for TrainersListResponse.Status.
-type TrainersListResponseStatus string
 
 // UpdateProfileRequest Partial profile update. avatar_url is intentionally NOT on this
 // request — avatars are set exclusively via
@@ -1593,9 +1135,6 @@ type AdminListSessionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// GetUserTrainerCount200JSONResponseBodyStatus defines parameters for GetUserTrainerCount.
-type GetUserTrainerCount200JSONResponseBodyStatus string
-
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -1614,9 +1153,6 @@ type HandleLocalAuthJSONBody struct {
 	Password string              `json:"password"`
 }
 
-// HandleLocalAuth200JSONResponseBodyStatus defines parameters for HandleLocalAuth.
-type HandleLocalAuth200JSONResponseBodyStatus string
-
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
@@ -1624,12 +1160,6 @@ type HandleLogoutJSONBody struct {
 
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
 type HandleRefresh200JSONResponseBodyStatus string
-
-// HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
-type HandleVerifyEmail200JSONResponseBodyStatus string
-
-// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
-type GetTrainersBookingSlots200JSONResponseBodyStatus string
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
@@ -1702,9 +1232,6 @@ type ResendTrainerSetupJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
-// ResendTrainerSetup200JSONResponseBodyStatus defines parameters for ResendTrainerSetup.
-type ResendTrainerSetup200JSONResponseBodyStatus string
-
 // ListTrainerSessionsParams defines parameters for ListTrainerSessions.
 type ListTrainerSessionsParams struct {
 	// TrainerId The trainer whose sessions to list
@@ -1730,12 +1257,6 @@ type HandleValidateSetupTokenParams struct {
 // HandleValidateSetupToken200JSONResponseBodyDataStatus defines parameters for HandleValidateSetupToken.
 type HandleValidateSetupToken200JSONResponseBodyDataStatus string
 
-// HandleValidateSetupToken200JSONResponseBodyStatus defines parameters for HandleValidateSetupToken.
-type HandleValidateSetupToken200JSONResponseBodyStatus string
-
-// ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
-type ListTrainerImages200JSONResponseBodyStatus string
-
 // UploadTrainerImagesMultipartBody defines parameters for UploadTrainerImages.
 type UploadTrainerImagesMultipartBody struct {
 	Images []openapi_types.File `json:"images"`
@@ -1743,9 +1264,6 @@ type UploadTrainerImagesMultipartBody struct {
 
 // UploadTrainerImages202JSONResponseBodyDataStatus defines parameters for UploadTrainerImages.
 type UploadTrainerImages202JSONResponseBodyDataStatus string
-
-// UploadTrainerImages202JSONResponseBodyStatus defines parameters for UploadTrainerImages.
-type UploadTrainerImages202JSONResponseBodyStatus string
 
 // UploadTrainerIntroVideoMultipartBody defines parameters for UploadTrainerIntroVideo.
 type UploadTrainerIntroVideoMultipartBody struct {
@@ -1756,9 +1274,6 @@ type UploadTrainerIntroVideoMultipartBody struct {
 // UploadTrainerIntroVideo202JSONResponseBodyDataStatus defines parameters for UploadTrainerIntroVideo.
 type UploadTrainerIntroVideo202JSONResponseBodyDataStatus string
 
-// UploadTrainerIntroVideo202JSONResponseBodyStatus defines parameters for UploadTrainerIntroVideo.
-type UploadTrainerIntroVideo202JSONResponseBodyStatus string
-
 // GetTrainerReviewsParams defines parameters for GetTrainerReviews.
 type GetTrainerReviewsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -1766,12 +1281,6 @@ type GetTrainerReviewsParams struct {
 	// Cursor Opaque cursor from the previous response.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
-
-// GetUserProfile200JSONResponseBodyStatus defines parameters for GetUserProfile.
-type GetUserProfile200JSONResponseBodyStatus string
-
-// UpdateUserProfile200JSONResponseBodyStatus defines parameters for UpdateUserProfile.
-type UpdateUserProfile200JSONResponseBodyStatus string
 
 // UploadProfilePictureMultipartBody defines parameters for UploadProfilePicture.
 type UploadProfilePictureMultipartBody struct {
@@ -1781,9 +1290,6 @@ type UploadProfilePictureMultipartBody struct {
 
 // UploadProfilePicture202JSONResponseBodyDataStatus defines parameters for UploadProfilePicture.
 type UploadProfilePicture202JSONResponseBodyDataStatus string
-
-// UploadProfilePicture202JSONResponseBodyStatus defines parameters for UploadProfilePicture.
-type UploadProfilePicture202JSONResponseBodyStatus string
 
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
