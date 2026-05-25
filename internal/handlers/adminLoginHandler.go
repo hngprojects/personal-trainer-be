@@ -23,7 +23,7 @@ func (h *AdminLoginHandler) Login(c *gin.Context) {
 	var request api.HandleAdminLoginJSONBody
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Error("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request"))
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
 		return
 	}
 	email := string(request.Email)

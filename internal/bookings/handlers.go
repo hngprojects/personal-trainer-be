@@ -98,7 +98,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	var request api.CreateBookingJSONBody
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Warn("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request"))
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
 		return
 	}
 	// if trainer is not provided
@@ -165,28 +165,28 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: user not found", "userID", userID)
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
+			c.JSON(http.StatusNotFound, api.NewError("failed to get user by id", api.CodeNotFound))
 			return
 		}
 		h.log.Warn("HandleCreateBookingSession: DB error fetching user", "userID", userID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get user by id", api.CodeServerError))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: trainer not found", "trainerID", request.TrainerId)
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
+			c.JSON(http.StatusNotFound, api.NewError("failed to get trainer by id", api.CodeNotFound))
 			return
 		}
 		h.log.Warn("HandleCreateBookingSession: DB error fetching trainer", "trainerID", request.TrainerId, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
 		h.log.Error("failed to create booking session", "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to create booking session"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return
 	}
 	var dataInterface interface{} = parseResponse(*created, userID)
