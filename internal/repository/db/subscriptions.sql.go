@@ -339,3 +339,43 @@ func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscr
 	)
 	return i, err
 }
+
+const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
+UPDATE subscriptions
+SET status             = $1,
+    current_period_end = $2
+WHERE id = $3
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+`
+
+type UpdateSubscriptionStatusParams struct {
+	Status           string
+	CurrentPeriodEnd sql.NullTime
+	ID               uuid.UUID
+}
+
+func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, updateSubscriptionStatus, arg.Status, arg.CurrentPeriodEnd, arg.ID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}

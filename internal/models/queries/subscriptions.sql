@@ -76,3 +76,10 @@ SET status = 'cancelled',
 WHERE id = sqlc.arg(id)
   AND status = 'active'
 RETURNING *;
+
+-- name: UpdateSubscriptionStatus :one
+UPDATE subscriptions
+SET status             = sqlc.arg(status),
+    current_period_end = sqlc.arg(current_period_end)
+WHERE id = sqlc.arg(id)
+RETURNING *;
