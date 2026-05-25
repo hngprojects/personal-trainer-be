@@ -1025,6 +1025,10 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	// invalid-NullString which COALESCE folds back to the existing column.
 	var onboardingStatus sql.NullString
 	if body.OnboardingStatus != nil {
+		if !body.OnboardingStatus.Valid() {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid onboarding_status", api.CodeBadRequest))
+			return
+		}
 		onboardingStatus = sql.NullString{String: string(*body.OnboardingStatus), Valid: true}
 	}
 
