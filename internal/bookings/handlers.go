@@ -61,7 +61,7 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 			h.log.Info("HandleGetTrainersBookingSlots: cache hit", "trainer_id", trainerId)
 			bookingSlotResponse := map[string]interface{}{"data": slots}
 			var data interface{} = bookingSlotResponse
-			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
+			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
 			return
 		} else {
 			h.log.Warn("HandleGetTrainersBookingSlots: failed to unmarshal cached data, falling back to DB", "trainer_id", trainerId, "err", err)
@@ -74,10 +74,10 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 	if err != nil {
 		h.log.Warn("HandleGetTrainersBookingSlots: failed to fetch booking slots", "trainer_id", trainerId, "err", err)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
-			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error(), Status: "error"})
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error", Status: "error"})
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error"})
 		return
 	}
 	if bookingSlot == nil {
@@ -91,7 +91,7 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 
 	bookingSlotResponse := map[string]interface{}{"data": bookingSlot}
 	var data interface{} = bookingSlotResponse
-	c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
+	c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
 }
 
 func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
@@ -246,5 +246,5 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		response.CancelledAt = &data.CancelledAt.Time
 	}
 	var responseInterface interface{} = response
-	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil, Status: "success"}
+	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil}
 }

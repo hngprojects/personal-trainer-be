@@ -207,7 +207,6 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 
 	// Build response
 	response := api.CancelBookingResponse{
-		Status:  api.CancelBookingResponseStatusSuccess,
 		Code:    "OK",
 		Message: "booking cancelled successfully",
 		Data: &struct {
