@@ -153,6 +153,45 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
+// Defines values for OrganisationMediaMediaType.
+const (
+	OrganisationMediaMediaTypeImage OrganisationMediaMediaType = "image"
+	OrganisationMediaMediaTypeVideo OrganisationMediaMediaType = "video"
+)
+
+// Valid indicates whether the value is a known member of the OrganisationMediaMediaType enum.
+func (e OrganisationMediaMediaType) Valid() bool {
+	switch e {
+	case OrganisationMediaMediaTypeImage:
+		return true
+	case OrganisationMediaMediaTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OrganisationMediaStatus.
+const (
+	OrganisationMediaStatusFailed     OrganisationMediaStatus = "failed"
+	OrganisationMediaStatusProcessing OrganisationMediaStatus = "processing"
+	OrganisationMediaStatusReady      OrganisationMediaStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the OrganisationMediaStatus enum.
+func (e OrganisationMediaStatus) Valid() bool {
+	switch e {
+	case OrganisationMediaStatusFailed:
+		return true
+	case OrganisationMediaStatusProcessing:
+		return true
+	case OrganisationMediaStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RescheduleReason.
 const (
 	RescheduleReasonFeelingUnwell     RescheduleReason = "feeling_unwell"
@@ -423,6 +462,45 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	case DiscoveryCall:
 		return true
 	case PaidSession:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOrganisationMediaParamsType.
+const (
+	ListOrganisationMediaParamsTypeImage ListOrganisationMediaParamsType = "image"
+	ListOrganisationMediaParamsTypeVideo ListOrganisationMediaParamsType = "video"
+)
+
+// Valid indicates whether the value is a known member of the ListOrganisationMediaParamsType enum.
+func (e ListOrganisationMediaParamsType) Valid() bool {
+	switch e {
+	case ListOrganisationMediaParamsTypeImage:
+		return true
+	case ListOrganisationMediaParamsTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOrganisationMediaParamsStatus.
+const (
+	ListOrganisationMediaParamsStatusFailed     ListOrganisationMediaParamsStatus = "failed"
+	ListOrganisationMediaParamsStatusProcessing ListOrganisationMediaParamsStatus = "processing"
+	ListOrganisationMediaParamsStatusReady      ListOrganisationMediaParamsStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the ListOrganisationMediaParamsStatus enum.
+func (e ListOrganisationMediaParamsStatus) Valid() bool {
+	switch e {
+	case ListOrganisationMediaParamsStatusFailed:
+		return true
+	case ListOrganisationMediaParamsStatusProcessing:
+		return true
+	case ListOrganisationMediaParamsStatusReady:
 		return true
 	default:
 		return false
@@ -789,6 +867,33 @@ type LocalAuthData struct {
 	RefreshToken string   `json:"refresh_token"`
 	User         AuthUser `json:"user"`
 }
+
+// OrganisationMedia One record from the org-level media library. Same shape for
+// images and videos — discriminated by `media_type`. `public_url`
+// is reachable as soon as `status == "ready"`; while
+// `status == "processing"` the FE should treat the URL as
+// unreachable (the worker hasn't pushed bytes to storage yet).
+type OrganisationMedia struct {
+	Category    *string                    `json:"category,omitempty"`
+	CreatedAt   time.Time                  `json:"created_at"`
+	Description *string                    `json:"description,omitempty"`
+	Id          openapi_types.UUID         `json:"id"`
+	MediaType   OrganisationMediaMediaType `json:"media_type"`
+	MimeType    string                     `json:"mime_type"`
+	ObjectKey   string                     `json:"object_key"`
+	PublicUrl   string                     `json:"public_url"`
+	SizeBytes   int64                      `json:"size_bytes"`
+	Status      OrganisationMediaStatus    `json:"status"`
+	Title       string                     `json:"title"`
+	UpdatedAt   time.Time                  `json:"updated_at"`
+	UploadedBy  *openapi_types.UUID        `json:"uploaded_by,omitempty"`
+}
+
+// OrganisationMediaMediaType defines model for OrganisationMedia.MediaType.
+type OrganisationMediaMediaType string
+
+// OrganisationMediaStatus defines model for OrganisationMedia.Status.
+type OrganisationMediaStatus string
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
@@ -1201,6 +1306,41 @@ type GetDiscoverySlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
+// ListOrganisationMediaParams defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParams struct {
+	Type     *ListOrganisationMediaParamsType   `form:"type,omitempty" json:"type,omitempty"`
+	Category *string                            `form:"category,omitempty" json:"category,omitempty"`
+	Status   *ListOrganisationMediaParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Page     *int                               `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int                               `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListOrganisationMediaParamsType defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParamsType string
+
+// ListOrganisationMediaParamsStatus defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParamsStatus string
+
+// UploadOrganisationImageMultipartBody defines parameters for UploadOrganisationImage.
+type UploadOrganisationImageMultipartBody struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// File JPEG / PNG / WebP / HEIC, max 5 MiB
+	File  openapi_types.File `json:"file"`
+	Title string             `json:"title"`
+}
+
+// UploadOrganisationVideoMultipartBody defines parameters for UploadOrganisationVideo.
+type UploadOrganisationVideoMultipartBody struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// File MP4 / MOV / WebM / etc, max 500 MiB, max 10 min
+	File  openapi_types.File `json:"file"`
+	Title string             `json:"title"`
+}
+
 // HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
 type HandleTrainersNoteJSONBody struct {
 	Note string `json:"note"`
@@ -1346,6 +1486,12 @@ type CreateDiscoverySlotsBulkJSONRequestBody = BookingSlotsBulkRequest
 
 // UpdateDiscoverySlotJSONRequestBody defines body for UpdateDiscoverySlot for application/json ContentType.
 type UpdateDiscoverySlotJSONRequestBody = BookingSlotRequest
+
+// UploadOrganisationImageMultipartRequestBody defines body for UploadOrganisationImage for multipart/form-data ContentType.
+type UploadOrganisationImageMultipartRequestBody UploadOrganisationImageMultipartBody
+
+// UploadOrganisationVideoMultipartRequestBody defines body for UploadOrganisationVideo for multipart/form-data ContentType.
+type UploadOrganisationVideoMultipartRequestBody UploadOrganisationVideoMultipartBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
@@ -1493,6 +1639,21 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// List organisation-level media (public, paginated)
+	// (GET /media)
+	ListOrganisationMedia(c *gin.Context, params ListOrganisationMediaParams)
+	// Upload an organisation-level image (admin only)
+	// (POST /media/images)
+	UploadOrganisationImage(c *gin.Context)
+	// Upload an organisation-level video (admin only)
+	// (POST /media/videos)
+	UploadOrganisationVideo(c *gin.Context)
+	// Delete an organisation-media record (admin only)
+	// (DELETE /media/{id})
+	DeleteOrganisationMedia(c *gin.Context, id openapi_types.UUID)
+	// Get one organisation-media record (public)
+	// (GET /media/{id})
+	GetOrganisationMediaByID(c *gin.Context, id openapi_types.UUID)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -2312,6 +2473,147 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	}
 
 	siw.Handler.HealthCheck(c)
+}
+
+// ListOrganisationMedia operation middleware
+func (siw *ServerInterfaceWrapper) ListOrganisationMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListOrganisationMediaParams
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "category" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListOrganisationMedia(c, params)
+}
+
+// UploadOrganisationImage operation middleware
+func (siw *ServerInterfaceWrapper) UploadOrganisationImage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadOrganisationImage(c)
+}
+
+// UploadOrganisationVideo operation middleware
+func (siw *ServerInterfaceWrapper) UploadOrganisationVideo(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadOrganisationVideo(c)
+}
+
+// DeleteOrganisationMedia operation middleware
+func (siw *ServerInterfaceWrapper) DeleteOrganisationMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteOrganisationMedia(c, id)
+}
+
+// GetOrganisationMediaByID operation middleware
+func (siw *ServerInterfaceWrapper) GetOrganisationMediaByID(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetOrganisationMediaByID(c, id)
 }
 
 // CreateReview operation middleware
@@ -3318,6 +3620,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/discovery-slots/:id", wrapper.DeleteDiscoverySlot)
 	router.PUT(options.BaseURL+"/discovery-slots/:id", wrapper.UpdateDiscoverySlot)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.GET(options.BaseURL+"/media", wrapper.ListOrganisationMedia)
+	router.POST(options.BaseURL+"/media/images", wrapper.UploadOrganisationImage)
+	router.POST(options.BaseURL+"/media/videos", wrapper.UploadOrganisationVideo)
+	router.DELETE(options.BaseURL+"/media/:id", wrapper.DeleteOrganisationMedia)
+	router.GET(options.BaseURL+"/media/:id", wrapper.GetOrganisationMediaByID)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
