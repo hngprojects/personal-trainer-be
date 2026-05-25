@@ -69,6 +69,13 @@ type Router struct {
 	// (which writes users.avatar_url) so a trainer's client-facing display
 	// picture can differ from their personal user avatar.
 	trainerDisplayPictureUploader *uploads.TrainerDisplayPictureUploader
+
+	// organisationImageUploader + organisationVideoUploader run the
+	// org-level media library pipelines. nil if MinIO env vars are
+	// missing (or ffmpeg, for the video one) — handlers 503 in that
+	// case. Held on Router so Close() can drain them on shutdown.
+	organisationImageUploader *uploads.OrganisationImageUploader
+	organisationVideoUploader *uploads.OrganisationVideoUploader
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -105,6 +112,14 @@ func (s *Router) Close() {
 	if s.trainerDisplayPictureUploader != nil {
 		s.trainerDisplayPictureUploader.Stop()
 	}
+	if s.organisationImageUploader != nil {
+		s.organisationImageUploader.Stop()
+	}
+	if s.organisationVideoUploader != nil {
+		// Same drain semantics as VideoUploader — transcodes can take
+		// minutes per job so shutdown can be slow with deep queues.
+		s.organisationVideoUploader.Stop()
+	}
 }
 
 type routerImpl struct {
@@ -138,6 +153,14 @@ type routerImpl struct {
 	videoTranscoder               video.Transcoder                       // nil if ffmpeg is missing → upload endpoint 503s
 	trainerImageUploader          *uploads.TrainerImageUploader          // nil if MinIO env vars are missing → upload endpoint 503s
 	trainerDisplayPictureUploader *uploads.TrainerDisplayPictureUploader // nil if MinIO env vars are missing → POST /trainers with picture returns 503
+
+	// Organisation media library: image + video uploaders run on the
+	// same MinIO client as the trainer pipelines but write to
+	// organisation_media (different table, different MinIO prefix).
+	// nil when storage isn't configured — handler 503s.
+	media                     *mediaStore
+	organisationImageUploader *uploads.OrganisationImageUploader
+	organisationVideoUploader *uploads.OrganisationVideoUploader
 
 	// log + mailer are shared dependencies that a handful of handlers
 	// (notably POST /trainers for the credentials email) need direct access
@@ -306,6 +329,25 @@ func (s *Router) Routes() *gin.Engine {
 					s.trainerDisplayPictureUploader = tdpUploader
 					impl.trainerDisplayPictureUploader = tdpUploader
 					s.log.Info("trainer display-picture upload pipeline started", "workers", 2, "queue", 50, "bucket", s.cfg.MinioBucket)
+
+					// Organisation media pipelines (images + videos). Same
+					// MinIO client, different table + path prefix. Image
+					// queue depth mirrors trainer-image; video queue is
+					// small because each job pins a worker for minutes.
+					oiUploader := uploads.NewOrganisationImageUploader(store, q, s.log, 100)
+					oiUploader.Start(4)
+					s.organisationImageUploader = oiUploader
+					impl.organisationImageUploader = oiUploader
+					impl.media = &mediaStore{q: q, store: store}
+					s.log.Info("organisation image upload pipeline started", "workers", 4, "queue", 100, "bucket", s.cfg.MinioBucket)
+
+					if impl.videoTranscoder != nil {
+						ovUploader := uploads.NewOrganisationVideoUploader(store, impl.videoTranscoder, q, s.log, 20)
+						ovUploader.Start(2)
+						s.organisationVideoUploader = ovUploader
+						impl.organisationVideoUploader = ovUploader
+						s.log.Info("organisation video upload pipeline started", "workers", 2, "queue", 20, "bucket", s.cfg.MinioBucket)
+					}
 				}
 			}
 

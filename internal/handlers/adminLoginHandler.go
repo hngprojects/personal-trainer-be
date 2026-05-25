@@ -23,7 +23,7 @@ func (h *AdminLoginHandler) Login(c *gin.Context) {
 	var request api.HandleAdminLoginJSONBody
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Error("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request"))
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
 		return
 	}
 	email := string(request.Email)
@@ -43,7 +43,7 @@ func (h *AdminLoginHandler) Login(c *gin.Context) {
 	result, err := h.service.Login(c.Request.Context(), email, password)
 	if err != nil {
 		h.log.Warn("Admin login: service returned error", "err", err)
-		c.JSON(http.StatusUnauthorized, api.ErrorResponse{Code: api.CodeUnauthorized, Message: "invalid email or password", Status: "error"})
+		c.JSON(http.StatusUnauthorized, api.ErrorResponse{Code: api.CodeUnauthorized, Message: "invalid email or password"})
 		return
 	}
 	h.log.Info("user successfully logged in", "email", request.Email)

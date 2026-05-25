@@ -61,7 +61,7 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 			h.log.Info("HandleGetTrainersBookingSlots: cache hit", "trainer_id", trainerId)
 			bookingSlotResponse := map[string]interface{}{"data": slots}
 			var data interface{} = bookingSlotResponse
-			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
+			c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
 			return
 		} else {
 			h.log.Warn("HandleGetTrainersBookingSlots: failed to unmarshal cached data, falling back to DB", "trainer_id", trainerId, "err", err)
@@ -74,10 +74,10 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 	if err != nil {
 		h.log.Warn("HandleGetTrainersBookingSlots: failed to fetch booking slots", "trainer_id", trainerId, "err", err)
 		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
-			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error(), Status: "error"})
+			c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error", Status: "error"})
+		c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error"})
 		return
 	}
 	if bookingSlot == nil {
@@ -91,14 +91,14 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 
 	bookingSlotResponse := map[string]interface{}{"data": bookingSlot}
 	var data interface{} = bookingSlotResponse
-	c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil, Status: "success"})
+	c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
 }
 
 func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	var request api.CreateBookingJSONBody
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Warn("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request"))
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
 		return
 	}
 	// if trainer is not provided
@@ -165,28 +165,28 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: user not found", "userID", userID)
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get user by id"))
+			c.JSON(http.StatusNotFound, api.NewError("failed to get user by id", api.CodeNotFound))
 			return
 		}
 		h.log.Warn("HandleCreateBookingSession: DB error fetching user", "userID", userID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get user by id"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get user by id", api.CodeServerError))
 		return
 	}
 	trainer, err := h.service.GetTrainerDetails(c.Request.Context(), request.TrainerId)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			h.log.Warn("HandleCreateBookingSession: trainer not found", "trainerID", request.TrainerId)
-			c.JSON(http.StatusNotFound, api.NewError(api.CodeNotFound, "failed to get trainer by id"))
+			c.JSON(http.StatusNotFound, api.NewError("failed to get trainer by id", api.CodeNotFound))
 			return
 		}
 		h.log.Warn("HandleCreateBookingSession: DB error fetching trainer", "trainerID", request.TrainerId, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to get trainer by id"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
 		h.log.Error("failed to create booking session", "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError(api.CodeServerError, "failed to create booking session"))
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return
 	}
 	var dataInterface interface{} = parseResponse(*created, userID)
@@ -246,5 +246,5 @@ func parseResponse(data db.Booking, userID uuid.UUID) api.SuccessResponse {
 		response.CancelledAt = &data.CancelledAt.Time
 	}
 	var responseInterface interface{} = response
-	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil, Status: "success"}
+	return api.SuccessResponse{Code: api.CodeOK, Message: "Booking session created successfully", Data: &responseInterface, Meta: nil}
 }

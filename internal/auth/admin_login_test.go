@@ -105,10 +105,6 @@ func TestAdminLogin_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	response := decodeBody(t, w)
-	if response["status"] != "success" {
-		t.Errorf("expected success, got %s: %s", response["status"], w.Body.String())
-	}
 }
 
 func TestAdminLogin_WrongPassword(t *testing.T) {
@@ -120,10 +116,6 @@ func TestAdminLogin_WrongPassword(t *testing.T) {
 	w := sendAdminRequest(t, &h, body)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d: %s", w.Code, w.Body.String())
-	}
-	response := decodeBody(t, w)
-	if response["status"] != "error" {
-		t.Errorf("expected error, got %s: %s", response["status"], w.Body.String())
 	}
 }
 
@@ -139,10 +131,6 @@ func TestAdminLogin_EmailNotFound(t *testing.T) {
 	w := sendAdminRequest(t, h, body)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d: %s", w.Code, w.Body.String())
-	}
-	response := decodeBody(t, w)
-	if response["status"] != "error" {
-		t.Errorf("expected error, got %s: %s", response["status"], w.Body.String())
 	}
 }
 
@@ -167,10 +155,6 @@ func TestAdminLogin_UserNotAdmin(t *testing.T) {
 	w := sendAdminRequest(t, h, body)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d: %s", w.Code, w.Body.String())
-	}
-	response := decodeBody(t, w)
-	if response["status"] != "error" {
-		t.Errorf("expected error, got %s: %s", response["status"], w.Body.String())
 	}
 }
 
@@ -212,10 +196,7 @@ func TestAdminLogin_NullPassword(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d: %s", w.Code, w.Body.String())
 	}
-	response := decodeBody(t, w)
-	if response["status"] != "error" {
-		t.Errorf("expected error, got %s: %s", response["status"], w.Body.String())
-	}
+
 }
 
 func TestAdminLogin_InvalidJSON(t *testing.T) {
@@ -239,9 +220,6 @@ func TestAdminLogin_SuccessResponseShape(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	response := decodeBody(t, w)
-	if response["status"] != "success" {
-		t.Errorf("expected success, got %s: %s", response["status"], w.Body.String())
-	}
 	data := response["data"]
 	mappedData, ok := data.(map[string]any)
 	if !ok {
