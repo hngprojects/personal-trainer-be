@@ -109,7 +109,7 @@ func appleVerify(ctx context.Context, url, receiptData, sharedSecret string) (*a
 	if err != nil {
 		return nil, fmt.Errorf("apple verify request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var result appleVerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -151,7 +151,7 @@ func VerifyGoogle(ctx context.Context, packageName, subscriptionID, purchaseToke
 	if err != nil {
 		return nil, fmt.Errorf("google verify request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("google play API returned %d", resp.StatusCode)
@@ -187,6 +187,8 @@ func msToTime(ms string) time.Time {
 		return time.Time{}
 	}
 	var n int64
-	fmt.Sscanf(ms, "%d", &n)
+	if _, err := fmt.Sscanf(ms, "%d", &n); err != nil {
+		return time.Time{}
+	}
 	return time.UnixMilli(n).UTC()
 }
