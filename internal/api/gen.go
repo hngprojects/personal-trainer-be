@@ -1322,8 +1322,7 @@ type HandleGoogleCallbackParams struct {
 
 // HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
 type HandleLocalAuthJSONBody struct {
-	Email    openapi_types.Email `json:"email"`
-	Password string              `json:"password"`
+	Email openapi_types.Email `json:"email"`
 }
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
