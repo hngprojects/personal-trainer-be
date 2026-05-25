@@ -870,6 +870,53 @@ type SetAvailabilityResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// SubscriptionPlan defines model for SubscriptionPlan.
+type SubscriptionPlan struct {
+	// Amount Price in minor currency units (e.g. cents / kobo)
+	Amount int `json:"amount"`
+
+	// AmountDisplay Human-readable price string (e.g. "$80/month")
+	AmountDisplay string `json:"amount_display"`
+
+	// AppleProductId Apple App Store product identifier for IAP
+	AppleProductId string `json:"apple_product_id"`
+
+	// Currency ISO 4217 currency code
+	Currency string `json:"currency"`
+
+	// Features List of feature highlights shown on the plan card
+	Features []string `json:"features"`
+
+	// GoogleProductId Google Play product identifier for billing
+	GoogleProductId string `json:"google_product_id"`
+
+	// Id Unique plan identifier (casual, committed, consistent)
+	Id string `json:"id"`
+
+	// Name Display name (e.g. "The Casual")
+	Name string `json:"name"`
+
+	// SessionsPerMonth Number of guided sessions included per month
+	SessionsPerMonth int `json:"sessions_per_month"`
+
+	// Tag Optional badge label (e.g. "Most Popular")
+	Tag *string `json:"tag,omitempty"`
+
+	// TrialDays Number of free trial days before billing starts
+	TrialDays int `json:"trial_days"`
+}
+
+// SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
+type SubscriptionPlansResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    []SubscriptionPlan `json:"data"`
+	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -1511,6 +1558,9 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// List available subscription plans
+	// (GET /subscriptions/plans)
+	GetSubscriptionPlans(c *gin.Context)
 	// Get trainers (admin only) — paginated
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
@@ -2464,6 +2514,19 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	siw.Handler.HandleStartSession(c, id)
 }
 
+// GetSubscriptionPlans operation middleware
+func (siw *ServerInterfaceWrapper) GetSubscriptionPlans(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSubscriptionPlans(c)
+}
+
 // GetTrainers operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
@@ -3324,6 +3387,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
 	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
