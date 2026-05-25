@@ -105,6 +105,45 @@ func (e CancelBookingResponseDataRefundReason) Valid() bool {
 	}
 }
 
+// Defines values for CreateSubscriptionRequestPlanId.
+const (
+	CreateSubscriptionRequestPlanIdCasual     CreateSubscriptionRequestPlanId = "casual"
+	CreateSubscriptionRequestPlanIdCommitted  CreateSubscriptionRequestPlanId = "committed"
+	CreateSubscriptionRequestPlanIdConsistent CreateSubscriptionRequestPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlanId enum.
+func (e CreateSubscriptionRequestPlanId) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlanIdCasual:
+		return true
+	case CreateSubscriptionRequestPlanIdCommitted:
+		return true
+	case CreateSubscriptionRequestPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestPlatform.
+const (
+	CreateSubscriptionRequestPlatformApple  CreateSubscriptionRequestPlatform = "apple"
+	CreateSubscriptionRequestPlatformGoogle CreateSubscriptionRequestPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlatform enum.
+func (e CreateSubscriptionRequestPlatform) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlatformApple:
+		return true
+	case CreateSubscriptionRequestPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestGender.
 const (
 	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
@@ -216,6 +255,66 @@ func (e RescheduleReason) Valid() bool {
 	case RescheduleReasonTravel:
 		return true
 	case RescheduleReasonWorkConflict:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlanId.
+const (
+	SubscriptionPlanIdCasual     SubscriptionPlanId = "casual"
+	SubscriptionPlanIdCommitted  SubscriptionPlanId = "committed"
+	SubscriptionPlanIdConsistent SubscriptionPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlanId enum.
+func (e SubscriptionPlanId) Valid() bool {
+	switch e {
+	case SubscriptionPlanIdCasual:
+		return true
+	case SubscriptionPlanIdCommitted:
+		return true
+	case SubscriptionPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlatform.
+const (
+	SubscriptionPlatformApple  SubscriptionPlatform = "apple"
+	SubscriptionPlatformGoogle SubscriptionPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlatform enum.
+func (e SubscriptionPlatform) Valid() bool {
+	switch e {
+	case SubscriptionPlatformApple:
+		return true
+	case SubscriptionPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionStatus.
+const (
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
+	SubscriptionStatusExpired   SubscriptionStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionStatus enum.
+func (e SubscriptionStatus) Valid() bool {
+	switch e {
+	case SubscriptionStatusActive:
+		return true
+	case SubscriptionStatusCancelled:
+		return true
+	case SubscriptionStatusExpired:
 		return true
 	default:
 		return false
@@ -398,16 +497,16 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for GetAdminClientsParamsStatus.
 const (
-	Active   GetAdminClientsParamsStatus = "active"
-	Inactive GetAdminClientsParamsStatus = "inactive"
+	GetAdminClientsParamsStatusActive   GetAdminClientsParamsStatus = "active"
+	GetAdminClientsParamsStatusInactive GetAdminClientsParamsStatus = "inactive"
 )
 
 // Valid indicates whether the value is a known member of the GetAdminClientsParamsStatus enum.
 func (e GetAdminClientsParamsStatus) Valid() bool {
 	switch e {
-	case Active:
+	case GetAdminClientsParamsStatusActive:
 		return true
-	case Inactive:
+	case GetAdminClientsParamsStatusInactive:
 		return true
 	default:
 		return false
@@ -759,6 +858,33 @@ type CreateReviewRequest struct {
 	Review    *string            `json:"review,omitempty"`
 }
 
+// CreateSubscriptionRequest defines model for CreateSubscriptionRequest.
+type CreateSubscriptionRequest struct {
+	// PlanId The plan tier the client is subscribing to
+	PlanId CreateSubscriptionRequestPlanId `json:"plan_id"`
+
+	// Platform The payment platform used
+	Platform CreateSubscriptionRequestPlatform `json:"platform"`
+
+	// ProductId App store product ID (must match the plan)
+	ProductId string `json:"product_id"`
+
+	// PurchaseToken Google Play purchase token (required when platform=google)
+	PurchaseToken *string `json:"purchase_token,omitempty"`
+
+	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
+	ReceiptData *string `json:"receipt_data,omitempty"`
+
+	// TrainerId The trainer this subscription is for
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+}
+
+// CreateSubscriptionRequestPlanId The plan tier the client is subscribing to
+type CreateSubscriptionRequestPlanId string
+
+// CreateSubscriptionRequestPlatform The payment platform used
+type CreateSubscriptionRequestPlatform string
+
 // CreateTrainerRequest Multipart form body for POST /trainers. An admin (admin or super_admin
 // role) provisions a new trainer: we create the underlying user account
 // with role='trainer' and a generated password, insert the trainer row,
@@ -996,6 +1122,33 @@ type SetAvailabilityResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// Subscription defines model for Subscription.
+type Subscription struct {
+	// Amount Price in cents
+	Amount                *int                  `json:"amount,omitempty"`
+	ClientId              openapi_types.UUID    `json:"client_id"`
+	CreatedAt             time.Time             `json:"created_at"`
+	Currency              string                `json:"currency"`
+	CurrentPeriodEnd      *time.Time            `json:"current_period_end,omitempty"`
+	CurrentPeriodStart    *time.Time            `json:"current_period_start,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
+	PlanId                *SubscriptionPlanId   `json:"plan_id,omitempty"`
+	Platform              *SubscriptionPlatform `json:"platform,omitempty"`
+	SessionsPerMonth      *int                  `json:"sessions_per_month,omitempty"`
+	SessionsUsedThisMonth int                   `json:"sessions_used_this_month"`
+	Status                SubscriptionStatus    `json:"status"`
+	TrainerId             openapi_types.UUID    `json:"trainer_id"`
+}
+
+// SubscriptionPlanId defines model for Subscription.PlanId.
+type SubscriptionPlanId string
+
+// SubscriptionPlatform defines model for Subscription.Platform.
+type SubscriptionPlatform string
+
+// SubscriptionStatus defines model for Subscription.Status.
+type SubscriptionStatus string
+
 // SubscriptionPlan defines model for SubscriptionPlan.
 type SubscriptionPlan struct {
 	// Amount Price in minor currency units (e.g. cents / kobo)
@@ -1027,9 +1180,6 @@ type SubscriptionPlan struct {
 
 	// Tag Optional badge label (e.g. "Most Popular")
 	Tag *string `json:"tag,omitempty"`
-
-	// TrialDays Number of free trial days before billing starts
-	TrialDays int `json:"trial_days"`
 }
 
 // SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
@@ -1037,6 +1187,37 @@ type SubscriptionPlansResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 	Code    string             `json:"code"`
 	Data    []SubscriptionPlan `json:"data"`
+	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionResponse defines model for SubscriptionResponse.
+type SubscriptionResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string        `json:"code"`
+	Data    *Subscription `json:"data,omitempty"`
+	Message string        `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionUsage defines model for SubscriptionUsage.
+type SubscriptionUsage struct {
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	SessionsPerMonth   int       `json:"sessions_per_month"`
+	SessionsRemaining  int       `json:"sessions_remaining"`
+	SessionsUsed       int       `json:"sessions_used"`
+}
+
+// SubscriptionUsageResponse defines model for SubscriptionUsageResponse.
+type SubscriptionUsageResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    *SubscriptionUsage `json:"data,omitempty"`
 	Message string             `json:"message"`
 
 	// Meta Any JSON value (usually object)
@@ -1589,6 +1770,9 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
+
 // CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
 
@@ -1705,6 +1889,9 @@ type ServerInterface interface {
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
+	// Cancel my subscription
+	// (POST /client/cancel/subscription)
+	CancelMySubscription(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -1771,6 +1958,15 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// Create a subscription via Apple/Google IAP
+	// (POST /subscriptions)
+	CreateSubscription(c *gin.Context)
+	// Get my active subscription
+	// (GET /subscriptions/me)
+	GetMySubscription(c *gin.Context)
+	// Get session usage for my subscription
+	// (GET /subscriptions/me/usage)
+	GetMySubscriptionUsage(c *gin.Context)
 	// List available subscription plans
 	// (GET /subscriptions/plans)
 	GetSubscriptionPlans(c *gin.Context)
@@ -2427,6 +2623,21 @@ func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 	siw.Handler.RescheduleDiscoveryCall(c, id)
 }
 
+// CancelMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelMySubscription(c)
+}
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -2911,6 +3122,51 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	}
 
 	siw.Handler.HandleStartSession(c, id)
+}
+
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubscription(c)
+}
+
+// GetMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscription(c)
+}
+
+// GetMySubscriptionUsage operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscriptionUsage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscriptionUsage(c)
 }
 
 // GetSubscriptionPlans operation middleware
@@ -3772,6 +4028,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
+	router.POST(options.BaseURL+"/client/cancel/subscription", wrapper.CancelMySubscription)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
@@ -3794,6 +4051,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
+	router.GET(options.BaseURL+"/subscriptions/me", wrapper.GetMySubscription)
+	router.GET(options.BaseURL+"/subscriptions/me/usage", wrapper.GetMySubscriptionUsage)
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)

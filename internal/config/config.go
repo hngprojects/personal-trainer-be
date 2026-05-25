@@ -62,6 +62,17 @@ type Config struct {
 	VideoTempDir       string
 	FCMCredentialsFile string
 	FCMProjectID       string
+
+	// Apple IAP receipt validation.
+	AppleSharedSecret string // APPLE_SHARED_SECRET — App Store Connect shared secret
+	AppleBundleID     string // APPLE_BUNDLE_ID — e.g. com.fitcal.app
+
+	// Google Play billing.
+	GooglePackageName        string // GOOGLE_PACKAGE_NAME — e.g. com.fitcal.app
+	GoogleServiceAccountJSON string // GOOGLE_SERVICE_ACCOUNT_JSON — full JSON key file contents
+
+	// IAPSkipVerification skips Apple/Google receipt verification in dev/test.
+	IAPSkipVerification bool // IAP_SKIP_VERIFICATION=true
 }
 
 func Load() (*Config, error) {
@@ -121,6 +132,14 @@ func Load() (*Config, error) {
 		// FCM credentials for push notifications to trainers
 		FCMCredentialsFile: os.Getenv("FCM_CREDENTIALS_FILE"),
 		FCMProjectID:       os.Getenv("FCM_PROJECT_ID"),
+
+		AppleSharedSecret: os.Getenv("APPLE_SHARED_SECRET"),
+		AppleBundleID:     getenv("APPLE_BUNDLE_ID", "com.fitcal.app"),
+
+		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
+		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+
+		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "false") == "true",
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -128,6 +147,18 @@ func Load() (*Config, error) {
 	}
 	if cfg.JwtSecret == "" {
 		return nil, errors.New("JWT_SECRET is required")
+	}
+
+	if cfg.IAPSkipVerification && cfg.Env == "production" {
+		return nil, errors.New("IAP_SKIP_VERIFICATION must not be enabled in production")
+	}
+	if !cfg.IAPSkipVerification {
+		if cfg.AppleSharedSecret == "" {
+			return nil, errors.New("APPLE_SHARED_SECRET is required when IAP_SKIP_VERIFICATION is false")
+		}
+		if cfg.GoogleServiceAccountJSON == "" {
+			return nil, errors.New("GOOGLE_SERVICE_ACCOUNT_JSON is required when IAP_SKIP_VERIFICATION is false")
+		}
 	}
 
 	return cfg, nil

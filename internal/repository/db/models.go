@@ -190,19 +190,24 @@ type Session struct {
 }
 
 type Subscription struct {
-	ID                    uuid.UUID
-	ClientID              uuid.UUID
-	TrainerID             uuid.UUID
-	PlanType              string
-	SessionsPerMonth      sql.NullInt32
-	SessionsUsedThisMonth int32
-	Amount                sql.NullInt64
-	Currency              string
-	Status                string
-	CurrentPeriodStart    sql.NullTime
-	CurrentPeriodEnd      sql.NullTime
-	CreatedAt             time.Time
-	CancelledAt           sql.NullTime
+	ID                         uuid.UUID
+	ClientID                   uuid.UUID
+	TrainerID                  uuid.UUID
+	PlanType                   string
+	SessionsPerMonth           sql.NullInt32
+	SessionsUsedThisMonth      int32
+	Amount                     sql.NullInt64
+	Currency                   string
+	Status                     string
+	CurrentPeriodStart         sql.NullTime
+	CurrentPeriodEnd           sql.NullTime
+	CreatedAt                  time.Time
+	CancelledAt                sql.NullTime
+	PlanID                     sql.NullString
+	Platform                   sql.NullString
+	TrialEndsAt                sql.NullTime
+	AppleOriginalTransactionID sql.NullString
+	GooglePurchaseToken        sql.NullString
 }
 
 type Trainer struct {
