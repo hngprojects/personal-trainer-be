@@ -246,9 +246,9 @@ func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsP
 	var isActive sql.NullBool
 	if params.Status != nil {
 		switch *params.Status {
-		case api.Active:
+		case api.GetAdminClientsParamsStatusActive:
 			isActive = sql.NullBool{Bool: true, Valid: true}
-		case api.Inactive:
+		case api.GetAdminClientsParamsStatusInactive:
 			isActive = sql.NullBool{Bool: false, Valid: true}
 		default:
 			c.JSON(http.StatusBadRequest, api.NewError("invalid status: must be active or inactive", api.CodeBadRequest))
