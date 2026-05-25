@@ -152,7 +152,7 @@ func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 	var notes api.HandleTrainersNoteJSONBody
 	if err := c.ShouldBindJSON(&notes); err != nil {
 		h.log.Warn("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request, please provide a note"))
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request, please provide a note", api.CodeBadRequest))
 		return
 	}
 	var fieldErrors []api.FieldError
