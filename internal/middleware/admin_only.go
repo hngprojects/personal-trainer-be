@@ -25,6 +25,9 @@ var adminReadablePaths = map[string]bool{
 	"/api/v1/admin/sessions":           true,
 	"/api/v1/admin/discovery-bookings": true,
 	"/api/v1/admin/top-trainers":       true,
+	// Read-only system activity feed; ops admins watch this daily, no
+	// reason to gate it behind super_admin.
+	"/api/v1/admin/activities": true,
 }
 
 // SuperAdminOnly protects /api/v1/admin/* routes. Mirrors the path-prefix
