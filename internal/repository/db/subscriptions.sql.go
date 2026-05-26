@@ -343,7 +343,12 @@ func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscr
 const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
 UPDATE subscriptions
 SET status             = $1,
-    current_period_end = $2
+    current_period_end = $2,
+    cancelled_at       = CASE
+                           WHEN $1 = 'cancelled' AND cancelled_at IS NULL
+                           THEN NOW()
+                           ELSE cancelled_at
+                         END
 WHERE id = $3
 RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
 `

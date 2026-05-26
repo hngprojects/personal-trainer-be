@@ -14,13 +14,13 @@ const baseURL = "http://localhost:8080/api/v1"
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Println("Usage: go run scripts/webhook_test.go <platform> <id>")
+		fmt.Println("Usage: go run scripts/webhook_sim.go <platform> <id>")
 		fmt.Println("  platform: apple | google")
 		fmt.Println("  id:       apple_original_transaction_id or google_purchase_token")
 		fmt.Println()
 		fmt.Println("Examples:")
-		fmt.Println("  go run scripts/webhook_test.go apple dev-262f299b-38a9-4a7e-ae97-64055969dd5f")
-		fmt.Println("  go run scripts/webhook_test.go google test-purchase-token-abc123")
+		fmt.Println("  go run scripts/webhook_sim.go apple dev-262f299b-38a9-4a7e-ae97-64055969dd5f")
+		fmt.Println("  go run scripts/webhook_sim.go google test-purchase-token-abc123")
 		os.Exit(1)
 	}
 

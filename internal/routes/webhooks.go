@@ -52,6 +52,16 @@ type appleTransactionPayload struct {
 // decodeJWSMiddle base64url-decodes the payload segment of a compact JWS
 // without signature verification. Apple embeds the cert chain in the header;
 // in production you should verify it — sufficient for our event-driven flow.
+
+// maskID masks all but the last 6 chars of a sensitive identifier for logging.
+func maskID(s string) string {
+	if len(s) <= 6 {
+		return "***"
+	}
+	return "***" + s[len(s)-6:]
+}
+
+
 func decodeJWSMiddle(jws string) ([]byte, error) {
 	parts := strings.Split(jws, ".")
 	if len(parts) != 3 {
@@ -101,7 +111,7 @@ func (s *routerImpl) HandleAppleWebhook(c *gin.Context) {
 		return
 	}
 
-	log = log.With("notificationType", notif.NotificationType, "originalTransactionId", tx.OriginalTransactionID)
+	log = log.With("notificationType", notif.NotificationType, "originalTransactionId", maskID(tx.OriginalTransactionID))
 	log.Info("apple notification received")
 
 	sub, err := s.trainers.q.GetSubscriptionByAppleTransactionID(ctx, sql.NullString{
@@ -224,7 +234,7 @@ func (s *routerImpl) HandleGoogleWebhook(c *gin.Context) {
 	}
 
 	notif := rtdn.SubscriptionNotification
-	log = log.With("notificationType", notif.NotificationType, "purchaseToken", notif.PurchaseToken)
+	log = log.With("notificationType", notif.NotificationType, "purchaseToken", maskID(notif.PurchaseToken))
 	log.Info("google notification received")
 
 	sub, err := s.trainers.q.GetSubscriptionByGooglePurchaseToken(ctx, sql.NullString{
