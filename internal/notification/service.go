@@ -116,20 +116,12 @@ func (s *NotificationService) GetUserNotification(ctx context.Context, userID uu
 		s.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
 		return nil, err
 	}
-<<<<<<< HEAD
 	if len(*notifications) == 0 {
-=======
-	resp := make([]NotificationResponse, 0, len(*notifications))
-	if notifications == nil {
->>>>>>> 60a3321 (fix(coderabbit_convo): added more test to user_device and notifications)
 		empty := []NotificationResponse{}
 		return &empty, nil
 	}
 
-<<<<<<< HEAD
 	resp := make([]NotificationResponse, 0, len(*notifications))
-=======
->>>>>>> 60a3321 (fix(coderabbit_convo): added more test to user_device and notifications)
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)
 		resp = append(resp, r)
