@@ -251,3 +251,25 @@ func TestHandleGetUserNotifications_Unauthorized(t *testing.T) {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
+
+func TestHandleGetUserNotifications_ServiceError(t *testing.T) {
+	repo := &mockRepository{
+		getUserNotificationFn: func(_ context.Context, _ uuid.UUID) (*[]db.Notification, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	handler := notification.NewNotificationHandler(
+		notification.NewNotificationService(repo, fcmnotif.NewPushNotification("", "", nil, testLogger()), testLogger()),
+		testLogger(),
+	)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(string(common.ContextKeyUserID), uuid.New())
+	c.Request, _ = http.NewRequest("GET", "/notifications", nil)
+
+	handler.GetUserNotifications(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}

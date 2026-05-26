@@ -45,7 +45,7 @@ func NewPushNotification(credentialFile, projectID string, client *fcm.Client, l
 
 func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string, title, message string) error {
 	if p.disabled {
-		p.log.Warn("Notifier Credentaial file not set, push notifications will be disabled")
+		p.log.Warn("Notifier Credential file not set, push notifications will be disabled")
 		return fmt.Errorf("push notifications are disabled")
 	}
 	if len(deviceToken) == 0 {

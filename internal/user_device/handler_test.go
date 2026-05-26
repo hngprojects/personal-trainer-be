@@ -56,16 +56,18 @@ func TestHandleRegisterDevice_MissingDeviceToken(t *testing.T) {
 		userdevice.NewUserDeviceService(&mockUserDeviceRepo{}, testLogger()),
 		testLogger(),
 	)
-	body := map[string]string{"device_token": "", "platform": "android"}
-	bodyBytes, _ := json.Marshal(body)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Set(string(common.ContextKeyUserID), uuid.New())
-	c.Request, _ = http.NewRequest("POST", "/register/device", bytes.NewReader(bodyBytes))
-	c.Request.Header.Set("Content-Type", "application/json")
-	handler.HandleRegisterDevice(c)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
+	for _, token := range []string{"", " "} {
+		body := map[string]string{"device_token": token, "platform": "android"}
+		bodyBytes, _ := json.Marshal(body)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set(string(common.ContextKeyUserID), uuid.New())
+		c.Request, _ = http.NewRequest("POST", "/register/device", bytes.NewReader(bodyBytes))
+		c.Request.Header.Set("Content-Type", "application/json")
+		handler.HandleRegisterDevice(c)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", w.Code)
+		}
 	}
 }
 func TestHandleRegisterDevice_InvalidPlatform(t *testing.T) {

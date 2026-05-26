@@ -29,9 +29,6 @@ coverage.txt
 /tmp/
 /dist/
 .claude/
-<<<<<<< HEAD
 tokenserver.log
 
-=======
 token
->>>>>>> 7c88388 (feat(notifications): add tests to notification and user_device system)

@@ -40,7 +40,7 @@ func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNo
 type NotificationServiceInterface interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
-	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
+	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
 func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
@@ -48,6 +48,9 @@ func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uu
 	if err != nil {
 		s.log.Error("Failed to get user device tokens", "userID", userID, "error", err)
 		return nil, err
+	}
+	if devices == nil {
+		return []db.UserDevice{}, nil
 	}
 	return *devices, nil
 }
@@ -109,7 +112,12 @@ func (s *NotificationService) GetUserNotification(ctx context.Context, userID uu
 		s.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
 		return nil, err
 	}
-	var resp []NotificationResponse
+	resp := make([]NotificationResponse, 0, len(*notifications))
+	if notifications == nil {
+		empty := []NotificationResponse{}
+		return &empty, nil
+	}
+
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)
 		resp = append(resp, r)
