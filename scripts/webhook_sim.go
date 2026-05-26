@@ -100,7 +100,7 @@ func post(url string, body []byte) {
 		fmt.Println("ERROR:", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	out, _ := io.ReadAll(resp.Body)
 	fmt.Printf("HTTP %d\n", resp.StatusCode)
 	if len(out) > 0 {
