@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 )
@@ -223,15 +224,26 @@ func Load() (*Config, error) {
 		return nil, errors.New("JWT_SECRET is required")
 	}
 
+	// Production must NEVER silently skip receipt verification. This
+	// stays fatal — getting it wrong means a malicious client can claim
+	// to have paid without ever paying.
 	if cfg.IAPSkipVerification && cfg.Env == "production" {
 		return nil, errors.New("IAP_SKIP_VERIFICATION must not be enabled in production")
 	}
+
+	// Missing IAP credentials used to be a boot-fatal too, but it took
+	// down environments (staging, local dev, CI) that don't run the
+	// Apple/Google flows. Matches the pattern used elsewhere in this
+	// codebase (MinIO, Zoom, ffmpeg): degrade with a loud warn, let the
+	// subscription handlers reject at request time when their backing
+	// secret is empty. Production deployments are expected to set both
+	// and should treat these warnings as deploy-blocking.
 	if !cfg.IAPSkipVerification {
 		if cfg.AppleSharedSecret == "" {
-			return nil, errors.New("APPLE_SHARED_SECRET is required when IAP_SKIP_VERIFICATION is false")
+			slog.Warn("APPLE_SHARED_SECRET is not set — apple IAP verification will reject every receipt at request time")
 		}
 		if cfg.GoogleServiceAccountJSON == "" {
-			return nil, errors.New("GOOGLE_SERVICE_ACCOUNT_JSON is required when IAP_SKIP_VERIFICATION is false")
+			slog.Warn("GOOGLE_SERVICE_ACCOUNT_JSON is not set — google IAP verification will reject every purchase at request time")
 		}
 	}
 
