@@ -24,14 +24,56 @@ const maxReschedules = 3
 const lockWindowHours = 12
 
 type Handler struct {
-	repo    Repository
-	meeting meeting.Provider
-	mailer  email.Mailer
-	log     *slog.Logger
+	repo Repository
+	// meetings is the per-trainer-aware Selector; see meeting.Selector.
+	// For reschedules we always own the trainer ID (booking.TrainerID),
+	// so we can route the new meeting create + the old meeting delete
+	// through whichever provider that trainer hosts on.
+	meetings meeting.Selector
+	mailer   email.Mailer
+	log      *slog.Logger
+	// joinLinks must mirror the one wired into the booking service so
+	// reschedule-confirmation emails get the same SDK-vs-link treatment
+	// the initial confirmation got.
+	joinLinks JoinLinkBuilder
+	// orgFallback is the org meeting Provider used to clean up old
+	// meetings the per-trainer provider doesn't recognise. Optional —
+	// nil is fine on local dev, but in production it's the safety net
+	// for trainers who flipped their hosting state mid-booking.
+	orgFallback meeting.Provider
 }
 
-func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, meeting: meetingProvider, mailer: mailer, log: log}
+// deleteWithOrgFallback attempts to delete a Zoom meeting via the
+// caller-supplied provider; on failure, retries once against the org
+// provider before logging for manual cleanup. The org retry covers the
+// case where a booking was hosted under one account (e.g. org) but the
+// trainer has since connected their own Zoom, so the current per-user
+// provider returns 401/404 for a meeting it never owned.
+func (h *Handler) deleteWithOrgFallback(ctx context.Context, prov meeting.Provider, meetingID string) {
+	delErr := prov.DeleteMeeting(ctx, meetingID)
+	if delErr == nil {
+		return
+	}
+	if h.orgFallback != nil && prov != h.orgFallback {
+		if delErr2 := h.orgFallback.DeleteMeeting(ctx, meetingID); delErr2 == nil {
+			h.log.Info("zoom meeting cleaned up via org fallback after primary provider failed",
+				"meeting_id", meetingID, "primary_err", delErr)
+			return
+		}
+	}
+	h.log.Warn("failed to delete zoom meeting — may require manual cleanup",
+		"meeting_id", meetingID, "err", delErr)
+}
+
+func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string, orgFallback meeting.Provider) *Handler {
+	return &Handler{
+		repo:        repo,
+		meetings:    meetingSelector,
+		mailer:      mailer,
+		log:         log,
+		joinLinks:   JoinLinkBuilder{JoinMode: joinMode, UniversalLinkDomain: universalLinkDomain},
+		orgFallback: orgFallback,
+	}
 }
 
 // TryReschedulePaidSession handles PUT /bookings/{id}/reschedule for paid training sessions.
@@ -168,6 +210,18 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 		h.log.Warn("failed to fetch client", "err", clientErr)
 	}
 
+	// Look up the trainer's user_id once — both create and delete need
+	// to route through the same Zoom provider (per-trainer if connected,
+	// org otherwise), and that selection is keyed on user_id. A failure
+	// here is non-fatal: we fall back to uuid.Nil → org provider.
+	var trainerUserID uuid.UUID
+	if trainerRow, tErr := h.repo.GetTrainerDetails(ctx, booking.TrainerID); tErr == nil {
+		trainerUserID = trainerRow.ID
+	} else {
+		h.log.Warn("failed to resolve trainer user_id for meeting provider — falling back to org", "trainer_id", booking.TrainerID, "err", tErr)
+	}
+	meetingProv := h.meetings.For(ctx, trainerUserID)
+
 	newZoomLink := booking.ZoomMeetingLink
 	newZoomMeetingID := booking.ZoomMeetingID
 	oldZoomMeetingID := ""
@@ -178,7 +232,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 			topic = "Training Session with " + clientUser.Name
 		}
 		durationMins := int(newEnd.Sub(newStart).Minutes())
-		link, meetID, zoomErr := h.meeting.CreateMeeting(ctx, topic, newStart, durationMins)
+		link, meetID, zoomErr := meetingProv.CreateMeeting(ctx, topic, newStart, durationMins)
 		if zoomErr != nil {
 			h.log.Warn("failed to create new zoom meeting for reschedule — keeping old link", "err", zoomErr)
 		} else {
@@ -200,10 +254,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	if err != nil {
 		if newZoomMeetingID.Valid && newZoomMeetingID.String != oldZoomMeetingID {
 			cleanCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if delErr := h.meeting.DeleteMeeting(cleanCtx, newZoomMeetingID.String); delErr != nil {
-				h.log.Error("orphaned zoom meeting after DB failure — manual cleanup required",
-					"meeting_id", newZoomMeetingID.String, "err", delErr)
-			}
+			h.deleteWithOrgFallback(cleanCtx, meetingProv, newZoomMeetingID.String)
 			cancel()
 		}
 		if errors.Is(err, sql.ErrNoRows) {
@@ -218,10 +269,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 
 	if oldZoomMeetingID != "" {
 		delCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if delErr := h.meeting.DeleteMeeting(delCtx, oldZoomMeetingID); delErr != nil {
-			h.log.Warn("failed to delete old zoom meeting — may require manual cleanup",
-				"meeting_id", oldZoomMeetingID, "err", delErr)
-		}
+		h.deleteWithOrgFallback(delCtx, meetingProv, oldZoomMeetingID)
 		cancel()
 	}
 
@@ -238,10 +286,19 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	if updated.ZoomMeetingLink.Valid {
 		finalZoomLink = updated.ZoomMeetingLink.String
 	}
+	// Resolve the session id so the email's "Join" target matches the
+	// universal-link/raw-URL choice the initial confirmation used.
+	// Lookup is non-fatal: on failure the builder gets uuid.Nil and
+	// silently falls back to the raw Zoom URL.
+	var sessionID uuid.UUID
+	if sess, sErr := h.repo.GetBookingSessionByBookingID(ctx, bookingID); sErr == nil {
+		sessionID = sess.ID
+	}
+	finalJoinLink := h.joinLinks.Build(finalZoomLink, sessionID)
 
 	if clientErr == nil {
 		if err := h.mailer.SendPaidSessionRescheduleConfirmation(
-			clientUser.Email, clientUser.Name, oldStart, newStart, req.Timezone, finalZoomLink,
+			clientUser.Email, clientUser.Name, oldStart, newStart, req.Timezone, finalJoinLink,
 		); err != nil {
 			h.log.Error("failed to send reschedule confirmation email to client", "err", err)
 		}
@@ -256,7 +313,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 				clientName = clientUser.Name
 			}
 			if err := h.mailer.SendPaidSessionRescheduleTrainerNotification(
-				trainerUser.Email, clientName, oldStart, newStart, req.Timezone, finalZoomLink,
+				trainerUser.Email, clientName, oldStart, newStart, req.Timezone, finalJoinLink,
 			); err != nil {
 				h.log.Error("failed to send reschedule notification email to trainer", "err", err)
 			}
