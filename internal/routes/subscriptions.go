@@ -17,10 +17,10 @@ import (
 // planMeta holds the static details for each subscription tier.
 // planType must match plan_type FK in the subscription_plans table.
 var planMeta = map[string]struct {
-	sessions       int
-	amount         int64
-	planType       string
-	appleProductID string
+	sessions        int
+	amount          int64
+	planType        string
+	appleProductID  string
 	googleProductID string
 }{
 	"casual":     {sessions: 1, amount: 2000, planType: "single", appleProductID: "com.fitcal.plan.casual.monthly", googleProductID: "fitcal_plan_casual_monthly"},
@@ -155,10 +155,10 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 
 	// ── IAP Verification ────────────────────────────────────────────────────
 	var (
-		verified             *iap.VerifiedPurchase
-		appleOriginalTxID    sql.NullString
-		googlePurchaseToken  sql.NullString
-		verifyErr            error
+		verified            *iap.VerifiedPurchase
+		appleOriginalTxID   sql.NullString
+		googlePurchaseToken sql.NullString
+		verifyErr           error
 	)
 
 	if s.cfg.IAPSkipVerification {
@@ -174,14 +174,14 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		verified, verifyErr = iap.VerifyApple(ctx, *body.ReceiptData, s.cfg.AppleSharedSecret, body.ProductId)
 		if verifyErr != nil {
 			s.logger.Error("apple receipt verification failed", "err", verifyErr)
-		c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed", api.CodeBadRequest))
+			c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed", api.CodeBadRequest))
 			return
 		}
 	} else {
 		verified, verifyErr = iap.VerifyGoogle(ctx, s.cfg.GooglePackageName, body.ProductId, *body.PurchaseToken, s.cfg.GoogleServiceAccountJSON)
 		if verifyErr != nil {
 			s.logger.Error("google purchase verification failed", "err", verifyErr)
-		c.JSON(http.StatusBadRequest, api.NewError("google purchase verification failed", api.CodeBadRequest))
+			c.JSON(http.StatusBadRequest, api.NewError("google purchase verification failed", api.CodeBadRequest))
 			return
 		}
 	}
@@ -233,13 +233,13 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 
 func subscriptionToMap(s db.Subscription) map[string]interface{} {
 	m := map[string]interface{}{
-		"id":                      s.ID.String(),
-		"client_id":               s.ClientID.String(),
-		"trainer_id":              s.TrainerID.String(),
-		"status":                  s.Status,
+		"id":                       s.ID.String(),
+		"client_id":                s.ClientID.String(),
+		"trainer_id":               s.TrainerID.String(),
+		"status":                   s.Status,
 		"sessions_used_this_month": s.SessionsUsedThisMonth,
-		"currency":                s.Currency,
-		"created_at":              s.CreatedAt,
+		"currency":                 s.Currency,
+		"created_at":               s.CreatedAt,
 	}
 	if s.PlanID.Valid {
 		m["plan_id"] = s.PlanID.String
@@ -312,9 +312,9 @@ func (s *routerImpl) GetMySubscriptionUsage(c *gin.Context) {
 	}
 
 	usage := api.SubscriptionUsage{
-		SessionsPerMonth:   sessionsPerMonth,
-		SessionsUsed:       used,
-		SessionsRemaining:  remaining,
+		SessionsPerMonth:  sessionsPerMonth,
+		SessionsUsed:      used,
+		SessionsRemaining: remaining,
 	}
 	if sub.CurrentPeriodStart.Valid {
 		usage.CurrentPeriodStart = sub.CurrentPeriodStart.Time
