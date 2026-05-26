@@ -49,7 +49,7 @@ func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uu
 		s.log.Error("Failed to get user device tokens", "userID", userID, "error", err)
 		return nil, err
 	}
-	if devices == nil {
+	if len(*devices) == 0 {
 		return []db.UserDevice{}, nil
 	}
 	return *devices, nil
@@ -74,6 +74,10 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 	}
 
 	var tokens []string
+	if len(*userDevice) == 0 {
+		s.log.Info("No devices found for user", "userID", userID)
+		return &resp, nil
+	}
 	for _, device := range *userDevice {
 		if !device.IsPushNotificationEnabled {
 			s.log.Info("User has disabled push notifications", "userID", userID, "deviceID", device.ID)
@@ -112,12 +116,12 @@ func (s *NotificationService) GetUserNotification(ctx context.Context, userID uu
 		s.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
 		return nil, err
 	}
-	resp := make([]NotificationResponse, 0, len(*notifications))
-	if notifications == nil {
+	if len(*notifications) == 0 {
 		empty := []NotificationResponse{}
 		return &empty, nil
 	}
 
+	resp := make([]NotificationResponse, 0, len(*notifications))
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)
 		resp = append(resp, r)
