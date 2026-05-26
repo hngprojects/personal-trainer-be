@@ -22,11 +22,13 @@ import (
 // founders. Mutating /admin routes (AdminAdd, ApproveTrainer, etc.) stay
 // super_admin-only because they grant or remove privileges.
 var adminReadablePaths = map[string]bool{
-	"/api/v1/admin/sessions":           true,
-	"/api/v1/admin/discovery-bookings": true,
-	// Read-only system activity feed; ops admins watch this daily, no
-	// reason to gate it behind super_admin.
-	"/api/v1/admin/activities": true,
+	"/api/v1/admin/sessions":                   true,
+	"/api/v1/admin/discovery-bookings":         true,
+	"/api/v1/admin/activities":                 true,
+	"/api/v1/admin/user/trainer/count":         true,
+	"/api/v1/admin/subscriptions/count":        true,
+	"/api/v1/admin/revenue":                    true,
+	"/api/v1/admin/clients":                    true,
 }
 
 // SuperAdminOnly protects /api/v1/admin/* routes. Mirrors the path-prefix
