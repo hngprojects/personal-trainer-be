@@ -1237,17 +1237,6 @@ type SuccessResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
-// TopTrainersResponse defines model for TopTrainersResponse.
-type TopTrainersResponse struct {
-	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string        `json:"code"`
-	Data    []interface{} `json:"data"`
-	Message string        `json:"message"`
-
-	// Meta Any JSON value (usually object)
-	Meta *interface{} `json:"meta,omitempty"`
-}
-
 // Trainer defines model for Trainer.
 type Trainer struct {
 	// AverageRating Average rating from client reviews. Null if no reviews yet.
@@ -1861,12 +1850,15 @@ type ServerInterface interface {
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
+	// Revenue snapshot and latest payment (super_admin only)
+	// (GET /admin/revenue)
+	GetAdminRevenue(c *gin.Context)
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
-	// Get the top trainers for the past month
-	// (GET /admin/top-trainers)
-	GetAdminTopTrainers(c *gin.Context)
+	// Count of active subscriptions (super_admin only)
+	// (GET /admin/subscriptions/count)
+	GetAdminSubscriptionCount(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -2252,6 +2244,21 @@ func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
 	siw.Handler.AdminListDiscoveryBookings(c, params)
 }
 
+// GetAdminRevenue operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminRevenue(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminRevenue(c)
+}
+
 // AdminListSessions operation middleware
 func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 
@@ -2289,8 +2296,8 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	siw.Handler.AdminListSessions(c, params)
 }
 
-// GetAdminTopTrainers operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminTopTrainers(c *gin.Context) {
+// GetAdminSubscriptionCount operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
 
@@ -2301,7 +2308,7 @@ func (siw *ServerInterfaceWrapper) GetAdminTopTrainers(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetAdminTopTrainers(c)
+	siw.Handler.GetAdminSubscriptionCount(c)
 }
 
 // AdminApproveTrainer operation middleware
@@ -4090,8 +4097,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
+	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
-	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
+	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)

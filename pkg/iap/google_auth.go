@@ -89,6 +89,10 @@ func googleAccessToken(ctx context.Context, serviceAccountJSON string) (string, 
 		return "", fmt.Errorf("google token endpoint returned %d", resp.StatusCode)
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("google token endpoint returned %d", resp.StatusCode)
+	}
+
 	var gtr googleTokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&gtr); err != nil {
 		return "", fmt.Errorf("decode token response: %w", err)
