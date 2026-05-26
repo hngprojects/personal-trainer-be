@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -523,6 +524,18 @@ func (s *Router) Routes() *gin.Engine {
 		}
 		if impl.zoomConfig != nil {
 			impl.zoomConfig.register(v1, authMw)
+		}
+
+		// Hand-wired recent-activities routes. Same rationale as the
+		// Zoom block above — registered before RegisterHandlersWithOptions
+		// so they share the auth middleware story without depending on
+		// api.yaml + oapi-codegen.
+		//   GET /trainers/me/activities  → trainer-scope feed
+		//   GET /admin/activities        → system-wide feed (admin)
+		if s.db != nil && q != nil {
+			activitiesRepo := activities.NewPostgresRepo(s.db)
+			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
+			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
