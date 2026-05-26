@@ -43,9 +43,66 @@ type Config struct {
 	// Override via TRAINER_SETUP_TOKEN_EXPIRY_HOURS.
 	TrainerSetupTokenExpiryHours int
 
+	// Server-to-server (org-account) credentials — used when
+	// ZoomMeetingHost == "org" (default) and as the fallback when a
+	// trainer hasn't connected their own account in trainer mode.
 	ZoomAccountID    string
 	ZoomClientID     string
 	ZoomClientSecret string
+
+	// Per-user OAuth credentials for the trainer-hosted flow. A
+	// separate Zoom Marketplace app from the server-to-server one;
+	// declare scopes meeting:write, meeting:read, user:read.
+	ZoomOAuthClientID     string
+	ZoomOAuthClientSecret string
+	// ZoomOAuthRedirectURL is the absolute URL Zoom redirects the
+	// trainer back to after authorising — must match an entry on
+	// the Zoom app's "Redirect URL for OAuth" list. Defaults to a
+	// dev value so local boot works without env config.
+	ZoomOAuthRedirectURL string
+
+	// Base64-encoded 32-byte AES key for encrypting Zoom OAuth tokens
+	// at rest. Generate with `openssl rand -base64 32`. Rotation is a
+	// re-encrypt migration — out of scope for v1.
+	ZoomTokenEncryptionKey string
+
+	// Meeting SDK credentials (a third Zoom Marketplace app of type
+	// "Meeting SDK"). Used by /sessions/{id}/join-info to sign the
+	// short-lived JWT the client SDK needs to join a meeting. NEVER
+	// shipped to the client — signing is server-side.
+	ZoomSDKKey    string
+	ZoomSDKSecret string
+
+	// Feature flag: who hosts the Zoom meeting created at booking
+	// time. "org" (default) uses the server-to-server account; "trainer"
+	// uses the trainer's connected OAuth grant, falling back to org
+	// when the trainer hasn't connected yet.
+	ZoomMeetingHost string
+
+	// Feature flag: what the booking-confirmation email's "Join" link
+	// points to. "link" (default) is the raw Zoom URL — opens the Zoom
+	// app or browser. "sdk" is a universal-link URL on UniversalLinkDomain
+	// that opens our app, which joins via the Meeting SDK.
+	ZoomJoinMode string
+
+	// UniversalLinkDomain is the host used in the email "Join" button
+	// when ZoomJoinMode == "sdk". Must match the AppleAppSiteAssociation
+	// + assetlinks.json files we serve, and must match the AASA host
+	// the mobile app's Associated Domains entitlement declares.
+	UniversalLinkDomain string
+
+	// IOSAppBundleID + IOSAppTeamID + IOSAppPath are baked into the
+	// AASA file at /.well-known/apple-app-site-association. Without
+	// these the iOS app won't claim our /sessions/*/join paths.
+	IOSAppBundleID string
+	IOSAppTeamID   string
+
+	// AndroidAppPackage + AndroidAppSHA256 are baked into
+	// /.well-known/assetlinks.json. The SHA-256 fingerprint must match
+	// the signing key on the production APK exactly — get it via
+	// `keytool -list -v -keystore <keystore>`.
+	AndroidAppPackage string
+	AndroidAppSHA256  string
 
 	NotificationEmail string
 
@@ -59,7 +116,20 @@ type Config struct {
 	// VideoTempDir is where the video-upload handler writes incoming files
 	// before the worker transcodes them. Empty = os.TempDir. Set this to a
 	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
-	VideoTempDir string
+	VideoTempDir       string
+	FCMCredentialsFile string
+	FCMProjectID       string
+
+	// Apple IAP receipt validation.
+	AppleSharedSecret string // APPLE_SHARED_SECRET — App Store Connect shared secret
+	AppleBundleID     string // APPLE_BUNDLE_ID — e.g. com.fitcal.app
+
+	// Google Play billing.
+	GooglePackageName        string // GOOGLE_PACKAGE_NAME — e.g. com.fitcal.app
+	GoogleServiceAccountJSON string // GOOGLE_SERVICE_ACCOUNT_JSON — full JSON key file contents
+
+	// IAPSkipVerification skips Apple/Google receipt verification in dev/test.
+	IAPSkipVerification bool // IAP_SKIP_VERIFICATION=true
 }
 
 func Load() (*Config, error) {
@@ -101,6 +171,23 @@ func Load() (*Config, error) {
 		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
 
+		ZoomOAuthClientID:      os.Getenv("ZOOM_OAUTH_CLIENT_ID"),
+		ZoomOAuthClientSecret:  os.Getenv("ZOOM_OAUTH_CLIENT_SECRET"),
+		ZoomOAuthRedirectURL:   getenv("ZOOM_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/trainers/me/zoom/callback"),
+		ZoomTokenEncryptionKey: os.Getenv("ZOOM_TOKEN_ENCRYPTION_KEY"),
+
+		ZoomSDKKey:    os.Getenv("ZOOM_SDK_KEY"),
+		ZoomSDKSecret: os.Getenv("ZOOM_SDK_SECRET"),
+
+		ZoomMeetingHost: getenv("ZOOM_MEETING_HOST", "org"),
+		ZoomJoinMode:    getenv("ZOOM_JOIN_MODE", "link"),
+
+		UniversalLinkDomain: os.Getenv("UNIVERSAL_LINK_DOMAIN"),
+		IOSAppBundleID:      os.Getenv("IOS_APP_BUNDLE_ID"),
+		IOSAppTeamID:        os.Getenv("IOS_APP_TEAM_ID"),
+		AndroidAppPackage:   os.Getenv("ANDROID_APP_PACKAGE"),
+		AndroidAppSHA256:    os.Getenv("ANDROID_APP_SHA256"),
+
 		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
 
 		MinioEndpoint:      os.Getenv("MINIO_ENDPOINT"),
@@ -115,6 +202,18 @@ func Load() (*Config, error) {
 		// Matches the comment on the field and the previous behaviour in
 		// streamUploadToTemp (which still defends if the value is empty).
 		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
+
+		// FCM credentials for push notifications to trainers
+		FCMCredentialsFile: os.Getenv("FCM_CREDENTIALS_FILE"),
+		FCMProjectID:       os.Getenv("FCM_PROJECT_ID"),
+
+		AppleSharedSecret: os.Getenv("APPLE_SHARED_SECRET"),
+		AppleBundleID:     getenv("APPLE_BUNDLE_ID", "com.fitcal.app"),
+
+		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
+		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+
+		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "false") == "true",
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -122,6 +221,18 @@ func Load() (*Config, error) {
 	}
 	if cfg.JwtSecret == "" {
 		return nil, errors.New("JWT_SECRET is required")
+	}
+
+	if cfg.IAPSkipVerification && cfg.Env == "production" {
+		return nil, errors.New("IAP_SKIP_VERIFICATION must not be enabled in production")
+	}
+	if !cfg.IAPSkipVerification {
+		if cfg.AppleSharedSecret == "" {
+			return nil, errors.New("APPLE_SHARED_SECRET is required when IAP_SKIP_VERIFICATION is false")
+		}
+		if cfg.GoogleServiceAccountJSON == "" {
+			return nil, errors.New("GOOGLE_SERVICE_ACCOUNT_JSON is required when IAP_SKIP_VERIFICATION is false")
+		}
 	}
 
 	return cfg, nil

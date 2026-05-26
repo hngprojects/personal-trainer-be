@@ -30,10 +30,18 @@ type BookingService interface {
 }
 
 type bookingService struct {
-	repo            Repository
-	meetingProvider meeting.Provider
-	mailer          email.Mailer
-	log             *slog.Logger
+	repo Repository
+	// meetings picks the meeting Provider per trainer at call time —
+	// trainers who have connected their own Zoom host their own
+	// meetings; everyone else falls back to the org account.
+	meetings meeting.Selector
+	mailer   email.Mailer
+	log      *slog.Logger
+	// joinLinks transforms (raw zoom URL, session id) → the URL we put
+	// in the email. Shared with the reschedule handlers so a booking
+	// confirmation and its subsequent reschedule confirmation produce
+	// the same kind of link instead of one universal + one raw Zoom.
+	joinLinks JoinLinkBuilder
 }
 
 func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService {
@@ -43,12 +51,13 @@ func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService
 	}
 }
 
-func NewBookingService(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, log *slog.Logger) BookingService {
+func NewBookingService(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string) BookingService {
 	return &bookingService{
-		repo:            repo,
-		meetingProvider: meetingProvider,
-		mailer:          mailer,
-		log:             log,
+		repo:      repo,
+		meetings:  meetingSelector,
+		mailer:    mailer,
+		log:       log,
+		joinLinks: JoinLinkBuilder{JoinMode: joinMode, UniversalLinkDomain: universalLinkDomain},
 	}
 }
 
@@ -66,16 +75,24 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		return nil, err
 	}
 
-	if _, sessErr := s.repo.CreateBookingSession(ctx, db.CreateBookingSessionParams{
+	// Capture the session row so we can build a per-session deep link
+	// for the confirmation email when ZoomJoinMode=sdk.
+	var sessionID uuid.UUID
+	if sess, sessErr := s.repo.CreateBookingSession(ctx, db.CreateBookingSessionParams{
 		BookingID:   booking.ID,
 		ActualStart: sql.NullTime{},
 	}); sessErr != nil {
 		s.log.Error("failed to create booking session record", "booking_id", booking.ID, "err", sessErr)
+	} else {
+		sessionID = sess.ID
 	}
 
 	meetingURL := ""
 	if args.SessionPlatform.String == zoomSessionPlatform {
-		if !s.meetingProvider.IsConfigured() {
+		// trainer.ID is the trainer's user_id (see GetTrainerUserDetails
+		// SQL) — that's what the Selector keys per-user grants on.
+		prov := s.meetings.For(ctx, trainer.ID)
+		if !prov.IsConfigured() {
 			return nil, fmt.Errorf("zoom is not configured")
 		}
 
@@ -88,7 +105,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		}
 
 		topic := fmt.Sprintf("Training session with %s", trainer.Name)
-		joinURL, meetingID, zoomErr := s.meetingProvider.CreateMeeting(ctx, topic, args.ScheduledStart.Time, durationMins)
+		joinURL, meetingID, zoomErr := prov.CreateMeeting(ctx, topic, args.ScheduledStart.Time, durationMins)
 		if zoomErr != nil {
 			s.log.Error("failed to create zoom meeting", "booking_id", booking.ID, "err", zoomErr)
 			return nil, fmt.Errorf("failed to create zoom meeting: %w", zoomErr)
@@ -100,7 +117,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 			ZoomMeetingID:   sql.NullString{String: meetingID, Valid: true},
 		}); dbErr != nil {
 			cleanCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if delErr := s.meetingProvider.DeleteMeeting(cleanCtx, meetingID); delErr != nil {
+			if delErr := prov.DeleteMeeting(cleanCtx, meetingID); delErr != nil {
 				s.log.Error("orphaned zoom meeting — manual cleanup required",
 					"meeting_id", meetingID, "booking_id", booking.ID, "err", delErr)
 			}
@@ -112,6 +129,8 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		booking.ZoomMeetingLink = sql.NullString{String: joinURL, Valid: true}
 		booking.ZoomMeetingID = sql.NullString{String: meetingID, Valid: true}
 	}
+
+	meetingURL = s.joinLinks.Build(meetingURL, sessionID)
 
 	if err := s.mailer.SendBookingConfirmation(
 		client.Email,

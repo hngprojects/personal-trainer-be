@@ -137,6 +137,60 @@ func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.Admin
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("DISCOVERY_BOOKINGS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
 }
 
+func (s *routerImpl) GetAdminRevenue(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("GetAdminRevenue: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	rev, err := s.trainers.q.GetRevenueSnapshot(ctx)
+	if err != nil {
+		s.logger.Error("failed to get revenue snapshot", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get revenue snapshot", api.CodeServerError))
+		return
+	}
+
+	revenueData := map[string]interface{}{
+		"total":             rev.TotalRevenue,
+		"subscriptions":     rev.SubscriptionRevenue,
+		"one_time_sessions": rev.OneTimeRevenue,
+		"trial_conversions": int64(0),
+	}
+
+	latest, err := s.trainers.q.GetLatestSubscription(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		s.logger.Error("failed to get latest subscription", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get latest payment", api.CodeServerError))
+		return
+	}
+
+	var latestPayment interface{}
+	if err == nil {
+		lp := map[string]interface{}{
+			"id":           latest.ID.String(),
+			"client_name":  latest.ClientName,
+			"client_email": latest.ClientEmail,
+			"plan_type":    latest.PlanType,
+			"amount":       latest.Amount.Int64,
+			"currency":     latest.Currency,
+			"status":       latest.Status,
+			"created_at":   latest.CreatedAt,
+		}
+		if latest.PlanID.Valid {
+			lp["plan_id"] = latest.PlanID.String
+		}
+		latestPayment = lp
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("Revenue retrieved successfully", api.CodeOK, map[string]interface{}{
+		"revenue":        revenueData,
+		"latest_payment": latestPayment,
+	}))
+}
+
 func adminBookingRowToMap(r db.ListBookingsForAdminRow) map[string]interface{} {
 	m := map[string]interface{}{
 		"id":            r.ID.String(),
@@ -226,7 +280,7 @@ func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Stats retrieved successfully", api.CodeOK, map[string]interface{}{
-		"total_clients":  totalClients,
+		"total_clients":           totalClients,
 		"total_approved_trainers": totalTrainers,
 	}))
 }
@@ -246,9 +300,9 @@ func (s *routerImpl) GetAdminClients(c *gin.Context, params api.GetAdminClientsP
 	var isActive sql.NullBool
 	if params.Status != nil {
 		switch *params.Status {
-		case api.Active:
+		case api.GetAdminClientsParamsStatusActive:
 			isActive = sql.NullBool{Bool: true, Valid: true}
-		case api.Inactive:
+		case api.GetAdminClientsParamsStatusInactive:
 			isActive = sql.NullBool{Bool: false, Valid: true}
 		default:
 			c.JSON(http.StatusBadRequest, api.NewError("invalid status: must be active or inactive", api.CodeBadRequest))

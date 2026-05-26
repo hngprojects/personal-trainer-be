@@ -105,6 +105,45 @@ func (e CancelBookingResponseDataRefundReason) Valid() bool {
 	}
 }
 
+// Defines values for CreateSubscriptionRequestPlanId.
+const (
+	CreateSubscriptionRequestPlanIdCasual     CreateSubscriptionRequestPlanId = "casual"
+	CreateSubscriptionRequestPlanIdCommitted  CreateSubscriptionRequestPlanId = "committed"
+	CreateSubscriptionRequestPlanIdConsistent CreateSubscriptionRequestPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlanId enum.
+func (e CreateSubscriptionRequestPlanId) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlanIdCasual:
+		return true
+	case CreateSubscriptionRequestPlanIdCommitted:
+		return true
+	case CreateSubscriptionRequestPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestPlatform.
+const (
+	CreateSubscriptionRequestPlatformApple  CreateSubscriptionRequestPlatform = "apple"
+	CreateSubscriptionRequestPlatformGoogle CreateSubscriptionRequestPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlatform enum.
+func (e CreateSubscriptionRequestPlatform) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlatformApple:
+		return true
+	case CreateSubscriptionRequestPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTrainerRequestGender.
 const (
 	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
@@ -216,6 +255,66 @@ func (e RescheduleReason) Valid() bool {
 	case RescheduleReasonTravel:
 		return true
 	case RescheduleReasonWorkConflict:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlanId.
+const (
+	SubscriptionPlanIdCasual     SubscriptionPlanId = "casual"
+	SubscriptionPlanIdCommitted  SubscriptionPlanId = "committed"
+	SubscriptionPlanIdConsistent SubscriptionPlanId = "consistent"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlanId enum.
+func (e SubscriptionPlanId) Valid() bool {
+	switch e {
+	case SubscriptionPlanIdCasual:
+		return true
+	case SubscriptionPlanIdCommitted:
+		return true
+	case SubscriptionPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionPlatform.
+const (
+	SubscriptionPlatformApple  SubscriptionPlatform = "apple"
+	SubscriptionPlatformGoogle SubscriptionPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionPlatform enum.
+func (e SubscriptionPlatform) Valid() bool {
+	switch e {
+	case SubscriptionPlatformApple:
+		return true
+	case SubscriptionPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubscriptionStatus.
+const (
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
+	SubscriptionStatusExpired   SubscriptionStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the SubscriptionStatus enum.
+func (e SubscriptionStatus) Valid() bool {
+	switch e {
+	case SubscriptionStatusActive:
+		return true
+	case SubscriptionStatusCancelled:
+		return true
+	case SubscriptionStatusExpired:
 		return true
 	default:
 		return false
@@ -398,16 +497,16 @@ func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 
 // Defines values for GetAdminClientsParamsStatus.
 const (
-	Active   GetAdminClientsParamsStatus = "active"
-	Inactive GetAdminClientsParamsStatus = "inactive"
+	GetAdminClientsParamsStatusActive   GetAdminClientsParamsStatus = "active"
+	GetAdminClientsParamsStatusInactive GetAdminClientsParamsStatus = "inactive"
 )
 
 // Valid indicates whether the value is a known member of the GetAdminClientsParamsStatus enum.
 func (e GetAdminClientsParamsStatus) Valid() bool {
 	switch e {
-	case Active:
+	case GetAdminClientsParamsStatusActive:
 		return true
-	case Inactive:
+	case GetAdminClientsParamsStatusInactive:
 		return true
 	default:
 		return false
@@ -501,6 +600,27 @@ func (e ListOrganisationMediaParamsStatus) Valid() bool {
 	case ListOrganisationMediaParamsStatusProcessing:
 		return true
 	case ListOrganisationMediaParamsStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleRegisterDeviceJSONBodyPlatform.
+const (
+	Android HandleRegisterDeviceJSONBodyPlatform = "android"
+	Ios     HandleRegisterDeviceJSONBodyPlatform = "ios"
+	Web     HandleRegisterDeviceJSONBodyPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the HandleRegisterDeviceJSONBodyPlatform enum.
+func (e HandleRegisterDeviceJSONBodyPlatform) Valid() bool {
+	switch e {
+	case Android:
+		return true
+	case Ios:
+		return true
+	case Web:
 		return true
 	default:
 		return false
@@ -737,6 +857,33 @@ type CreateReviewRequest struct {
 	Rating    int                `json:"rating"`
 	Review    *string            `json:"review,omitempty"`
 }
+
+// CreateSubscriptionRequest defines model for CreateSubscriptionRequest.
+type CreateSubscriptionRequest struct {
+	// PlanId The plan tier the client is subscribing to
+	PlanId CreateSubscriptionRequestPlanId `json:"plan_id"`
+
+	// Platform The payment platform used
+	Platform CreateSubscriptionRequestPlatform `json:"platform"`
+
+	// ProductId App store product ID (must match the plan)
+	ProductId string `json:"product_id"`
+
+	// PurchaseToken Google Play purchase token (required when platform=google)
+	PurchaseToken *string `json:"purchase_token,omitempty"`
+
+	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
+	ReceiptData *string `json:"receipt_data,omitempty"`
+
+	// TrainerId The trainer this subscription is for
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+}
+
+// CreateSubscriptionRequestPlanId The plan tier the client is subscribing to
+type CreateSubscriptionRequestPlanId string
+
+// CreateSubscriptionRequestPlatform The payment platform used
+type CreateSubscriptionRequestPlatform string
 
 // CreateTrainerRequest Multipart form body for POST /trainers. An admin (admin or super_admin
 // role) provisions a new trainer: we create the underlying user account
@@ -975,6 +1122,33 @@ type SetAvailabilityResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// Subscription defines model for Subscription.
+type Subscription struct {
+	// Amount Price in cents
+	Amount                *int                  `json:"amount,omitempty"`
+	ClientId              openapi_types.UUID    `json:"client_id"`
+	CreatedAt             time.Time             `json:"created_at"`
+	Currency              string                `json:"currency"`
+	CurrentPeriodEnd      *time.Time            `json:"current_period_end,omitempty"`
+	CurrentPeriodStart    *time.Time            `json:"current_period_start,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
+	PlanId                *SubscriptionPlanId   `json:"plan_id,omitempty"`
+	Platform              *SubscriptionPlatform `json:"platform,omitempty"`
+	SessionsPerMonth      *int                  `json:"sessions_per_month,omitempty"`
+	SessionsUsedThisMonth int                   `json:"sessions_used_this_month"`
+	Status                SubscriptionStatus    `json:"status"`
+	TrainerId             openapi_types.UUID    `json:"trainer_id"`
+}
+
+// SubscriptionPlanId defines model for Subscription.PlanId.
+type SubscriptionPlanId string
+
+// SubscriptionPlatform defines model for Subscription.Platform.
+type SubscriptionPlatform string
+
+// SubscriptionStatus defines model for Subscription.Status.
+type SubscriptionStatus string
+
 // SubscriptionPlan defines model for SubscriptionPlan.
 type SubscriptionPlan struct {
 	// Amount Price in minor currency units (e.g. cents / kobo)
@@ -1006,9 +1180,6 @@ type SubscriptionPlan struct {
 
 	// Tag Optional badge label (e.g. "Most Popular")
 	Tag *string `json:"tag,omitempty"`
-
-	// TrialDays Number of free trial days before billing starts
-	TrialDays int `json:"trial_days"`
 }
 
 // SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
@@ -1016,6 +1187,37 @@ type SubscriptionPlansResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
 	Code    string             `json:"code"`
 	Data    []SubscriptionPlan `json:"data"`
+	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionResponse defines model for SubscriptionResponse.
+type SubscriptionResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string        `json:"code"`
+	Data    *Subscription `json:"data,omitempty"`
+	Message string        `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionUsage defines model for SubscriptionUsage.
+type SubscriptionUsage struct {
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	SessionsPerMonth   int       `json:"sessions_per_month"`
+	SessionsRemaining  int       `json:"sessions_remaining"`
+	SessionsUsed       int       `json:"sessions_used"`
+}
+
+// SubscriptionUsageResponse defines model for SubscriptionUsageResponse.
+type SubscriptionUsageResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    *SubscriptionUsage `json:"data,omitempty"`
 	Message string             `json:"message"`
 
 	// Meta Any JSON value (usually object)
@@ -1301,8 +1503,7 @@ type HandleGoogleCallbackParams struct {
 
 // HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
 type HandleLocalAuthJSONBody struct {
-	Email    openapi_types.Email `json:"email"`
-	Password string              `json:"password"`
+	Email openapi_types.Email `json:"email"`
 }
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
@@ -1387,6 +1588,22 @@ type UploadOrganisationVideoMultipartBody struct {
 	File  openapi_types.File `json:"file"`
 	Title string             `json:"title"`
 }
+
+// HandleSendNotificationJSONBody defines parameters for HandleSendNotification.
+type HandleSendNotificationJSONBody struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Message        string `json:"message"`
+	Title          string `json:"title"`
+}
+
+// HandleRegisterDeviceJSONBody defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBody struct {
+	DeviceToken string                               `json:"device_token"`
+	Platform    HandleRegisterDeviceJSONBodyPlatform `json:"platform"`
+}
+
+// HandleRegisterDeviceJSONBodyPlatform defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBodyPlatform string
 
 // HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
 type HandleTrainersNoteJSONBody struct {
@@ -1483,6 +1700,22 @@ type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
 }
 
+// HandleAppleWebhookJSONBody defines parameters for HandleAppleWebhook.
+type HandleAppleWebhookJSONBody struct {
+	// SignedPayload JWS-encoded notification payload from Apple
+	SignedPayload string `json:"signedPayload"`
+}
+
+// HandleGoogleWebhookJSONBody defines parameters for HandleGoogleWebhook.
+type HandleGoogleWebhookJSONBody struct {
+	Message struct {
+		// Data Base64-encoded notification payload
+		Data        string  `json:"data"`
+		MessageId   *string `json:"messageId,omitempty"`
+		PublishTime *string `json:"publishTime,omitempty"`
+	} `json:"message"`
+}
+
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
@@ -1540,11 +1773,20 @@ type UploadOrganisationImageMultipartRequestBody UploadOrganisationImageMultipar
 // UploadOrganisationVideoMultipartRequestBody defines body for UploadOrganisationVideo for multipart/form-data ContentType.
 type UploadOrganisationVideoMultipartRequestBody UploadOrganisationVideoMultipartBody
 
+// HandleSendNotificationJSONRequestBody defines body for HandleSendNotification for application/json ContentType.
+type HandleSendNotificationJSONRequestBody HandleSendNotificationJSONBody
+
+// HandleRegisterDeviceJSONRequestBody defines body for HandleRegisterDevice for application/json ContentType.
+type HandleRegisterDeviceJSONRequestBody HandleRegisterDeviceJSONBody
+
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
 
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
+
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
 
 // CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
@@ -1585,6 +1827,12 @@ type UploadProfilePictureMultipartRequestBody UploadProfilePictureMultipartBody
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
+// HandleAppleWebhookJSONRequestBody defines body for HandleAppleWebhook for application/json ContentType.
+type HandleAppleWebhookJSONRequestBody HandleAppleWebhookJSONBody
+
+// HandleGoogleWebhookJSONRequestBody defines body for HandleGoogleWebhook for application/json ContentType.
+type HandleGoogleWebhookJSONRequestBody HandleGoogleWebhookJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Root endpoint
@@ -1602,9 +1850,15 @@ type ServerInterface interface {
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
+	// Revenue snapshot and latest payment (super_admin only)
+	// (GET /admin/revenue)
+	GetAdminRevenue(c *gin.Context)
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// Count of active subscriptions (super_admin only)
+	// (GET /admin/subscriptions/count)
+	GetAdminSubscriptionCount(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1662,6 +1916,9 @@ type ServerInterface interface {
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
+	// Cancel my subscription
+	// (POST /client/cancel/subscription)
+	CancelMySubscription(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -1701,6 +1958,15 @@ type ServerInterface interface {
 	// Get one organisation-media record (public)
 	// (GET /media/{id})
 	GetOrganisationMediaByID(c *gin.Context, id openapi_types.UUID)
+	// Get a list of notifications for the authenticated user
+	// (GET /notifications)
+	HandleGetUserNotifications(c *gin.Context)
+	// Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+	// (POST /notifications)
+	HandleSendNotification(c *gin.Context)
+	// Register a device for push notifications (FCM)
+	// (POST /register/device)
+	HandleRegisterDevice(c *gin.Context)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -1719,6 +1985,15 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
+	// Create a subscription via Apple/Google IAP
+	// (POST /subscriptions)
+	CreateSubscription(c *gin.Context)
+	// Get my active subscription
+	// (GET /subscriptions/me)
+	GetMySubscription(c *gin.Context)
+	// Get session usage for my subscription
+	// (GET /subscriptions/me/usage)
+	GetMySubscriptionUsage(c *gin.Context)
 	// List available subscription plans
 	// (GET /subscriptions/plans)
 	GetSubscriptionPlans(c *gin.Context)
@@ -1815,6 +2090,12 @@ type ServerInterface interface {
 	// Handle adding an email address to the waitlist table
 	// (POST /waitlist)
 	HandleAddWaitlist(c *gin.Context)
+	// Apple App Store Server Notification V2
+	// (POST /webhooks/apple)
+	HandleAppleWebhook(c *gin.Context)
+	// Google Play Real-Time Developer Notification
+	// (POST /webhooks/google)
+	HandleGoogleWebhook(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1963,6 +2244,21 @@ func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
 	siw.Handler.AdminListDiscoveryBookings(c, params)
 }
 
+// GetAdminRevenue operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminRevenue(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminRevenue(c)
+}
+
 // AdminListSessions operation middleware
 func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 
@@ -1998,6 +2294,21 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	}
 
 	siw.Handler.AdminListSessions(c, params)
+}
+
+// GetAdminSubscriptionCount operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminSubscriptionCount(c)
 }
 
 // AdminApproveTrainer operation middleware
@@ -2375,6 +2686,21 @@ func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 	siw.Handler.RescheduleDiscoveryCall(c, id)
 }
 
+// CancelMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelMySubscription(c)
+}
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -2666,6 +2992,51 @@ func (siw *ServerInterfaceWrapper) GetOrganisationMediaByID(c *gin.Context) {
 	siw.Handler.GetOrganisationMediaByID(c, id)
 }
 
+// HandleGetUserNotifications operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetUserNotifications(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetUserNotifications(c)
+}
+
+// HandleSendNotification operation middleware
+func (siw *ServerInterfaceWrapper) HandleSendNotification(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSendNotification(c)
+}
+
+// HandleRegisterDevice operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegisterDevice(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegisterDevice(c)
+}
+
 // CreateReview operation middleware
 func (siw *ServerInterfaceWrapper) CreateReview(c *gin.Context) {
 
@@ -2814,6 +3185,51 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	}
 
 	siw.Handler.HandleStartSession(c, id)
+}
+
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubscription(c)
+}
+
+// GetMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscription(c)
+}
+
+// GetMySubscriptionUsage operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscriptionUsage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscriptionUsage(c)
 }
 
 // GetSubscriptionPlans operation middleware
@@ -3623,6 +4039,32 @@ func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
 	siw.Handler.HandleAddWaitlist(c)
 }
 
+// HandleAppleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleAppleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAppleWebhook(c)
+}
+
+// HandleGoogleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleWebhook(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -3655,7 +4097,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
+	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
@@ -3675,6 +4119,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
+	router.POST(options.BaseURL+"/client/cancel/subscription", wrapper.CancelMySubscription)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
@@ -3688,12 +4133,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/media/videos", wrapper.UploadOrganisationVideo)
 	router.DELETE(options.BaseURL+"/media/:id", wrapper.DeleteOrganisationMedia)
 	router.GET(options.BaseURL+"/media/:id", wrapper.GetOrganisationMediaByID)
+	router.GET(options.BaseURL+"/notifications", wrapper.HandleGetUserNotifications)
+	router.POST(options.BaseURL+"/notifications", wrapper.HandleSendNotification)
+	router.POST(options.BaseURL+"/register/device", wrapper.HandleRegisterDevice)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
+	router.GET(options.BaseURL+"/subscriptions/me", wrapper.GetMySubscription)
+	router.GET(options.BaseURL+"/subscriptions/me/usage", wrapper.GetMySubscriptionUsage)
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
@@ -3726,4 +4177,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
+	router.POST(options.BaseURL+"/webhooks/apple", wrapper.HandleAppleWebhook)
+	router.POST(options.BaseURL+"/webhooks/google", wrapper.HandleGoogleWebhook)
 }

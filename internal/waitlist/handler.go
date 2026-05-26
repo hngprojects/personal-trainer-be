@@ -55,8 +55,8 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 	_, err := h.repo.GetByEmail(c.Request.Context(), email)
 	if err == nil {
 		// Email already exists, return 200 OK
-		h.log.Info("email already on waitlist", "email", email)
-		c.JSON(http.StatusOK, api.NewSuccessResponse("You're already on the waitlist", api.CodeOK, nil, nil))
+		h.log.Warn("HandleAddWaitlist: email already on waitlist", "email", email)
+		c.JSON(http.StatusOK, api.NewErrorResponse("You're already on the waitlist", api.CodeOK, nil))
 		return
 	}
 	if !errors.Is(err, ErrNotFound) {

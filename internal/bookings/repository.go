@@ -28,6 +28,10 @@ type Repository interface {
 	GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error)
 	UpdateBookingZoom(ctx context.Context, arg db.UpdateBookingZoomParams) (db.Booking, error)
 	CreateBookingSession(ctx context.Context, arg db.CreateBookingSessionParams) (db.BookingSession, error)
+	// GetBookingSessionByBookingID is used by reschedule emails so they
+	// can build the same universal-link "Join" URL the initial
+	// confirmation used.
+	GetBookingSessionByBookingID(ctx context.Context, bookingID uuid.UUID) (db.BookingSession, error)
 }
 
 type postgresRepo struct {
@@ -103,4 +107,8 @@ func (r *postgresRepo) UpdateBookingZoom(ctx context.Context, arg db.UpdateBooki
 
 func (r *postgresRepo) CreateBookingSession(ctx context.Context, arg db.CreateBookingSessionParams) (db.BookingSession, error) {
 	return r.q.CreateBookingSession(ctx, arg)
+}
+
+func (r *postgresRepo) GetBookingSessionByBookingID(ctx context.Context, bookingID uuid.UUID) (db.BookingSession, error) {
+	return r.q.GetBookingSessionByBookingID(ctx, bookingID)
 }
