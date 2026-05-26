@@ -30,3 +30,5 @@ coverage.txt
 /dist/
 .claude/
 tokenserver.log
+
+docker-compose.yml
