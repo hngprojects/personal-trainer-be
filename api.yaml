@@ -421,7 +421,6 @@ components:
             data:
               $ref: "#/components/schemas/Subscription"
 
-
     SubscriptionUsage:
       type: object
       required:
@@ -1034,6 +1033,14 @@ components:
             data:
               $ref: "#/components/schemas/Review"
 
+    TopTrainersResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
     ReviewsListResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -5589,10 +5596,18 @@ paths:
                           $ref: "#/components/schemas/OrganisationMedia"
         "400":
           description: Invalid query parameter
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/images:
     post:
@@ -5616,7 +5631,12 @@ paths:
                 title: { type: string, maxLength: 200 }
                 description: { type: string, maxLength: 2000 }
                 category: { type: string, maxLength: 64 }
-                file: { type: string, format: binary, description: "JPEG / PNG / WebP / HEIC, max 5 MiB" }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "JPEG / PNG / WebP / HEIC, max 5 MiB",
+                  }
       responses:
         "202":
           description: Image accepted; upload in progress
@@ -5630,19 +5650,39 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "400":
           description: Validation failure
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "413":
           description: File exceeds 5 MiB cap
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "503":
           description: Storage / uploader not configured or busy
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/videos:
     post:
@@ -5666,7 +5706,12 @@ paths:
                 title: { type: string, maxLength: 200 }
                 description: { type: string, maxLength: 2000 }
                 category: { type: string, maxLength: 64 }
-                file: { type: string, format: binary, description: "MP4 / MOV / WebM / etc, max 500 MiB, max 10 min" }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "MP4 / MOV / WebM / etc, max 500 MiB, max 10 min",
+                  }
       responses:
         "202":
           description: Video accepted; transcode + upload in progress
@@ -5680,19 +5725,39 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "400":
           description: Validation failure
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "413":
           description: File exceeds upload cap
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "503":
           description: Storage / transcoder / uploader not configured or busy
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/{id}:
     get:
@@ -5718,10 +5783,18 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "404":
           description: Not found
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
     delete:
       operationId: DeleteOrganisationMedia
@@ -5743,19 +5816,39 @@ paths:
           description: Deleted
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "404":
           description: Not found
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "409":
           description: Media is still processing
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
   /register/device:
     post:
       security:
@@ -5859,7 +5952,7 @@ paths:
                 status: error
                 message: Unauthorized access
                 code: UNAUTHORIZED
-        "404": 
+        "404":
           description: Could not retrieve notifications
           content:
             application/json:
@@ -5953,3 +6046,39 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /admin/top-trainers:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: GetAdminTopTrainers
+      tags:
+        - Admin
+      summary: Get the top trainers for the past month
+      responses:
+        "200":
+          description: Top trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopTrainersResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid credentials
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: INTERNAL_ERROR

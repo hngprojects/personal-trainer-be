@@ -226,7 +226,7 @@ func (s *routerImpl) GetUserTrainerCount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Stats retrieved successfully", api.CodeOK, map[string]interface{}{
-		"total_clients":  totalClients,
+		"total_clients":           totalClients,
 		"total_approved_trainers": totalTrainers,
 	}))
 }
@@ -352,4 +352,27 @@ func (s *routerImpl) GetAdminClientByID(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Client retrieved successfully", api.CodeOK, detail))
+}
+
+func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
+	if s.trainers == nil || s.bookingSession == nil {
+		s.logger.Warn("get admin top trainers: required stores not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	topTrainers, err := s.trainers.q.GetTrainersByBookingCountPastMonth(c)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, api.NewError("no top trainers for this month", api.CodeNotFound))
+			return
+		}
+		s.logger.Error("failed to count clients", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to count clients", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("Stats retrieved successfully", api.CodeOK, map[string]interface{}{
+		"top_trainers": topTrainers,
+	}))
 }

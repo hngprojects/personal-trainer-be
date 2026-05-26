@@ -324,3 +324,7 @@ OFFSET sqlc.arg(page_offset);
 -- name: CountTrainerClients :one
 -- Count of distinct clients who have booked with this trainer.
 SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = sqlc.arg(trainer_id);
+
+-- name: GetBookingsPastMonth :many
+SELECT * FROM bookings
+WHERE scheduled_start >= NOW() - INTERVAL '1 month';

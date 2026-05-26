@@ -24,6 +24,7 @@ import (
 var adminReadablePaths = map[string]bool{
 	"/api/v1/admin/sessions":           true,
 	"/api/v1/admin/discovery-bookings": true,
+	"/api/v1/admin/top-trainers":       true,
 }
 
 // SuperAdminOnly protects /api/v1/admin/* routes. Mirrors the path-prefix

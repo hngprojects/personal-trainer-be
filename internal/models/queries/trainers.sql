@@ -243,3 +243,36 @@ WHERE id = sqlc.arg(id);
 
 -- name: CountTrainers :one
 SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved';
+
+
+-- name: GetTrainersByBookingCountPastMonth :many
+SELECT
+    t.id,
+    t.user_id,
+    t.bio,
+    t.years_of_experience,
+    t.intro_video_url,
+    t.display_picture,
+    t.onboarding_status,
+    t.average_rating,
+    t.total_reviews,
+    t.created_at,
+    t.updated_at,
+    t.specializations,
+    t.training_styles,
+    u.name            AS trainer_name,
+    u.email           AS trainer_email,
+    u.gender          AS trainer_gender,
+    u.phone_number    AS trainer_phone_number,
+    COUNT(b.id)       AS booking_count
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+JOIN bookings b ON b.trainer_id = t.id
+WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+GROUP BY
+    t.id,
+    u.name,
+    u.email,
+    u.gender,
+    u.phone_number
+ORDER BY booking_count DESC;

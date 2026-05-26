@@ -1237,6 +1237,17 @@ type SuccessResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// TopTrainersResponse defines model for TopTrainersResponse.
+type TopTrainersResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string        `json:"code"`
+	Data    []interface{} `json:"data"`
+	Message string        `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
 // Trainer defines model for Trainer.
 type Trainer struct {
 	// AverageRating Average rating from client reviews. Null if no reviews yet.
@@ -1831,6 +1842,9 @@ type ServerInterface interface {
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// Get the top trainers for the past month
+	// (GET /admin/top-trainers)
+	GetAdminTopTrainers(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -2245,6 +2259,21 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	}
 
 	siw.Handler.AdminListSessions(c, params)
+}
+
+// GetAdminTopTrainers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTopTrainers(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminTopTrainers(c)
 }
 
 // AdminApproveTrainer operation middleware
@@ -4008,6 +4037,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
