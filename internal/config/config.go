@@ -43,9 +43,66 @@ type Config struct {
 	// Override via TRAINER_SETUP_TOKEN_EXPIRY_HOURS.
 	TrainerSetupTokenExpiryHours int
 
+	// Server-to-server (org-account) credentials — used when
+	// ZoomMeetingHost == "org" (default) and as the fallback when a
+	// trainer hasn't connected their own account in trainer mode.
 	ZoomAccountID    string
 	ZoomClientID     string
 	ZoomClientSecret string
+
+	// Per-user OAuth credentials for the trainer-hosted flow. A
+	// separate Zoom Marketplace app from the server-to-server one;
+	// declare scopes meeting:write, meeting:read, user:read.
+	ZoomOAuthClientID     string
+	ZoomOAuthClientSecret string
+	// ZoomOAuthRedirectURL is the absolute URL Zoom redirects the
+	// trainer back to after authorising — must match an entry on
+	// the Zoom app's "Redirect URL for OAuth" list. Defaults to a
+	// dev value so local boot works without env config.
+	ZoomOAuthRedirectURL string
+
+	// Base64-encoded 32-byte AES key for encrypting Zoom OAuth tokens
+	// at rest. Generate with `openssl rand -base64 32`. Rotation is a
+	// re-encrypt migration — out of scope for v1.
+	ZoomTokenEncryptionKey string
+
+	// Meeting SDK credentials (a third Zoom Marketplace app of type
+	// "Meeting SDK"). Used by /sessions/{id}/join-info to sign the
+	// short-lived JWT the client SDK needs to join a meeting. NEVER
+	// shipped to the client — signing is server-side.
+	ZoomSDKKey    string
+	ZoomSDKSecret string
+
+	// Feature flag: who hosts the Zoom meeting created at booking
+	// time. "org" (default) uses the server-to-server account; "trainer"
+	// uses the trainer's connected OAuth grant, falling back to org
+	// when the trainer hasn't connected yet.
+	ZoomMeetingHost string
+
+	// Feature flag: what the booking-confirmation email's "Join" link
+	// points to. "link" (default) is the raw Zoom URL — opens the Zoom
+	// app or browser. "sdk" is a universal-link URL on UniversalLinkDomain
+	// that opens our app, which joins via the Meeting SDK.
+	ZoomJoinMode string
+
+	// UniversalLinkDomain is the host used in the email "Join" button
+	// when ZoomJoinMode == "sdk". Must match the AppleAppSiteAssociation
+	// + assetlinks.json files we serve, and must match the AASA host
+	// the mobile app's Associated Domains entitlement declares.
+	UniversalLinkDomain string
+
+	// IOSAppBundleID + IOSAppTeamID + IOSAppPath are baked into the
+	// AASA file at /.well-known/apple-app-site-association. Without
+	// these the iOS app won't claim our /sessions/*/join paths.
+	IOSAppBundleID string
+	IOSAppTeamID   string
+
+	// AndroidAppPackage + AndroidAppSHA256 are baked into
+	// /.well-known/assetlinks.json. The SHA-256 fingerprint must match
+	// the signing key on the production APK exactly — get it via
+	// `keytool -list -v -keystore <keystore>`.
+	AndroidAppPackage string
+	AndroidAppSHA256  string
 
 	NotificationEmail string
 
@@ -113,6 +170,23 @@ func Load() (*Config, error) {
 		ZoomAccountID:    os.Getenv("ZOOM_ACCOUNT_ID"),
 		ZoomClientID:     os.Getenv("ZOOM_CLIENT_ID"),
 		ZoomClientSecret: os.Getenv("ZOOM_CLIENT_SECRET"),
+
+		ZoomOAuthClientID:      os.Getenv("ZOOM_OAUTH_CLIENT_ID"),
+		ZoomOAuthClientSecret:  os.Getenv("ZOOM_OAUTH_CLIENT_SECRET"),
+		ZoomOAuthRedirectURL:   getenv("ZOOM_OAUTH_REDIRECT_URL", "http://localhost:8080/api/v1/trainers/me/zoom/callback"),
+		ZoomTokenEncryptionKey: os.Getenv("ZOOM_TOKEN_ENCRYPTION_KEY"),
+
+		ZoomSDKKey:    os.Getenv("ZOOM_SDK_KEY"),
+		ZoomSDKSecret: os.Getenv("ZOOM_SDK_SECRET"),
+
+		ZoomMeetingHost: getenv("ZOOM_MEETING_HOST", "org"),
+		ZoomJoinMode:    getenv("ZOOM_JOIN_MODE", "link"),
+
+		UniversalLinkDomain: os.Getenv("UNIVERSAL_LINK_DOMAIN"),
+		IOSAppBundleID:      os.Getenv("IOS_APP_BUNDLE_ID"),
+		IOSAppTeamID:        os.Getenv("IOS_APP_TEAM_ID"),
+		AndroidAppPackage:   os.Getenv("ANDROID_APP_PACKAGE"),
+		AndroidAppSHA256:    os.Getenv("ANDROID_APP_SHA256"),
 
 		NotificationEmail: os.Getenv("NOTIFICATION_EMAIL"),
 

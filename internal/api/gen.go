@@ -1711,6 +1711,22 @@ type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
 }
 
+// HandleAppleWebhookJSONBody defines parameters for HandleAppleWebhook.
+type HandleAppleWebhookJSONBody struct {
+	// SignedPayload JWS-encoded notification payload from Apple
+	SignedPayload string `json:"signedPayload"`
+}
+
+// HandleGoogleWebhookJSONBody defines parameters for HandleGoogleWebhook.
+type HandleGoogleWebhookJSONBody struct {
+	Message struct {
+		// Data Base64-encoded notification payload
+		Data        string  `json:"data"`
+		MessageId   *string `json:"messageId,omitempty"`
+		PublishTime *string `json:"publishTime,omitempty"`
+	} `json:"message"`
+}
+
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
@@ -1821,6 +1837,12 @@ type UploadProfilePictureMultipartRequestBody UploadProfilePictureMultipartBody
 
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
+
+// HandleAppleWebhookJSONRequestBody defines body for HandleAppleWebhook for application/json ContentType.
+type HandleAppleWebhookJSONRequestBody HandleAppleWebhookJSONBody
+
+// HandleGoogleWebhookJSONRequestBody defines body for HandleGoogleWebhook for application/json ContentType.
+type HandleGoogleWebhookJSONRequestBody HandleGoogleWebhookJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -2076,6 +2098,12 @@ type ServerInterface interface {
 	// Handle adding an email address to the waitlist table
 	// (POST /waitlist)
 	HandleAddWaitlist(c *gin.Context)
+	// Apple App Store Server Notification V2
+	// (POST /webhooks/apple)
+	HandleAppleWebhook(c *gin.Context)
+	// Google Play Real-Time Developer Notification
+	// (POST /webhooks/google)
+	HandleGoogleWebhook(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -4004,6 +4032,32 @@ func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
 	siw.Handler.HandleAddWaitlist(c)
 }
 
+// HandleAppleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleAppleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAppleWebhook(c)
+}
+
+// HandleGoogleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleWebhook(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -4115,4 +4169,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
+	router.POST(options.BaseURL+"/webhooks/apple", wrapper.HandleAppleWebhook)
+	router.POST(options.BaseURL+"/webhooks/google", wrapper.HandleGoogleWebhook)
 }

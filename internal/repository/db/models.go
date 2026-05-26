@@ -288,6 +288,21 @@ type UserRole struct {
 	CreatedAt time.Time
 }
 
+type UserZoomCredential struct {
+	UserID               uuid.UUID
+	AccessTokenEnc       string
+	RefreshTokenEnc      string
+	AccessTokenExpiresAt time.Time
+	Scope                string
+	ZoomUserID           string
+	ZoomAccountID        sql.NullString
+	ZoomEmail            sql.NullString
+	ConnectedAt          time.Time
+	LastSuccessAt        sql.NullTime
+	LastFailureAt        sql.NullTime
+	LastFailureReason    sql.NullString
+}
+
 type VerificationCode struct {
 	ID        uuid.UUID
 	Email     string

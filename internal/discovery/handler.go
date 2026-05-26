@@ -27,15 +27,26 @@ import (
 var phoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
 
 type Handler struct {
-	repo              Repository
-	meeting           meeting.Provider
+	repo Repository
+	// meetings is a Selector rather than a single Provider so trainers
+	// with their own connected Zoom can host instead of the org account.
+	// Discovery calls happen before a trainer is assigned, so this path
+	// always asks the Selector with uuid.Nil — Selector implementations
+	// fall back to the org provider for nil trainer IDs.
+	meetings          meeting.Selector
 	mailer            email.Mailer
 	notificationEmail string
 	log               *slog.Logger
 }
 
-func NewHandler(repo Repository, meetingProvider meeting.Provider, mailer email.Mailer, notificationEmail string, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, meeting: meetingProvider, mailer: mailer, notificationEmail: notificationEmail, log: log}
+func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, notificationEmail string, log *slog.Logger) *Handler {
+	return &Handler{repo: repo, meetings: meetingSelector, mailer: mailer, notificationEmail: notificationEmail, log: log}
+}
+
+// orgMeeting returns the Provider for un-attributed meetings (discovery
+// calls before matching). Always uuid.Nil → Selector falls back to org.
+func (h *Handler) orgMeeting(ctx context.Context) meeting.Provider {
+	return h.meetings.For(ctx, uuid.Nil)
 }
 
 // POST /bookings/discovery — authenticated users only
@@ -631,7 +642,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		if newZoomMeetingID.Valid {
 			cleanCtx, cleanCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cleanCancel()
-			if delErr := h.meeting.DeleteMeeting(cleanCtx, newZoomMeetingID.String); delErr != nil {
+			if delErr := h.orgMeeting(cleanCtx).DeleteMeeting(cleanCtx, newZoomMeetingID.String); delErr != nil {
 				h.log.Error("orphaned zoom meeting after DB failure — manual cleanup required",
 					"meeting_id", newZoomMeetingID.String, "err", delErr)
 			}
@@ -652,7 +663,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	if oldZoomMeetingID != "" {
 		delCtx, delCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer delCancel()
-		if err := h.meeting.DeleteMeeting(delCtx, oldZoomMeetingID); err != nil {
+		if err := h.orgMeeting(delCtx).DeleteMeeting(delCtx, oldZoomMeetingID); err != nil {
 			h.log.Warn("failed to delete old zoom meeting — may require manual cleanup",
 				"meeting_id", oldZoomMeetingID, "err", err)
 		}
@@ -720,7 +731,8 @@ func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Ti
 }
 
 func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Time) (link, meetingID string) {
-	if !h.meeting.IsConfigured() {
+	prov := h.orgMeeting(ctx)
+	if !prov.IsConfigured() {
 		h.log.Warn("meeting provider not configured — skipping meeting creation")
 		return "", ""
 	}
@@ -731,7 +743,7 @@ func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Tim
 			return "", ""
 		default:
 		}
-		l, id, err := h.meeting.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
+		l, id, err := prov.CreateMeeting(ctx, "FitCall Discovery Call", startTime, 30)
 		if err == nil {
 			return l, id
 		}

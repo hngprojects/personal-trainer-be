@@ -30,6 +30,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
+	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
+	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
@@ -175,6 +177,21 @@ type routerImpl struct {
 	// notificationService *notification.NotificationService
 	userDeviceHandler   *userdevice.UserDeviceHandler
 	notificationHandler *notification.NotificationHandler
+
+	// zoomOAuth handles the per-trainer /trainers/me/zoom/{connect,
+	// callback,status} + DELETE /trainers/me/zoom routes. When the
+	// encryption key + OAuth credentials are missing it's a stub that
+	// 503s every request — boot doesn't gate on it.
+	zoomOAuth zoomOAuthRoutes
+
+	// zoomJoinInfo handles GET /sessions/{id}/join-info — the SDK
+	// signing endpoint. 503s when the Meeting SDK key isn't configured.
+	zoomJoinInfo zoomJoinInfoRoutes
+
+	// zoomConfig handles GET /config/zoom — read-only metadata the
+	// mobile/web client needs to know which join flow to use (raw link
+	// vs in-app SDK) and which SDK key to initialise with.
+	zoomConfig zoomConfigRoutes
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -213,6 +230,13 @@ func (s *Router) Routes() *gin.Engine {
 	docs := handlers.NewDocsHandler(spec)
 	r.GET("/docs", docs.UI)
 	r.GET("/docs/spec", docs.Spec)
+
+	// Universal-link static files. Served unconditionally — when the
+	// env vars are missing the handlers themselves 404 cleanly. Both
+	// platforms re-fetch these on app install + occasionally afterwards,
+	// so flipping team ID / fingerprint at runtime works without a
+	// redeploy.
+	registerWellKnown(r, s.cfg, s.log)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -261,18 +285,73 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			impl.availability = &availabilityStore{db: s.db, q: q, redis: redisVal}
 
-			var meetingProvider meeting.Provider = meeting.NoOp{}
-			if s.cfg.ZoomAccountID != "" {
-				meetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			// Org-account meeting provider — the existing server-to-server
+			// flow. Built only when the WHOLE credential set is present;
+			// a partial config (e.g. ZOOM_ACCOUNT_ID set but
+			// ZOOM_CLIENT_SECRET blank) would otherwise hand the
+			// selector a provider that can never authenticate and 5xx
+			// every booking. Stays at NoOp instead so the failure is
+			// loud and local.
+			var orgMeetingProvider meeting.Provider = meeting.NoOp{}
+			if s.cfg.ZoomAccountID != "" && s.cfg.ZoomClientID != "" && s.cfg.ZoomClientSecret != "" {
+				orgMeetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			} else if s.cfg.ZoomAccountID != "" || s.cfg.ZoomClientID != "" || s.cfg.ZoomClientSecret != "" {
+				s.log.Warn("partial org Zoom config — need all of ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET; org provider disabled")
 			}
+
+			// Per-trainer Zoom OAuth pipeline. Built only when the
+			// encryption key + OAuth credentials are all configured;
+			// otherwise we leave credStore nil and the Selector silently
+			// downgrades to "always org" — same observable behaviour as
+			// running the old single-provider flow, so boot in environments
+			// that haven't rolled per-trainer Zoom out yet stays a no-op.
+			var credStore *zoomflow.CredentialStore
+			impl.zoomOAuth = &zoomDisabledHandler{}
+			// Redirect URL is part of the required set even though we
+			// default it to a localhost value in config.Load — an empty
+			// override (someone sets ZOOM_OAUTH_REDIRECT_URL=) would
+			// otherwise build an OAuthClient whose /connect URLs are
+			// broken and whose /callback would receive code= without a
+			// matching redirect_uri. 503 cleanly instead.
+			if s.cfg.ZoomTokenEncryptionKey != "" && s.cfg.ZoomOAuthClientID != "" && s.cfg.ZoomOAuthClientSecret != "" && s.cfg.ZoomOAuthRedirectURL != "" {
+				enc, encErr := cryptoutil.NewAESGCM(s.cfg.ZoomTokenEncryptionKey)
+				if encErr != nil {
+					s.log.Error("zoom token encryption key invalid — per-trainer Zoom disabled", "err", encErr)
+				} else {
+					oauth := appzoom.NewOAuthClient(s.cfg.ZoomOAuthClientID, s.cfg.ZoomOAuthClientSecret, s.cfg.ZoomOAuthRedirectURL)
+					credStore = zoomflow.NewCredentialStore(q, s.db, enc, oauth, s.log)
+					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log)
+					s.log.Info("per-trainer Zoom OAuth pipeline ready", "host_mode", s.cfg.ZoomMeetingHost)
+				}
+			} else if s.cfg.ZoomMeetingHost == "trainer" {
+				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
+			}
+
+			meetingSelector := &zoomflow.MeetingSelector{
+				Store:         credStore,
+				OrgProvider:   orgMeetingProvider,
+				PreferTrainer: s.cfg.ZoomMeetingHost == "trainer",
+				Log:           s.log,
+			}
+
+			// Meeting SDK signer for in-app joins. Optional — boot without
+			// it just means /sessions/{id}/join-info 503s, which the mobile
+			// app handles by falling back to the join_url (Zoom app).
+			var sdkSigner *appzoom.SDKSigner
+			if s.cfg.ZoomSDKKey != "" && s.cfg.ZoomSDKSecret != "" {
+				sdkSigner = appzoom.NewSDKSigner(s.cfg.ZoomSDKKey, s.cfg.ZoomSDKSecret)
+			}
+			impl.zoomJoinInfo = newZoomJoinInfoHandler(q, sdkSigner, s.cfg, s.log)
+			impl.zoomConfig = newZoomConfigHandler(s.cfg, sdkSigner, s.log)
+
 			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
-			bookingService := bookings.NewBookingService(bookingRepo, meetingProvider, mailer, s.log)
+			bookingService := bookings.NewBookingService(bookingRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain)
 			discoveryRepo := discovery.NewPostgresRepo(s.db, q)
-			impl.discovery = discovery.NewHandler(discoveryRepo, meetingProvider, mailer, s.cfg.NotificationEmail, s.log)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
-			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingProvider, mailer, s.log)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
@@ -430,6 +509,20 @@ func (s *Router) Routes() *gin.Engine {
 		if q != nil {
 			trainersAdminOnly = middleware.TrainersAdminOnly(q, s.log)
 			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
+		}
+
+		// Hand-wired Zoom routes (per-trainer OAuth + SDK join-info +
+		// public config). Registered on v1 alongside the oapi-generated
+		// handlers so they share the same auth middleware story but
+		// don't depend on api.yaml + oapi-codegen.
+		if impl.zoomOAuth != nil {
+			impl.zoomOAuth.register(v1, authMw)
+		}
+		if impl.zoomJoinInfo != nil {
+			impl.zoomJoinInfo.register(v1, authMw)
+		}
+		if impl.zoomConfig != nil {
+			impl.zoomConfig.register(v1, authMw)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
