@@ -213,7 +213,7 @@ func Load() (*Config, error) {
 		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
 		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
 
-		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "true") == "true",
+		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "false") == "true",
 	}
 
 	if cfg.DatabaseURL == "" {
