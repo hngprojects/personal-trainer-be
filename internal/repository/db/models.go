@@ -117,6 +117,20 @@ type FailedVideoUpload struct {
 	CreatedAt time.Time
 }
 
+type Notification struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Title          string
+	Message        string
+	Type           string
+	Status         string
+	IdempotencyKey string
+	RetryCount     int32
+	SentAt         sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type OrganisationMedium struct {
 	ID          uuid.UUID
 	MediaType   string
@@ -176,19 +190,24 @@ type Session struct {
 }
 
 type Subscription struct {
-	ID                    uuid.UUID
-	ClientID              uuid.UUID
-	TrainerID             uuid.UUID
-	PlanType              string
-	SessionsPerMonth      sql.NullInt32
-	SessionsUsedThisMonth int32
-	Amount                sql.NullInt64
-	Currency              string
-	Status                string
-	CurrentPeriodStart    sql.NullTime
-	CurrentPeriodEnd      sql.NullTime
-	CreatedAt             time.Time
-	CancelledAt           sql.NullTime
+	ID                         uuid.UUID
+	ClientID                   uuid.UUID
+	TrainerID                  uuid.UUID
+	PlanType                   string
+	SessionsPerMonth           sql.NullInt32
+	SessionsUsedThisMonth      int32
+	Amount                     sql.NullInt64
+	Currency                   string
+	Status                     string
+	CurrentPeriodStart         sql.NullTime
+	CurrentPeriodEnd           sql.NullTime
+	CreatedAt                  time.Time
+	CancelledAt                sql.NullTime
+	PlanID                     sql.NullString
+	Platform                   sql.NullString
+	TrialEndsAt                sql.NullTime
+	AppleOriginalTransactionID sql.NullString
+	GooglePurchaseToken        sql.NullString
 }
 
 type Trainer struct {
@@ -252,10 +271,36 @@ type User struct {
 	PhoneNumber  sql.NullString
 }
 
+type UserDevice struct {
+	ID                        uuid.UUID
+	UserID                    uuid.UUID
+	DeviceToken               string
+	IsPushNotificationEnabled bool
+	Platform                  string
+	IsActive                  bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
 type UserRole struct {
 	UserID    uuid.UUID
 	RoleID    uuid.UUID
 	CreatedAt time.Time
+}
+
+type UserZoomCredential struct {
+	UserID               uuid.UUID
+	AccessTokenEnc       string
+	RefreshTokenEnc      string
+	AccessTokenExpiresAt time.Time
+	Scope                string
+	ZoomUserID           string
+	ZoomAccountID        sql.NullString
+	ZoomEmail            sql.NullString
+	ConnectedAt          time.Time
+	LastSuccessAt        sql.NullTime
+	LastFailureAt        sql.NullTime
+	LastFailureReason    sql.NullString
 }
 
 type VerificationCode struct {

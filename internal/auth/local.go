@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
@@ -251,6 +249,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 }
 
 // SignIn handles POST /auth/login.
+// Accepts email only and returns access + refresh tokens immediately.
 func (h *LocalHandler) SignIn(c *gin.Context) {
 	var req api.HandleLocalAuthJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -275,11 +274,12 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		}))
 		return
 	}
+
 	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.log.Warn("sign-in: user not found", "email_domain", emailDomain(emailAddr))
-			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+			c.JSON(http.StatusUnauthorized, api.NewError("no account found with this email", api.CodeUnauthorized))
 			return
 		}
 		h.log.Error("sign-in: failed to find user", "email_domain", emailDomain(emailAddr), "err", err)
@@ -289,20 +289,7 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 
 	if !user.IsActive {
 		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
-		return
-	}
-
-	// Verify password credential.
-	if !user.Password.Valid || user.Password.String == "" {
-		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
-		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr))
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
-		return
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
-		h.log.Warn("sign-in: incorrect password", "email_domain", emailDomain(emailAddr))
-		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		c.JSON(http.StatusUnauthorized, api.NewError("account is inactive", api.CodeUnauthorized))
 		return
 	}
 
@@ -320,15 +307,13 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		return
 	}
 
-	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry))
-	if err != nil {
+	if _, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry)); err != nil {
 		h.log.Error("sign-in: failed to create session", "user_id", userIDStr, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
 	h.log.Info("user signed in", "user_id", userIDStr)
-
 	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.LocalAuthData{
 		User:         authUser,

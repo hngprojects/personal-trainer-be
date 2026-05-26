@@ -334,6 +334,124 @@ components:
             data:
               $ref: "#/components/schemas/Trainer"
 
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - plan_id
+        - trainer_id
+        - platform
+        - product_id
+      properties:
+        plan_id:
+          type: string
+          enum: [casual, committed, consistent]
+          description: The plan tier the client is subscribing to
+        trainer_id:
+          type: string
+          format: uuid
+          description: The trainer this subscription is for
+        platform:
+          type: string
+          enum: [apple, google]
+          description: The payment platform used
+        product_id:
+          type: string
+          description: App store product ID (must match the plan)
+          example: com.fitcal.plan.committed.monthly
+        receipt_data:
+          type: string
+          description: Base64-encoded Apple App Store receipt (required when platform=apple)
+        purchase_token:
+          type: string
+          description: Google Play purchase token (required when platform=google)
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - client_id
+        - trainer_id
+        - status
+        - sessions_used_this_month
+        - currency
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          enum: [casual, committed, consistent]
+        platform:
+          type: string
+          enum: [apple, google]
+        sessions_per_month:
+          type: integer
+        sessions_used_this_month:
+          type: integer
+        amount:
+          type: integer
+          description: Price in cents
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [active, cancelled, expired]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    SubscriptionResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Subscription"
+
+
+    SubscriptionUsage:
+      type: object
+      required:
+        - sessions_per_month
+        - sessions_used
+        - sessions_remaining
+        - current_period_start
+        - current_period_end
+      properties:
+        sessions_per_month:
+          type: integer
+        sessions_used:
+          type: integer
+        sessions_remaining:
+          type: integer
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+
+    SubscriptionUsageResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SubscriptionUsage"
+
     SubscriptionPlan:
       type: object
       required:
@@ -343,7 +461,6 @@ components:
         - amount
         - currency
         - amount_display
-        - trial_days
         - features
         - apple_product_id
         - google_product_id
@@ -370,9 +487,6 @@ components:
         amount_display:
           type: string
           description: Human-readable price string (e.g. "$80/month")
-        trial_days:
-          type: integer
-          description: Number of free trial days before billing starts
         features:
           type: array
           items:
@@ -1188,20 +1302,20 @@ paths:
         - Auth — Local
         - Authentication
       summary: Login with email
+      description: |
+        Sends a one-time verification code to the email address.
+        The user must then call POST /auth/verify-email with the code to receive tokens.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email, password]
+              required: [email]
               properties:
                 email:
                   type: string
                   format: email
-                password:
-                  type: string
-                  format: password
       responses:
         "200":
           description: Login successful
@@ -1680,6 +1794,133 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /subscriptions:
+    post:
+      operationId: CreateSubscription
+      summary: Create a subscription via Apple/Google IAP
+      tags: [Subscriptions]
+      security:
+        - bearerAuth: []
+      description: |
+        Verifies an Apple App Store receipt or Google Play purchase token,
+        then activates a subscription for the authenticated client.
+        Returns 409 if the receipt/token has already been used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriptionRequest"
+      responses:
+        "201":
+          description: Subscription activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "400":
+          description: Invalid request body or receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Subscription already exists for this receipt/token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error or IAP verification failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me:
+    get:
+      summary: Get my active subscription
+      description: Returns the authenticated client's current active subscription.
+      tags: [Subscriptions]
+      operationId: GetMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active subscription returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me/usage:
+    get:
+      summary: Get session usage for my subscription
+      description: Returns sessions used and remaining for the current billing period.
+      tags: [Subscriptions]
+      operationId: GetMySubscriptionUsage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usage stats returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionUsageResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /client/cancel/subscription:
+    post:
+      summary: Cancel my subscription
+      description: Cancels the authenticated client's active subscription immediately.
+      tags: [Subscriptions]
+      operationId: CancelMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Subscription already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /subscriptions/plans:
     get:
       operationId: GetSubscriptionPlans
@@ -1697,6 +1938,88 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SubscriptionPlansResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/apple:
+    post:
+      operationId: HandleAppleWebhook
+      summary: Apple App Store Server Notification V2
+      tags: [Webhooks]
+      security: []
+      description: |
+        Receives signed JWS payloads from Apple's App Store Server
+        Notifications V2. Validates and processes subscription lifecycle
+        events (renewals, expirations, cancellations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedPayload]
+              properties:
+                signedPayload:
+                  type: string
+                  description: JWS-encoded notification payload from Apple
+      responses:
+        "200":
+          description: Notification acknowledged
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/google:
+    post:
+      operationId: HandleGoogleWebhook
+      summary: Google Play Real-Time Developer Notification
+      tags: [Webhooks]
+      security: []
+      description: |
+        Receives Pub/Sub push messages from Google Play's Real-Time
+        Developer Notifications. Decodes and processes subscription
+        lifecycle events (renewals, expirations, cancellations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: string
+                      description: Base64-encoded notification payload
+                    messageId:
+                      type: string
+                    publishTime:
+                      type: string
+      responses:
+        "200":
+          description: Notification acknowledged
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
           content:
@@ -3860,6 +4183,146 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/subscriptions/count:
+    get:
+      operationId: GetAdminSubscriptionCount
+      tags:
+        - Subscriptions
+      summary: Count of active subscriptions (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active subscription count returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          active_subscriptions:
+                            type: integer
+                            format: int64
+                            description: Number of subscriptions with status active and not yet expired
+                            example: 18
+              example:
+                status: success
+                message: Active subscriptions retrieved successfully
+                code: OK
+                data:
+                  active_subscriptions: 18
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/revenue:
+    get:
+      operationId: GetAdminRevenue
+      tags:
+        - Admin
+      summary: Revenue snapshot and latest payment (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Revenue data returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          revenue:
+                            type: object
+                            properties:
+                              total:
+                                type: integer
+                                format: int64
+                                description: All-time total revenue in cents
+                                example: 120000
+                              subscriptions:
+                                type: integer
+                                format: int64
+                                description: Revenue from monthly subscriptions in cents
+                                example: 100000
+                              one_time_sessions:
+                                type: integer
+                                format: int64
+                                description: Revenue from one-time sessions in cents
+                                example: 20000
+                              trial_conversions:
+                                type: integer
+                                format: int64
+                                description: Revenue from trial conversions (always 0)
+                                example: 0
+                          latest_payment:
+                            nullable: true
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                format: uuid
+                              client_name:
+                                type: string
+                              client_email:
+                                type: string
+                              plan_type:
+                                type: string
+                              plan_id:
+                                type: string
+                                nullable: true
+                              amount:
+                                type: integer
+                                format: int64
+                              currency:
+                                type: string
+                              status:
+                                type: string
+                              created_at:
+                                type: string
+                                format: date-time
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/clients:
     get:
       operationId: GetAdminClients
@@ -5515,3 +5978,200 @@ paths:
         "500":
           description: Internal server error
           content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+  /register/device:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleRegisterDevice
+      tags:
+        - Device
+      summary: Register a device for push notifications (FCM)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token, platform]
+              properties:
+                device_token:
+                  type: string
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+      responses:
+        "200":
+          description: Device registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Device registered for notifications
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /notifications:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: HandleGetUserNotifications
+      tags:
+        - Notification
+      summary: Get a list of notifications for the authenticated user
+      responses:
+        "200":
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "404": 
+          description: Could not retrieve notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: failedto retrieve notification
+                code: NOT_FOUND
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleSendNotification
+      tags:
+        - Notification
+      summary: Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, title, message, idempotency_key]
+              properties:
+                title:
+                  type: string
+                message:
+                  type: string
+                idempotency_key:
+                  type: string
+      responses:
+        "200":
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. FCM send failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
