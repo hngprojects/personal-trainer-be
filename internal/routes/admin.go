@@ -355,7 +355,7 @@ func (s *routerImpl) GetAdminClientByID(c *gin.Context, id openapi_types.UUID) {
 }
 
 func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
-	if s.trainers == nil || s.bookingSession == nil {
+	if s.trainers == nil {
 		s.logger.Warn("get admin top trainers: required stores not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
@@ -371,8 +371,22 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to count clients", api.CodeServerError))
 		return
 	}
+	items := make([]map[string]interface{}, 0, len(topTrainers))
+	for _, t := range topTrainers {
+		m := map[string]interface{}{
+			"id":            t.ID.String(),
+			"user_id":       t.UserID.String(),
+			"name":          t.TrainerName,
+			"email":         t.TrainerEmail,
+			"booking_count": t.BookingCount,
+		}
+		if t.DisplayPicture.Valid {
+			m["display_picture"] = t.DisplayPicture.String
+		}
+		items = append(items, m)
+	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Stats retrieved successfully", api.CodeOK, map[string]interface{}{
-		"top_trainers": topTrainers,
+		"top_trainers": items,
 	}))
 }

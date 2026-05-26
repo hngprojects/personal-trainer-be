@@ -327,4 +327,5 @@ SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = sqlc.a
 
 -- name: GetBookingsPastMonth :many
 SELECT * FROM bookings
-WHERE scheduled_start >= NOW() - INTERVAL '1 month';
+WHERE scheduled_start >= date_trunc('month', NOW())
+  AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month';
