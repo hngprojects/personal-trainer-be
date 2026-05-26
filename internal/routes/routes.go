@@ -354,7 +354,9 @@ func (s *Router) Routes() *gin.Engine {
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
-			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+			if s.redis != nil {
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+			}
 
 			// User devices for push notifications
 			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
