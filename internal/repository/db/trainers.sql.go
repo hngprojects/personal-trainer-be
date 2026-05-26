@@ -387,6 +387,8 @@ FROM trainers t
 JOIN users u ON u.id = t.user_id
 JOIN bookings b ON b.trainer_id = t.id
 WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+  AND b.scheduled_start < NOW()
+  AND b.booking_status = 'completed'
 GROUP BY
     t.id,
     u.name,

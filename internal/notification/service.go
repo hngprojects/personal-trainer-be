@@ -11,7 +11,7 @@ import (
 )
 
 type NotificationService struct {
-	repo      *Repository
+	repo      RepositoryInterface
 	log       *slog.Logger
 	fcmClient *fcmnotif.PushNotification
 	// redis *redis.Client
@@ -28,7 +28,7 @@ type NotificationResponse struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
-func NewNotificationService(repo *Repository, fcmClient *fcmnotif.PushNotification, log *slog.Logger) *NotificationService {
+func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNotification, log *slog.Logger) *NotificationService {
 	return &NotificationService{
 		repo:      repo,
 		log:       log,
@@ -40,11 +40,19 @@ func NewNotificationService(repo *Repository, fcmClient *fcmnotif.PushNotificati
 type NotificationServiceInterface interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
-	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
-func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {
-	return s.repo.GetUserDeviceToken(ctx, userID)
+func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
+	devices, err := s.repo.GetUserDeviceToken(ctx, userID)
+	if err != nil {
+		s.log.Error("Failed to get user device tokens", "userID", userID, "error", err)
+		return nil, err
+	}
+	if len(*devices) == 0 {
+		return []db.UserDevice{}, nil
+	}
+	return *devices, nil
 }
 
 func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error) {
@@ -66,6 +74,10 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 	}
 
 	var tokens []string
+	if len(*userDevice) == 0 {
+		s.log.Info("No devices found for user", "userID", userID)
+		return &resp, nil
+	}
 	for _, device := range *userDevice {
 		if !device.IsPushNotificationEnabled {
 			s.log.Info("User has disabled push notifications", "userID", userID, "deviceID", device.ID)
@@ -99,8 +111,17 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 }
 
 func (s *NotificationService) GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error) {
-	notifications, _ := s.repo.GetUserNotification(ctx, userID)
-	var resp []NotificationResponse
+	notifications, err := s.repo.GetUserNotification(ctx, userID)
+	if err != nil {
+		s.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
+		return nil, err
+	}
+	if len(*notifications) == 0 {
+		empty := []NotificationResponse{}
+		return &empty, nil
+	}
+
+	resp := make([]NotificationResponse, 0, len(*notifications))
 	for _, notification := range *notifications {
 		r := parseNotificationResponse(notification)
 		resp = append(resp, r)

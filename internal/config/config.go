@@ -214,6 +214,7 @@ func Load() (*Config, error) {
 		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
 		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
 
+		// IAPSkipVerification skips Apple/Google receipt verification in dev/test.
 		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "false") == "true",
 	}
 
