@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -430,6 +431,18 @@ func (s *Router) Routes() *gin.Engine {
 		if q != nil {
 			trainersAdminOnly = middleware.TrainersAdminOnly(q, s.log)
 			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
+		}
+
+		// Hand-wired recent-activities routes. Registered on v1
+		// alongside (and before) the oapi-generated handlers so they
+		// share the same auth middleware chain but don't depend on
+		// api.yaml + oapi-codegen.
+		//   GET /trainers/me/activities  → trainer-scope feed
+		//   GET /admin/activities        → system-wide feed (admin)
+		if s.db != nil && q != nil {
+			activitiesRepo := activities.NewPostgresRepo(s.db)
+			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
+			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
