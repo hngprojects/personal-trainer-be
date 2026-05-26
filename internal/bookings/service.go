@@ -37,12 +37,11 @@ type bookingService struct {
 	meetings meeting.Selector
 	mailer   email.Mailer
 	log      *slog.Logger
-	// joinMode mirrors cfg.ZoomJoinMode. "sdk" → the confirmation email
-	// gets a universal-link URL (https://<universalLinkDomain>/sessions/
-	// <session_id>/join) that opens the FitCall app and joins via the
-	// Meeting SDK. "link" (or empty) → keep the raw zoom join URL.
-	joinMode            string
-	universalLinkDomain string
+	// joinLinks transforms (raw zoom URL, session id) → the URL we put
+	// in the email. Shared with the reschedule handlers so a booking
+	// confirmation and its subsequent reschedule confirmation produce
+	// the same kind of link instead of one universal + one raw Zoom.
+	joinLinks JoinLinkBuilder
 }
 
 func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService {
@@ -54,12 +53,11 @@ func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService
 
 func NewBookingService(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string) BookingService {
 	return &bookingService{
-		repo:                repo,
-		meetings:            meetingSelector,
-		mailer:              mailer,
-		log:                 log,
-		joinMode:            joinMode,
-		universalLinkDomain: universalLinkDomain,
+		repo:      repo,
+		meetings:  meetingSelector,
+		mailer:    mailer,
+		log:       log,
+		joinLinks: JoinLinkBuilder{JoinMode: joinMode, UniversalLinkDomain: universalLinkDomain},
 	}
 }
 
@@ -132,14 +130,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		booking.ZoomMeetingID = sql.NullString{String: meetingID, Valid: true}
 	}
 
-	// Rewrite the email's "Join" target to a universal link when the
-	// server is configured for in-app SDK joins. Falls back to the raw
-	// Zoom URL whenever any piece of the recipe is missing (no session
-	// id, no universal-link domain, mode != sdk) — the email is never
-	// blocked on this.
-	if meetingURL != "" && s.joinMode == "sdk" && s.universalLinkDomain != "" && sessionID != uuid.Nil {
-		meetingURL = fmt.Sprintf("https://%s/sessions/%s/join", s.universalLinkDomain, sessionID.String())
-	}
+	meetingURL = s.joinLinks.Build(meetingURL, sessionID)
 
 	if err := s.mailer.SendBookingConfirmation(
 		client.Email,

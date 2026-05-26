@@ -86,34 +86,35 @@ func (h *zoomJoinInfoHandler) joinInfo(c *gin.Context) {
 		return
 	}
 
+	// Authorise BEFORE anything else state-revealing. Two reasons:
+	//   1. The "no zoom meeting attached" branch below would otherwise
+	//      leak that a session exists to non-participants who probe it.
+	//   2. A failing trainer-details lookup must not 500 the legitimate
+	//      client — clients can be authorised without that join. We
+	//      only need the trainer's user_id when the caller MIGHT be the
+	//      trainer, so look it up lazily.
+	var role zoom.SDKRole
+	if userID == booking.ClientID {
+		role = zoom.SDKRoleParticipant
+	} else {
+		trainerRow, terr := h.q.GetTrainerUserDetails(c.Request.Context(), session.TrainerID)
+		if terr != nil {
+			h.log.Error("zoom join-info: load trainer details failed", "err", terr, "trainer_id", session.TrainerID)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal error", api.CodeServerError))
+			return
+		}
+		if userID != trainerRow.ID {
+			c.JSON(http.StatusForbidden, api.NewError("you are not a participant of this session", api.CodeForbidden))
+			return
+		}
+		role = zoom.SDKRoleHost
+	}
+
 	if !booking.ZoomMeetingID.Valid || booking.ZoomMeetingID.String == "" {
 		// Booking exists but never got a Zoom meeting — typically a
-		// non-zoom session_platform. Surface clearly so the mobile app
-		// can show "this session isn't a Zoom call" instead of a
-		// confusing crash.
+		// non-zoom session_platform. Only reachable after the auth
+		// check above, so we're not leaking session existence here.
 		c.JSON(http.StatusBadRequest, api.NewError("this session has no zoom meeting attached", api.CodeBadRequest))
-		return
-	}
-
-	// Authorisation: caller must be the client OR the trainer-as-user.
-	// trainer_id on the session row is trainer record PK; need user_id
-	// to compare against the auth user. Single small JOIN — fine on hot
-	// path.
-	trainerRow, err := h.q.GetTrainerUserDetails(c.Request.Context(), session.TrainerID)
-	if err != nil {
-		h.log.Error("zoom join-info: load trainer details failed", "err", err, "trainer_id", session.TrainerID)
-		c.JSON(http.StatusInternalServerError, api.NewError("internal error", api.CodeServerError))
-		return
-	}
-
-	var role zoom.SDKRole
-	switch userID {
-	case booking.ClientID:
-		role = zoom.SDKRoleParticipant
-	case trainerRow.ID:
-		role = zoom.SDKRoleHost
-	default:
-		c.JSON(http.StatusForbidden, api.NewError("you are not a participant of this session", api.CodeForbidden))
 		return
 	}
 

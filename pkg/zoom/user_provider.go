@@ -63,6 +63,9 @@ func (u *UserProvider) IsConfigured() bool { return u != nil && u.tokens != nil 
 // account (visible in their dashboard, recordings under their plan,
 // etc.).
 func (u *UserProvider) CreateMeeting(ctx context.Context, topic string, startTime time.Time, durationMinutes int) (joinURL, meetingID string, err error) {
+	if u == nil || u.tokens == nil {
+		return "", "", ErrNoUserConnection
+	}
 	token, err := u.tokens.AccessToken(ctx)
 	if err != nil {
 		return "", "", err
@@ -105,10 +108,20 @@ func (u *UserProvider) CreateMeeting(ctx context.Context, topic string, startTim
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return "", "", fmt.Errorf("zoom user: decode response: %w", err)
 	}
+	// Defensive: Zoom is supposed to return both id and join_url on a
+	// 2xx, but bare 200s with an empty body would silently persist a
+	// useless meeting record. Surface as an error so the booking flow
+	// can refuse the slot rather than confirming a no-op call.
+	if m.ID == 0 || m.JoinURL == "" {
+		return "", "", fmt.Errorf("zoom user: create meeting returned empty id or join_url")
+	}
 	return m.JoinURL, fmt.Sprintf("%d", m.ID), nil
 }
 
 func (u *UserProvider) DeleteMeeting(ctx context.Context, meetingID string) error {
+	if u == nil || u.tokens == nil {
+		return ErrNoUserConnection
+	}
 	token, err := u.tokens.AccessToken(ctx)
 	if err != nil {
 		return err

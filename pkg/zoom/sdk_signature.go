@@ -48,6 +48,12 @@ func (s *SDKSigner) IsConfigured() bool {
 // are missing — callers map this to 503.
 var ErrSDKSignerNotConfigured = errors.New("zoom: SDK signer not configured")
 
+// ErrInvalidSDKRole is returned by Sign when role is neither
+// participant (0) nor host (1). Zoom rejects anything else, so it's
+// better to fail server-side than to mint a JWT the client SDK will
+// reject with a confusing error.
+var ErrInvalidSDKRole = errors.New("zoom: SDK role must be participant (0) or host (1)")
+
 // Sign builds the JWT for the given meeting + role. The JWT is valid
 // from now to `validFor` from now; the SDK uses iat/exp + tokenExp.
 // Recommended validFor is short — the JWT is needed only for the
@@ -57,6 +63,9 @@ var ErrSDKSignerNotConfigured = errors.New("zoom: SDK signer not configured")
 func (s *SDKSigner) Sign(meetingNumber string, role SDKRole, validFor time.Duration) (string, error) {
 	if !s.IsConfigured() {
 		return "", ErrSDKSignerNotConfigured
+	}
+	if role != SDKRoleParticipant && role != SDKRoleHost {
+		return "", ErrInvalidSDKRole
 	}
 	if validFor <= 0 {
 		validFor = 2 * time.Hour

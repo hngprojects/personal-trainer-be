@@ -53,7 +53,10 @@ func TestSDKSigner_JWTShape(t *testing.T) {
 	}
 
 	// payload check — names lifted from Zoom Meeting SDK docs
-	plJSON, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	plJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("payload b64: %v", err)
+	}
 	var pl map[string]interface{}
 	if err := json.Unmarshal(plJSON, &pl); err != nil {
 		t.Fatalf("payload json: %v", err)
@@ -83,6 +86,18 @@ func TestSDKSigner_JWTShape(t *testing.T) {
 	}
 }
 
+// Sign must reject roles outside {0, 1} — anything else would mint a
+// JWT the Zoom SDK rejects later with a confusing error.
+func TestSDKSigner_RejectsInvalidRole(t *testing.T) {
+	s := NewSDKSigner("k", "s")
+	if _, err := s.Sign("123", SDKRole(7), 0); err != ErrInvalidSDKRole {
+		t.Fatalf("want ErrInvalidSDKRole for role=7, got %v", err)
+	}
+	if _, err := s.Sign("123", SDKRole(-1), 0); err != ErrInvalidSDKRole {
+		t.Fatalf("want ErrInvalidSDKRole for role=-1, got %v", err)
+	}
+}
+
 // validFor=0 means "use the default", not "expire immediately".
 // Regression guard for a subtle bug we saw in an earlier iteration.
 func TestSDKSigner_DefaultValidity(t *testing.T) {
@@ -92,9 +107,17 @@ func TestSDKSigner_DefaultValidity(t *testing.T) {
 		t.Fatalf("Sign: %v", err)
 	}
 	parts := strings.Split(tok, ".")
-	plJSON, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 JWT segments, got %d", len(parts))
+	}
+	plJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("payload b64: %v", err)
+	}
 	var pl map[string]interface{}
-	_ = json.Unmarshal(plJSON, &pl)
+	if err := json.Unmarshal(plJSON, &pl); err != nil {
+		t.Fatalf("payload json: %v", err)
+	}
 	iat := int64(pl["iat"].(float64))
 	exp := int64(pl["exp"].(float64))
 	delta := exp - iat

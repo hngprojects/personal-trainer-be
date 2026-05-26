@@ -152,9 +152,14 @@ func (s *CredentialStore) LoadFreshToken(ctx context.Context, userID uuid.UUID) 
 	defer lock.Unlock()
 
 	// Re-read under the lock — another goroutine may have refreshed
-	// while we were waiting.
+	// while we were waiting (or deleted the row outright via DELETE
+	// /trainers/me/zoom). Preserve the ErrNotConnected contract so the
+	// selector can fall back to org instead of bubbling a generic err.
 	row, err = s.q.GetUserZoomCredentials(ctx, userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotConnected
+		}
 		return "", err
 	}
 	if time.Now().Before(row.AccessTokenExpiresAt) {

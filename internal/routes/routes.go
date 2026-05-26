@@ -286,12 +286,17 @@ func (s *Router) Routes() *gin.Engine {
 			impl.availability = &availabilityStore{db: s.db, q: q, redis: redisVal}
 
 			// Org-account meeting provider — the existing server-to-server
-			// flow. Always built when ZOOM_ACCOUNT_ID is set; it is BOTH
-			// the default provider and the fallback when ZOOM_MEETING_HOST=
-			// trainer and a particular trainer hasn't connected yet.
+			// flow. Built only when the WHOLE credential set is present;
+			// a partial config (e.g. ZOOM_ACCOUNT_ID set but
+			// ZOOM_CLIENT_SECRET blank) would otherwise hand the
+			// selector a provider that can never authenticate and 5xx
+			// every booking. Stays at NoOp instead so the failure is
+			// loud and local.
 			var orgMeetingProvider meeting.Provider = meeting.NoOp{}
-			if s.cfg.ZoomAccountID != "" {
+			if s.cfg.ZoomAccountID != "" && s.cfg.ZoomClientID != "" && s.cfg.ZoomClientSecret != "" {
 				orgMeetingProvider = appzoom.New(s.cfg.ZoomAccountID, s.cfg.ZoomClientID, s.cfg.ZoomClientSecret)
+			} else if s.cfg.ZoomAccountID != "" || s.cfg.ZoomClientID != "" || s.cfg.ZoomClientSecret != "" {
+				s.log.Warn("partial org Zoom config — need all of ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET; org provider disabled")
 			}
 
 			// Per-trainer Zoom OAuth pipeline. Built only when the
@@ -302,7 +307,13 @@ func (s *Router) Routes() *gin.Engine {
 			// that haven't rolled per-trainer Zoom out yet stays a no-op.
 			var credStore *zoomflow.CredentialStore
 			impl.zoomOAuth = &zoomDisabledHandler{}
-			if s.cfg.ZoomTokenEncryptionKey != "" && s.cfg.ZoomOAuthClientID != "" && s.cfg.ZoomOAuthClientSecret != "" {
+			// Redirect URL is part of the required set even though we
+			// default it to a localhost value in config.Load — an empty
+			// override (someone sets ZOOM_OAUTH_REDIRECT_URL=) would
+			// otherwise build an OAuthClient whose /connect URLs are
+			// broken and whose /callback would receive code= without a
+			// matching redirect_uri. 503 cleanly instead.
+			if s.cfg.ZoomTokenEncryptionKey != "" && s.cfg.ZoomOAuthClientID != "" && s.cfg.ZoomOAuthClientSecret != "" && s.cfg.ZoomOAuthRedirectURL != "" {
 				enc, encErr := cryptoutil.NewAESGCM(s.cfg.ZoomTokenEncryptionKey)
 				if encErr != nil {
 					s.log.Error("zoom token encryption key invalid — per-trainer Zoom disabled", "err", encErr)
@@ -313,7 +324,7 @@ func (s *Router) Routes() *gin.Engine {
 					s.log.Info("per-trainer Zoom OAuth pipeline ready", "host_mode", s.cfg.ZoomMeetingHost)
 				}
 			} else if s.cfg.ZoomMeetingHost == "trainer" {
-				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* missing — selector will always fall back to org provider")
+				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
 			}
 
 			meetingSelector := &zoomflow.MeetingSelector{
@@ -340,7 +351,7 @@ func (s *Router) Routes() *gin.Engine {
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
-			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
