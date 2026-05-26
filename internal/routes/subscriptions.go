@@ -1,10 +1,17 @@
 package routes
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/pkg/iap"
+	"github.com/lib/pq"
 )
 
 // planMeta holds the static details for each subscription tier.
@@ -26,22 +33,6 @@ func ptr[T any](v T) *T { return &v }
 func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 	plans := []api.SubscriptionPlan{
 		{
-			Id:               "casual",
-			Name:             "The Casual",
-			SessionsPerMonth: 1,
-			Amount:           2000,
-			Currency:         "USD",
-			AmountDisplay:    "$20/month",
-			TrialDays:        7,
-			AppleProductId:   "com.fitcal.plan.casual.monthly",
-			GoogleProductId:  "fitcal_plan_casual_monthly",
-			Features: []string{
-				"1 guided session",
-				"Expert guidance during sessions",
-				"Workout reminders",
-			},
-		},
-		{
 			Id:               "committed",
 			Name:             "The Committed",
 			Tag:              ptr("Most Popular"),
@@ -49,15 +40,28 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 			Amount:           8000,
 			Currency:         "USD",
 			AmountDisplay:    "$80/month",
-			TrialDays:        7,
 			AppleProductId:   "com.fitcal.plan.committed.monthly",
 			GoogleProductId:  "fitcal_plan_committed_monthly",
 			Features: []string{
-				"12 guided sessions per month",
-				"Session duration: 60 minutes",
-				"Trainer calls you at scheduled time",
-				"Expert guidance during sessions",
-				"Workout reminders",
+				"12 guided sessions",
+				"Trained expert guidance",
+				"Workout reminder",
+				"Cancel anytime",
+			},
+		},
+		{
+			Id:               "casual",
+			Name:             "The Casual",
+			SessionsPerMonth: 1,
+			Amount:           2000,
+			Currency:         "USD",
+			AmountDisplay:    "$20/month",
+			AppleProductId:   "com.fitcal.plan.casual.monthly",
+			GoogleProductId:  "fitcal_plan_casual_monthly",
+			Features: []string{
+				"1 guided session",
+				"Trained expert guidance",
+				"Workout reminder",
 			},
 		},
 		{
@@ -67,13 +71,13 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 			Amount:           12000,
 			Currency:         "USD",
 			AmountDisplay:    "$120/month",
-			TrialDays:        7,
 			AppleProductId:   "com.fitcal.plan.consistent.monthly",
 			GoogleProductId:  "fitcal_plan_consistent_monthly",
 			Features: []string{
-				"18 guided sessions per month",
-				"Expert guidance during sessions",
-				"Workout reminders",
+				"18 guided sessions",
+				"Trained expert guidance",
+				"Workout reminder",
+				"Cancel anytime",
 				"Meal recommendations",
 			},
 		},
@@ -85,7 +89,6 @@ func (s *routerImpl) GetSubscriptionPlans(c *gin.Context) {
 		Data:    plans,
 	})
 }
-<<<<<<< HEAD
 
 func (s *routerImpl) CreateSubscription(c *gin.Context) {
 	userID, ok := userIDFromContext(c)
@@ -373,5 +376,3 @@ func (s *routerImpl) GetAdminSubscriptionCount(c *gin.Context) {
 		"active_subscriptions": count,
 	}))
 }
-=======
->>>>>>> 7c88388 (feat(notifications): add tests to notification and user_device system)
