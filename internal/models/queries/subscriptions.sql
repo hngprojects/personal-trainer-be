@@ -88,3 +88,36 @@ SET status             = sqlc.arg(status),
                          END
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: CountActiveSubscriptions :one
+SELECT COUNT(*) FROM subscriptions
+WHERE status = 'active'
+  AND current_period_end > NOW();
+
+-- name: GetRevenueSnapshot :one
+-- All-time gross revenue across all statuses (active + expired + cancelled).
+-- Cancelled subs are included — refund tracking is out of scope for v1.
+SELECT
+  CAST(COALESCE(SUM(amount), 0) AS BIGINT)                                                                          AS total_revenue,
+  CAST(COALESCE(SUM(amount) FILTER (WHERE plan_type IN ('monthly_12', 'monthly_18')), 0) AS BIGINT)                AS subscription_revenue,
+  CAST(COALESCE(SUM(amount) FILTER (WHERE plan_type = 'single'), 0) AS BIGINT)                                     AS one_time_revenue
+FROM subscriptions
+WHERE amount IS NOT NULL;
+
+-- name: GetLatestSubscription :one
+SELECT
+  s.id,
+  s.client_id,
+  s.plan_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.created_at,
+  u.name  AS client_name,
+  u.email AS client_email
+FROM subscriptions s
+JOIN users u ON u.id = s.client_id
+WHERE s.amount IS NOT NULL
+ORDER BY s.created_at DESC
+LIMIT 1;

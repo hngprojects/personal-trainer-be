@@ -357,3 +357,22 @@ func (s *routerImpl) CancelMySubscription(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_CANCELLED", api.CodeOK, subscriptionToMap(cancelled)))
 }
+
+func (s *routerImpl) GetAdminSubscriptionCount(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("GetAdminSubscriptionCount: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	count, err := s.trainers.q.CountActiveSubscriptions(c.Request.Context())
+	if err != nil {
+		s.logger.Error("failed to count active subscriptions", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to count active subscriptions", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("Active subscriptions retrieved successfully", api.CodeOK, map[string]interface{}{
+		"active_subscriptions": count,
+	}))
+}
