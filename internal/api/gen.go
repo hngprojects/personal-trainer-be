@@ -321,6 +321,57 @@ func (e SubscriptionStatus) Valid() bool {
 	}
 }
 
+// Defines values for TopTrainerGender.
+const (
+	TopTrainerGenderFemale         TopTrainerGender = "female"
+	TopTrainerGenderLessThannil    TopTrainerGender = "<nil>"
+	TopTrainerGenderMale           TopTrainerGender = "male"
+	TopTrainerGenderOther          TopTrainerGender = "other"
+	TopTrainerGenderPreferNotToSay TopTrainerGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the TopTrainerGender enum.
+func (e TopTrainerGender) Valid() bool {
+	switch e {
+	case TopTrainerGenderFemale:
+		return true
+	case TopTrainerGenderLessThannil:
+		return true
+	case TopTrainerGenderMale:
+		return true
+	case TopTrainerGenderOther:
+		return true
+	case TopTrainerGenderPreferNotToSay:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopTrainerOnboardingStatus.
+const (
+	TopTrainerOnboardingStatusApproved  TopTrainerOnboardingStatus = "approved"
+	TopTrainerOnboardingStatusPending   TopTrainerOnboardingStatus = "pending"
+	TopTrainerOnboardingStatusRejected  TopTrainerOnboardingStatus = "rejected"
+	TopTrainerOnboardingStatusSuspended TopTrainerOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the TopTrainerOnboardingStatus enum.
+func (e TopTrainerOnboardingStatus) Valid() bool {
+	switch e {
+	case TopTrainerOnboardingStatusApproved:
+		return true
+	case TopTrainerOnboardingStatusPending:
+		return true
+	case TopTrainerOnboardingStatusRejected:
+		return true
+	case TopTrainerOnboardingStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TrainerGender.
 const (
 	TrainerGenderFemale         TrainerGender = "female"
@@ -452,19 +503,19 @@ func (e UpdateProfileRequestFitnessLevel) Valid() bool {
 
 // Defines values for UpdateProfileRequestGender.
 const (
-	Female UpdateProfileRequestGender = "female"
-	Male   UpdateProfileRequestGender = "male"
-	Other  UpdateProfileRequestGender = "other"
+	UpdateProfileRequestGenderFemale UpdateProfileRequestGender = "female"
+	UpdateProfileRequestGenderMale   UpdateProfileRequestGender = "male"
+	UpdateProfileRequestGenderOther  UpdateProfileRequestGender = "other"
 )
 
 // Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
 func (e UpdateProfileRequestGender) Valid() bool {
 	switch e {
-	case Female:
+	case UpdateProfileRequestGenderFemale:
 		return true
-	case Male:
+	case UpdateProfileRequestGenderMale:
 		return true
-	case Other:
+	case UpdateProfileRequestGenderOther:
 		return true
 	default:
 		return false
@@ -473,22 +524,22 @@ func (e UpdateProfileRequestGender) Valid() bool {
 
 // Defines values for UpdateTrainerRequestOnboardingStatus.
 const (
-	Approved  UpdateTrainerRequestOnboardingStatus = "approved"
-	Pending   UpdateTrainerRequestOnboardingStatus = "pending"
-	Rejected  UpdateTrainerRequestOnboardingStatus = "rejected"
-	Suspended UpdateTrainerRequestOnboardingStatus = "suspended"
+	UpdateTrainerRequestOnboardingStatusApproved  UpdateTrainerRequestOnboardingStatus = "approved"
+	UpdateTrainerRequestOnboardingStatusPending   UpdateTrainerRequestOnboardingStatus = "pending"
+	UpdateTrainerRequestOnboardingStatusRejected  UpdateTrainerRequestOnboardingStatus = "rejected"
+	UpdateTrainerRequestOnboardingStatusSuspended UpdateTrainerRequestOnboardingStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the UpdateTrainerRequestOnboardingStatus enum.
 func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	switch e {
-	case Approved:
+	case UpdateTrainerRequestOnboardingStatusApproved:
 		return true
-	case Pending:
+	case UpdateTrainerRequestOnboardingStatusPending:
 		return true
-	case Rejected:
+	case UpdateTrainerRequestOnboardingStatusRejected:
 		return true
-	case Suspended:
+	case UpdateTrainerRequestOnboardingStatusSuspended:
 		return true
 	default:
 		return false
@@ -1237,6 +1288,78 @@ type SuccessResponse struct {
 	Meta *interface{} `json:"meta,omitempty"`
 }
 
+// TopTrainer defines model for TopTrainer.
+type TopTrainer struct {
+	// AverageRating Average rating from client reviews. Null if no reviews yet.
+	AverageRating *float32 `json:"average_rating"`
+
+	// Benefits Marketing-style "what you get working with this trainer" copy.
+	// Populated on Trainer responses that join the trainer_benefits
+	// table; absent when the source query doesn't fetch them.
+	Benefits       *[]TrainerBenefit `json:"benefits,omitempty"`
+	Bio            *string           `json:"bio,omitempty"`
+	BookingCount   int               `json:"booking_count"`
+	CreatedAt      time.Time         `json:"created_at"`
+	DisplayPicture *string           `json:"display_picture,omitempty"`
+
+	// Email Trainer's email, joined from users.email. Same population
+	// rules as `name` — present on the user-joined endpoints, may
+	// be absent elsewhere.
+	Email *openapi_types.Email `json:"email,omitempty"`
+
+	// Gender Trainer's gender, joined from users.gender. Closed set
+	// enforced by the users_gender_valid CHECK constraint
+	// (migration 000047); existing pre-constraint rows whose
+	// value didn't match were normalized to NULL.
+	Gender        *TopTrainerGender  `json:"gender,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+	IntroVideoUrl *string            `json:"intro_video_url,omitempty"`
+
+	// Name Trainer's display name, joined from users.name. Populated on
+	// responses that join users (GET /trainers, GET /trainers/{id},
+	// GET /trainers/me); absent on response paths that return the
+	// raw trainers row without the join (e.g. POST/PATCH /trainers
+	// result, internal admin queries).
+	Name             *string                    `json:"name,omitempty"`
+	OnboardingStatus TopTrainerOnboardingStatus `json:"onboarding_status"`
+
+	// PhoneNumber E.164 phone number from users.phone_number. Optional on
+	// create; null when never supplied.
+	PhoneNumber *string `json:"phone_number,omitempty"`
+
+	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
+	Specializations []TrainerSpecialization `json:"specializations"`
+	TotalReviews    int                     `json:"total_reviews"`
+
+	// TrainingStyles Up to 4 free-text single-word tags chosen by the admin.
+	TrainingStyles    []string           `json:"training_styles"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	UserId            openapi_types.UUID `json:"user_id"`
+	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
+}
+
+// TopTrainerGender Trainer's gender, joined from users.gender. Closed set
+// enforced by the users_gender_valid CHECK constraint
+// (migration 000047); existing pre-constraint rows whose
+// value didn't match were normalized to NULL.
+type TopTrainerGender string
+
+// TopTrainerOnboardingStatus defines model for TopTrainer.OnboardingStatus.
+type TopTrainerOnboardingStatus string
+
+// TopTrainersResponse defines model for TopTrainersResponse.
+type TopTrainersResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code string `json:"code"`
+	Data struct {
+		TopTrainers *[]TopTrainer `json:"top_trainers"`
+	} `json:"data"`
+	Message string `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
 // Trainer defines model for Trainer.
 type Trainer struct {
 	// AverageRating Average rating from client reviews. Null if no reviews yet.
@@ -1859,6 +1982,9 @@ type ServerInterface interface {
 	// Count of active subscriptions (super_admin only)
 	// (GET /admin/subscriptions/count)
 	GetAdminSubscriptionCount(c *gin.Context)
+	// Get the top trainers for the past month
+	// (GET /admin/top-trainers)
+	GetAdminTopTrainers(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
@@ -2309,6 +2435,21 @@ func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminSubscriptionCount(c)
+}
+
+// GetAdminTopTrainers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTopTrainers(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminTopTrainers(c)
 }
 
 // AdminApproveTrainer operation middleware
@@ -4100,6 +4241,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
 	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
+	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
