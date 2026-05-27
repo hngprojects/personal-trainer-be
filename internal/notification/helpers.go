@@ -62,7 +62,7 @@ func (s *NotificationService) sendNotifViaWS(ctx context.Context, userID uuid.UU
 	})
 	if err != nil {
 		s.log.Error("sendNotifViaWS: failed to marshal json body", "error", err)
-		return &resp, nil
+		return nil, err
 	}
 	sent := s.wsHub.SendToUser(userID, msg)
 	if sent {
@@ -72,7 +72,9 @@ func (s *NotificationService) sendNotifViaWS(ctx context.Context, userID uuid.UU
 		}); err != nil {
 			s.log.Error("sendNotifViaWS: Failed to update notification status", "error", err)
 		}
+		resp.Status = SentNotifStatus
+	} else {
+		resp.Status = notification.Status
 	}
-	resp.Status = SentNotifStatus
 	return &resp, nil
 }

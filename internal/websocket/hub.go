@@ -53,15 +53,17 @@ func (h *Hub) SendToUser(userID uuid.UUID, message []byte) bool {
 	if !ok || len(clients) == 0 {
 		return false
 	}
+	delivered := false
 	for c := range clients {
 		select {
 		case c.send <- message:
+			delivered = true
 		default:
 			// client's send buffer is full — skip
 			h.log.Warn("WebSocket client buffer full, dropping message", "userID", userID)
 		}
 	}
-	return true
+	return delivered
 }
 func (h *Hub) UserHasConnections(userID uuid.UUID) bool {
 	h.mu.RLock()
