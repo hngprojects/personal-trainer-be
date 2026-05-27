@@ -16,6 +16,12 @@ type PushNotification struct {
 }
 
 func NewPushNotification(credentialFile, projectID string, client *fcm.Client, log *slog.Logger) *PushNotification {
+	if client != nil {
+		return &PushNotification{
+			client: client,
+			log:    log,
+		}
+	}
 	if credentialFile == "" {
 		log.Warn("PushNotification: credential file not set, push notifications will be disabled")
 		return &PushNotification{log: log, disabled: true}
@@ -39,12 +45,12 @@ func NewPushNotification(credentialFile, projectID string, client *fcm.Client, l
 
 func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string, title, message string) error {
 	if p.disabled {
-		p.log.Warn("Notifier Credentaial file not set, push notifications will be disabled")
-		return nil
+		p.log.Warn("Notifier Credential file not set, push notifications will be disabled")
+		return fmt.Errorf("push notifications are disabled")
 	}
 	if len(deviceToken) == 0 {
 		p.log.Warn("Notifier: no device tokens available to push notification to")
-		return nil
+		return fmt.Errorf("no device tokens available to push notification to")
 	}
 	failed := 0
 	for _, token := range deviceToken {

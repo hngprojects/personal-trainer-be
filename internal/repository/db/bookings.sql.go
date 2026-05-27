@@ -350,6 +350,51 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 	return i, err
 }
 
+const getBookingsPastMonth = `-- name: GetBookingsPastMonth :many
+SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count FROM bookings
+WHERE scheduled_start >= date_trunc('month', NOW())
+  AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month'
+`
+
+func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {
+	rows, err := q.db.QueryContext(ctx, getBookingsPastMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Booking
+	for rows.Next() {
+		var i Booking
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.SubscriptionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CancellationReason,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.RescheduleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTrainerUserDetails = `-- name: GetTrainerUserDetails :one
 SELECT
     u.id AS id,

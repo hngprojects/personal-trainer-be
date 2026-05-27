@@ -363,6 +363,104 @@ func (q *Queries) GetTrainerWithUserByID(ctx context.Context, id uuid.UUID) (Get
 	return i, err
 }
 
+const getTrainersByBookingCountPastMonth = `-- name: GetTrainersByBookingCountPastMonth :many
+SELECT
+    t.id,
+    t.user_id,
+    t.bio,
+    t.years_of_experience,
+    t.intro_video_url,
+    t.display_picture,
+    t.onboarding_status,
+    t.average_rating,
+    t.total_reviews,
+    t.created_at,
+    t.updated_at,
+    t.specializations,
+    t.training_styles,
+    u.name            AS trainer_name,
+    u.email           AS trainer_email,
+    u.gender          AS trainer_gender,
+    u.phone_number    AS trainer_phone_number,
+    COUNT(b.id)       AS booking_count
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+JOIN bookings b ON b.trainer_id = t.id
+WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+  AND b.scheduled_start < NOW()
+  AND b.booking_status = 'completed'
+GROUP BY
+    t.id,
+    u.name,
+    u.email,
+    u.gender,
+    u.phone_number
+ORDER BY booking_count DESC
+`
+
+type GetTrainersByBookingCountPastMonthRow struct {
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
+	BookingCount       int64
+}
+
+func (q *Queries) GetTrainersByBookingCountPastMonth(ctx context.Context) ([]GetTrainersByBookingCountPastMonthRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTrainersByBookingCountPastMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTrainersByBookingCountPastMonthRow
+	for rows.Next() {
+		var i GetTrainersByBookingCountPastMonthRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Bio,
+			&i.YearsOfExperience,
+			&i.IntroVideoUrl,
+			&i.DisplayPicture,
+			&i.OnboardingStatus,
+			&i.AverageRating,
+			&i.TotalReviews,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			pq.Array(&i.Specializations),
+			pq.Array(&i.TrainingStyles),
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.TrainerGender,
+			&i.TrainerPhoneNumber,
+			&i.BookingCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrainers = `-- name: ListTrainers :many
 SELECT
   t.id,

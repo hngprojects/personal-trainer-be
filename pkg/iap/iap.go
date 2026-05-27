@@ -16,8 +16,8 @@ var httpClient = &http.Client{Timeout: 15 * time.Second}
 // VerifiedPurchase is the normalised result returned after a successful
 // verification with either Apple or Google.
 type VerifiedPurchase struct {
-	OriginalTransactionID string    // Apple: original_transaction_id; Google: orderId
-	ProductID             string    // e.g. com.fitcal.plan.committed.monthly
+	OriginalTransactionID string // Apple: original_transaction_id; Google: orderId
+	ProductID             string // e.g. com.fitcal.plan.committed.monthly
 	PurchasedAt           time.Time
 	ExpiresAt             time.Time
 	IsTrialPeriod         bool
