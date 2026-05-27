@@ -4,6 +4,21 @@ INTO notification (user_id, title, message, idempotency_key)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: CreateNotificationWithType :one
+INSERT INTO 
+notification (user_id, title, message, idempotency_key, type)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: GetPendingRealTimeNotification :many 
+SELECT 
+    id, user_id, title, message, type, status, idempotency_key,
+    retry_count, sent_at, created_at, updated_at
+    FROM notification
+    WHERE user_id = $1 AND type = 'realtime' AND status = 'pending'
+    ORDER BY created_at ASC
+;
+
 -- name: GetNotificationByID :one
 SELECT 
     id,

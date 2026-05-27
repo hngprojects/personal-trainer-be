@@ -10,11 +10,14 @@ import (
 )
 
 type mockRepository struct {
-	createNotificationFn       func(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
-	updateNotificationStatusFn func(ctx context.Context, args db.UpdateNotificationStatusParams) error
-	getUserNotificationFn      func(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
-	getUserDeviceTokenFn       func(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
-	getAllActiveUsersDevicesFn func(ctx context.Context) (*[]db.UserDevice, error)
+	createNotificationFn           func(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
+	updateNotificationStatusFn     func(ctx context.Context, args db.UpdateNotificationStatusParams) error
+	getUserNotificationFn          func(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
+	getUserDeviceTokenFn           func(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	getAllActiveUsersDevicesFn     func(ctx context.Context) (*[]db.UserDevice, error)
+	createNotificationWithTypeFn   func(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error)
+	getUserPendingNotificationFn   func(ctx context.Context, userID uuid.UUID) ([]db.Notification, error)
+	getUserRoleByUserIDFn          func(ctx context.Context, userID uuid.UUID) (string, error)
 }
 
 func (m *mockRepository) CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error) {
@@ -22,6 +25,27 @@ func (m *mockRepository) CreateNotification(ctx context.Context, args db.CreateN
 		return m.createNotificationFn(ctx, args)
 	}
 	return db.Notification{}, nil
+}
+
+func (m *mockRepository) CreateNotificationWithType(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
+	if m.createNotificationWithTypeFn != nil {
+		return m.createNotificationWithTypeFn(ctx, args)
+	}
+	return db.Notification{}, nil
+}
+
+func (m *mockRepository) GetUserPendingNotification(ctx context.Context, userID uuid.UUID) ([]db.Notification, error) {
+	if m.getUserPendingNotificationFn != nil {
+		return m.getUserPendingNotificationFn(ctx, userID)
+	}
+	return []db.Notification{}, nil
+}
+
+func (m *mockRepository) GetUserRoleByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	if m.getUserRoleByUserIDFn != nil {
+		return m.getUserRoleByUserIDFn(ctx, userID)
+	}
+	return "", nil
 }
 
 func (m *mockRepository) UpdateNotificationStatus(ctx context.Context, args db.UpdateNotificationStatusParams) error {
@@ -50,6 +74,25 @@ func (m *mockRepository) GetAllActiveUsersDevices(ctx context.Context) (*[]db.Us
 		return m.getAllActiveUsersDevicesFn(ctx)
 	}
 	return &[]db.UserDevice{}, nil
+}
+
+type mockWSHub struct {
+	sendToUserFn         func(userID uuid.UUID, message []byte) bool
+	userHasConnectionsFn func(userID uuid.UUID) bool
+}
+
+func (m *mockWSHub) SendToUser(userID uuid.UUID, message []byte) bool {
+	if m.sendToUserFn != nil {
+		return m.sendToUserFn(userID, message)
+	}
+	return false
+}
+
+func (m *mockWSHub) UserHasConnections(userID uuid.UUID) bool {
+	if m.userHasConnectionsFn != nil {
+		return m.userHasConnectionsFn(userID)
+	}
+	return false
 }
 
 func testLogger() *slog.Logger {

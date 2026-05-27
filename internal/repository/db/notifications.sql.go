@@ -60,6 +60,46 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const createNotificationWithType = `-- name: CreateNotificationWithType :one
+INSERT INTO 
+notification (user_id, title, message, idempotency_key, type)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, title, message, type, status, idempotency_key, retry_count, sent_at, created_at, updated_at
+`
+
+type CreateNotificationWithTypeParams struct {
+	UserID         uuid.UUID
+	Title          string
+	Message        string
+	IdempotencyKey string
+	Type           string
+}
+
+func (q *Queries) CreateNotificationWithType(ctx context.Context, arg CreateNotificationWithTypeParams) (Notification, error) {
+	row := q.db.QueryRowContext(ctx, createNotificationWithType,
+		arg.UserID,
+		arg.Title,
+		arg.Message,
+		arg.IdempotencyKey,
+		arg.Type,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.Message,
+		&i.Type,
+		&i.Status,
+		&i.IdempotencyKey,
+		&i.RetryCount,
+		&i.SentAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getNotificationByID = `-- name: GetNotificationByID :one
 SELECT 
     id,
@@ -168,6 +208,50 @@ WHERE user_id=$1
 
 func (q *Queries) GetNotificationByUserID(ctx context.Context, userID uuid.UUID) ([]Notification, error) {
 	rows, err := q.db.QueryContext(ctx, getNotificationByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Notification
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.Message,
+			&i.Type,
+			&i.Status,
+			&i.IdempotencyKey,
+			&i.RetryCount,
+			&i.SentAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPendingRealTimeNotification = `-- name: GetPendingRealTimeNotification :many
+SELECT 
+    id, user_id, title, message, type, status, idempotency_key,
+    retry_count, sent_at, created_at, updated_at
+    FROM notification
+    WHERE user_id = $1 AND type = 'realtime' AND status = 'pending'
+    ORDER BY created_at ASC
+`
+
+func (q *Queries) GetPendingRealTimeNotification(ctx context.Context, userID uuid.UUID) ([]Notification, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingRealTimeNotification, userID)
 	if err != nil {
 		return nil, err
 	}
