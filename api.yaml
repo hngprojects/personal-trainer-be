@@ -28,6 +28,20 @@ tags:
     description: Subscription plan listing and lifecycle management.
   - name: User
     description: User profile and onboarding endpoints.
+  - name: Zoom
+    description: |
+      Per-trainer Zoom OAuth, in-app Meeting SDK joins, and client-facing
+      config. Routes are hand-wired (not generated from this spec) — the
+      definitions below exist only so Swagger UI can render them. See
+      internal/routes/zoom_*.go for the source of truth.
+  - name: Activities
+    description: |
+      Recent-activity feed surfaced to trainers (own activity) and admins
+      (system-wide). Hand-wired routes — see internal/activities/.
+  - name: Well-Known
+    description: |
+      Universal-link claim files served at the domain root for
+      iOS Associated Domains and Android App Links verification.
 
 components:
   securitySchemes:
@@ -6175,3 +6189,503 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  # ─── Hand-wired routes (Zoom + Activities + Well-Known) ────────────────────
+  #
+  # The operations below describe routes registered directly via Gin
+  # (NOT generated through the ServerInterface). Their definitions live
+  # here so Swagger UI renders them; runtime behaviour is owned by the
+  # files in internal/routes/zoom_*.go and internal/activities/.
+  #
+  # `make codegen` skips these operations via the
+  # output-options.exclude-operation-ids list in oapi-codegen.yaml so the
+  # generated gen.go stays small and routerImpl does NOT have to
+  # implement no-op stubs. If you add a new path here, add its
+  # operationId to that exclude list too.
+
+  /trainers/me/zoom/connect:
+    get:
+      operationId: GetTrainersMeZoomConnect
+      summary: Start the per-trainer Zoom OAuth flow
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Mints a CSRF state nonce, persists it (state to trainer user_id)
+        for 10 minutes, and returns the Zoom authorize URL the caller
+        should open in an in-app browser. After the trainer consents,
+        Zoom redirects to /trainers/me/zoom/callback.
+      responses:
+        "200":
+          description: Authorize URL ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: authorize the app on Zoom
+                code: OK
+                data:
+                  authorize_url: "https://zoom.us/oauth/authorize?response_type=code&client_id=...&redirect_uri=...&state=..."
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom/callback:
+    get:
+      operationId: GetTrainersMeZoomCallback
+      summary: OAuth callback from Zoom; exchange code, persist tokens
+      tags: [Zoom]
+      description: |
+        Hit by Zoom directly after the trainer consents. No bearer auth;
+        identity is recovered from the single-use `state` token stashed
+        by /connect. Tokens are encrypted at rest (AES-256-GCM); the
+        refresh token rotates on every refresh.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zoom account connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: zoom connected
+                code: OK
+                data:
+                  zoom_email: trainer@example.com
+                  expires_at: "2026-05-26T16:45:00Z"
+        "400":
+          description: Missing/expired state, or invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Zoom rejected the authorization code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom/status:
+    get:
+      operationId: GetTrainersMeZoomStatus
+      summary: Whether the authenticated trainer has connected Zoom
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Lightweight read; does NOT trigger a refresh. Use this to render
+        the "Connect Zoom" / "Disconnect Zoom" toggle in the trainer's
+        settings screen.
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                connected:
+                  value:
+                    status: success
+                    code: OK
+                    message: ok
+                    data:
+                      connected: true
+                      zoom_email: trainer@example.com
+                      access_token_expires_at: "2026-05-26T16:45:00Z"
+                notConnected:
+                  value:
+                    status: success
+                    code: OK
+                    message: ok
+                    data:
+                      connected: false
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom:
+    delete:
+      operationId: DeleteTrainersMeZoom
+      summary: Disconnect the authenticated trainer's Zoom account
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Removes the stored OAuth grant. Idempotent; 404 when there was
+        nothing to disconnect so the client can distinguish "already
+        gone" from "success".
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: zoom disconnected
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: This trainer has no Zoom connection to disconnect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/join-info:
+    get:
+      operationId: GetSessionsIdJoinInfo
+      summary: Mint a Meeting SDK signature so the client can join in-app
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns everything the mobile/web Zoom Meeting SDK needs to drop
+        the user straight into the meeting:
+          - sdk_key (public; safe to log)
+          - meeting_number (Zoom numeric ID)
+          - signature (HS256 JWT, ~2h expiry)
+          - role (0 = participant, 1 = host)
+          - join_url (fallback for clients without the SDK)
+
+        Auth: the caller must be either the booking's client OR the
+        booking's trainer. Anyone else 403s.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: booking_session.id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Join info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  sdk_key: "abc123"
+                  meeting_number: "98765432100"
+                  signature: "eyJhbGciOi..."
+                  role: 0
+                  join_url: "https://us05web.zoom.us/j/..."
+        "400":
+          description: Invalid session id, or session has no Zoom meeting attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of this session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Meeting SDK is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /config/zoom:
+    get:
+      operationId: GetConfigZoom
+      summary: Public-config the mobile/web client reads on launch
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the feature-flag + public-key surface the client needs to
+        decide which join flow to use (raw link vs in-app SDK) and which
+        SDK key to initialise with. Auth-gated even though the data is
+        public, so the mobile network layer's 401-by-default handling
+        works the same as everywhere else.
+      responses:
+        "200":
+          description: Client-facing Zoom config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  join_mode: "sdk"
+                  sdk_configured: true
+                  sdk_key: "abc123"
+                  universal_link_domain: "app.fitcall.me"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/activities:
+    get:
+      operationId: GetTrainersMeActivities
+      summary: Chronological feed of events touching this trainer's account
+      tags: [Activities]
+      security:
+        - bearerAuth: []
+      description: |
+        Cursor-paginated feed. Event types include booking_created,
+        booking_cancelled, booking_rescheduled, discovery_booked,
+        discovery_rescheduled, review_received. Caller must have a
+        trainer role; clients/admins get 403 here.
+
+        Pass back `data.next_cursor` from each response as the next
+        request's `?cursor=` parameter. Stop when next_cursor is absent
+        or the empty string.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor from a previous response's next_cursor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      type: "booking_created"
+                      occurred_at: "2026-05-26T09:15:23.521Z"
+                      target_id: "22222222-2222-2222-2222-222222222222"
+                      target_type: "booking"
+                      actor:
+                        user_id: "33333333-3333-3333-3333-333333333333"
+                        name: "Jane Doe"
+                      event_time: "2026-05-28T15:00:00Z"
+                      extra: "confirmed"
+                      summary: "Jane Doe booked a session with you on Thu, May 28 3:00 PM UTC"
+                  next_cursor: "MjAyNi0wNS0yNlQwOToxMjowMC4wMDBafGFiYy0xMjMt"
+        "400":
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a trainer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/activities:
+    get:
+      operationId: GetAdminActivities
+      summary: System-wide chronological activity feed (admin)
+      tags: [Activities]
+      security:
+        - bearerAuth: []
+      description: |
+        Same event types as /trainers/me/activities but unfiltered by
+        trainer, with each row carrying the trainer the event belonged
+        to. Gated by SuperAdminOnly middleware; plain `admin` role is
+        allow-listed for this read-only endpoint.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      type: "booking_created"
+                      occurred_at: "2026-05-26T09:15:23.521Z"
+                      target_id: "22222222-2222-2222-2222-222222222222"
+                      target_type: "booking"
+                      actor:
+                        user_id: "33333333-3333-3333-3333-333333333333"
+                        name: "Jane Doe"
+                      trainer:
+                        trainer_id: "44444444-4444-4444-4444-444444444444"
+                        user_id: "55555555-5555-5555-5555-555555555555"
+                        name: "Trainer Mike"
+                      event_time: "2026-05-28T15:00:00Z"
+                      summary: "Jane Doe booked a session with Trainer Mike on Thu, May 28 3:00 PM UTC"
+                  next_cursor: ""
+        "400":
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient role (need admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /.well-known/apple-app-site-association:
+    servers:
+      - url: /
+        description: Served at the domain root (not under /api/v1)
+    get:
+      operationId: GetAppleAppSiteAssociation
+      summary: iOS Associated Domains claim file
+      tags: [Well-Known]
+      description: |
+        iOS fetches this on first install (and periodically afterwards) to
+        verify the app's claim on universal links into this host. Content
+        is generated from env vars IOS_APP_BUNDLE_ID + IOS_APP_TEAM_ID.
+        Returns an empty {} body with 200 when those env vars aren't set,
+        so the file is always reachable.
+
+        NOTE: per Apple's spec the URL has NO `.json` extension, and the
+        Content-Type must be application/json.
+      responses:
+        "200":
+          description: AASA JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /.well-known/assetlinks.json:
+    servers:
+      - url: /
+        description: Served at the domain root (not under /api/v1)
+    get:
+      operationId: GetAssetlinksJson
+      summary: Android App Links verification file
+      tags: [Well-Known]
+      description: |
+        Android verifies this on app install (autoVerify intent-filter)
+        to allow the app to claim https://<host>/sessions/*/join URLs.
+        Content is generated from ANDROID_APP_PACKAGE +
+        ANDROID_APP_SHA256.
+      responses:
+        "200":
+          description: assetlinks JSON
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
