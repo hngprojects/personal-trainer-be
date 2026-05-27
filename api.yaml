@@ -6489,6 +6489,12 @@ paths:
       operationId: GetTrainersMeZoomCallback
       summary: OAuth callback from Zoom; exchange code, persist tokens
       tags: [Zoom]
+      # Public — Zoom redirects the browser here directly with no
+      # Authorization header. Identity is recovered server-side from the
+      # single-use `state` token stashed by /connect. Required because
+      # the document-level `security:` would otherwise apply bearerAuth
+      # and mislead clients into thinking they need to pass a token.
+      security: []
       description: |
         Hit by Zoom directly after the trainer consents. No bearer auth;
         identity is recovered from the single-use `state` token stashed
@@ -6694,6 +6700,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: |
+            Server-side failure during session/booking lookup or while
+            minting the SDK signature. The caller should retry with
+            backoff; a persistent 500 indicates an upstream Zoom or DB
+            outage.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: Meeting SDK is not configured on this server
           content:
@@ -6893,18 +6909,29 @@ paths:
       operationId: GetAppleAppSiteAssociation
       summary: iOS Associated Domains claim file
       tags: [Well-Known]
+      # Public — iOS fetches this directly on first install and
+      # periodically afterwards, never with an Authorization header.
+      # Override the document-level `security:` default to bearerAuth.
+      security: []
       description: |
-        iOS fetches this on first install (and periodically afterwards) to
-        verify the app's claim on universal links into this host. Content
-        is generated from env vars IOS_APP_BUNDLE_ID + IOS_APP_TEAM_ID.
-        Returns an empty {} body with 200 when those env vars aren't set,
-        so the file is always reachable.
+        iOS fetches this on first install (and periodically afterwards)
+        to verify the app's claim on universal links into this host.
+        Content is generated from env vars IOS_APP_BUNDLE_ID +
+        IOS_APP_TEAM_ID. Returns 404 (with `{}` body) when those env
+        vars aren't set, so a missing-config deploy fails fast for iOS
+        verification rather than silently degrading.
 
         NOTE: per Apple's spec the URL has NO `.json` extension, and the
         Content-Type must be application/json.
       responses:
         "200":
-          description: AASA JSON
+          description: AASA JSON (env vars configured)
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Not configured on this server (IOS_APP_BUNDLE_ID / IOS_APP_TEAM_ID missing)
           content:
             application/json:
               schema:
@@ -6918,14 +6945,27 @@ paths:
       operationId: GetAssetlinksJson
       summary: Android App Links verification file
       tags: [Well-Known]
+      # Public — Android's PackageManager fetches this on app install,
+      # never with an Authorization header. Override the document-level
+      # `security:` default to bearerAuth.
+      security: []
       description: |
         Android verifies this on app install (autoVerify intent-filter)
         to allow the app to claim https://<host>/sessions/*/join URLs.
         Content is generated from ANDROID_APP_PACKAGE +
-        ANDROID_APP_SHA256.
+        ANDROID_APP_SHA256. Returns 404 (with `[]` body) when those env
+        vars aren't set.
       responses:
         "200":
-          description: assetlinks JSON
+          description: assetlinks JSON (env vars configured)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "404":
+          description: Not configured on this server (ANDROID_APP_PACKAGE / ANDROID_APP_SHA256 missing)
           content:
             application/json:
               schema:
