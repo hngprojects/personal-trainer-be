@@ -9,7 +9,7 @@ import (
 )
 
 type userDeviceService struct {
-	repo *userDeviceRepository
+	repo UserDeviceInterface
 	log  *slog.Logger
 }
 
@@ -18,7 +18,7 @@ type UserDeviceServiceInterface interface {
 	GetUserDevicesTokens(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 }
 
-func NewUserDeviceService(repo *userDeviceRepository, log *slog.Logger) *userDeviceService {
+func NewUserDeviceService(repo UserDeviceInterface, log *slog.Logger) *userDeviceService {
 	return &userDeviceService{
 		repo: repo,
 		log:  log,

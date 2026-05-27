@@ -14,6 +14,12 @@ import (
 const createUserDevice = `-- name: CreateUserDevice :one
 INSERT INTO user_device (user_id, device_token, platform) 
 VALUES ($1, $2, $3)
+ON CONFLICT (user_id, device_token)
+DO UPDATE SET
+    platform = EXCLUDED.platform,
+    is_active = TRUE,
+    is_push_notification_enabled = TRUE,
+    updated_at = NOW()
 RETURNING id, user_id, device_token, is_push_notification_enabled, platform, is_active, created_at, updated_at
 `
 
