@@ -2,18 +2,31 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	ws "github.com/gorilla/websocket"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
+)
+
+const (
+	ClientUsers           = "client"
+	TrainrUsers           = "trainer"
+	AdminUsers            = "admin"
+	PushNotifications     = "push"
+	RealTimeNotifications = "realtime"
+	SentNotifStatus       = "sent"
 )
 
 type NotificationService struct {
 	repo      RepositoryInterface
 	log       *slog.Logger
 	fcmClient *fcmnotif.PushNotification
+	wsHub     websocket.HubInterface
 	// redis *redis.Client
 }
 
@@ -28,11 +41,12 @@ type NotificationResponse struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
-func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNotification, log *slog.Logger) *NotificationService {
+func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNotification, ws websocket.HubInterface, log *slog.Logger) *NotificationService {
 	return &NotificationService{
 		repo:      repo,
 		log:       log,
 		fcmClient: fcmClient,
+		wsHub:     ws,
 		// redis: redis
 	}
 }
@@ -41,6 +55,7 @@ type NotificationServiceInterface interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
 	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
+	DeliverPendingNotifOnConn(conn *ws.Conn, userID uuid.UUID) error
 }
 
 func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error) {
@@ -56,58 +71,31 @@ func (s *NotificationService) GetUserDevicesToken(ctx context.Context, userID uu
 }
 
 func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error) {
-	data := &db.CreateNotificationParams{
+	role, err := s.repo.GetUserRoleByUserID(ctx, userID)
+	if err != nil {
+		s.log.Warn("failed to get role of user")
+		return nil, err
+	}
+	notificationType := PushNotifications
+	if role != ClientUsers {
+		notificationType = RealTimeNotifications
+	}
+	data := &db.CreateNotificationWithTypeParams{
 		UserID:         userID,
 		Title:          title,
 		Message:        message,
 		IdempotencyKey: idempotency_key,
+		Type:           notificationType,
 	}
-	notification, err := s.repo.CreateNotification(ctx, *data)
+	notification, err := s.repo.CreateNotificationWithType(ctx, *data)
 	if err != nil {
 		return nil, err
 	}
 	resp := parseNotificationResponse(notification)
-	userDevice, err := s.repo.GetUserDeviceToken(ctx, userID)
-	if err != nil {
-		s.log.Error("Failed to get user device tokens", "error", err)
-		return &resp, err
+	if role == ClientUsers {
+		return s.sendNotifViaFCM(ctx, userID, notification, resp, title, message)
 	}
-
-	var tokens []string
-	if len(*userDevice) == 0 {
-		s.log.Info("No devices found for user", "userID", userID)
-		return &resp, nil
-	}
-	for _, device := range *userDevice {
-		if !device.IsPushNotificationEnabled {
-			s.log.Info("User has disabled push notifications", "userID", userID, "deviceID", device.ID)
-			continue
-		}
-		tokens = append(tokens, device.DeviceToken)
-	}
-	if len(tokens) == 0 {
-		s.log.Info("No device tokens found for user", "userID", userID)
-		return &resp, nil
-	}
-	if err := s.fcmClient.SendToUser(ctx, tokens, title, message); err != nil {
-		s.log.Error("Failed to send notification to user", "userID", userID, "error", err)
-		if err := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
-			Status: "failed",
-			ID:     notification.ID,
-		}); err != nil {
-			s.log.Error("Failed to update notification status", "error", err)
-		}
-		return nil, err
-	}
-	if err := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
-		Status: "sent",
-		ID:     notification.ID,
-	}); err != nil {
-		s.log.Error("Failed to update notification status", "error", err)
-		// Notification was sent successfully; status update is best-effort
-	}
-	resp.Status = "sent"
-	return &resp, nil
+	return s.sendNotifViaWS(ctx, userID, notification, resp, title, message)
 }
 
 func (s *NotificationService) GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error) {
@@ -127,6 +115,33 @@ func (s *NotificationService) GetUserNotification(ctx context.Context, userID uu
 		resp = append(resp, r)
 	}
 	return &resp, nil
+}
+
+func (s *NotificationService) DeliverPendingNotifOnConn(conn *ws.Conn, userID uuid.UUID) error {
+	ctx := context.Background()
+	notifications, err := s.repo.GetUserPendingNotification(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, n := range notifications {
+		msg, err := json.Marshal(map[string]interface{}{
+			"id": n.ID, "title": n.Title, "message": n.Message,
+			"type": "notification", "created_at": n.CreatedAt,
+		})
+		if err != nil {
+			s.log.Error("marshal pending notification", "error", err)
+			continue
+		}
+		if err := conn.WriteMessage(ws.TextMessage, msg); err != nil {
+			return err
+		}
+		if err := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
+			Status: "sent", ID: n.ID,
+		}); err != nil {
+			s.log.Warn("could not update notification status to sent", "notificationID", n.ID, "error", err)
+		}
+	}
+	return nil
 }
 
 func parseNotificationResponse(data db.Notification) NotificationResponse {

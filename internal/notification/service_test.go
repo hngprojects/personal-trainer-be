@@ -21,7 +21,10 @@ func TestServiceSendNotificationToUser_Success(t *testing.T) {
 	userID := uuid.New()
 	now := time.Now()
 	repo := &mockRepository{
-		createNotificationFn: func(_ context.Context, args db.CreateNotificationParams) (db.Notification, error) {
+		getUserRoleByUserIDFn: func(_ context.Context, _ uuid.UUID) (string, error) {
+			return "client", nil
+		},
+		createNotificationWithTypeFn: func(_ context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
 			return db.Notification{
 				ID: uuid.New(), UserID: args.UserID, Title: args.Title,
 				Message: args.Message, Status: "pending", CreatedAt: now, UpdatedAt: now,
@@ -31,7 +34,7 @@ func TestServiceSendNotificationToUser_Success(t *testing.T) {
 			return &[]db.UserDevice{}, nil
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	resp, err := svc.SendNotificationToUser(context.Background(), userID, "Title", "Message", "idem-123")
 	if err != nil {
@@ -47,11 +50,14 @@ func TestServiceSendNotificationToUser_Success(t *testing.T) {
 
 func TestServiceSendNotificationToUser_CreateError(t *testing.T) {
 	repo := &mockRepository{
-		createNotificationFn: func(_ context.Context, _ db.CreateNotificationParams) (db.Notification, error) {
+		getUserRoleByUserIDFn: func(_ context.Context, _ uuid.UUID) (string, error) {
+			return "client", nil
+		},
+		createNotificationWithTypeFn: func(_ context.Context, _ db.CreateNotificationWithTypeParams) (db.Notification, error) {
 			return db.Notification{}, errors.New("db error")
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	_, err := svc.SendNotificationToUser(context.Background(), uuid.New(), "Title", "Msg", "key")
 	if err == nil {
@@ -61,7 +67,10 @@ func TestServiceSendNotificationToUser_CreateError(t *testing.T) {
 
 func TestServiceSendNotificationToUser_NoDevices(t *testing.T) {
 	repo := &mockRepository{
-		createNotificationFn: func(_ context.Context, args db.CreateNotificationParams) (db.Notification, error) {
+		getUserRoleByUserIDFn: func(_ context.Context, _ uuid.UUID) (string, error) {
+			return "client", nil
+		},
+		createNotificationWithTypeFn: func(_ context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
 			return db.Notification{
 				ID: uuid.New(), UserID: args.UserID, Title: args.Title,
 				Message: args.Message, Status: "pending",
@@ -71,7 +80,7 @@ func TestServiceSendNotificationToUser_NoDevices(t *testing.T) {
 			return &[]db.UserDevice{}, nil
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	resp, err := svc.SendNotificationToUser(context.Background(), uuid.New(), "Title", "Msg", "key")
 	if err != nil {
@@ -86,7 +95,10 @@ func TestServiceSendNotificationToUser_DeviceTokenError(t *testing.T) {
 	userID := uuid.New()
 	now := time.Now()
 	repo := &mockRepository{
-		createNotificationFn: func(_ context.Context, args db.CreateNotificationParams) (db.Notification, error) {
+		getUserRoleByUserIDFn: func(_ context.Context, _ uuid.UUID) (string, error) {
+			return "client", nil
+		},
+		createNotificationWithTypeFn: func(_ context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
 			return db.Notification{
 				ID: uuid.New(), UserID: args.UserID, Title: args.Title,
 				Message: args.Message, Status: "pending", CreatedAt: now, UpdatedAt: now,
@@ -96,7 +108,7 @@ func TestServiceSendNotificationToUser_DeviceTokenError(t *testing.T) {
 			return nil, errors.New("token fetch error")
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	resp, err := svc.SendNotificationToUser(context.Background(), userID, "Title", "Msg", "key")
 	if err == nil {
@@ -112,7 +124,10 @@ func TestServiceSendNotificationToUser_FCMDisabled(t *testing.T) {
 	now := time.Now()
 	var statusUpdated bool
 	repo := &mockRepository{
-		createNotificationFn: func(_ context.Context, args db.CreateNotificationParams) (db.Notification, error) {
+		getUserRoleByUserIDFn: func(_ context.Context, _ uuid.UUID) (string, error) {
+			return "client", nil
+		},
+		createNotificationWithTypeFn: func(_ context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
 			return db.Notification{
 				ID: uuid.New(), UserID: args.UserID, Title: args.Title,
 				Message: args.Message, Status: "pending", CreatedAt: now, UpdatedAt: now,
@@ -131,7 +146,7 @@ func TestServiceSendNotificationToUser_FCMDisabled(t *testing.T) {
 			return nil
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	_, err := svc.SendNotificationToUser(context.Background(), userID, "Title", "Msg", "key")
 	if err == nil {
@@ -153,7 +168,7 @@ func TestServiceGetUserNotification_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := notification.NewNotificationService(repo, disabledFCM(), testLogger())
+	svc := notification.NewNotificationService(repo, disabledFCM(), &mockWSHub{}, testLogger())
 
 	resp, err := svc.GetUserNotification(context.Background(), userID)
 	if err != nil {

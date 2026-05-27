@@ -16,11 +16,26 @@ func NewRepository(q *db.Queries) *Repository {
 }
 
 type RepositoryInterface interface {
+	CreateNotificationWithType(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error)
 	CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
+	GetUserPendingNotification(ctx context.Context, userID uuid.UUID) ([]db.Notification, error)
 	UpdateNotificationStatus(ctx context.Context, args db.UpdateNotificationStatusParams) error
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
 	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	GetUserRoleByUserID(ctx context.Context, userID uuid.UUID) (string, error)
 	GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDevice, error)
+}
+
+func (r *Repository) CreateNotificationWithType(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
+	return r.q.CreateNotificationWithType(ctx, args)
+}
+
+func (r *Repository) GetUserPendingNotification(ctx context.Context, userID uuid.UUID) ([]db.Notification, error) {
+	return r.q.GetPendingRealTimeNotification(ctx, userID)
+}
+
+func (r *Repository) GetUserRoleByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	return r.q.GetUserRoleByID(ctx, userID)
 }
 
 func (r *Repository) CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error) {
