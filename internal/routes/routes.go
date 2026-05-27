@@ -31,6 +31,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
+	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
 	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
@@ -175,9 +176,10 @@ type routerImpl struct {
 	logger *slog.Logger
 	mailer email.Mailer
 
-	// notificationService *notification.NotificationService
+	notificationService *notification.NotificationService
 	userDeviceHandler   *userdevice.UserDeviceHandler
 	notificationHandler *notification.NotificationHandler
+	wsHub               *websocket.Hub
 
 	// zoomOAuth handles the per-trainer /trainers/me/zoom/{connect,
 	// callback,status} + DELETE /trainers/me/zoom routes. When the
@@ -364,11 +366,14 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
+			// websocket
+			wsHub := websocket.NewHub(s.log)
+			impl.wsHub = wsHub
 			// Notifications
 			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
 			notificationRepo := notification.NewRepository(q)
-			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, s.log)
-			// impl.notificationService = notificationService
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
+			impl.notificationService = notificationService
 			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
@@ -526,6 +531,12 @@ func (s *Router) Routes() *gin.Engine {
 		}
 		if impl.zoomConfig != nil {
 			impl.zoomConfig.register(v1, authMw)
+		}
+		if impl.wsHub != nil {
+			v1.GET("/notifications/ws", authMw, websocket.UpgradeHandler(
+				impl.wsHub, s.log,
+				impl.notificationService.DeliverPendingNotifOnConn,
+			))
 		}
 
 		// Hand-wired recent-activities routes. Same rationale as the

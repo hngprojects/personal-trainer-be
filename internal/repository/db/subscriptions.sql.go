@@ -290,6 +290,8 @@ type GetRevenueSnapshotRow struct {
 	OneTimeRevenue      int64
 }
 
+// All-time gross revenue across all statuses (active + expired + cancelled).
+// Cancelled subs are included — refund tracking is out of scope for v1.
 func (q *Queries) GetRevenueSnapshot(ctx context.Context) (GetRevenueSnapshotRow, error) {
 	row := q.db.QueryRowContext(ctx, getRevenueSnapshot)
 	var i GetRevenueSnapshotRow

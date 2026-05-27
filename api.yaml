@@ -340,6 +340,108 @@ components:
           type: string
           format: date-time
 
+    TopTrainer:
+      type: object
+      required:
+        - id
+        - user_id
+        - specializations
+        - training_styles
+        - onboarding_status
+        - average_rating
+        - total_reviews
+        - booking_count
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
+        specializations:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerSpecialization"
+          minItems: 0
+          maxItems: 5
+          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+        training_styles:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+          description: Up to 4 free-text single-word tags chosen by the admin.
+        benefits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerBenefit"
+          description: |
+            Marketing-style "what you get working with this trainer" copy.
+            Populated on Trainer responses that join the trainer_benefits
+            table; absent when the source query doesn't fetch them.
+        bio:
+          type: string
+          nullable: true
+        years_of_experience:
+          type: integer
+          nullable: true
+        intro_video_url:
+          type: string
+          nullable: true
+        display_picture:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other, prefer_not_to_say, null]
+          description: |
+            Trainer's gender, joined from users.gender. Closed set
+            enforced by the users_gender_valid CHECK constraint
+            (migration 000047); existing pre-constraint rows whose
+            value didn't match were normalized to NULL.
+        phone_number:
+          type: string
+          nullable: true
+          description: |
+            E.164 phone number from users.phone_number. Optional on
+            create; null when never supplied.
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+        average_rating:
+          type: number
+          nullable: true
+          format: float
+          description: Average rating from client reviews. Null if no reviews yet.
+        total_reviews:
+          type: integer
+        booking_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     TrainerResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -434,7 +536,6 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/Subscription"
-
 
     SubscriptionUsage:
       type: object
@@ -1048,6 +1149,21 @@ components:
             data:
               $ref: "#/components/schemas/Review"
 
+    TopTrainersResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [top_trainers]
+              properties:
+                top_trainers:
+                  type: array
+                  nullable: true
+                  items:
+                    $ref: "#/components/schemas/TopTrainer"
     ReviewsListResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -5825,10 +5941,18 @@ paths:
                           $ref: "#/components/schemas/OrganisationMedia"
         "400":
           description: Invalid query parameter
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/images:
     post:
@@ -5852,7 +5976,12 @@ paths:
                 title: { type: string, maxLength: 200 }
                 description: { type: string, maxLength: 2000 }
                 category: { type: string, maxLength: 64 }
-                file: { type: string, format: binary, description: "JPEG / PNG / WebP / HEIC, max 5 MiB" }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "JPEG / PNG / WebP / HEIC, max 5 MiB",
+                  }
       responses:
         "202":
           description: Image accepted; upload in progress
@@ -5866,19 +5995,39 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "400":
           description: Validation failure
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "413":
           description: File exceeds 5 MiB cap
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "503":
           description: Storage / uploader not configured or busy
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/videos:
     post:
@@ -5902,7 +6051,12 @@ paths:
                 title: { type: string, maxLength: 200 }
                 description: { type: string, maxLength: 2000 }
                 category: { type: string, maxLength: 64 }
-                file: { type: string, format: binary, description: "MP4 / MOV / WebM / etc, max 500 MiB, max 10 min" }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "MP4 / MOV / WebM / etc, max 500 MiB, max 10 min",
+                  }
       responses:
         "202":
           description: Video accepted; transcode + upload in progress
@@ -5916,19 +6070,39 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "400":
           description: Validation failure
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "413":
           description: File exceeds upload cap
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "503":
           description: Storage / transcoder / uploader not configured or busy
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
   /media/{id}:
     get:
@@ -5954,10 +6128,18 @@ paths:
                       data: { $ref: "#/components/schemas/OrganisationMedia" }
         "404":
           description: Not found
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
 
     delete:
       operationId: DeleteOrganisationMedia
@@ -5979,19 +6161,39 @@ paths:
           description: Deleted
         "401":
           description: Unauthorized
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "403":
           description: Caller is not admin or super_admin
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "404":
           description: Not found
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "409":
           description: Media is still processing
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
         "500":
           description: Internal server error
-          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
   /register/device:
     post:
       security:
@@ -6095,7 +6297,7 @@ paths:
                 status: error
                 message: Unauthorized access
                 code: UNAUTHORIZED
-        "404": 
+        "404":
           description: Could not retrieve notifications
           content:
             application/json:
@@ -6190,6 +6392,47 @@ paths:
                 message: Internal server error
                 code: SERVER_ERROR
 
+  /admin/top-trainers:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: GetAdminTopTrainers
+      tags:
+        - Admin
+      summary: Get the top trainers for the past month
+      responses:
+        "200":
+          description: Top trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopTrainersResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid credentials
+                code: UNAUTHORIZED
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: INTERNAL_ERROR
   # ─── Hand-wired routes (Zoom + Activities + Well-Known) ────────────────────
   #
   # The operations below describe routes registered directly via Gin
