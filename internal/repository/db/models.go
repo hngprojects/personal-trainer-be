@@ -222,18 +222,6 @@ type SubscriptionPlan struct {
 	UpdatedAt     time.Time
 }
 
-type SubscriptionPlan struct {
-	ID            uuid.UUID
-	PlanType      string
-	DisplayName   string
-	SessionsTotal int32
-	Amount        int64
-	Currency      string
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
