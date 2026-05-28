@@ -25,3 +25,8 @@ output-options:
     - GetAdminActivities
     - GetAppleAppSiteAssociation
     - GetAssetlinksJson
+    - GetAdminSettings
+    - PutAdminSettings
+    - PostAdminCategories
+    - DeleteAdminCategoriesId
+    - GetCategories
