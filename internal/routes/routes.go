@@ -374,7 +374,7 @@ func (s *Router) Routes() *gin.Engine {
 			wsHub := websocket.NewHub(s.log)
 			impl.wsHub = wsHub
 			// Notifications
-			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
 			notificationRepo := notification.NewRepository(q)
 			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
 			impl.notificationService = notificationService
@@ -547,7 +547,7 @@ func (s *Router) Routes() *gin.Engine {
 			impl.zoomConfig.register(v1, authMw)
 		}
 		if impl.wsHub != nil {
-			v1.GET("/notifications/ws", authMw, websocket.UpgradeHandler(
+			v1.GET("/notifications/ws", middleware.WebSocketAuthMiddleware(authRedis, s.log), websocket.UpgradeHandler(
 				impl.wsHub, s.log,
 				impl.notificationService.DeliverPendingNotifOnConn,
 			))

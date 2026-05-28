@@ -15,22 +15,22 @@ type PushNotification struct {
 	disabled bool
 }
 
-func NewPushNotification(credentialFile, projectID string, client *fcm.Client, log *slog.Logger) *PushNotification {
+func NewPushNotification(credentialJSON []byte, projectID string, client *fcm.Client, log *slog.Logger) *PushNotification {
 	if client != nil {
 		return &PushNotification{
 			client: client,
 			log:    log,
 		}
 	}
-	if credentialFile == "" {
-		log.Warn("PushNotification: credential file not set, push notifications will be disabled")
+	if len(credentialJSON) == 0 {
+		log.Warn("PushNotification: credential json not set or encoded, push notifications will be disabled")
 		return &PushNotification{log: log, disabled: true}
 	}
 	if projectID == "" {
 		log.Warn("PushNotification: project ID not set, push notifications will be disabled")
 		return &PushNotification{log: log, disabled: true}
 	}
-	options := []fcm.Option{fcm.WithCredentialsFile(credentialFile), fcm.WithProjectID(projectID)}
+	options := []fcm.Option{fcm.WithCredentialsJSON(credentialJSON), fcm.WithProjectID(projectID)}
 
 	fcmSvc, err := fcm.NewClient(context.Background(), options...)
 	if err != nil {

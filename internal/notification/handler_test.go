@@ -40,7 +40,7 @@ func TestHandleSendNotification_Success(t *testing.T) {
 		},
 	}
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(repo, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(repo, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -72,7 +72,7 @@ func TestHandleSendNotification_Success(t *testing.T) {
 
 func TestHandleSendNotification_MissingTitle(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -94,7 +94,7 @@ func TestHandleSendNotification_MissingTitle(t *testing.T) {
 
 func TestHandleSendNotification_MissingMessage(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -116,7 +116,7 @@ func TestHandleSendNotification_MissingMessage(t *testing.T) {
 
 func TestHandleSendNotification_MissingIdempotencyKey(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -138,7 +138,7 @@ func TestHandleSendNotification_MissingIdempotencyKey(t *testing.T) {
 
 func TestHandleSendNotification_Unauthorized(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -159,7 +159,7 @@ func TestHandleSendNotification_Unauthorized(t *testing.T) {
 
 func TestHandleSendNotification_InvalidUserID(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -189,7 +189,7 @@ func TestHandleSendNotification_ServiceError(t *testing.T) {
 		},
 	}
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(repo, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(repo, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -219,7 +219,7 @@ func TestHandleGetUserNotifications_Success(t *testing.T) {
 		},
 	}
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(repo, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(repo, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -243,7 +243,7 @@ func TestHandleGetUserNotifications_Success(t *testing.T) {
 
 func TestHandleGetUserNotifications_Unauthorized(t *testing.T) {
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(&mockRepository{}, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 
@@ -265,7 +265,7 @@ func TestHandleGetUserNotifications_ServiceError(t *testing.T) {
 		},
 	}
 	handler := notification.NewNotificationHandler(
-		notification.NewNotificationService(repo, fcmnotif.NewPushNotification("", "", nil, testLogger()), &mockWSHub{}, testLogger()),
+		notification.NewNotificationService(repo, fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger()), &mockWSHub{}, testLogger()),
 		testLogger(),
 	)
 

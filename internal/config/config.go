@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
 	"log/slog"
 	"os"
@@ -118,7 +119,7 @@ type Config struct {
 	// before the worker transcodes them. Empty = os.TempDir. Set this to a
 	// roomy volume in prod — worst case (workers + buffer) × 500MiB ≈ 11GB.
 	VideoTempDir       string
-	FCMCredentialsFile string
+	FCMCredentialsJSON []byte
 	FCMProjectID       string
 
 	// Apple IAP receipt validation.
@@ -205,7 +206,8 @@ func Load() (*Config, error) {
 		VideoTempDir: getenv("VIDEO_TEMP_DIR", os.TempDir()),
 
 		// FCM credentials for push notifications to trainers
-		FCMCredentialsFile: os.Getenv("FCM_CREDENTIALS_FILE"),
+		// Encode the JSON file with: base64 -w0 /path/to/fcm-service-account.json
+		FCMCredentialsJSON: decodeBase64Env("FCM_CREDENTIALS_JSON"),
 		FCMProjectID:       os.Getenv("FCM_PROJECT_ID"),
 
 		AppleSharedSecret: os.Getenv("APPLE_SHARED_SECRET"),
@@ -271,4 +273,17 @@ func parsePositiveIntEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func decodeBase64Env(key string) []byte {
+	val := os.Getenv(key)
+	if val == "" {
+		return nil
+	}
+	data, err := base64.StdEncoding.DecodeString(val)
+	if err != nil {
+		slog.Warn(key + " is not valid base64 — push notifications will be disabled")
+		return nil
+	}
+	return data
 }

@@ -3,11 +3,13 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	ws "github.com/gorilla/websocket"
+	"github.com/lib/pq"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
@@ -89,6 +91,10 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 	}
 	notification, err := s.repo.CreateNotificationWithType(ctx, *data)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return nil, ErrDuplicateIdempotencyKey
+		}
 		return nil, err
 	}
 	resp := parseNotificationResponse(notification)
