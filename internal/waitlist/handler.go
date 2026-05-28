@@ -50,13 +50,18 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewError("Invalid email", api.CodeBadRequest))
 		return
 	}
+	if len(email) > 254 {
+		h.log.Warn("HandleAddWaitlist: email too long", "email_len", len(email))
+		c.JSON(http.StatusBadRequest, api.NewError("Email address must not exceed 254 characters", api.CodeBadRequest))
+		return
+	}
 
 	// Check if email already exists
 	_, err := h.repo.GetByEmail(c.Request.Context(), email)
 	if err == nil {
 		// Email already exists, return 200 OK
 		h.log.Warn("HandleAddWaitlist: email already on waitlist", "email", email)
-		c.JSON(http.StatusBadRequest, api.NewErrorResponse("You're already on the waitlist", api.CodeBadRequest, nil))
+		c.JSON(http.StatusConflict, api.NewError("You're already on the waitlist", api.CodeConflict))
 		return
 	}
 	if !errors.Is(err, ErrNotFound) {
@@ -68,6 +73,10 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 
 	// Email doesn't exist, add it
 	if err := h.repo.AddEmail(c.Request.Context(), email, phoneNumber, location, name); err != nil {
+		if errors.Is(err, ErrDuplicate) {
+			c.JSON(http.StatusConflict, api.NewError("You're already on the waitlist", api.CodeConflict))
+			return
+		}
 		h.log.Error("failed to add email to waitlist", "err", err, "email", email)
 		c.JSON(http.StatusInternalServerError, api.NewError("Internal server error", api.CodeServerError))
 		return
