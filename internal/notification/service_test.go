@@ -14,7 +14,7 @@ import (
 )
 
 func disabledFCM() *fcmnotif.PushNotification {
-	return fcmnotif.NewPushNotification("", "", nil, testLogger())
+	return fcmnotif.NewPushNotification([]byte{}, "", nil, testLogger())
 }
 
 func TestServiceSendNotificationToUser_Success(t *testing.T) {

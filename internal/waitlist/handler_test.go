@@ -85,6 +85,12 @@ func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _
 func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
 	return nil
 }
+func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
+	return nil
+}
+func (m *fakeMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
+	return nil
+}
 
 var _ email.Mailer = (*fakeMailer)(nil)
 
@@ -222,15 +228,15 @@ func TestHandleAddWaitlist_EmailAlreadyExists(t *testing.T) {
 	handler.HandleAddWaitlist(c)
 
 	// Should return 200 OK (not 201) when email already exists
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", w.Code)
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d", w.Code)
 	}
 
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["code"] != "BAD_REQUEST" {
-		t.Errorf("expected code 'BAD_REQUEST', got %v", resp["code"])
+	if resp["code"] != "CONFLICT" {
+		t.Errorf("expected code 'CONFLICT', got %v", resp["code"])
 	}
 }
 

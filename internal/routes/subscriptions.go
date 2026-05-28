@@ -228,6 +228,20 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		return
 	}
 
+	// Notify trainer about new subscription
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), sub.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"New Subscription",
+			"A client has subscribed to your training plan.",
+			"subscription-"+sub.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("subscription notification to trainer failed", "trainerID", sub.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("create subscription: could not resolve trainer user", "trainerID", sub.TrainerID, "err", tdErr)
+	}
+
 	c.JSON(http.StatusCreated, api.NewSuccess("SUBSCRIPTION_CREATED", api.CodeCreated, subscriptionToMap(sub)))
 }
 
@@ -353,6 +367,20 @@ func (s *routerImpl) CancelMySubscription(c *gin.Context) {
 		s.logger.Error("cancel subscription: db error", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to cancel subscription", api.CodeServerError))
 		return
+	}
+
+	// Notify trainer about subscription cancellation
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), cancelled.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"Subscription Cancelled",
+			"A client has cancelled their subscription.",
+			"cancel-subscription-"+cancelled.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("cancel subscription notification to trainer failed", "trainerID", cancelled.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("cancel subscription: could not resolve trainer user", "trainerID", cancelled.TrainerID, "err", tdErr)
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_CANCELLED", api.CodeOK, subscriptionToMap(cancelled)))

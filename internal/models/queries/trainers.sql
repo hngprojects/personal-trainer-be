@@ -116,7 +116,13 @@ SELECT
   u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
-WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[])
+WHERE
+  (sqlc.arg(category)::text = '' 
+    OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[]
+  )
+  AND
+  (sqlc.arg(onboarding_status)::text = '' 
+    OR t.onboarding_status = sqlc.arg(onboarding_status)::text)
 ORDER BY t.created_at DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
