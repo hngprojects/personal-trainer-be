@@ -21,8 +21,18 @@ type fakeAdminUser struct {
 }
 
 type fakeAdminUserRole struct {
-	hasRole    bool
-	hasRoleErr error
+	// hasRole is the default response when hasRolePerRole is nil — it
+	// applies regardless of which role name is asked about. The existing
+	// tests set this and expect both UserHasRole("admin") and
+	// UserHasRole("super_admin") to return the same thing.
+	hasRole bool
+	// hasRolePerRole, when non-nil, overrides hasRole on a per-role
+	// basis. Lets the regression tests below distinguish "user has
+	// admin but not super_admin" from "user has both" — a distinction
+	// the original single-bool fake could not express, which is why
+	// the role-check bug here went undetected for so long.
+	hasRolePerRole map[string]bool
+	hasRoleErr     error
 }
 
 func (f *fakeAdminUser) Create(_ context.Context, email, name, password string) (*db.User, error) {
@@ -49,8 +59,14 @@ func (f *fakeAdminUser) LookupRoleIDs(_ context.Context, _ uuid.UUID) (auth.Role
 	return auth.RoleIDs{}, nil
 }
 
-func (f *fakeAdminUserRole) UserHasRole(_ context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	return f.hasRole, f.hasRoleErr
+func (f *fakeAdminUserRole) UserHasRole(_ context.Context, _ uuid.UUID, roleName string) (bool, error) {
+	if f.hasRoleErr != nil {
+		return false, f.hasRoleErr
+	}
+	if f.hasRolePerRole != nil {
+		return f.hasRolePerRole[roleName], nil
+	}
+	return f.hasRole, nil
 }
 
 func newAdminTestHandler(t *testing.T, user auth.UserRepository, role auth.RoleRepository) *handlers.AdminLoginHandler {
@@ -247,5 +263,69 @@ func TestAdminLogin_SuccessResponseShape(t *testing.T) {
 	}
 	if userData["user_type"] != "admin" {
 		t.Errorf("userData.user_type: want true, got %v", userData["user_type"])
+	}
+}
+
+// adminLoginWithRoles is a tiny helper for the role-distinguishing
+// tests below. Keeps the per-test boilerplate (user fixture, JWT env,
+// handler construction) out of the way so each test reads as just
+// "given these roles, expect this status".
+func adminLoginWithRoles(t *testing.T, isAdmin, isSuperAdmin bool) *httptest.ResponseRecorder {
+	t.Helper()
+	t.Setenv("JWT_SECRET", "admin-test-secret")
+	hashed := mustHashPassword(t, "user2020")
+	userRepo := &fakeAdminUser{
+		findUser: &db.User{
+			ID:       uuid.New(),
+			Email:    "role-test@example.com",
+			Name:     "Role Test",
+			Password: sql.NullString{Valid: true, String: hashed},
+		},
+	}
+	roleRepo := &fakeAdminUserRole{
+		hasRolePerRole: map[string]bool{
+			"admin":       isAdmin,
+			"super_admin": isSuperAdmin,
+		},
+	}
+	h := newAdminTestHandler(t, userRepo, roleRepo)
+	return sendAdminRequest(t, h, `{"email":"role-test@example.com","password":"user2020"}`)
+}
+
+// Regression: a user with the `admin` role but NOT `super_admin` must
+// be able to log in. Previously the role gate was `!isUserAdmin ||
+// !isUserSuperAdmin`, which by De Morgan rejects anyone missing either
+// role — so plain admins were locked out.
+func TestAdminLogin_PlainAdminSucceeds(t *testing.T) {
+	w := adminLoginWithRoles(t, true, false)
+	if w.Code != http.StatusOK {
+		t.Errorf("plain admin should log in (regression for require-both-roles bug); got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// Mirror regression: super_admin without admin must also succeed.
+func TestAdminLogin_PlainSuperAdminSucceeds(t *testing.T) {
+	w := adminLoginWithRoles(t, false, true)
+	if w.Code != http.StatusOK {
+		t.Errorf("plain super_admin should log in (regression for require-both-roles bug); got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// A user with BOTH roles must still succeed — the original happy path
+// some env'd admin accounts will already be in.
+func TestAdminLogin_BothRolesSucceeds(t *testing.T) {
+	w := adminLoginWithRoles(t, true, true)
+	if w.Code != http.StatusOK {
+		t.Errorf("user with both roles should log in; got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// A user with NEITHER role must be rejected. Sanity guard against an
+// accidental flip the other way (e.g. someone "fixing" the OR by
+// removing the gate entirely).
+func TestAdminLogin_NeitherRoleFails(t *testing.T) {
+	w := adminLoginWithRoles(t, false, false)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("user with neither role must not log in; got %d: %s", w.Code, w.Body.String())
 	}
 }
