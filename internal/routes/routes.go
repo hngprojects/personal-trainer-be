@@ -362,13 +362,8 @@ func (s *Router) Routes() *gin.Engine {
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
-			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
-			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
-			if s.redis != nil {
-				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
-			}
 
 			// User devices for push notifications
 			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
@@ -385,6 +380,12 @@ func (s *Router) Routes() *gin.Engine {
 			impl.notificationService = notificationService
 			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
+
+			if s.redis != nil {
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log, notificationService, q)
+			}
 			// Start the 1-hour session reminder background worker.
 			s.reminderWorker = reminder.New(s.db, &reminderNotifSender{ns: notificationService}, mailer, s.log)
 			s.reminderWorker.Start(context.Background())

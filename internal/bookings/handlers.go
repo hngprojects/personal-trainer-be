@@ -12,7 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
-	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
@@ -36,16 +37,16 @@ func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *
 
 type bookingHandler struct {
 	service BookingService
-	// redis   redis.Client
-	log *slog.Logger
+	log     *slog.Logger
+	notif   *notification.NotificationService
 }
 
 type BookingHandler interface {
 	HandleCreateBookingSession(c *gin.Context)
 }
 
-func NewBookingHandler(service BookingService, log *slog.Logger) *bookingHandler {
-	return &bookingHandler{service: service, log: log}
+func NewBookingHandler(service BookingService, log *slog.Logger, notif *notification.NotificationService) *bookingHandler {
+	return &bookingHandler{service: service, log: log, notif: notif}
 }
 
 const bookingSlotsCacheTTL = 15 * time.Minute
@@ -188,6 +189,16 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return
+	}
+	// Notify trainer about new booking
+	if h.notif != nil {
+		if _, notifErr := h.notif.SendNotificationToUser(c.Request.Context(), trainer.ID,
+			"New Booking",
+			"You have a new session booking from "+userData.Name+".",
+			"booking-"+created.ID.String(),
+		); notifErr != nil {
+			h.log.Warn("booking notification to trainer failed", "trainerID", trainer.TrainerID, "err", notifErr)
+		}
 	}
 	var dataInterface interface{} = parseResponse(*created, userID)
 	c.JSON(200, dataInterface)

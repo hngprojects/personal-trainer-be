@@ -10,7 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
-	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
@@ -18,6 +19,8 @@ type sessionHandler struct {
 	service SessionInterface
 	redis   redis.Client
 	log     *slog.Logger
+	notif   *notification.NotificationService
+	q       *db.Queries
 }
 
 type SessionHandler interface {
@@ -28,8 +31,8 @@ type SessionHandler interface {
 	TrainersNote(c *gin.Context, sessionID uuid.UUID)
 }
 
-func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger) *sessionHandler {
-	return &sessionHandler{service: service, redis: redis, log: log}
+func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger, notif *notification.NotificationService, q *db.Queries) *sessionHandler {
+	return &sessionHandler{service: service, redis: redis, log: log, notif: notif, q: q}
 }
 
 func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUID) {
@@ -93,6 +96,17 @@ func (h *sessionHandler) StartSessionHandler(c *gin.Context, sessionID uuid.UUID
 			return
 		}
 	}
+	if h.notif != nil {
+		booking, bErr := h.q.GetBookingByID(c.Request.Context(), updateData.BookingID)
+		if bErr == nil {
+			_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), booking.ClientID, "Session Started", "Your session has started", "session-started-"+sessionID.String())
+			if nErr != nil {
+				h.log.Warn("StartSessionHandler: failed to notify client", "session_id", sessionID, "err", nErr)
+			}
+		} else {
+			h.log.Warn("StartSessionHandler: failed to fetch booking for notification", "session_id", sessionID, "err", bErr)
+		}
+	}
 	result := ParseResponse(updateData)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session started successfully", api.CodeOK, result, nil))
 }
@@ -116,6 +130,22 @@ func (h *sessionHandler) JoinSessionHandler(c *gin.Context, sessionID uuid.UUID)
 		} else {
 			c.JSON(http.StatusBadRequest, api.NewErrorResponse(err.Error(), api.CodeBadRequest, nil))
 			return
+		}
+	}
+	if h.notif != nil {
+		session, sErr := h.service.GetSessionById(c.Request.Context(), sessionID)
+		if sErr == nil {
+			trainerUser, tErr := h.q.GetTrainerUserDetails(c.Request.Context(), session.TrainerID)
+			if tErr == nil {
+				_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), trainerUser.ID, "Client Joined", "Your client has joined the session", "session-joined-"+sessionID.String())
+				if nErr != nil {
+					h.log.Warn("JoinSessionHandler: failed to notify trainer", "session_id", sessionID, "err", nErr)
+				}
+			} else {
+				h.log.Warn("JoinSessionHandler: failed to resolve trainer user", "session_id", sessionID, "err", tErr)
+			}
+		} else {
+			h.log.Warn("JoinSessionHandler: failed to get session for notification", "session_id", sessionID, "err", sErr)
 		}
 	}
 	result := ParseResponse(updateData)
@@ -143,7 +173,17 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 			return
 		}
 	}
-	// send notification to client to rate session.
+	if h.notif != nil {
+		booking, bErr := h.q.GetBookingByID(c.Request.Context(), updateData.BookingID)
+		if bErr == nil {
+			_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), booking.ClientID, "Session Complete", "Please rate your session", "session-completed-"+sessionID.String())
+			if nErr != nil {
+				h.log.Warn("CompleteSession: failed to notify client", "session_id", sessionID, "err", nErr)
+			}
+		} else {
+			h.log.Warn("CompleteSession: failed to fetch booking for notification", "session_id", sessionID, "err", bErr)
+		}
+	}
 	result := ParseResponse(updateData)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session completed successfully", api.CodeOK, result, nil))
 }
