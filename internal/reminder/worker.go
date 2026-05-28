@@ -71,9 +71,10 @@ type upcomingBooking struct {
 }
 
 func (w *Worker) sendReminders(ctx context.Context) {
-	// Query confirmed bookings starting between 59 and 61 minutes from now.
-	// The 2-minute window combined with a 1-minute tick ensures no session
-	// is missed while the idempotency key prevents double-sends.
+	// Query confirmed bookings starting in [59, 60) minutes from now.
+	// Using a half-open 1-minute window that matches the tick interval means
+	// each booking appears in at most one tick, preventing duplicate emails.
+	// Push notifications are additionally deduplicated by idempotency key.
 	const q = `
 		SELECT
 			b.id,
@@ -91,8 +92,8 @@ func (w *Worker) sendReminders(ctx context.Context) {
 		JOIN trainers t ON t.id = b.trainer_id
 		JOIN users tu ON tu.id = t.user_id
 		WHERE b.booking_status = 'confirmed'
-		  AND b.scheduled_start BETWEEN NOW() + INTERVAL '59 minutes'
-		                             AND NOW() + INTERVAL '61 minutes'
+		  AND b.scheduled_start >= NOW() + INTERVAL '59 minutes'
+		  AND b.scheduled_start <  NOW() + INTERVAL '60 minutes'
 	`
 
 	rows, err := w.db.QueryContext(ctx, q)
@@ -100,7 +101,11 @@ func (w *Worker) sendReminders(ctx context.Context) {
 		w.log.Warn("reminder: query failed", "err", err)
 		return
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			w.log.Warn("reminder: close rows failed", "err", err)
+		}
+	}()
 
 	for rows.Next() {
 		var b upcomingBooking

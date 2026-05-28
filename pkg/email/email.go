@@ -1149,9 +1149,11 @@ const sessionReminderTrainerTemplate = `<!DOCTYPE html>
 </html>`
 
 func sessionReminderClientHTML(clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
+		timezoneLabel = "UTC"
 	}
 	t, err := template.New("session-reminder-client").Parse(sessionReminderClientTemplate)
 	if err != nil {
@@ -1162,16 +1164,18 @@ func sessionReminderClientHTML(clientName, trainerName string, scheduledStart ti
 		"ClientName":  clientName,
 		"TrainerName": trainerName,
 		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
-		"Timezone":    timezone,
+		"Timezone":    timezoneLabel,
 		"ZoomLink":    zoomLink,
 	})
 	return buf.String(), err
 }
 
 func sessionReminderTrainerHTML(trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
+		timezoneLabel = "UTC"
 	}
 	t, err := template.New("session-reminder-trainer").Parse(sessionReminderTrainerTemplate)
 	if err != nil {
@@ -1182,7 +1186,7 @@ func sessionReminderTrainerHTML(trainerName, clientName string, scheduledStart t
 		"TrainerName": trainerName,
 		"ClientName":  clientName,
 		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
-		"Timezone":    timezone,
+		"Timezone":    timezoneLabel,
 		"ZoomLink":    zoomLink,
 	})
 	return buf.String(), err
