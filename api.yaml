@@ -42,6 +42,14 @@ tags:
     description: |
       Universal-link claim files served at the domain root for
       iOS Associated Domains and Android App Links verification.
+  - name: Settings
+    description: |
+      Admin Settings page — general defaults, trainer rules, and the
+      category catalog. Hand-wired routes; see internal/settings/.
+  - name: Categories
+    description: |
+      Client-facing specialty catalog the admin manages from the
+      Settings page. Hand-wired route; see internal/settings/.
 
 components:
   securitySchemes:
@@ -6983,3 +6991,283 @@ paths:
                 type: array
                 items:
                   type: object
+
+  # ─── Settings + Categories (hand-wired) ────────────────────────────────────
+  # Documented for Swagger only; handlers live in internal/settings/.
+  # operationIds appear in oapi-codegen.yaml's exclude-operation-ids list
+  # so `make codegen` does not grow gen.go.
+
+  /admin/settings:
+    get:
+      operationId: GetAdminSettings
+      summary: Read all admin settings + the category catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the four scalar settings (default session duration, max
+        trainers displayed, require-video toggle, auto-assign toggle)
+        plus the full categories list in one round-trip so the Settings
+        page renders without a second fetch. Allowed for plain `admin`
+        as well as super_admin (the path is in adminReadablePaths).
+      responses:
+        "200":
+          description: Current settings + categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  default_session_duration_min: 60
+                  max_trainers_displayed: 6
+                  require_video_before_listing: true
+                  auto_assign_trainer: false
+                  categories:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      name: "Strength"
+                      slug: "strength"
+                    - id: "22222222-2222-2222-2222-222222222222"
+                      name: "Yoga"
+                      slug: "yoga"
+                  updated_at: "2026-05-28T10:00:00Z"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: PutAdminSettings
+      summary: Partial-update the four scalar settings
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Any field present in the body is updated; any field absent is
+        left as-is. Use this to flip a single toggle without re-sending
+        every setting. Requires super_admin role (this path is NOT in
+        adminReadablePaths).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_session_duration_min:
+                  type: integer
+                  minimum: 5
+                  maximum: 480
+                  description: Default session length in minutes; bounded to a sensible range.
+                max_trainers_displayed:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Cap on how many trainers the client discovery page lists.
+                require_video_before_listing:
+                  type: boolean
+                  description: When true, trainers without an active intro video are hidden from listings.
+                auto_assign_trainer:
+                  type: boolean
+                  description: When true, new client requests are auto-matched to a trainer.
+            examples:
+              flipSingleToggle:
+                value:
+                  auto_assign_trainer: true
+              fullUpdate:
+                value:
+                  default_session_duration_min: 90
+                  max_trainers_displayed: 12
+                  require_video_before_listing: false
+                  auto_assign_trainer: true
+      responses:
+        "200":
+          description: Settings updated (same shape as GET response)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Field validation failed (out-of-range integer, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/categories:
+    post:
+      operationId: PostAdminCategories
+      summary: Add a category to the catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        `name` is the display label; `slug` is the URL-safe key. When
+        slug is omitted the server derives one from name (e.g. "Weight
+        loss" → "weight-loss"). Both fields are uniquely indexed —
+        duplicates return 409. Requires super_admin role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 60
+                  example: "HIIT"
+                slug:
+                  type: string
+                  pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  example: "hiit"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: CREATED
+                message: category created
+                data:
+                  id: "33333333-3333-3333-3333-333333333333"
+                  name: "HIIT"
+                  slug: "hiit"
+        "400":
+          description: Missing/empty name or malformed slug
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A category with this name or slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/categories/{id}:
+    delete:
+      operationId: DeleteAdminCategoriesId
+      summary: Remove a category from the catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Removes the category by id. Does NOT cascade into trainer
+        specializations — those still validate against the existing
+        CHECK constraint from migration 000037. Requires super_admin
+        role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid uuid in path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No category with that id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /categories:
+    get:
+      operationId: GetCategories
+      summary: Client-facing list of available specialty categories
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      description: |
+        The same catalog the admin Settings page manages. Used by the
+        client-side UI to render filter chips, trainer-search
+        specialty pickers, etc.
+      responses:
+        "200":
+          description: Category list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      name: "Strength"
+                      slug: "strength"
+                    - id: "22222222-2222-2222-2222-222222222222"
+                      name: "Yoga"
+                      slug: "yoga"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

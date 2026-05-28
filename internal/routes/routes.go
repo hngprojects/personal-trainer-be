@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
+	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -563,6 +564,18 @@ func (s *Router) Routes() *gin.Engine {
 			activitiesRepo := activities.NewPostgresRepo(s.db)
 			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
 			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+		}
+
+		// Settings + categories — admin settings page, plus the
+		// client-facing /categories list.
+		//   GET    /admin/settings           — read settings + categories
+		//   PUT    /admin/settings           — update scalar settings
+		//   POST   /admin/categories         — add a category
+		//   DELETE /admin/categories/:id     — remove a category
+		//   GET    /categories               — client-facing list
+		if q != nil {
+			settingsHandler := settings.NewHandler(q, s.log)
+			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
