@@ -40,7 +40,13 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		r.log.Warn("AdminLogin: role check failed", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
-	if !isUserAdmin || !isUserSuperAdmin {
+	// Allow login if the user holds EITHER role. Previously this read
+	// `!isUserAdmin || !isUserSuperAdmin`, which by De Morgan rejects
+	// any user missing even one role — i.e. only a user with BOTH
+	// admin+super_admin could log in. Plain admins and plain
+	// super_admins were locked out. Reject only when neither role is
+	// present.
+	if !isUserAdmin && !isUserSuperAdmin {
 		r.log.Warn("AdminLogin: user is not admin", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}
