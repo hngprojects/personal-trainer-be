@@ -184,3 +184,19 @@ func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, sch
 	}
 	return m.send(to, bookingConfirmationSubject, html)
 }
+
+func (m *ResendMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderClientHTML(clientName, trainerName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build session reminder email: %w", err)
+	}
+	return m.send(to, sessionReminderClientSubject, html)
+}
+
+func (m *ResendMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderTrainerHTML(trainerName, clientName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build session reminder trainer email: %w", err)
+	}
+	return m.send(to, sessionReminderTrainerSubject, html)
+}

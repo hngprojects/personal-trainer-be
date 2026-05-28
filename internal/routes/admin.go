@@ -50,6 +50,15 @@ func (s *routerImpl) AdminApproveTrainer(c *gin.Context, id openapi_types.UUID) 
 		return
 	}
 
+	// Notify trainer about approval
+	if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), updated.UserID,
+		"Account Approved",
+		"Your trainer account has been approved.",
+		"approve-trainer-"+trainerID.String(),
+	); notifErr != nil {
+		s.logger.Warn("approve trainer notification failed", "trainerID", trainerID, "err", notifErr)
+	}
+
 	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_APPROVED", api.CodeOK, trainerToMap(updated)))
 }
 

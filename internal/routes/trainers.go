@@ -165,8 +165,16 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 
 	category := ""
+	onboarding_status := ""
 	if params.Category != nil {
 		category = *params.Category
+	}
+	if params.OnboardingStatus != nil {
+		if !params.OnboardingStatus.Valid() {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid onboarding_status; should be approved, pending, rejected or suspended", api.CodeBadRequest))
+			return
+		}
+		onboarding_status = string(*params.OnboardingStatus)
 	}
 
 	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
@@ -184,9 +192,10 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 
 	trainers, err := s.trainers.q.ListTrainers(ctx, db.ListTrainersParams{
-		Category:   category,
-		PageLimit:  int32(limit),
-		PageOffset: int32((page - 1) * limit),
+		Category:         category,
+		PageLimit:        int32(limit),
+		PageOffset:       int32((page - 1) * limit),
+		OnboardingStatus: onboarding_status,
 	})
 	if err != nil {
 		s.logger.Error("list trainers failed", "err", err)

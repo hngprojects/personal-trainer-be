@@ -25,7 +25,8 @@ func NewNotificationHandler(service *NotificationService, log *slog.Logger) *Not
 }
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound                = errors.New("not found")
+	ErrDuplicateIdempotencyKey = errors.New("duplicate idempotency key")
 )
 
 type NotificationHandlerInterface interface {
@@ -67,9 +68,13 @@ func (h *NotificationHandler) SendNotificationToUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, api.NewError("user not authenticated", api.CodeUnauthorized))
 		return
 	}
-	// Send notification to user
 	notification, err := h.service.SendNotificationToUser(c.Request.Context(), userID, req.Title, req.Message, req.IdempotencyKey)
 	if err != nil {
+		if errors.Is(err, ErrDuplicateIdempotencyKey) {
+			h.log.Warn("Duplicate idempotency key", "key", req.IdempotencyKey)
+			c.JSON(http.StatusBadRequest, api.NewError("duplicate idempotency key", api.CodeBadRequest))
+			return
+		}
 		h.log.Error("Failed to send notification to user", "error", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send notification", api.CodeServerError))
 		return
