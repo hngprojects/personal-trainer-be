@@ -226,5 +226,30 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		},
 	}
 
+	if s.notificationService != nil {
+		if userID == booking.ClientID {
+			trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(ctx, booking.TrainerID)
+			if tdErr == nil {
+				if _, notifErr := s.notificationService.SendNotificationToUser(ctx, trainerDetails.ID,
+					"Session Cancelled",
+					"A client has cancelled their booking.",
+					"cancel-booking-"+booking.ID.String(),
+				); notifErr != nil {
+					s.logger.Warn("cancel notification to trainer failed", "trainerID", booking.TrainerID, "err", notifErr)
+				}
+			} else {
+				s.logger.Warn("cancel booking: could not resolve trainer user", "trainerID", booking.TrainerID, "err", tdErr)
+			}
+		} else {
+			if _, notifErr := s.notificationService.SendNotificationToUser(ctx, booking.ClientID,
+				"Session Cancelled",
+				"Your trainer has cancelled your session.",
+				"cancel-booking-"+booking.ID.String(),
+			); notifErr != nil {
+				s.logger.Warn("cancel notification to client failed", "clientID", booking.ClientID, "err", notifErr)
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, response)
 }

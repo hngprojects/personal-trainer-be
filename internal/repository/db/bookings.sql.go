@@ -352,7 +352,8 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 
 const getBookingsPastMonth = `-- name: GetBookingsPastMonth :many
 SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count FROM bookings
-WHERE scheduled_start >= NOW() - INTERVAL '1 month'
+WHERE scheduled_start >= date_trunc('month', NOW())
+  AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month'
 `
 
 func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {

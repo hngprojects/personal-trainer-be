@@ -387,6 +387,8 @@ FROM trainers t
 JOIN users u ON u.id = t.user_id
 JOIN bookings b ON b.trainer_id = t.id
 WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+  AND b.scheduled_start < NOW()
+  AND b.booking_status = 'completed'
 GROUP BY
     t.id,
     u.name,
@@ -480,16 +482,23 @@ SELECT
   u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
-WHERE ($1::text = '' OR t.specializations @> ARRAY[$1::text]::text[])
+WHERE
+  ($1::text = '' 
+    OR t.specializations @> ARRAY[$1::text]::text[]
+  )
+  AND
+  ($2::text = '' 
+    OR t.onboarding_status = $2::text)
 ORDER BY t.created_at DESC
-LIMIT $3
-OFFSET $2
+LIMIT $4
+OFFSET $3
 `
 
 type ListTrainersParams struct {
-	Category   string
-	PageOffset int32
-	PageLimit  int32
+	Category         string
+	OnboardingStatus string
+	PageOffset       int32
+	PageLimit        int32
 }
 
 type ListTrainersRow struct {
@@ -520,7 +529,12 @@ type ListTrainersRow struct {
 // trainers row only stores profile fields). Paginated via LIMIT/OFFSET —
 // callers compute total pages from CountTrainersForList.
 func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]ListTrainersRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainers, arg.Category, arg.PageOffset, arg.PageLimit)
+	rows, err := q.db.QueryContext(ctx, listTrainers,
+		arg.Category,
+		arg.OnboardingStatus,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

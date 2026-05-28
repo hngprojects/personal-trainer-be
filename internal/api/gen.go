@@ -678,6 +678,30 @@ func (e HandleRegisterDeviceJSONBodyPlatform) Valid() bool {
 	}
 }
 
+// Defines values for GetTrainersParamsOnboardingStatus.
+const (
+	Approved  GetTrainersParamsOnboardingStatus = "approved"
+	Pending   GetTrainersParamsOnboardingStatus = "pending"
+	Rejected  GetTrainersParamsOnboardingStatus = "rejected"
+	Suspended GetTrainersParamsOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersParamsOnboardingStatus enum.
+func (e GetTrainersParamsOnboardingStatus) Valid() bool {
+	switch e {
+	case Approved:
+		return true
+	case Pending:
+		return true
+	case Rejected:
+		return true
+	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
 	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
@@ -1737,9 +1761,15 @@ type HandleTrainersNoteJSONBody struct {
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// OnboardingStatus Filter by onboarding_status (maps to trainers.onboarding_status)
+	OnboardingStatus *GetTrainersParamsOnboardingStatus `form:"onboarding_status,omitempty" json:"onboarding_status,omitempty"`
+	Page             *int                               `form:"page,omitempty" json:"page,omitempty"`
+	Limit            *int                               `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// GetTrainersParamsOnboardingStatus defines parameters for GetTrainers.
+type GetTrainersParamsOnboardingStatus string
 
 // GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
 type GetTrainersMeClientsParams struct {
@@ -3402,6 +3432,14 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "onboarding_status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "onboarding_status", c.Request.URL.Query(), &params.OnboardingStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter onboarding_status: %w", err), http.StatusBadRequest)
 		return
 	}
 
