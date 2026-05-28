@@ -19,6 +19,17 @@ type AccountSetupToken struct {
 	CreatedAt  time.Time
 }
 
+type AdminSetting struct {
+	ID                        uuid.UUID
+	SingletonLock             string
+	DefaultSessionDurationMin int32
+	MaxTrainersDisplayed      int32
+	RequireVideoBeforeListing bool
+	AutoAssignTrainer         bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
 type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
@@ -70,6 +81,14 @@ type BookingSlot struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	TrainerID uuid.NullUUID
+}
+
+type Category struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type ContactMessage struct {
