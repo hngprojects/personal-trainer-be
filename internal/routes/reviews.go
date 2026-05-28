@@ -55,6 +55,20 @@ func (s *routerImpl) CreateReview(c *gin.Context) {
 		return
 	}
 
+	// Notify trainer about the new review
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), review.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"New Review",
+			"You received a new review.",
+			"review-"+review.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("review notification to trainer failed", "trainerID", review.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("create review: could not resolve trainer user", "trainerID", review.TrainerID, "err", tdErr)
+	}
+
 	c.JSON(http.StatusCreated, api.NewSuccess("Review created", api.CodeCreated, reviewToAPI(review)))
 }
 
