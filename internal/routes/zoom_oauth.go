@@ -1,13 +1,18 @@
 // Hand-wired Zoom per-trainer OAuth + status endpoints.
 //
-// These routes are NOT in api.yaml + oapi-codegen because we want to
-// be able to ship the feature independently of regenerating the
-// generated handler interface; spec catch-up happens in a follow-up
-// commit. Until then this file is the source of truth for the
-// request/response shape — keep it small.
+// These routes are registered directly via Gin rather than through the
+// oapi-codegen ServerInterface. api.yaml documents the wire shape for
+// Swagger consumers (operationIds GetTrainersMeZoom*, DeleteTrainersMeZoom),
+// with matching entries on oapi-codegen.yaml's exclude-operation-ids list
+// so `make codegen` does NOT add stubs to gen.go.
 //
 // Routes registered (all under /api/v1):
-//   GET    /trainers/me/zoom/connect     → 302 to Zoom authorize URL
+//   GET    /trainers/me/zoom/connect     → 200 JSON {authorize_url}
+//                                          (we do NOT 302 — the mobile
+//                                          app needs to open the URL in
+//                                          an in-app browser of its
+//                                          choice rather than letting
+//                                          the OS handle the redirect)
 //   GET    /trainers/me/zoom/callback    → exchange code + persist
 //   GET    /trainers/me/zoom/status      → connected? + email + expiry
 //   DELETE /trainers/me/zoom             → drop credentials
