@@ -35,12 +35,7 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		r.log.Warn("AdminLogin: role check failed", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
-	isUserSuperAdmin, err := r.role.UserHasRole(ctx, user.ID, superAdminRoleName)
-	if err != nil {
-		r.log.Warn("AdminLogin: role check failed", "err", err)
-		return nil, errors.New("invalid email or password")
-	}
-	if !isUserAdmin || !isUserSuperAdmin {
+	if !isUserAdmin {
 		r.log.Warn("AdminLogin: user is not admin", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}

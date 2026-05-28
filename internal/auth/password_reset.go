@@ -37,7 +37,6 @@ const (
 	// a 500 at hash time.
 	maxPasswordLen     = 72
 	adminRoleName      = "admin"
-	superAdminRoleName = "super_admin"
 	forgotAsyncTimeout = 30 * time.Second
 )
 
