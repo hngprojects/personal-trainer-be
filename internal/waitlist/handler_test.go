@@ -85,6 +85,9 @@ func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _
 func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
 	return nil
 }
+func (m *fakeMailer) SendBookingCancellation(_, _, _ string, _ time.Time, _, _ string) error { return nil }
+func (m *fakeMailer) SendSessionComplete(_, _, _ string) error                              { return nil }
+
 
 var _ email.Mailer = (*fakeMailer)(nil)
 

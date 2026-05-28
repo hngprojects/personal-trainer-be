@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -205,6 +206,97 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		return
 	}
 
+	// Fire notifications (push + email) to both parties — best-effort, don't fail the request.
+	notificationSent := s.notificationService != nil || s.mailer != nil
+	if notificationSent {
+		notifCtx := context.WithoutCancel(ctx)
+		clientID := booking.ClientID
+		bookingID := id
+		scheduledStart := booking.ScheduledStart
+		timezone := booking.Timezone.String
+		displayReason := cancellationReason
+
+		// Resolve trainer user record (booking.TrainerID references trainers(id), not users(id)).
+		var trainerUserID uuid.UUID
+		trainerResolved := false
+		row := s.bookings.db.QueryRowContext(notifCtx,
+			"SELECT user_id FROM trainers WHERE id = $1", booking.TrainerID)
+		if err := row.Scan(&trainerUserID); err != nil {
+			s.logger.Warn("cancel booking: could not resolve trainer user id", "trainerID", booking.TrainerID, "err", err)
+		} else {
+			trainerResolved = true
+		}
+
+		// Fetch user details for email content.
+		clientUser, clientErr := s.bookings.q.GetUserByID(notifCtx, clientID)
+		var trainerUser db.User
+		var trainerUserErr error
+		if trainerResolved {
+			trainerUser, trainerUserErr = s.bookings.q.GetUserByID(notifCtx, trainerUserID)
+		}
+
+		go func() {
+			tCtx, cancel := context.WithTimeout(notifCtx, 30*time.Second)
+			defer cancel()
+			if s.notificationService != nil {
+				if _, err := s.notificationService.SendNotificationToUser(tCtx, clientID,
+					"Booking Cancelled",
+					"Your booking has been cancelled",
+					"cancel-client-"+bookingID.String(),
+				); err != nil {
+					s.logger.Warn("cancel booking: failed to push-notify client", "err", err)
+				}
+			}
+			if s.mailer != nil && clientErr == nil {
+				trainerName := "your trainer"
+				if trainerUserErr == nil {
+					trainerName = trainerUser.Name
+				}
+				var start time.Time
+				if scheduledStart.Valid {
+					start = scheduledStart.Time
+				}
+				if err := s.mailer.SendBookingCancellation(
+					clientUser.Email, clientUser.Name, trainerName, start, timezone, displayReason,
+				); err != nil {
+					s.logger.Warn("cancel booking: failed to email client", "err", err)
+				}
+			}
+		}()
+
+		if trainerResolved {
+			s.logger.Info("cancel booking: notifying trainer", "trainerUserID", trainerUserID)
+			go func() {
+				tCtx, cancel := context.WithTimeout(notifCtx, 30*time.Second)
+				defer cancel()
+				if s.notificationService != nil {
+					if _, err := s.notificationService.SendNotificationToUser(tCtx, trainerUserID,
+						"Booking Cancelled",
+						"A booking has been cancelled",
+						"cancel-trainer-"+bookingID.String(),
+					); err != nil {
+						s.logger.Warn("cancel booking: failed to push-notify trainer", "err", err)
+					}
+				}
+				if s.mailer != nil && trainerUserErr == nil {
+					clientName := "your client"
+					if clientErr == nil {
+						clientName = clientUser.Name
+					}
+					var start time.Time
+					if scheduledStart.Valid {
+						start = scheduledStart.Time
+					}
+					if err := s.mailer.SendBookingCancellation(
+						trainerUser.Email, trainerUser.Name, clientName, start, timezone, displayReason,
+					); err != nil {
+						s.logger.Warn("cancel booking: failed to email trainer", "err", err)
+					}
+				}
+			}()
+		}
+	}
+
 	// Build response
 	response := api.CancelBookingResponse{
 		Code:    "OK",
@@ -222,7 +314,7 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 			RefundAmount:     refundAmount,
 			RefundReason:     refundReason,
 			Status:           "cancelled",
-			NotificationSent: true,
+			NotificationSent: notificationSent,
 		},
 	}
 

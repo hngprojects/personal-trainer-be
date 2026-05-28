@@ -163,6 +163,10 @@ func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, 
 	return m.err
 }
 
+func (m *fakeMailer) SendBookingCancellation(_, _, _ string, _ time.Time, _, _ string) error { return nil }
+func (m *fakeMailer) SendSessionComplete(_, _, _ string) error                              { return nil }
+
+
 // fakeRateLimiter always allows (or always blocks when allowed=false).
 type fakeRateLimiter struct {
 	allowed bool

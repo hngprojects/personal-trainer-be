@@ -3,6 +3,7 @@ package email
 import (
 	"bytes"
 	"encoding/json"
+	"html/template"
 	"fmt"
 	"io"
 	"net/http"
@@ -183,4 +184,41 @@ func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, sch
 		return fmt.Errorf("resend: build booking confirmation email: %w", err)
 	}
 	return m.send(to, bookingConfirmationSubject, html)
+}
+
+func (m *ResendMailer) SendBookingCancellation(to, recipientName, otherPartyName string, scheduledStart time.Time, timezone, reason string) error {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	t, err := template.New("booking-cancellation").Parse(bookingCancellationTemplate)
+	if err != nil {
+		return fmt.Errorf("resend: build cancellation email: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, map[string]interface{}{
+		"RecipientName":  recipientName,
+		"OtherRole":      "Session with",
+		"OtherPartyName": otherPartyName,
+		"Date":           scheduledStart.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Reason":         reason,
+	}); err != nil {
+		return fmt.Errorf("resend: render cancellation email: %w", err)
+	}
+	return m.send(to, bookingCancellationSubject, buf.String())
+}
+
+func (m *ResendMailer) SendSessionComplete(to, clientName, trainerName string) error {
+	t, err := template.New("session-complete").Parse(sessionCompleteTemplate)
+	if err != nil {
+		return fmt.Errorf("resend: build session complete email: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, map[string]interface{}{
+		"ClientName":  clientName,
+		"TrainerName": trainerName,
+	}); err != nil {
+		return fmt.Errorf("resend: render session complete email: %w", err)
+	}
+	return m.send(to, sessionCompleteSubject, buf.String())
 }

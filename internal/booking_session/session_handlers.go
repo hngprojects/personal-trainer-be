@@ -1,6 +1,7 @@
 package booking_session
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -10,14 +11,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
+// Notifier is satisfied by notification.NotificationService.
+type Notifier interface {
+	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error
+}
+
 type sessionHandler struct {
-	service SessionInterface
-	redis   redis.Client
-	log     *slog.Logger
+	service  SessionInterface
+	redis    redis.Client
+	notifier Notifier
+	mailer   email.Mailer
+	log      *slog.Logger
 }
 
 type SessionHandler interface {
@@ -28,8 +37,8 @@ type SessionHandler interface {
 	TrainersNote(c *gin.Context, sessionID uuid.UUID)
 }
 
-func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger) *sessionHandler {
-	return &sessionHandler{service: service, redis: redis, log: log}
+func NewSessionHandler(service SessionInterface, redis redis.Client, notifier Notifier, mailer email.Mailer, log *slog.Logger) *sessionHandler {
+	return &sessionHandler{service: service, redis: redis, notifier: notifier, mailer: mailer, log: log}
 }
 
 func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUID) {
@@ -143,7 +152,32 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 			return
 		}
 	}
-	// send notification to client to rate session.
+	if h.notifier != nil || h.mailer != nil {
+		bookingID := updateData.BookingID
+		go func() {
+			notifCtx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 30*time.Second)
+			defer cancel()
+			client, err := h.service.GetClientDetailsByBookingID(notifCtx, bookingID)
+			if err != nil {
+				h.log.Warn("CompleteSession: could not fetch client details for notification", "bookingID", bookingID, "err", err)
+				return
+			}
+			if h.notifier != nil {
+				if err := h.notifier.SendNotificationToUser(notifCtx, client.ID,
+					"Session Complete",
+					"Your session is complete. Please rate your trainer!",
+					"session-complete-"+bookingID.String(),
+				); err != nil {
+					h.log.Warn("CompleteSession: failed to send push notification to client", "err", err)
+				}
+			}
+			if h.mailer != nil {
+				if err := h.mailer.SendSessionComplete(client.Email, client.Name, "your trainer"); err != nil {
+					h.log.Warn("CompleteSession: failed to send session complete email to client", "err", err)
+				}
+			}
+		}()
+	}
 	result := ParseResponse(updateData)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session completed successfully", api.CodeOK, result, nil))
 }

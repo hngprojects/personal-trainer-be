@@ -17,6 +17,7 @@ import (
 // mockSessionRepo implements booking_session.BookingSessionRepo
 type mockSessionRepo struct {
 	getSessionByIDFn         func(ctx context.Context, id uuid.UUID) (*db.GetBookingSessionByIdRow, error)
+	getBookingClientIDFn     func(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error)
 	markSessionAsStartedFn   func(ctx context.Context, id uuid.UUID, start time.Time) (*db.BookingSession, error)
 	markSessionAsJoinedFn    func(ctx context.Context, id uuid.UUID) (*db.BookingSession, error)
 	markSessionAsCompletedFn func(ctx context.Context, id uuid.UUID, end time.Time) (*db.BookingSession, error)
@@ -27,6 +28,17 @@ func (m *mockSessionRepo) GetSessionByID(ctx context.Context, id uuid.UUID) (*db
 	if m.getSessionByIDFn != nil {
 		return m.getSessionByIDFn(ctx, id)
 	}
+	return nil, booking_session.ErrNotFound
+}
+
+func (m *mockSessionRepo) GetBookingClientID(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error) {
+	if m.getBookingClientIDFn != nil {
+		return m.getBookingClientIDFn(ctx, bookingID)
+	}
+	return uuid.Nil, booking_session.ErrNotFound
+}
+
+func (m *mockSessionRepo) GetClientDetailsByBookingID(ctx context.Context, bookingID uuid.UUID) (*db.User, error) {
 	return nil, booking_session.ErrNotFound
 }
 

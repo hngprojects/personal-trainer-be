@@ -30,6 +30,8 @@ type Mailer interface {
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error
+	SendBookingCancellation(to, recipientName, otherPartyName string, scheduledStart time.Time, timezone, reason string) error
+	SendSessionComplete(to, clientName, trainerName string) error
 }
 
 type SMTPMailer struct {
@@ -262,6 +264,16 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 
 func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "zoom_link", zoomLink)
+	return nil
+}
+
+func (m *LogMailer) SendBookingCancellation(to, recipientName, otherPartyName string, scheduledStart time.Time, timezone, reason string) error {
+	slog.Info("email (booking cancellation)", "to", to, "recipient", recipientName, "other", otherPartyName, "start", scheduledStart, "reason", reason)
+	return nil
+}
+
+func (m *LogMailer) SendSessionComplete(to, clientName, trainerName string) error {
+	slog.Info("email (session complete)", "to", to, "client", clientName, "trainer", trainerName)
 	return nil
 }
 
@@ -1097,6 +1109,97 @@ func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string,
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, bookingConfirmationSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const (
+	bookingCancellationSubject = "FitCall Session Cancelled"
+	sessionCompleteSubject     = "FitCall Session Complete — Please Rate Your Trainer"
+)
+
+const bookingCancellationTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Cancelled</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi {{.RecipientName}},</h2>
+  <p>Your FitCall session has been cancelled.</p>
+  <ul>
+    <li>{{.OtherRole}}: {{.OtherPartyName}}</li>
+    <li>Date: {{.Date}}</li>
+    <li>Reason: {{.Reason}}</li>
+  </ul>
+  <p>If you have any questions, please reach out to our support team.</p>
+  — Team FitCall
+</body>
+</html>`
+
+const sessionCompleteTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Complete</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi {{.ClientName}},</h2>
+  <p>Your FitCall session with Coach {{.TrainerName}} is now complete.</p>
+  <p>We'd love to hear how it went! Please take a moment to rate your trainer in the app.</p>
+  <p>Your feedback helps us keep the FitCall community strong.</p>
+  — Team FitCall
+</body>
+</html>`
+
+func (m *SMTPMailer) SendBookingCancellation(to, recipientName, otherPartyName string, scheduledStart time.Time, timezone, reason string) error {
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+	}
+	// Determine the role label for the other party from the recipient's perspective.
+	// We can't know the role here so we use a generic label; callers set names accordingly.
+	otherRole := "Session with"
+	t, err := template.New("booking-cancellation").Parse(bookingCancellationTemplate)
+	if err != nil {
+		return fmt.Errorf("smtp: build cancellation email: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, map[string]interface{}{
+		"RecipientName": recipientName,
+		"OtherRole":     otherRole,
+		"OtherPartyName": otherPartyName,
+		"Date":          scheduledStart.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Reason":        reason,
+	}); err != nil {
+		return fmt.Errorf("smtp: render cancellation email: %w", err)
+	}
+	return m.sendHTML(to, bookingCancellationSubject, buf.String())
+}
+
+func (m *SMTPMailer) SendSessionComplete(to, clientName, trainerName string) error {
+	t, err := template.New("session-complete").Parse(sessionCompleteTemplate)
+	if err != nil {
+		return fmt.Errorf("smtp: build session complete email: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, map[string]interface{}{
+		"ClientName":  clientName,
+		"TrainerName": trainerName,
+	}); err != nil {
+		return fmt.Errorf("smtp: render session complete email: %w", err)
+	}
+	return m.sendHTML(to, sessionCompleteSubject, buf.String())
+}
+
+// sendHTML is the shared send helper used by all methods.
+func (m *SMTPMailer) sendHTML(to, subject, html string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, subject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
