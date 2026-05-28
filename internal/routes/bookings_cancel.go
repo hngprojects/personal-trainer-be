@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -203,6 +204,41 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		s.logger.Warn("cancel booking request transaction failed", "userID", userID, "bookingID", booking.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit transaction", api.CodeServerError))
 		return
+	}
+
+	// Fire notifications to both parties — best-effort, don't fail the request.
+	if s.notificationService != nil {
+		notifCtx := context.WithoutCancel(ctx)
+		clientID := booking.ClientID
+		bookingID := id
+		go func() {
+			if _, err := s.notificationService.SendNotificationToUser(notifCtx, clientID,
+				"Booking Cancelled",
+				"Your booking has been cancelled",
+				"cancel-client-"+bookingID.String(),
+			); err != nil {
+				s.logger.Warn("cancel booking: failed to notify client", "err", err)
+			}
+		}()
+		// booking.TrainerID references trainers(id), not users(id).
+		// Query the trainer's user_id directly from the trainers table.
+		var trainerUserID uuid.UUID
+		row := s.bookings.db.QueryRowContext(ctx,
+			"SELECT user_id FROM trainers WHERE id = $1", booking.TrainerID)
+		if err := row.Scan(&trainerUserID); err != nil {
+			s.logger.Warn("cancel booking: could not resolve trainer user id", "trainerID", booking.TrainerID, "err", err)
+		} else {
+			s.logger.Info("cancel booking: notifying trainer", "trainerUserID", trainerUserID)
+			go func() {
+				if _, err := s.notificationService.SendNotificationToUser(notifCtx, trainerUserID,
+					"Booking Cancelled",
+					"A booking has been cancelled",
+					"cancel-trainer-"+bookingID.String(),
+				); err != nil {
+					s.logger.Warn("cancel booking: failed to notify trainer", "err", err)
+				}
+			}()
+		}
 	}
 
 	// Build response

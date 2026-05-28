@@ -27,6 +27,8 @@ ALTER TABLE subscriptions
 
 -- Add FK to subscription_plans so only valid plan types can be stored
 ALTER TABLE subscriptions
+    DROP CONSTRAINT IF EXISTS subscriptions_plan_type_fkey;
+ALTER TABLE subscriptions
     ADD CONSTRAINT subscriptions_plan_type_fkey
     FOREIGN KEY (plan_type) REFERENCES subscription_plans(plan_type);
 

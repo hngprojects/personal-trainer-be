@@ -29,6 +29,13 @@ type BookingService interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*db.User, error)
 }
 
+// Notifier is satisfied by notification.NotificationService.
+// Defined locally so the bookings package stays decoupled from the
+// notification package.
+type Notifier interface {
+	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error
+}
+
 type bookingService struct {
 	repo Repository
 	// meetings picks the meeting Provider per trainer at call time —
@@ -36,6 +43,7 @@ type bookingService struct {
 	// meetings; everyone else falls back to the org account.
 	meetings meeting.Selector
 	mailer   email.Mailer
+	notifier Notifier
 	log      *slog.Logger
 	// joinLinks transforms (raw zoom URL, session id) → the URL we put
 	// in the email. Shared with the reschedule handlers so a booking
@@ -51,11 +59,12 @@ func NewBookingSlotService(repo Repository, log *slog.Logger) BookingSlotService
 	}
 }
 
-func NewBookingService(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string) BookingService {
+func NewBookingService(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, notifier Notifier, log *slog.Logger, joinMode, universalLinkDomain string) BookingService {
 	return &bookingService{
 		repo:      repo,
 		meetings:  meetingSelector,
 		mailer:    mailer,
+		notifier:  notifier,
 		log:       log,
 		joinLinks: JoinLinkBuilder{JoinMode: joinMode, UniversalLinkDomain: universalLinkDomain},
 	}
@@ -142,6 +151,19 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		meetingURL,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
+	}
+
+	if s.notifier != nil {
+		notifCtx := context.WithoutCancel(ctx)
+		go func() {
+			if err := s.notifier.SendNotificationToUser(notifCtx, trainer.ID,
+				"New Booking",
+				"You have a new session booking from "+client.Name,
+				"booking-created-"+booking.ID.String(),
+			); err != nil {
+				s.log.Warn("failed to notify trainer of new booking", "trainerID", trainer.ID, "err", err)
+			}
+		}()
 	}
 
 	return booking, nil

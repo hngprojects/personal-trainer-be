@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
@@ -49,6 +50,17 @@ import (
 // matches the appredis.RedisClient interface that auth/middleware consumers
 // expect. Code paths that need the raw go-redis client (rate limiter, which
 // runs Lua scripts) call s.redis.Raw().
+// notifSender adapts *notification.NotificationService to the minimal Notifier
+// interface (returns error only) used by bookings and booking_session packages.
+type notifSender struct {
+	ns *notification.NotificationService
+}
+
+func (a *notifSender) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error {
+	_, err := a.ns.SendNotificationToUser(ctx, userID, title, message, idempotencyKey)
+	return err
+}
+
 type Router struct {
 	cfg           *config.Config
 	log           *slog.Logger
@@ -347,8 +359,17 @@ func (s *Router) Routes() *gin.Engine {
 			impl.zoomJoinInfo = newZoomJoinInfoHandler(q, sdkSigner, s.cfg, s.log)
 			impl.zoomConfig = newZoomConfigHandler(s.cfg, sdkSigner, s.log)
 
+			// websocket + notification service (needed by booking/session handlers below)
+			wsHub := websocket.NewHub(s.log)
+			impl.wsHub = wsHub
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
+			notificationRepo := notification.NewRepository(q)
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
+			impl.notificationService = notificationService
+			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
+
 			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
-			bookingService := bookings.NewBookingService(bookingRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain)
+			bookingService := bookings.NewBookingService(bookingRepo, meetingSelector, mailer, &notifSender{ns: notificationService}, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain)
 			discoveryRepo := discovery.NewPostgresRepo(s.db, q)
 			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log)
 			bookingsRepo := bookings.NewPostgresRepo(q)
@@ -358,23 +379,13 @@ func (s *Router) Routes() *gin.Engine {
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
 			if s.redis != nil {
-				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, &notifSender{ns: notificationService}, s.log)
 			}
 
 			// User devices for push notifications
 			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
-
-			// websocket
-			wsHub := websocket.NewHub(s.log)
-			impl.wsHub = wsHub
-			// Notifications
-			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
-			notificationRepo := notification.NewRepository(q)
-			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
-			impl.notificationService = notificationService
-			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,

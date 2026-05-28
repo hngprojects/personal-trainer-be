@@ -19,6 +19,7 @@ const (
 
 type SessionInterface interface {
 	GetSessionById(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error)
+	GetBookingClientID(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error)
 	StartSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	JoinSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	CompleteSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
@@ -41,6 +42,10 @@ func (r *sessionService) GetSessionById(ctx context.Context, sessionID uuid.UUID
 		return nil, err
 	}
 	return dbData, nil
+}
+
+func (r *sessionService) GetBookingClientID(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error) {
+	return r.repo.GetBookingClientID(ctx, bookingID)
 }
 
 func (r *sessionService) StartSession(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error) {

@@ -20,6 +20,7 @@ type BookingSessionRepo interface {
 	// the trainer_id is included — callers can render the trainer alongside
 	// the session without a second query.
 	GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*db.GetBookingSessionByIdRow, error)
+	GetBookingClientID(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error)
 	MarkSessionAsStarted(ctx context.Context, sessionID uuid.UUID, start time.Time) (*db.BookingSession, error)
 	MarkSessionAsJoined(ctx context.Context, sessionID uuid.UUID) (*db.BookingSession, error)
 	MarkSessionAsCompleted(ctx context.Context, sessionID uuid.UUID, end time.Time) (*db.BookingSession, error)
@@ -92,6 +93,17 @@ func (r *bookingSessionRepo) MarkSessionAsCompleted(ctx context.Context, session
 		return nil, err
 	}
 	return &bookingSession, nil
+}
+
+func (r *bookingSessionRepo) GetBookingClientID(ctx context.Context, bookingID uuid.UUID) (uuid.UUID, error) {
+	booking, err := r.q.GetBookingByID(ctx, bookingID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, err
+	}
+	return booking.ClientID, nil
 }
 
 func (r *bookingSessionRepo) UpdateTrainersNote(ctx context.Context, sessionID uuid.UUID, notes string) (*db.BookingSession, error) {

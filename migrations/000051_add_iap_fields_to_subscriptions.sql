@@ -24,7 +24,7 @@ DROP INDEX IF EXISTS idx_subscriptions_google_token;
 DROP INDEX IF EXISTS idx_subscriptions_apple_txn;
 
 ALTER TABLE subscriptions
-    ALTER COLUMN currency SET DEFAULT 'NGN';
+    ALTER COLUMN currency SET DEFAULT 'USD';
 
 ALTER TABLE subscriptions
     DROP COLUMN IF EXISTS google_purchase_token,

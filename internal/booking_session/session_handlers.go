@@ -1,6 +1,7 @@
 package booking_session
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -14,10 +15,16 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
+// Notifier is satisfied by notification.NotificationService.
+type Notifier interface {
+	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error
+}
+
 type sessionHandler struct {
-	service SessionInterface
-	redis   redis.Client
-	log     *slog.Logger
+	service  SessionInterface
+	redis    redis.Client
+	notifier Notifier
+	log      *slog.Logger
 }
 
 type SessionHandler interface {
@@ -28,8 +35,8 @@ type SessionHandler interface {
 	TrainersNote(c *gin.Context, sessionID uuid.UUID)
 }
 
-func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger) *sessionHandler {
-	return &sessionHandler{service: service, redis: redis, log: log}
+func NewSessionHandler(service SessionInterface, redis redis.Client, notifier Notifier, log *slog.Logger) *sessionHandler {
+	return &sessionHandler{service: service, redis: redis, notifier: notifier, log: log}
 }
 
 func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUID) {
@@ -143,7 +150,24 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 			return
 		}
 	}
-	// send notification to client to rate session.
+	if h.notifier != nil {
+		notifCtx := context.WithoutCancel(c.Request.Context())
+		bookingID := updateData.BookingID
+		go func() {
+			clientID, err := h.service.GetBookingClientID(notifCtx, bookingID)
+			if err != nil {
+				h.log.Warn("CompleteSession: could not fetch client id for notification", "bookingID", bookingID, "err", err)
+				return
+			}
+			if err := h.notifier.SendNotificationToUser(notifCtx, clientID,
+				"Session Complete",
+				"Your session is complete. Please rate your trainer!",
+				"session-complete-"+bookingID.String(),
+			); err != nil {
+				h.log.Warn("CompleteSession: failed to send notification to client", "err", err)
+			}
+		}()
+	}
 	result := ParseResponse(updateData)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session completed successfully", api.CodeOK, result, nil))
 }
