@@ -206,6 +206,135 @@ func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, err
 	return i, err
 }
 
+const getTopTrainers = `-- name: GetTopTrainers :many
+WITH completed_sessions AS (
+  SELECT
+    trainer_id,
+    COUNT(*) AS completed_count
+  FROM bookings
+  WHERE booking_status = 'completed'
+  GROUP BY trainer_id
+),
+
+trainer_reviews AS (
+  SELECT
+    trainer_id,
+    COUNT(*) AS review_count,
+    AVG(rating) AS avg_rating
+  FROM reviews
+  GROUP BY trainer_id
+)
+
+SELECT
+  t.id,
+  t.user_id,
+
+  u.name  AS trainer_name,
+  u.email AS trainer_email,
+
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+
+  COALESCE(cs.completed_count, 0)::int AS completed_sessions,
+  COALESCE(tr.avg_rating, 0)::numeric AS review_rating,
+  COALESCE(tr.review_count, 0)::int AS review_count,
+
+  (
+    COALESCE(cs.completed_count, 0) * $1::float +
+    COALESCE(tr.avg_rating, 0) * $2::float
+  ) AS ranking_score
+
+FROM trainers t
+
+JOIN users u
+  ON u.id = t.user_id
+
+LEFT JOIN completed_sessions cs
+  ON cs.trainer_id = t.id
+
+LEFT JOIN trainer_reviews tr
+  ON tr.trainer_id = t.id
+
+WHERE
+  t.onboarding_status = ANY($3::text[])
+
+ORDER BY ranking_score DESC
+`
+
+type GetTopTrainersParams struct {
+	SessionWeight float64
+	RatingWeight  float64
+	StatusFilter  []string
+}
+
+type GetTopTrainersRow struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	TrainerName       string
+	TrainerEmail      string
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullFloat64
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	CompletedSessions int32
+	ReviewRating      string
+	ReviewCount       int32
+	RankingScore      int32
+}
+
+func (q *Queries) GetTopTrainers(ctx context.Context, arg GetTopTrainersParams) ([]GetTopTrainersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTopTrainers, arg.SessionWeight, arg.RatingWeight, pq.Array(arg.StatusFilter))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTopTrainersRow
+	for rows.Next() {
+		var i GetTopTrainersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.Bio,
+			&i.YearsOfExperience,
+			&i.IntroVideoUrl,
+			&i.DisplayPicture,
+			&i.OnboardingStatus,
+			&i.AverageRating,
+			&i.TotalReviews,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedSessions,
+			&i.ReviewRating,
+			&i.ReviewCount,
+			&i.RankingScore,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTrainerByID = `-- name: GetTrainerByID :one
 SELECT
   id,

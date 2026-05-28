@@ -284,3 +284,64 @@ GROUP BY
     u.gender,
     u.phone_number
 ORDER BY booking_count DESC;
+
+-- name: GetTopTrainers :many
+WITH completed_sessions AS (
+  SELECT
+    trainer_id,
+    COUNT(*) AS completed_count
+  FROM bookings
+  WHERE booking_status = 'completed'
+  GROUP BY trainer_id
+),
+
+trainer_reviews AS (
+  SELECT
+    trainer_id,
+    COUNT(*) AS review_count,
+    AVG(rating) AS avg_rating
+  FROM reviews
+  GROUP BY trainer_id
+)
+
+SELECT
+  t.id,
+  t.user_id,
+
+  u.name  AS trainer_name,
+  u.email AS trainer_email,
+
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+
+  COALESCE(cs.completed_count, 0)::int AS completed_sessions,
+  COALESCE(tr.avg_rating, 0)::numeric AS review_rating,
+  COALESCE(tr.review_count, 0)::int AS review_count,
+
+  (
+    COALESCE(cs.completed_count, 0) * sqlc.arg(session_weight)::float +
+    COALESCE(tr.avg_rating, 0) * sqlc.arg(rating_weight)::float
+  ) AS ranking_score
+
+FROM trainers t
+
+JOIN users u
+  ON u.id = t.user_id
+
+LEFT JOIN completed_sessions cs
+  ON cs.trainer_id = t.id
+
+LEFT JOIN trainer_reviews tr
+  ON tr.trainer_id = t.id
+
+WHERE
+  t.onboarding_status = ANY(sqlc.arg(status_filter)::text[])
+
+ORDER BY ranking_score DESC;

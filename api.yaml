@@ -344,13 +344,12 @@ components:
       type: object
       required:
         - id
+        - name
         - user_id
-        - specializations
-        - training_styles
-        - onboarding_status
+        - completed_sessions
+        - ranking_score
         - average_rating
         - total_reviews
-        - booking_count
         - created_at
         - updated_at
       properties:

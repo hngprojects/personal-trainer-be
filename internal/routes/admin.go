@@ -424,7 +424,11 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 		return
 	}
 
-	topTrainers, err := s.trainers.q.GetTrainersByBookingCountPastMonth(c)
+	topTrainers, err := s.trainers.q.GetTopTrainers(c, db.GetTopTrainersParams{
+		SessionWeight: 0.6,
+		StatusFilter:  []string{"approved"},
+		RatingWeight:  0.4,
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, api.NewError("no top trainers for this month", api.CodeNotFound))
@@ -437,11 +441,15 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 	items := make([]map[string]interface{}, 0, len(topTrainers))
 	for _, t := range topTrainers {
 		m := map[string]interface{}{
-			"id":            t.ID.String(),
-			"user_id":       t.UserID.String(),
-			"name":          t.TrainerName,
-			"email":         t.TrainerEmail,
-			"booking_count": t.BookingCount,
+			"id":                 t.ID.String(),
+			"user_id":            t.UserID.String(),
+			"name":               t.TrainerName,
+			"total_reviews":      t.TotalReviews,
+			"completed_sessions": t.CompletedSessions,
+			"average_rating":     t.AverageRating.Float64,
+			"ranking_score":      t.RankingScore,
+			"created_at":         t.CreatedAt,
+			"updated_at":         t.UpdatedAt,
 		}
 		if t.DisplayPicture.Valid {
 			m["display_picture"] = t.DisplayPicture.String
