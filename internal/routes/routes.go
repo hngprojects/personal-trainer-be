@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
@@ -25,6 +26,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	"github.com/hngprojects/personal-trainer-be/internal/observability"
+	"github.com/hngprojects/personal-trainer-be/internal/reminder"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
@@ -83,6 +85,10 @@ type Router struct {
 	// case. Held on Router so Close() can drain them on shutdown.
 	organisationImageUploader *uploads.OrganisationImageUploader
 	organisationVideoUploader *uploads.OrganisationVideoUploader
+
+	// reminderWorker polls confirmed bookings every minute and fires push +
+	// email reminders 1 hour before each session. nil until Routes() is called.
+	reminderWorker *reminder.Worker
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -126,6 +132,9 @@ func (s *Router) Close() {
 		// Same drain semantics as VideoUploader — transcodes can take
 		// minutes per job so shutdown can be slow with deep queues.
 		s.organisationVideoUploader.Stop()
+	}
+	if s.reminderWorker != nil {
+		s.reminderWorker.Stop()
 	}
 }
 
@@ -377,6 +386,9 @@ func (s *Router) Routes() *gin.Engine {
 			if s.redis != nil {
 				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log, notificationService, q)
 			}
+			// Start the 1-hour session reminder background worker.
+			s.reminderWorker = reminder.New(s.db, &reminderNotifSender{ns: notificationService}, mailer, s.log)
+			s.reminderWorker.Start(context.Background())
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
@@ -588,6 +600,17 @@ func (s *Router) Routes() *gin.Engine {
 	}
 
 	return r
+}
+
+// reminderNotifSender adapts *notification.NotificationService to the
+// reminder.Notifier interface (which expects error-only return).
+type reminderNotifSender struct {
+	ns *notification.NotificationService
+}
+
+func (r *reminderNotifSender) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error {
+	_, err := r.ns.SendNotificationToUser(ctx, userID, title, message, idempotencyKey)
+	return err
 }
 
 // buildMailer picks a mailer in this order:
