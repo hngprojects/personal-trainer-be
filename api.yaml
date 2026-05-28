@@ -2439,6 +2439,17 @@ paths:
           schema:
             type: string
           description: Filter by category (maps to trainers.specialization)
+        - name: onboarding_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - suspended
+          description: Filter by onboarding_status (maps to trainers.onboarding_status)
         - name: page
           in: query
           required: false
