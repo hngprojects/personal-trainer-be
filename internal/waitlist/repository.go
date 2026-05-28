@@ -6,10 +6,14 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/lib/pq"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound  = errors.New("not found")
+	ErrDuplicate = errors.New("duplicate entry")
+)
 
 // WaitlistRepository defines what the waitlist feature needs from the waitlist table.
 type WaitlistRepository interface {
@@ -35,6 +39,10 @@ func (r *postgresWaitlistRepo) AddEmail(ctx context.Context, email, phoneNumber,
 		Name:        name,
 	})
 	if err != nil {
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrDuplicate
+		}
 		return err
 	}
 	return nil
@@ -56,8 +64,10 @@ func (r *postgresWaitlistRepo) GetByEmail(ctx context.Context, email string) (*d
 
 	waitlist, err := r.q.GetSingleWaitlist(ctx, email)
 	if err != nil {
-		// optionally map sql.ErrNoRows → ErrNotFound if not already handled in sqlc config
-		return nil, ErrNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
 	}
 
 	return &waitlist, nil
