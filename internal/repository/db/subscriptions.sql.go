@@ -472,3 +472,101 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 	)
 	return i, err
 }
+
+
+const countAdminTransactions = `SELECT COUNT(*) FROM subscriptions`
+
+func (q *Queries) CountAdminTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminTransactions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const listAdminTransactions = `
+SELECT
+  s.id,
+  s.client_id,
+  s.trainer_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.platform,
+  s.current_period_start,
+  s.current_period_end,
+  s.created_at,
+  s.cancelled_at,
+  cu.name   AS client_name,
+  cu.email  AS client_email,
+  tu.name   AS trainer_name,
+  tu.email  AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t ON t.id = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+ORDER BY s.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAdminTransactionsParams struct {
+	PageLimit  int32
+	PageOffset int32
+}
+
+type ListAdminTransactionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransactionsParams) ([]ListAdminTransactionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminTransactions, arg.PageLimit, arg.PageOffset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []ListAdminTransactionsRow
+	for rows.Next() {
+		var i ListAdminTransactionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
