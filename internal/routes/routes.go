@@ -411,6 +411,28 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
+<<<<<<< HEAD
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
+
+			if s.redis != nil {
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log, notificationService, q)
+			}
+			// Start the 1-hour session reminder background worker.
+			s.reminderWorker = reminder.New(s.db, &reminderNotifSender{ns: notificationService}, mailer, s.log)
+			s.reminderWorker.Start(context.Background())
+=======
+			// websocket
+			wsHub := websocket.NewHub(s.log)
+			impl.wsHub = wsHub
+			// Notifications
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
+			notificationRepo := notification.NewRepository(q)
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
+			impl.notificationService = notificationService
+			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
+>>>>>>> d0c89d8 (feat(notifications): integrate push notifications, websocket, and FCM)
+
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
 
@@ -616,6 +638,12 @@ func (s *Router) Routes() *gin.Engine {
 				impl.notificationService.DeliverPendingNotifOnConn,
 			))
 			v1.GET("/notifications/ws", wsHandlers...)
+		}
+		if impl.wsHub != nil {
+			v1.GET("/notifications/ws", middleware.WebSocketAuthMiddleware(authRedis, s.log), websocket.UpgradeHandler(
+				impl.wsHub, s.log,
+				impl.notificationService.DeliverPendingNotifOnConn,
+			))
 		}
 
 		// Hand-wired recent-activities routes. Same rationale as the
