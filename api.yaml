@@ -4332,6 +4332,135 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/subscriptions:
+    get:
+      operationId: GetAdminSubscriptions
+      tags:
+        - Admin
+      summary: List all subscriptions with optional status filter (super_admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, cancelled, expired, trialing]
+          description: Filter by status (omit for all)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: Page number (default 1)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Items per page (default 20, max 100)
+      responses:
+        "200":
+          description: Subscriptions returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            client_id:
+                              type: string
+                              format: uuid
+                            client_name:
+                              type: string
+                            client_email:
+                              type: string
+                              format: email
+                            trainer_id:
+                              type: string
+                              format: uuid
+                            trainer_name:
+                              type: string
+                            trainer_email:
+                              type: string
+                              format: email
+                            plan_type:
+                              type: string
+                            amount:
+                              type: integer
+                              format: int64
+                              nullable: true
+                            currency:
+                              type: string
+                            status:
+                              type: string
+                            platform:
+                              type: string
+                              nullable: true
+                            current_period_start:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            current_period_end:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            created_at:
+                              type: string
+                              format: date-time
+                            cancelled_at:
+                              type: string
+                              format: date-time
+                              nullable: true
+                      meta:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          page_size:
+                            type: integer
+                          total:
+                            type: integer
+                          total_pages:
+                            type: integer
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/subscriptions/count:
     get:
       operationId: GetAdminSubscriptionCount
