@@ -25,6 +25,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 	"github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
@@ -67,18 +69,20 @@ type zoomOAuthHandler struct {
 	oauth *zoom.OAuthClient
 	redis *appredis.Client // for state CSRF tokens; may be nil → in-memory fallback
 	log   *slog.Logger
+	notif *notification.NotificationService // optional; nil = no notify on connect
 	// inMem is the fallback state store when Redis isn't wired. NOT
 	// safe across instances — production should always have Redis. Kept
 	// for local dev where someone might run without it.
 	inMem *stateMemory
 }
 
-func newZoomOAuthHandler(store *zoomflow.CredentialStore, oauth *zoom.OAuthClient, redis *appredis.Client, log *slog.Logger) zoomOAuthRoutes {
+func newZoomOAuthHandler(store *zoomflow.CredentialStore, oauth *zoom.OAuthClient, redis *appredis.Client, log *slog.Logger, notif *notification.NotificationService) zoomOAuthRoutes {
 	return &zoomOAuthHandler{
 		store: store,
 		oauth: oauth,
 		redis: redis,
 		log:   log,
+		notif: notif,
 		inMem: newStateMemory(),
 	}
 }
@@ -172,6 +176,39 @@ func (h *zoomOAuthHandler) callback(c *gin.Context) {
 		h.log.Error("zoom callback: persist failed", "err", err, "user_id", userID)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to persist zoom credentials", api.CodeServerError))
 		return
+	}
+
+	// Confirm the connection in-app for the trainer who just OAuth'd
+	// (separate from the JSON 200 they're about to receive — this lands
+	// in their notifications feed) AND fan out to admins so the staff
+	// dashboard can see how many trainers are onboarded onto Zoom.
+	//
+	// Key includes the new token's ExpiresAt because a trainer can
+	// disconnect (DELETE /trainers/me/zoom) and reconnect later — a
+	// flat `zoom-connected-<userID>` would collide on the UNIQUE
+	// constraint and the reconnect would silently drop with "already
+	// delivered." pkg/zoom recomputes ExpiresAt as `time.Now() +
+	// expires_in - 60s` on every token exchange, so the value is
+	// distinct per (re)connect. A truly accidental replay of the SAME
+	// OAuth callback (browser refresh) can't reach this point —
+	// ExchangeCode 502s first because Zoom invalidates auth codes
+	// after use.
+	if h.notif != nil {
+		keySuffix := strconv.FormatInt(tokens.ExpiresAt.Unix(), 10)
+		if _, notifErr := h.notif.SendNotificationToUser(c.Request.Context(), userID,
+			"Zoom Connected",
+			"Your Zoom account is now connected.",
+			"zoom-connected-"+userID.String()+"-"+keySuffix,
+		); notifErr != nil {
+			h.log.Warn("zoom connected notification to trainer failed", "user_id", userID, "err", notifErr)
+		}
+		if _, notifErr := h.notif.SendNotificationToAdmins(c.Request.Context(),
+			"Trainer Zoom Connected",
+			"A trainer connected their Zoom account.",
+			"zoom-connected-admin-"+userID.String()+"-"+keySuffix,
+		); notifErr != nil {
+			h.log.Warn("admin notification (zoom connected) failed", "user_id", userID, "err", notifErr)
+		}
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("zoom connected", api.CodeOK, gin.H{

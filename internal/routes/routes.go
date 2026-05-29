@@ -269,6 +269,19 @@ func (s *Router) Routes() *gin.Engine {
 
 		if s.db != nil {
 			q = db.New(s.db)
+
+			// Notification service is constructed up front so any handler
+			// built below (Zoom OAuth, discovery, bookings…) can receive
+			// it. websocket hub + FCM client are the two delivery
+			// channels; the DB row is always written regardless.
+			wsHub := websocket.NewHub(s.log)
+			impl.wsHub = wsHub
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
+			notificationRepo := notification.NewRepository(q)
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
+			impl.notificationService = notificationService
+			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
+
 			usersRepo := auth.NewPostgresUserRepo(q)
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
@@ -333,7 +346,7 @@ func (s *Router) Routes() *gin.Engine {
 				} else {
 					oauth := appzoom.NewOAuthClient(s.cfg.ZoomOAuthClientID, s.cfg.ZoomOAuthClientSecret, s.cfg.ZoomOAuthRedirectURL)
 					credStore = zoomflow.NewCredentialStore(q, s.db, enc, oauth, s.log)
-					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log)
+					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log, notificationService)
 					s.log.Info("per-trainer Zoom OAuth pipeline ready", "host_mode", s.cfg.ZoomMeetingHost)
 				}
 			} else if s.cfg.ZoomMeetingHost == "trainer" {
@@ -360,7 +373,7 @@ func (s *Router) Routes() *gin.Engine {
 			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
 			bookingService := bookings.NewBookingService(bookingRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain)
 			discoveryRepo := discovery.NewPostgresRepo(s.db, q)
-			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log, notificationService)
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
@@ -370,16 +383,6 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
-
-			// websocket
-			wsHub := websocket.NewHub(s.log)
-			impl.wsHub = wsHub
-			// Notifications
-			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
-			notificationRepo := notification.NewRepository(q)
-			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
-			impl.notificationService = notificationService
-			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
 			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
@@ -629,6 +632,16 @@ func (s *Router) Routes() *gin.Engine {
 				}
 			}
 			impl.GetAdminSubscriptions(c)
+		})
+
+		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.DeleteAdminClient(c)
 		})
 	}
 

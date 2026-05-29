@@ -24,6 +24,7 @@ type RepositoryInterface interface {
 	GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
 	GetUserRoleByUserID(ctx context.Context, userID uuid.UUID) (string, error)
 	GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDevice, error)
+	ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)
 }
 
 func (r *Repository) CreateNotificationWithType(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
@@ -71,4 +72,8 @@ func (r *Repository) GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDe
 		return nil, err
 	}
 	return &devices, nil
+}
+
+func (r *Repository) ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	return r.q.ListAdminUserIDs(ctx)
 }

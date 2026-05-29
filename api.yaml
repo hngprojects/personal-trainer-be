@@ -4671,6 +4671,69 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /admin/clients/{id}:
+    delete:
+      operationId: DeleteAdminClient
+      tags:
+        - Admin
+      summary: Deactivate a client account (super_admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client user ID
+      responses:
+        "200":
+          description: Client deactivated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: client deactivated successfully
+                data: null
+        "400":
+          description: Invalid client ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Client is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     get:
       operationId: GetAdminClientByID
       tags:
@@ -6629,6 +6692,172 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  # ─── Notifications WebSocket ─────────────────────────────────────────────
+  # OpenAPI doesn't have a first-class WebSocket primitive, so this entry is
+  # documented as a GET that the server upgrades to a wss:// connection.
+  # Swagger renders the description; the actual handler is hand-wired in
+  # internal/routes/routes.go and excluded from oapi-codegen via
+  # output-options.exclude-operation-ids.
+
+  /notifications/ws:
+    get:
+      operationId: NotificationsWebSocketUpgrade
+      summary: Real-time notification stream (WebSocket upgrade)
+      tags: [Notification]
+      # Override the document-level bearerAuth default — the WS handshake
+      # accepts the token either in the Authorization header (when the
+      # client controls headers, e.g. a server-to-server bridge) OR in
+      # the `?token=` query string (browser/RN WebSocket APIs can't set
+      # custom headers on the upgrade request). Documented as a custom
+      # query param so Swagger doesn't enforce a single auth shape.
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: false
+          description: |
+            Access token (the same `access_token` returned by login).
+            Used when the client cannot set the Authorization header on
+            the WebSocket upgrade request — primarily browsers and React
+            Native. Server-side clients SHOULD use the Authorization
+            header instead.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: |
+            `Bearer <access_token>`. Alternative to the `token` query
+            parameter. The middleware tries the Authorization header
+            first, then falls back to `token`.
+          schema:
+            type: string
+      description: |
+        Long-lived WebSocket the client opens once per session to
+        receive notifications in real time. Eliminates polling — the
+        server pushes messages as events fire.
+
+        ## Who gets WS pushes
+        Notifications routed to **trainers** and **admins** stream
+        over this WS. **Client** users currently receive notifications
+        via FCM push, not WS — opening a WS as a client succeeds and
+        replays any pending notifications at connect time, but new
+        client-targeted events will land via FCM, not over the WS.
+
+        ## Connection
+        ```
+        wss://<host>/api/v1/notifications/ws?token=<access_token>
+        ```
+        Server responds with HTTP 101 Switching Protocols. Any 4xx
+        before the upgrade indicates an auth or token issue — see the
+        response codes below.
+
+        ## Message shape
+        Each message is a single JSON object on the wire:
+        ```json
+        {
+          "id":         "<uuid>",
+          "title":      "<short label>",
+          "message":    "<body text>",
+          "type":       "notification",
+          "created_at": "2026-05-29T10:00:00Z"
+        }
+        ```
+        The `type` field is always the string `"notification"` for
+        notification events. Other message types may be added in future
+        (presence pings, system messages); clients SHOULD ignore
+        messages with unrecognised `type` rather than erroring.
+
+        ## Replay on connect
+        On a fresh WS connection, the server immediately delivers
+        every notification row for this user whose status is `pending`
+        — i.e. events that fired while the user was offline. The same
+        message shape is used for replay and live messages, so the
+        client has one code path. After replay, the connection stays
+        open for future events.
+
+        Replay is currently un-acknowledged: the same backlog will
+        re-deliver on every reconnect until a future mark-as-read
+        endpoint lands. Clients SHOULD de-dupe on `id` while that's
+        true.
+
+        ## Keepalive + reconnect
+        The server does not currently send heartbeats. Long-idle
+        connections may be dropped by load balancers / reverse proxies
+        after ~60s. Clients SHOULD:
+        - send a ping frame every 30s (the gorilla/websocket library
+          will respond automatically to the server's pong handler if
+          one is configured later);
+        - reconnect with exponential backoff on `close` (start at
+          1s, cap at 30s);
+        - re-issue the WS connect with a fresh access_token if the
+          previous one expired (re-use the same refresh-token endpoint
+          you use for REST).
+
+        ## Client recipe (RN / browser)
+        ```js
+        const ws = new WebSocket(
+          `wss://${HOST}/api/v1/notifications/ws?token=${accessToken}`,
+        );
+        ws.onmessage = (evt) => {
+          const n = JSON.parse(evt.data);
+          if (n.type !== "notification") return;
+          appStore.notifications.prepend({
+            id: n.id, title: n.title, message: n.message,
+            createdAt: n.created_at,
+          });
+        };
+        ws.onclose = scheduleReconnectWithBackoff;
+        ```
+
+        ## What the WS does NOT replace
+        - The REST `GET /notifications` is still useful for paginated
+          history rendering on app launch and on a "load older"
+          scroll. The WS only ships realtime + on-connect-pending.
+        - For client users on mobile, FCM is still the system-tray
+          delivery channel.
+      responses:
+        "101":
+          description: |
+            Switching Protocols — the upgrade succeeded. From this
+            point the connection is a WebSocket; no further HTTP
+            semantics apply. See the description for the JSON message
+            shape the server sends over the socket.
+        "400":
+          description: |
+            Bad WebSocket upgrade request (e.g. missing
+            `Upgrade: websocket` / `Connection: Upgrade` headers).
+            The standard WebSocket client libraries set these
+            automatically; this usually means a request was sent by a
+            plain HTTP tool (curl without `--include`, etc.).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: |
+            Missing, invalid, or expired access token. Use a fresh
+            token from the refresh endpoint and reconnect. The reason
+            is logged server-side but NOT echoed to the client — don't
+            try to parse it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid token
+                code: UNAUTHORIZED
+        "500":
+          description: |
+            Server failed to upgrade the connection or fetch pending
+            notifications. Client should retry with backoff — this is
+            usually a transient hub or DB issue, not a client error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/top-trainers:
     get:

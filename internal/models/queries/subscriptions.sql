@@ -121,3 +121,68 @@ JOIN users u ON u.id = s.client_id
 WHERE s.amount IS NOT NULL
 ORDER BY s.created_at DESC
 LIMIT 1;
+-- name: CountAdminTransactions :one
+-- Backfilled from internal/repository/db/subscriptions.sql.go where it
+-- was hand-added (PR #274). Lifted into the sqlc source so future
+-- `sqlc generate` runs don't wipe it. Plain unfiltered count.
+SELECT COUNT(*) FROM subscriptions;
+
+-- name: ListAdminTransactions :many
+-- Backfilled from PR #274 (was hand-added to the generated file).
+-- Listing for the /admin/transactions dashboard — joins client +
+-- trainer profiles so the table can render names without N+1 lookups.
+SELECT
+  s.id,
+  s.client_id,
+  s.trainer_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.platform,
+  s.current_period_start,
+  s.current_period_end,
+  s.created_at,
+  s.cancelled_at,
+  cu.name   AS client_name,
+  cu.email  AS client_email,
+  tu.name   AS trainer_name,
+  tu.email  AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t ON t.id = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+ORDER BY s.created_at DESC
+LIMIT sqlc.arg('page_limit') OFFSET sqlc.arg('page_offset');
+
+-- name: CountAdminSubscriptions :one
+-- Backfilled from PR #279. Empty string in $1 means "no status filter".
+SELECT COUNT(*) FROM subscriptions s WHERE ($1::text = '' OR s.status = $1);
+
+-- name: ListAdminSubscriptions :many
+-- Backfilled from PR #279. Listing for /admin/subscriptions dashboard
+-- with optional status filter — empty string in $1 returns all rows.
+SELECT
+    s.id,
+    s.client_id,
+    s.trainer_id,
+    s.plan_type,
+    s.amount,
+    s.currency,
+    s.status,
+    s.platform,
+    s.current_period_start,
+    s.current_period_end,
+    s.created_at,
+    s.cancelled_at,
+    cu.name  AS client_name,
+    cu.email AS client_email,
+    tu.name  AS trainer_name,
+    tu.email AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t  ON t.id  = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+WHERE (sqlc.arg('status')::text = '' OR s.status = sqlc.arg('status'))
+ORDER BY s.created_at DESC
+LIMIT sqlc.arg('page_limit') OFFSET sqlc.arg('page_offset');

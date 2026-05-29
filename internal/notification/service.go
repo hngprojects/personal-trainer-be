@@ -55,6 +55,7 @@ func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNo
 
 type NotificationServiceInterface interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotency_key string) (*NotificationResponse, error)
+	SendNotificationToAdmins(ctx context.Context, title, message, idempotencyKeyBase string) (int, error)
 	GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error)
 	GetUserDevicesToken(ctx context.Context, userID uuid.UUID) ([]db.UserDevice, error)
 	DeliverPendingNotifOnConn(conn *ws.Conn, userID uuid.UUID) error
@@ -102,6 +103,49 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 		return s.sendNotifViaFCM(ctx, userID, notification, resp, title, message)
 	}
 	return s.sendNotifViaWS(ctx, userID, notification, resp, title, message)
+}
+
+// SendNotificationToAdmins delivers the same notification to every
+// user with role admin OR super_admin. Used by event sites that don't
+// know a specific admin to address — new bookings, subscription
+// lifecycle events, Zoom connect, etc.
+//
+// Each admin gets a distinct DB row keyed by
+// `<idempotencyKeyBase>-admin-<their_user_id>`. The table-wide UNIQUE
+// constraint on idempotency_key would otherwise reject all but the
+// first INSERT when broadcasting the same event.
+//
+// Failures for individual admins are logged and the loop continues —
+// one admin's missing device tokens or expired WS connection won't
+// block notifying the others. Returns the count of admins for whom
+// the DB insert succeeded (excludes duplicate-key collisions, which
+// just mean "already delivered on a prior call with the same base").
+func (s *NotificationService) SendNotificationToAdmins(ctx context.Context, title, message, idempotencyKeyBase string) (int, error) {
+	admins, err := s.repo.ListAdminUserIDs(ctx)
+	if err != nil {
+		s.log.Error("admin broadcast: failed to list admin user ids", "error", err)
+		return 0, err
+	}
+	if len(admins) == 0 {
+		s.log.Warn("admin broadcast: no admin users in the system", "title", title)
+		return 0, nil
+	}
+	sent := 0
+	for _, adminID := range admins {
+		key := idempotencyKeyBase + "-admin-" + adminID.String()
+		if _, err := s.SendNotificationToUser(ctx, adminID, title, message, key); err != nil {
+			if errors.Is(err, ErrDuplicateIdempotencyKey) {
+				// This admin already got the row on a prior call —
+				// not a failure, just a re-fire of the same event.
+				continue
+			}
+			s.log.Warn("admin broadcast: send failed for one admin",
+				"adminID", adminID, "title", title, "error", err)
+			continue
+		}
+		sent++
+	}
+	return sent, nil
 }
 
 func (s *NotificationService) GetUserNotification(ctx context.Context, userID uuid.UUID) (*[]NotificationResponse, error) {
