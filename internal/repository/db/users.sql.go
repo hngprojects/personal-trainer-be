@@ -479,3 +479,16 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 	)
 	return i, err
 }
+
+const deactivateClient = `
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE id = $1 AND role = 'client'
+RETURNING id
+`
+
+func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateClient, id)
+	var returnedID uuid.UUID
+	err := row.Scan(&returnedID)
+	return returnedID, err
+}
