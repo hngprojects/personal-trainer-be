@@ -642,6 +642,21 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		payload["display_picture_status"] = "processing"
 	}
 
+	// Admin broadcast — staff dashboard surfaces new trainer onboarding
+	// without anyone having to refresh. Keyed on the trainer record id
+	// (not user id) so a re-invite of the SAME trainer that ran through
+	// UpsertTrainerUser doesn't double-fire — the trainer row's id is
+	// stable across re-invites.
+	if s.notificationService != nil {
+		if _, notifErr := s.notificationService.SendNotificationToAdmins(ctx,
+			"New Trainer Created",
+			name+" was added as a trainer.",
+			"trainer-created-"+trainer.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("admin notification (trainer created) failed", "trainer_id", trainer.ID, "err", notifErr)
+		}
+	}
+
 	if setupLinkSent {
 		c.JSON(http.StatusCreated, api.NewSuccess("trainer provisioned; setup link emailed", api.CodeCreated, payload))
 	} else {
