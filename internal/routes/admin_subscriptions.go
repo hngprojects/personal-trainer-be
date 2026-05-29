@@ -41,6 +41,10 @@ func (s *routerImpl) GetAdminSubscriptions(c *gin.Context) {
 	}
 
 	status := c.Query("status")
+	if status != "" && status != "active" && status != "cancelled" && status != "expired" {
+		c.JSON(http.StatusBadRequest, api.NewError("status must be one of: active, cancelled, expired", api.CodeBadRequest))
+		return
+	}
 
 	ctx := c.Request.Context()
 
