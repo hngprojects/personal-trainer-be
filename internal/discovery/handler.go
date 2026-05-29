@@ -723,11 +723,20 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 
 	// Admin in-app notification mirrors the booking event so staff can
 	// see schedule changes in their dashboard.
+	//
+	// Key includes RescheduleCount because the same booking can be
+	// rescheduled up to maxReschedules times (currently 3). Without
+	// the count the second/third reschedule would collide on the
+	// UNIQUE(idempotency_key) constraint and be silently dropped as
+	// "already delivered." reschedule_count is incremented BEFORE the
+	// RETURNING in the UPDATE, so the value here is the 1-based
+	// reschedule sequence number — distinct on every successful call.
 	if h.notif != nil {
+		key := fmt.Sprintf("discovery-rescheduled-%s-%d", updated.ID, updated.RescheduleCount)
 		if _, notifErr := h.notif.SendNotificationToAdmins(ctx,
 			"Discovery Call Rescheduled",
 			updated.Name+" rescheduled their discovery call.",
-			"discovery-rescheduled-"+updated.ID.String(),
+			key,
 		); notifErr != nil {
 			h.log.Warn("admin notification (discovery rescheduled) failed", "booking_id", updated.ID, "err", notifErr)
 		}

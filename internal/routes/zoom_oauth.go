@@ -25,6 +25,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -181,18 +182,30 @@ func (h *zoomOAuthHandler) callback(c *gin.Context) {
 	// (separate from the JSON 200 they're about to receive — this lands
 	// in their notifications feed) AND fan out to admins so the staff
 	// dashboard can see how many trainers are onboarded onto Zoom.
+	//
+	// Key includes the new token's ExpiresAt because a trainer can
+	// disconnect (DELETE /trainers/me/zoom) and reconnect later — a
+	// flat `zoom-connected-<userID>` would collide on the UNIQUE
+	// constraint and the reconnect would silently drop with "already
+	// delivered." pkg/zoom recomputes ExpiresAt as `time.Now() +
+	// expires_in - 60s` on every token exchange, so the value is
+	// distinct per (re)connect. A truly accidental replay of the SAME
+	// OAuth callback (browser refresh) can't reach this point —
+	// ExchangeCode 502s first because Zoom invalidates auth codes
+	// after use.
 	if h.notif != nil {
+		keySuffix := strconv.FormatInt(tokens.ExpiresAt.Unix(), 10)
 		if _, notifErr := h.notif.SendNotificationToUser(c.Request.Context(), userID,
 			"Zoom Connected",
 			"Your Zoom account is now connected.",
-			"zoom-connected-"+userID.String(),
+			"zoom-connected-"+userID.String()+"-"+keySuffix,
 		); notifErr != nil {
 			h.log.Warn("zoom connected notification to trainer failed", "user_id", userID, "err", notifErr)
 		}
 		if _, notifErr := h.notif.SendNotificationToAdmins(c.Request.Context(),
 			"Trainer Zoom Connected",
 			"A trainer connected their Zoom account.",
-			"zoom-connected-admin-"+userID.String(),
+			"zoom-connected-admin-"+userID.String()+"-"+keySuffix,
 		); notifErr != nil {
 			h.log.Warn("admin notification (zoom connected) failed", "user_id", userID, "err", notifErr)
 		}
