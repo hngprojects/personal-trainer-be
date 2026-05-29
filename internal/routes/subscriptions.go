@@ -242,6 +242,26 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		s.logger.Warn("create subscription: could not resolve trainer user", "trainerID", sub.TrainerID, "err", tdErr)
 	}
 
+	// Notify the client themselves — they just paid, so we want an
+	// in-app confirmation that the subscription is active, distinct
+	// from the IAP receipt the platform shows.
+	if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), sub.ClientID,
+		"Subscription Active",
+		"Your subscription is now active.",
+		"subscription-client-"+sub.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("subscription notification to client failed", "clientID", sub.ClientID, "err", notifErr)
+	}
+
+	// Notify all admins — revenue event the staff dashboard tracks.
+	if _, notifErr := s.notificationService.SendNotificationToAdmins(c.Request.Context(),
+		"New Subscription",
+		"A new subscription was created.",
+		"subscription-admin-"+sub.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("admin notification (subscription created) failed", "subID", sub.ID, "err", notifErr)
+	}
+
 	c.JSON(http.StatusCreated, api.NewSuccess("SUBSCRIPTION_CREATED", api.CodeCreated, subscriptionToMap(sub)))
 }
 
@@ -381,6 +401,26 @@ func (s *routerImpl) CancelMySubscription(c *gin.Context) {
 		}
 	} else {
 		s.logger.Warn("cancel subscription: could not resolve trainer user", "trainerID", cancelled.TrainerID, "err", tdErr)
+	}
+
+	// Notify the client themselves so they have an in-app record of
+	// the cancellation distinct from the platform's IAP cancellation
+	// confirmation.
+	if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), cancelled.ClientID,
+		"Subscription Cancelled",
+		"Your subscription has been cancelled.",
+		"cancel-subscription-client-"+cancelled.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("cancel subscription notification to client failed", "clientID", cancelled.ClientID, "err", notifErr)
+	}
+
+	// Notify all admins — churn event the staff dashboard tracks.
+	if _, notifErr := s.notificationService.SendNotificationToAdmins(c.Request.Context(),
+		"Subscription Cancelled",
+		"A subscription was cancelled.",
+		"cancel-subscription-admin-"+cancelled.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("admin notification (subscription cancelled) failed", "subID", cancelled.ID, "err", notifErr)
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_CANCELLED", api.CodeOK, subscriptionToMap(cancelled)))
