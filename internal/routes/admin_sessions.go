@@ -37,7 +37,16 @@ func (s *routerImpl) AdminCancelSession(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	booking, err := s.bookings.q.GetBookingByID(ctx, bookingID)
+	tx, err := s.bookings.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to start transaction", api.CodeServerError))
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := s.bookings.q.WithTx(tx)
+
+	booking, err := qtx.GetBookingByIDForUpdate(ctx, bookingID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("session not found", api.CodeNotFound))
@@ -56,12 +65,17 @@ func (s *routerImpl) AdminCancelSession(c *gin.Context) {
 		return
 	}
 
-	result, err := s.bookings.q.CancelBooking(ctx, db.CancelBookingParams{
+	result, err := qtx.CancelBooking(ctx, db.CancelBookingParams{
 		CancellationReason: sql.NullString{String: req.Reason, Valid: true},
 		ID:                 bookingID,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to cancel session", api.CodeServerError))
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit cancellation", api.CodeServerError))
 		return
 	}
 
@@ -113,7 +127,16 @@ func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	booking, err := s.bookings.q.GetBookingByID(ctx, bookingID)
+	tx, err := s.bookings.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to start transaction", api.CodeServerError))
+		return
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := s.bookings.q.WithTx(tx)
+
+	booking, err := qtx.GetBookingByIDForUpdate(ctx, bookingID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("session not found", api.CodeNotFound))
@@ -132,7 +155,7 @@ func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
 		return
 	}
 
-	result, err := s.bookings.q.AdminRescheduleBooking(ctx, db.AdminRescheduleBookingParams{
+	result, err := qtx.AdminRescheduleBooking(ctx, db.AdminRescheduleBookingParams{
 		ScheduledStart: newStart,
 		ScheduledEnd:   newEnd,
 		ID:             bookingID,
@@ -143,6 +166,11 @@ func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to reschedule session", api.CodeServerError))
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit reschedule", api.CodeServerError))
 		return
 	}
 
