@@ -643,6 +643,26 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			impl.DeleteAdminClient(c)
 		})
+
+		v1.PUT("/admin/sessions/:id/cancel", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.AdminCancelSession(c)
+		})
+
+		v1.PUT("/admin/sessions/:id/reschedule", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.AdminRescheduleSession(c)
+		})
 	}
 
 	return r

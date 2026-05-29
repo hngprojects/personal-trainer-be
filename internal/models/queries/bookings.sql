@@ -329,3 +329,27 @@ SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = sqlc.a
 SELECT * FROM bookings
 WHERE scheduled_start >= date_trunc('month', NOW())
   AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month';
+-- name: AdminRescheduleBooking :one
+-- Admin reschedule — no reschedule_count cap.
+UPDATE bookings
+SET scheduled_start  = sqlc.arg(scheduled_start)::timestamptz,
+    scheduled_end    = sqlc.arg(scheduled_end)::timestamptz,
+    reschedule_count = reschedule_count + 1
+WHERE id = sqlc.arg(id)
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count;
