@@ -610,6 +610,16 @@ func (s *Router) Routes() *gin.Engine {
 				ctx.JSON(statusCode, api.NewError("invalid uuid for parameter: "+paramName, api.CodeBadRequest))
 			},
 		})
+
+		v1.GET("/admin/transactions", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.GetAdminTransactions(c)
+		})
 	}
 
 	return r
