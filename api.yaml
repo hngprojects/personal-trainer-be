@@ -4815,6 +4815,7 @@ paths:
               properties:
                 reason:
                   type: string
+                  minLength: 1
                   description: Reason for cancellation
                   example: admin override
             example:

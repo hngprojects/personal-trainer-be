@@ -913,11 +913,13 @@ func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomPa
 }
 
 const adminRescheduleBooking = `-- name: AdminRescheduleBooking :one
--- Admin reschedule — no reschedule_count cap.
+-- Admin reschedule — no reschedule_count cap. Zoom links cleared.
 UPDATE bookings
-SET scheduled_start  = $1::timestamptz,
-    scheduled_end    = $2::timestamptz,
-    reschedule_count = reschedule_count + 1
+SET scheduled_start    = $1::timestamptz,
+    scheduled_end      = $2::timestamptz,
+    zoom_meeting_link  = NULL,
+    zoom_meeting_id    = NULL,
+    reschedule_count   = reschedule_count + 1
 WHERE id = $3
   AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
 RETURNING

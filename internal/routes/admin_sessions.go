@@ -28,7 +28,7 @@ func (s *routerImpl) AdminCancelSession(c *gin.Context) {
 	}
 
 	var req struct {
-		Reason string `json:"reason" binding:"required"`
+		Reason string `json:"reason" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.NewError("reason is required", api.CodeBadRequest))
@@ -74,9 +74,52 @@ func (s *routerImpl) AdminCancelSession(c *gin.Context) {
 		return
 	}
 
+	// Release the slot back to availability so clients can re-book that time.
+	if result.ScheduledStart.Valid && result.ScheduledEnd.Valid {
+		rows, slotErr := qtx.ReleaseBookingSlot(ctx, db.ReleaseBookingSlotParams{
+			TrainerID:      uuid.NullUUID{UUID: result.TrainerID, Valid: true},
+			ScheduledStart: result.ScheduledStart.Time,
+			ScheduledEnd:   result.ScheduledEnd.Time,
+			Timezone:       result.Timezone.String,
+		})
+		if slotErr != nil {
+			s.logger.Warn("admin cancel: failed to release booking slot", "bookingID", bookingID, "err", slotErr)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to release booking slot", api.CodeServerError))
+			return
+		}
+		if rows != 1 {
+			s.logger.Warn("admin cancel: slot not found or already released", "bookingID", bookingID, "rowsAffected", rows)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit cancellation", api.CodeServerError))
 		return
+	}
+
+	// Notify client and trainer (best-effort — don't fail the request on notification error).
+	if s.notificationService != nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(ctx, result.ClientID,
+			"Session Cancelled",
+			"Your session has been cancelled by an admin.",
+			"admin-cancel-client-"+bookingID.String(),
+		); notifErr != nil {
+			s.logger.Warn("admin cancel: client notification failed", "clientID", result.ClientID, "err", notifErr)
+		}
+		if s.trainers != nil {
+			trainerUser, tdErr := s.trainers.q.GetTrainerUserDetails(ctx, result.TrainerID)
+			if tdErr == nil {
+				if _, notifErr := s.notificationService.SendNotificationToUser(ctx, trainerUser.ID,
+					"Session Cancelled",
+					"A session has been cancelled by an admin.",
+					"admin-cancel-trainer-"+bookingID.String(),
+				); notifErr != nil {
+					s.logger.Warn("admin cancel: trainer notification failed", "trainerID", result.TrainerID, "err", notifErr)
+				}
+			} else {
+				s.logger.Warn("admin cancel: could not resolve trainer user", "trainerID", result.TrainerID, "err", tdErr)
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("session cancelled successfully", api.CodeOK, map[string]interface{}{
@@ -172,6 +215,31 @@ func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to commit reschedule", api.CodeServerError))
 		return
+	}
+
+	// Notify client and trainer (best-effort — don't fail the request on notification error).
+	if s.notificationService != nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(ctx, result.ClientID,
+			"Session Rescheduled",
+			"Your session has been rescheduled by an admin.",
+			"admin-reschedule-client-"+bookingID.String(),
+		); notifErr != nil {
+			s.logger.Warn("admin reschedule: client notification failed", "clientID", result.ClientID, "err", notifErr)
+		}
+		if s.trainers != nil {
+			trainerUser, tdErr := s.trainers.q.GetTrainerUserDetails(ctx, result.TrainerID)
+			if tdErr == nil {
+				if _, notifErr := s.notificationService.SendNotificationToUser(ctx, trainerUser.ID,
+					"Session Rescheduled",
+					"A session has been rescheduled by an admin.",
+					"admin-reschedule-trainer-"+bookingID.String(),
+				); notifErr != nil {
+					s.logger.Warn("admin reschedule: trainer notification failed", "trainerID", result.TrainerID, "err", notifErr)
+				}
+			} else {
+				s.logger.Warn("admin reschedule: could not resolve trainer user", "trainerID", result.TrainerID, "err", tdErr)
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("session rescheduled successfully", api.CodeOK, map[string]interface{}{
