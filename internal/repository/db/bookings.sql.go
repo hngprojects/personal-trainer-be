@@ -911,3 +911,60 @@ func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomPa
 	)
 	return i, err
 }
+
+const adminRescheduleBooking = `-- name: AdminRescheduleBooking :one
+-- Admin reschedule — no reschedule_count cap. Zoom links cleared.
+UPDATE bookings
+SET scheduled_start    = $1::timestamptz,
+    scheduled_end      = $2::timestamptz,
+    zoom_meeting_link  = NULL,
+    zoom_meeting_id    = NULL,
+    reschedule_count   = reschedule_count + 1
+WHERE id = $3
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count
+`
+
+type AdminRescheduleBookingParams struct {
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+	ID             uuid.UUID
+}
+
+func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminRescheduleBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, adminRescheduleBooking, arg.ScheduledStart, arg.ScheduledEnd, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+	)
+	return i, err
+}
