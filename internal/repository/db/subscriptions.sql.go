@@ -570,3 +570,103 @@ func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransa
 	}
 	return items, nil
 }
+
+const countAdminSubscriptions = `
+SELECT COUNT(*) FROM subscriptions s WHERE ($1::text = '' OR s.status = $1)
+`
+
+func (q *Queries) CountAdminSubscriptions(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminSubscriptions, status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const listAdminSubscriptions = `
+SELECT
+	s.id,
+	s.client_id,
+	s.trainer_id,
+	s.plan_type,
+	s.amount,
+	s.currency,
+	s.status,
+	s.platform,
+	s.current_period_start,
+	s.current_period_end,
+	s.created_at,
+	s.cancelled_at,
+	cu.name  AS client_name,
+	cu.email AS client_email,
+	tu.name  AS trainer_name,
+	tu.email AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t  ON t.id  = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+WHERE ($1::text = '' OR s.status = $1)
+ORDER BY s.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListAdminSubscriptionsParams struct {
+	Status     string
+	PageLimit  int32
+	PageOffset int32
+}
+
+type ListAdminSubscriptionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+func (q *Queries) ListAdminSubscriptions(ctx context.Context, arg ListAdminSubscriptionsParams) ([]ListAdminSubscriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminSubscriptions, arg.Status, arg.PageLimit, arg.PageOffset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminSubscriptionsRow
+	for rows.Next() {
+		var i ListAdminSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

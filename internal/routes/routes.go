@@ -620,6 +620,16 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			impl.GetAdminTransactions(c)
 		})
+
+		v1.GET("/admin/subscriptions", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.GetAdminSubscriptions(c)
+		})
 	}
 
 	return r
