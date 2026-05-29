@@ -4630,6 +4630,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
               example:
+                status: success
                 code: OK
                 message: transactions fetched
                 data:
