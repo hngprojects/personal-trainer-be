@@ -469,10 +469,24 @@ func (s *routerImpl) DeleteAdminClient(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	_, err = s.trainers.q.DeactivateClient(ctx, clientID)
+	client, err := s.trainers.q.GetClientByID(ctx, clientID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get client", api.CodeServerError))
+		return
+	}
+	if !client.IsActive {
+		c.JSON(http.StatusConflict, api.NewError("client is already deactivated", api.CodeConflict))
+		return
+	}
+
+	_, err = s.trainers.q.DeactivateClient(ctx, clientID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("client is already deactivated", api.CodeConflict))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate client", api.CodeServerError))

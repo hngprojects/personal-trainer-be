@@ -4697,6 +4697,7 @@ paths:
                 status: success
                 code: OK
                 message: client deactivated successfully
+                data: null
         "400":
           description: Invalid client ID
           content:
@@ -4717,6 +4718,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Client is already deactivated
           content:
             application/json:
               schema:
