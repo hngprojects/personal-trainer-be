@@ -453,3 +453,45 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 		"top_trainers": items,
 	}))
 }
+
+func (s *routerImpl) DeleteAdminClient(c *gin.Context) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	idStr := c.Param("id")
+	clientID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid client id", api.CodeBadRequest))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	client, err := s.trainers.q.GetClientByID(ctx, clientID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get client", api.CodeServerError))
+		return
+	}
+	if !client.IsActive {
+		c.JSON(http.StatusConflict, api.NewError("client is already deactivated", api.CodeConflict))
+		return
+	}
+
+	_, err = s.trainers.q.DeactivateClient(ctx, clientID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("client is already deactivated", api.CodeConflict))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate client", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("client deactivated successfully", api.CodeOK, nil))
+}

@@ -633,6 +633,16 @@ func (s *Router) Routes() *gin.Engine {
 			}
 			impl.GetAdminSubscriptions(c)
 		})
+
+		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
+			if superAdminOnly != nil {
+				superAdminOnly(c)
+				if c.IsAborted() {
+					return
+				}
+			}
+			impl.DeleteAdminClient(c)
+		})
 	}
 
 	return r
