@@ -19,6 +19,7 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
@@ -37,10 +38,15 @@ type Handler struct {
 	mailer            email.Mailer
 	notificationEmail string
 	log               *slog.Logger
+	// notif is optional — nil means the route still works but no
+	// admin / trainer notifications fire. Matches the pattern used in
+	// internal/bookings/handler.go so the package doesn't hard-depend
+	// on the notification service being wired.
+	notif *notification.NotificationService
 }
 
-func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, notificationEmail string, log *slog.Logger) *Handler {
-	return &Handler{repo: repo, meetings: meetingSelector, mailer: mailer, notificationEmail: notificationEmail, log: log}
+func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, notificationEmail string, log *slog.Logger, notif *notification.NotificationService) *Handler {
+	return &Handler{repo: repo, meetings: meetingSelector, mailer: mailer, notificationEmail: notificationEmail, log: log, notif: notif}
 }
 
 // orgMeeting returns the Provider for un-attributed meetings (discovery
@@ -188,6 +194,20 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	if h.notificationEmail != "" {
 		if err := h.mailer.SendDiscoveryBookingAdminNotification(h.notificationEmail, req.Name, string(req.Email), selectedTime, req.Timezone, string(req.ContactMode), phoneNumber, zoomLink); err != nil {
 			h.log.Error("failed to send admin notification email", "err", err, "email", h.notificationEmail, "booking_id", booking.ID)
+		}
+	}
+
+	// In-app notification to every admin so the staff dashboard shows
+	// new discovery requests without anyone having to refresh. The
+	// table-wide UNIQUE constraint on idempotency_key is per-admin
+	// inside the broadcast helper.
+	if h.notif != nil {
+		if _, notifErr := h.notif.SendNotificationToAdmins(ctx,
+			"New Discovery Call",
+			req.Name+" booked a discovery call.",
+			"discovery-booked-"+booking.ID.String(),
+		); notifErr != nil {
+			h.log.Warn("admin notification (discovery booked) failed", "booking_id", booking.ID, "err", notifErr)
 		}
 	}
 
@@ -699,6 +719,27 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		req.Timezone, updated.ContactMode, finalPhone, finalZoomLink,
 	); err != nil {
 		h.log.Error("failed to send reschedule confirmation email", "err", err, "email", updated.Email, "booking_id", updated.ID)
+	}
+
+	// Admin in-app notification mirrors the booking event so staff can
+	// see schedule changes in their dashboard.
+	//
+	// Key includes RescheduleCount because the same booking can be
+	// rescheduled up to maxReschedules times (currently 3). Without
+	// the count the second/third reschedule would collide on the
+	// UNIQUE(idempotency_key) constraint and be silently dropped as
+	// "already delivered." reschedule_count is incremented BEFORE the
+	// RETURNING in the UPDATE, so the value here is the 1-based
+	// reschedule sequence number — distinct on every successful call.
+	if h.notif != nil {
+		key := fmt.Sprintf("discovery-rescheduled-%s-%d", updated.ID, updated.RescheduleCount)
+		if _, notifErr := h.notif.SendNotificationToAdmins(ctx,
+			"Discovery Call Rescheduled",
+			updated.Name+" rescheduled their discovery call.",
+			key,
+		); notifErr != nil {
+			h.log.Warn("admin notification (discovery rescheduled) failed", "booking_id", updated.ID, "err", notifErr)
+		}
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("Discovery call rescheduled successfully", api.CodeOK, bookingToMap(updated)))

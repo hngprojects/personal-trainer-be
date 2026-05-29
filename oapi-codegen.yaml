@@ -30,3 +30,4 @@ output-options:
     - PostAdminCategories
     - DeleteAdminCategoriesId
     - GetCategories
+    - NotificationsWebSocketUpgrade
