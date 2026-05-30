@@ -1119,19 +1119,29 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	trainerID := uuid.UUID(id)
+	ctx := c.Request.Context()
 
-	_, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
+	// Soft-delete: set users.is_active = false for this trainer's user account.
+	// Returns ErrNoRows if the trainer doesn't exist OR is already inactive.
+	_, err := s.trainers.q.DeactivateTrainer(ctx, trainerID)
 	if err != nil {
-		s.logger.Warn("error while deleting trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			// Disambiguate: check whether the trainer record itself exists.
+			_, lookupErr := s.trainers.q.GetTrainerByID(ctx, trainerID)
+			if errors.Is(lookupErr, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+				return
+			}
+			// Trainer exists but user is already inactive (or race condition).
+			c.JSON(http.StatusConflict, api.NewError("trainer is already deactivated", api.CodeConflict))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete trainer", api.CodeServerError))
+		s.logger.Warn("delete trainer: failed to deactivate", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate trainer", api.CodeServerError))
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, api.NewSuccess("trainer deactivated successfully", api.CodeOK, nil))
 }
 
 // GET /trainers/me/sessions?page=&limit=
