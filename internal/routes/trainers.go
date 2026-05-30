@@ -1126,8 +1126,11 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	_, err := s.trainers.q.DeactivateTrainer(ctx, trainerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// Disambiguate: check whether the trainer record itself exists.
-			_, lookupErr := s.trainers.q.GetTrainerByID(ctx, trainerID)
+			// Disambiguate the three possible no-row states:
+			//  1. trainer row missing                → 404
+			//  2. user row missing or role mismatch  → 500 (data integrity)
+			//  3. user already inactive              → 409
+			trainer, lookupErr := s.trainers.q.GetTrainerByID(ctx, trainerID)
 			if errors.Is(lookupErr, sql.ErrNoRows) {
 				c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 				return
@@ -1137,7 +1140,23 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer", api.CodeServerError))
 				return
 			}
-			// Trainer exists but user is already inactive (or race condition).
+			user, userErr := s.trainers.q.GetUserByID(ctx, trainer.UserID)
+			if errors.Is(userErr, sql.ErrNoRows) {
+				s.logger.Error("delete trainer: trainer has no linked user (data integrity)", "trainerID", trainerID, "userID", trainer.UserID)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			if userErr != nil {
+				s.logger.Warn("delete trainer: failed to fetch linked user", "trainerID", trainerID, "err", userErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer account", api.CodeServerError))
+				return
+			}
+			if user.Role != "trainer" {
+				s.logger.Error("delete trainer: linked user has unexpected role (data integrity)", "trainerID", trainerID, "userID", trainer.UserID, "role", user.Role)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			// Trainer exists, user exists, role is correct — already inactive.
 			c.JSON(http.StatusConflict, api.NewError("trainer is already deactivated", api.CodeConflict))
 			return
 		}
