@@ -28,3 +28,9 @@ RETURNING *;
 
 -- name: DeleteSessionsByUserID :exec
 DELETE FROM sessions WHERE user_id = $1;
+
+-- name: VerifyPasswordResetCode :one
+-- Read-only check: confirms the code is valid and not expired without consuming it.
+-- Used by the verify-otp step so mobile can confirm the code before showing the new-password screen.
+SELECT * FROM password_reset_codes
+WHERE email = $1 AND code = $2 AND expires_at > NOW();

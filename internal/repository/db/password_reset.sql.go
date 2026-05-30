@@ -115,3 +115,26 @@ func (q *Queries) UpsertPasswordResetCode(ctx context.Context, arg UpsertPasswor
 	_, err := q.db.ExecContext(ctx, upsertPasswordResetCode, arg.Email, arg.Code, arg.ExpiresAt)
 	return err
 }
+
+const verifyPasswordResetCode = `-- name: VerifyPasswordResetCode :one
+SELECT id, email, code, expires_at, created_at FROM password_reset_codes
+WHERE email = $1 AND code = $2 AND expires_at > NOW()
+`
+
+type VerifyPasswordResetCodeParams struct {
+	Email string
+	Code  string
+}
+
+func (q *Queries) VerifyPasswordResetCode(ctx context.Context, arg VerifyPasswordResetCodeParams) (PasswordResetCode, error) {
+	row := q.db.QueryRowContext(ctx, verifyPasswordResetCode, arg.Email, arg.Code)
+	var i PasswordResetCode
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Code,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}

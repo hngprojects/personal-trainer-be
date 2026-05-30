@@ -1119,19 +1119,53 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	trainerID := uuid.UUID(id)
+	ctx := c.Request.Context()
 
-	_, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
+	// Soft-delete: set users.is_active = false for this trainer's user account.
+	// Returns ErrNoRows if the trainer doesn't exist OR is already inactive.
+	_, err := s.trainers.q.DeactivateTrainer(ctx, trainerID)
 	if err != nil {
-		s.logger.Warn("error while deleting trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			// Disambiguate the three possible no-row states:
+			//  1. trainer row missing                → 404
+			//  2. user row missing or role mismatch  → 500 (data integrity)
+			//  3. user already inactive              → 409
+			trainer, lookupErr := s.trainers.q.GetTrainerByID(ctx, trainerID)
+			if errors.Is(lookupErr, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+				return
+			}
+			if lookupErr != nil {
+				s.logger.Warn("delete trainer: lookup failed during disambiguate", "trainerID", trainerID, "err", lookupErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer", api.CodeServerError))
+				return
+			}
+			user, userErr := s.trainers.q.GetUserByID(ctx, trainer.UserID)
+			if errors.Is(userErr, sql.ErrNoRows) {
+				s.logger.Error("delete trainer: trainer has no linked user (data integrity)", "trainerID", trainerID, "userID", trainer.UserID)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			if userErr != nil {
+				s.logger.Warn("delete trainer: failed to fetch linked user", "trainerID", trainerID, "err", userErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer account", api.CodeServerError))
+				return
+			}
+			if user.Role != "trainer" {
+				s.logger.Error("delete trainer: linked user has unexpected role (data integrity)", "trainerID", trainerID, "userID", trainer.UserID, "role", user.Role)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			// Trainer exists, user exists, role is correct — already inactive.
+			c.JSON(http.StatusConflict, api.NewError("trainer is already deactivated", api.CodeConflict))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete trainer", api.CodeServerError))
+		s.logger.Warn("delete trainer: failed to deactivate", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate trainer", api.CodeServerError))
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, api.NewSuccess("trainer deactivated successfully", api.CodeOK, nil))
 }
 
 // GET /trainers/me/sessions?page=&limit=
