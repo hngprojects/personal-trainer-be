@@ -1132,6 +1132,11 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 				c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
 				return
 			}
+			if lookupErr != nil {
+				s.logger.Warn("delete trainer: lookup failed during disambiguate", "trainerID", trainerID, "err", lookupErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer", api.CodeServerError))
+				return
+			}
 			// Trainer exists but user is already inactive (or race condition).
 			c.JSON(http.StatusConflict, api.NewError("trainer is already deactivated", api.CodeConflict))
 			return
