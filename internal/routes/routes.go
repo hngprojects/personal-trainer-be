@@ -644,6 +644,11 @@ func (s *Router) Routes() *gin.Engine {
 			impl.DeleteAdminClient(c)
 		})
 
+		// Hand-wired: /auth/verify-reset-code was added to api.yaml after the
+		// initial oapi-codegen run. Regenerating gen.go is tracked separately;
+		// for now this follows the same pattern as the hand-wired /admin/* routes.
+		v1.POST("/auth/verify-reset-code", impl.HandleVerifyResetCode)
+
 		v1.PUT("/admin/sessions/:id/cancel", authMw, func(c *gin.Context) {
 			if superAdminOnly != nil {
 				superAdminOnly(c)
