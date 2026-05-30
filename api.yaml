@@ -2682,7 +2682,11 @@ paths:
       operationId: DeleteTrainer
       tags:
         - Trainer
-      summary: Delete trainer (admin only)
+      summary: Deactivate trainer (admin only)
+      description: |
+        Soft-deletes the trainer by setting their user account to inactive.
+        The trainer record and all associated data are preserved.
+        The trainer can no longer log in or appear in active listings.
       parameters:
         - name: id
           in: path
@@ -2691,14 +2695,17 @@ paths:
             type: string
             format: uuid
       responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
+        "200":
+          description: Trainer deactivated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: trainer deactivated successfully
+                data: null
         "401":
           description: Unauthorized
           content:
@@ -2711,8 +2718,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
           content:
             application/json:
               schema:
@@ -3996,6 +4021,7 @@ paths:
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a
+        trainer or
         registered local user that holds the `admin` role. The endpoint
         always returns the same generic success response regardless of
         whether the email exists or whether the user is an admin — this
@@ -4054,6 +4080,72 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /auth/verify-reset-code:
+    post:
+      operationId: HandleVerifyResetCode
+      security: []
+      tags:
+        - Authentication
+      summary: Verify a password reset OTP code
+      description: |
+        Confirms that the 6-digit OTP code sent to an email address is valid
+        and has not expired, without consuming it. Use this between the
+        forgot-password and reset-password steps so clients can validate the
+        code before asking the user to enter a new password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - code
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: trainer@example.com
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  pattern: '^[0-9]{6}$'
+                  example: "123456"
+            example:
+              email: trainer@example.com
+              code: "123456"
+      responses:
+        "200":
+          description: Code is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: code is valid
+                data: null
+        "400":
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/reset-password:
     post:
       security: []
