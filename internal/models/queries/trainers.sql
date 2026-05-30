@@ -284,3 +284,13 @@ GROUP BY
     u.gender,
     u.phone_number
 ORDER BY booking_count DESC;
+-- name: DeactivateTrainer :one
+-- Soft-delete: marks the trainer's user account inactive.
+-- Returns the user_id so the caller can confirm who was deactivated.
+-- Returns no rows if the trainer_id doesn't exist or the account is
+-- already inactive, letting the handler distinguish 404 vs 409.
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE id = (SELECT user_id FROM trainers WHERE id = sqlc.arg(trainer_id))
+  AND role = 'trainer'
+  AND is_active = true
+RETURNING id;

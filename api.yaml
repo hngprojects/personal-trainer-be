@@ -1439,21 +1439,36 @@ paths:
       tags:
         - Auth — Local
         - Authentication
-      summary: Login with email
+      summary: Login with email + password
       description: |
-        Sends a one-time verification code to the email address.
-        The user must then call POST /auth/verify-email with the code to receive tokens.
+        Verifies the bcrypt password hash on the user row and returns
+        access + refresh tokens on success.
+
+        Newly registered users who haven't yet set a password go via
+        the OTP flow (POST /auth/verify-email). OAuth-only accounts
+        (Google) have no password set; this endpoint returns 401 for
+        them with the same "invalid email or password" message used
+        for every credential failure — no account enumeration.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [email, password]
               properties:
                 email:
                   type: string
                   format: email
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 72
+                  description: |
+                    The user's password. Capped at 72 bytes because
+                    bcrypt silently truncates beyond that — accepting
+                    longer inputs would let any password sharing the
+                    first 72 bytes authenticate.
       responses:
         "200":
           description: Login successful
@@ -2682,7 +2697,11 @@ paths:
       operationId: DeleteTrainer
       tags:
         - Trainer
-      summary: Delete trainer (admin only)
+      summary: Deactivate trainer (admin only)
+      description: |
+        Soft-deletes the trainer by setting their user account to inactive.
+        The trainer record and all associated data are preserved.
+        The trainer can no longer log in or appear in active listings.
       parameters:
         - name: id
           in: path
@@ -2691,14 +2710,17 @@ paths:
             type: string
             format: uuid
       responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
+        "200":
+          description: Trainer deactivated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: trainer deactivated successfully
+                data: null
         "401":
           description: Unauthorized
           content:
@@ -2711,8 +2733,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
           content:
             application/json:
               schema:
