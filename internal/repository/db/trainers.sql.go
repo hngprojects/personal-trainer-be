@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -54,6 +55,33 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 		pq.Array(&i.TrainingStyles),
 	)
 	return i, err
+}
+
+const countTrainers = `-- name: CountTrainers :one
+SELECT COUNT(*) FROM trainers WHERE onboarding_status = 'approved'
+`
+
+func (q *Queries) CountTrainers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTrainersForList = `-- name: CountTrainersForList :one
+SELECT COUNT(*) FROM trainers t
+WHERE ($1::text = '' OR t.specializations @> ARRAY[$1::text]::text[])
+`
+
+// Total count for ListTrainers, applying the same category filter. Used to
+// compute total_pages on the paginated /trainers endpoint. NOTE: this is
+// distinct from CountTrainers, which restricts to approved trainers for
+// the admin stats dashboard — here we count what the list returns.
+func (q *Queries) CountTrainersForList(ctx context.Context, category string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainersForList, category)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createTrainer = `-- name: CreateTrainer :one
@@ -260,37 +288,146 @@ func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Tra
 	return i, err
 }
 
-const listTrainers = `-- name: ListTrainers :many
+const getTrainerWithUserByID = `-- name: GetTrainerWithUserByID :one
 SELECT
-  id,
-  user_id,
-  bio,
-  years_of_experience,
-  intro_video_url,
-  display_picture,
-  onboarding_status,
-  average_rating,
-  total_reviews,
-  created_at,
-  updated_at,
-  specializations,
-  training_styles
-FROM trainers
-WHERE ($1::text = '' OR specializations @> ARRAY[$1]::text[])
-ORDER BY created_at DESC
+  t.id,
+  t.user_id,
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+  t.specializations,
+  t.training_styles,
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+WHERE t.id = $1
+LIMIT 1
 `
 
-// Filter by a single specialization. The empty-string sentinel means "no
-// filter". Containment uses the GIN index on specializations.
-func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainers, dollar_1)
+type GetTrainerWithUserByIDRow struct {
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
+}
+
+// Variant of GetTrainerByID that joins users so the trainer detail handler
+// can return the trainer's display name + email without a second lookup.
+// Kept distinct from GetTrainerByID so existing internal callers that
+// only need the trainers row (e.g. bookings/repository.go) continue to
+// receive db.Trainer.
+func (q *Queries) GetTrainerWithUserByID(ctx context.Context, id uuid.UUID) (GetTrainerWithUserByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getTrainerWithUserByID, id)
+	var i GetTrainerWithUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Bio,
+		&i.YearsOfExperience,
+		&i.IntroVideoUrl,
+		&i.DisplayPicture,
+		&i.OnboardingStatus,
+		&i.AverageRating,
+		&i.TotalReviews,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.Specializations),
+		pq.Array(&i.TrainingStyles),
+		&i.TrainerName,
+		&i.TrainerEmail,
+		&i.TrainerGender,
+		&i.TrainerPhoneNumber,
+	)
+	return i, err
+}
+
+const getTrainersByBookingCountPastMonth = `-- name: GetTrainersByBookingCountPastMonth :many
+SELECT
+    t.id,
+    t.user_id,
+    t.bio,
+    t.years_of_experience,
+    t.intro_video_url,
+    t.display_picture,
+    t.onboarding_status,
+    t.average_rating,
+    t.total_reviews,
+    t.created_at,
+    t.updated_at,
+    t.specializations,
+    t.training_styles,
+    u.name            AS trainer_name,
+    u.email           AS trainer_email,
+    u.gender          AS trainer_gender,
+    u.phone_number    AS trainer_phone_number,
+    COUNT(b.id)       AS booking_count
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+JOIN bookings b ON b.trainer_id = t.id
+WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+  AND b.scheduled_start < NOW()
+  AND b.booking_status = 'completed'
+GROUP BY
+    t.id,
+    u.name,
+    u.email,
+    u.gender,
+    u.phone_number
+ORDER BY booking_count DESC
+`
+
+type GetTrainersByBookingCountPastMonthRow struct {
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
+	BookingCount       int64
+}
+
+func (q *Queries) GetTrainersByBookingCountPastMonth(ctx context.Context) ([]GetTrainersByBookingCountPastMonthRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTrainersByBookingCountPastMonth)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Trainer
+	var items []GetTrainersByBookingCountPastMonthRow
 	for rows.Next() {
-		var i Trainer
+		var i GetTrainersByBookingCountPastMonthRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -305,6 +442,124 @@ func (q *Queries) ListTrainers(ctx context.Context, dollar_1 string) ([]Trainer,
 			&i.UpdatedAt,
 			pq.Array(&i.Specializations),
 			pq.Array(&i.TrainingStyles),
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.TrainerGender,
+			&i.TrainerPhoneNumber,
+			&i.BookingCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrainers = `-- name: ListTrainers :many
+SELECT
+  t.id,
+  t.user_id,
+  t.bio,
+  t.years_of_experience,
+  t.intro_video_url,
+  t.display_picture,
+  t.onboarding_status,
+  t.average_rating,
+  t.total_reviews,
+  t.created_at,
+  t.updated_at,
+  t.specializations,
+  t.training_styles,
+  u.name         AS trainer_name,
+  u.email        AS trainer_email,
+  u.gender       AS trainer_gender,
+  u.phone_number AS trainer_phone_number
+FROM trainers t
+JOIN users u ON u.id = t.user_id
+WHERE
+  ($1::text = '' 
+    OR t.specializations @> ARRAY[$1::text]::text[]
+  )
+  AND
+  ($2::text = '' 
+    OR t.onboarding_status = $2::text)
+ORDER BY t.created_at DESC
+LIMIT $4
+OFFSET $3
+`
+
+type ListTrainersParams struct {
+	Category         string
+	OnboardingStatus string
+	PageOffset       int32
+	PageLimit        int32
+}
+
+type ListTrainersRow struct {
+	ID                 uuid.UUID
+	UserID             uuid.UUID
+	Bio                sql.NullString
+	YearsOfExperience  sql.NullInt32
+	IntroVideoUrl      sql.NullString
+	DisplayPicture     sql.NullString
+	OnboardingStatus   string
+	AverageRating      sql.NullFloat64
+	TotalReviews       int32
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Specializations    []string
+	TrainingStyles     []string
+	TrainerName        string
+	TrainerEmail       string
+	TrainerGender      sql.NullString
+	TrainerPhoneNumber sql.NullString
+}
+
+// Filter by a single specialization. The empty-string sentinel means "no
+// filter". Containment uses the GIN index on specializations.
+//
+// Joins users so the response can render the trainer's name without an
+// extra round trip; the trainer's display name lives on users.name (the
+// trainers row only stores profile fields). Paginated via LIMIT/OFFSET —
+// callers compute total pages from CountTrainersForList.
+func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]ListTrainersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTrainers,
+		arg.Category,
+		arg.OnboardingStatus,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrainersRow
+	for rows.Next() {
+		var i ListTrainersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Bio,
+			&i.YearsOfExperience,
+			&i.IntroVideoUrl,
+			&i.DisplayPicture,
+			&i.OnboardingStatus,
+			&i.AverageRating,
+			&i.TotalReviews,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			pq.Array(&i.Specializations),
+			pq.Array(&i.TrainingStyles),
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.TrainerGender,
+			&i.TrainerPhoneNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -441,4 +696,19 @@ func (q *Queries) UpdateTrainerIntroVideo(ctx context.Context, arg UpdateTrainer
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deactivateTrainer = `-- name: DeactivateTrainer :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE id = (SELECT user_id FROM trainers WHERE id = $1)
+  AND role = 'trainer'
+  AND is_active = true
+RETURNING id
+`
+
+func (q *Queries) DeactivateTrainer(ctx context.Context, trainerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateTrainer, trainerID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }

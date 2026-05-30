@@ -42,20 +42,34 @@ RETURNING *;
 
 -- name: UpsertTrainerUser :one
 -- Mirror of UpsertAdminUser, used by POST /trainers (admin-creates-trainer).
--- The admin enters the trainer's email + name; we provision a local-auth user
--- with role='trainer' and a generated password (hashed). Re-inviting the same
--- email is idempotent — the password rotates, the name is overwritten, and
--- the role is forced back to 'trainer' so a previously-suspended account is
--- reactivated cleanly. The plaintext password is mailed exactly once by the
--- caller and never persisted.
-INSERT INTO users (email, name, password, auth_provider, role, is_active)
-VALUES ($1, $2, $3, 'local', 'trainer', true)
+-- The admin enters the trainer's email + name (+ optional gender +
+-- phone_number); we provision a local-auth user with role='trainer'
+-- and a generated password (hashed). Re-inviting the same email is
+-- idempotent — the password rotates, the name is overwritten, gender
+-- and phone_number are overwritten ONLY when the caller supplies a
+-- non-empty value (NULLIF guard) so a re-invite that omits them keeps
+-- existing data, and the role is forced back to 'trainer' so a
+-- previously-suspended account is reactivated cleanly. The plaintext
+-- password is mailed exactly once by the caller and never persisted.
+INSERT INTO users (email, name, password, gender, phone_number, auth_provider, role, is_active)
+VALUES (
+    sqlc.arg(email),
+    sqlc.arg(name),
+    sqlc.arg(password),
+    NULLIF(sqlc.arg(gender)::text, ''),
+    NULLIF(sqlc.arg(phone_number)::text, ''),
+    'local',
+    'trainer',
+    true
+)
 ON CONFLICT (email, auth_provider) DO UPDATE
-   SET password   = EXCLUDED.password,
-       name       = EXCLUDED.name,
-       role       = 'trainer',
-       is_active  = true,
-       updated_at = NOW()
+   SET password     = EXCLUDED.password,
+       name         = EXCLUDED.name,
+       gender       = COALESCE(EXCLUDED.gender, users.gender),
+       phone_number = COALESCE(EXCLUDED.phone_number, users.phone_number),
+       role         = 'trainer',
+       is_active    = true,
+       updated_at   = NOW()
 RETURNING *;
 
 -- name: UpdateUserAvatar :execrows
@@ -81,3 +95,47 @@ SET
     updated_at     = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: CountClients :one
+SELECT COUNT(*) FROM users WHERE role = 'client' AND is_active = true;
+
+-- name: ListClients :many
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.role = 'client'
+  AND (sqlc.narg(is_active)::boolean IS NULL OR u.is_active = sqlc.narg(is_active)::boolean)
+GROUP BY u.id
+ORDER BY u.created_at DESC
+LIMIT sqlc.arg(lim)::BIGINT
+OFFSET sqlc.arg(off)::BIGINT;
+
+-- name: CountClients2 :one
+SELECT COUNT(*)::BIGINT
+FROM users
+WHERE role = 'client'
+  AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean);
+
+-- name: GetClientByID :one
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.is_active,
+    u.created_at,
+    u.gender,
+    u.fitness_goals,
+    u.fitness_level,
+    u.avatar_url,
+    COALESCE(COUNT(b.id), 0)::BIGINT AS sessions_booked
+FROM users u
+LEFT JOIN bookings b ON b.client_id = u.id
+WHERE u.id = sqlc.arg(id)::uuid
+  AND u.role = 'client'
+GROUP BY u.id;

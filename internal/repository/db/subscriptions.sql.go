@@ -7,26 +7,212 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
 
+const cancelSubscription = `-- name: CancelSubscription :one
+UPDATE subscriptions
+SET status = 'cancelled',
+    cancelled_at = NOW()
+WHERE id = $1
+  AND status = 'active'
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+`
+
+func (q *Queries) CancelSubscription(ctx context.Context, id uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, cancelSubscription, id)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const countActiveSubscriptions = `-- name: CountActiveSubscriptions :one
+SELECT COUNT(*) FROM subscriptions
+WHERE status = 'active'
+  AND current_period_end > NOW()
+`
+
+func (q *Queries) CountActiveSubscriptions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveSubscriptions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAdminSubscriptions = `-- name: CountAdminSubscriptions :one
+SELECT COUNT(*) FROM subscriptions s WHERE ($1::text = '' OR s.status = $1)
+`
+
+// Backfilled from PR #279. Empty string in $1 means "no status filter".
+func (q *Queries) CountAdminSubscriptions(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminSubscriptions, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAdminTransactions = `-- name: CountAdminTransactions :one
+SELECT COUNT(*) FROM subscriptions
+`
+
+// Backfilled from internal/repository/db/subscriptions.sql.go where it
+// was hand-added (PR #274). Lifted into the sqlc source so future
+// `sqlc generate` runs don't wipe it. Plain unfiltered count.
+func (q *Queries) CountAdminTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminTransactions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createSubscription = `-- name: CreateSubscription :one
+INSERT INTO subscriptions (
+    client_id,
+    trainer_id,
+    plan_id,
+    plan_type,
+    platform,
+    sessions_per_month,
+    amount,
+    currency,
+    status,
+    trial_ends_at,
+    current_period_start,
+    current_period_end,
+    apple_original_transaction_id,
+    google_purchase_token
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    'USD',
+    'active',
+    $8,
+    $9,
+    $10,
+    $11,
+    $12
+)
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+`
+
+type CreateSubscriptionParams struct {
+	ClientID                   uuid.UUID
+	TrainerID                  uuid.UUID
+	PlanID                     sql.NullString
+	PlanType                   string
+	Platform                   sql.NullString
+	SessionsPerMonth           sql.NullInt32
+	Amount                     sql.NullInt64
+	TrialEndsAt                sql.NullTime
+	CurrentPeriodStart         sql.NullTime
+	CurrentPeriodEnd           sql.NullTime
+	AppleOriginalTransactionID sql.NullString
+	GooglePurchaseToken        sql.NullString
+}
+
+func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, createSubscription,
+		arg.ClientID,
+		arg.TrainerID,
+		arg.PlanID,
+		arg.PlanType,
+		arg.Platform,
+		arg.SessionsPerMonth,
+		arg.Amount,
+		arg.TrialEndsAt,
+		arg.CurrentPeriodStart,
+		arg.CurrentPeriodEnd,
+		arg.AppleOriginalTransactionID,
+		arg.GooglePurchaseToken,
+	)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const getActiveSubscriptionByClientID = `-- name: GetActiveSubscriptionByClientID :one
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+WHERE client_id = $1
+  AND status = 'active'
+  AND current_period_end > NOW()
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetActiveSubscriptionByClientID(ctx context.Context, clientID uuid.UUID) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, getActiveSubscriptionByClientID, clientID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
 const getActiveSubscriptionForClient = `-- name: GetActiveSubscriptionForClient :one
-SELECT
-  id,
-  client_id,
-  trainer_id,
-  plan_type,
-  sessions_per_month,
-  sessions_used_this_month,
-  amount,
-  currency,
-  status,
-  current_period_start,
-  current_period_end,
-  created_at,
-  cancelled_at
-FROM subscriptions
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
 WHERE client_id = $1
   AND trainer_id = $2
   AND status = 'active'
@@ -56,26 +242,155 @@ func (q *Queries) GetActiveSubscriptionForClient(ctx context.Context, arg GetAct
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const getLatestSubscription = `-- name: GetLatestSubscription :one
+SELECT
+  s.id,
+  s.client_id,
+  s.plan_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.created_at,
+  u.name  AS client_name,
+  u.email AS client_email
+FROM subscriptions s
+JOIN users u ON u.id = s.client_id
+WHERE s.amount IS NOT NULL
+ORDER BY s.created_at DESC
+LIMIT 1
+`
+
+type GetLatestSubscriptionRow struct {
+	ID          uuid.UUID
+	ClientID    uuid.UUID
+	PlanID      sql.NullString
+	PlanType    string
+	Amount      sql.NullInt64
+	Currency    string
+	Status      string
+	CreatedAt   time.Time
+	ClientName  string
+	ClientEmail string
+}
+
+func (q *Queries) GetLatestSubscription(ctx context.Context) (GetLatestSubscriptionRow, error) {
+	row := q.db.QueryRowContext(ctx, getLatestSubscription)
+	var i GetLatestSubscriptionRow
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.PlanID,
+		&i.PlanType,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ClientName,
+		&i.ClientEmail,
+	)
+	return i, err
+}
+
+const getRevenueSnapshot = `-- name: GetRevenueSnapshot :one
+SELECT
+  CAST(COALESCE(SUM(amount), 0) AS BIGINT)                                                                          AS total_revenue,
+  CAST(COALESCE(SUM(amount) FILTER (WHERE plan_type IN ('monthly_12', 'monthly_18')), 0) AS BIGINT)                AS subscription_revenue,
+  CAST(COALESCE(SUM(amount) FILTER (WHERE plan_type = 'single'), 0) AS BIGINT)                                     AS one_time_revenue
+FROM subscriptions
+WHERE amount IS NOT NULL
+`
+
+type GetRevenueSnapshotRow struct {
+	TotalRevenue        int64
+	SubscriptionRevenue int64
+	OneTimeRevenue      int64
+}
+
+// All-time gross revenue across all statuses (active + expired + cancelled).
+// Cancelled subs are included — refund tracking is out of scope for v1.
+func (q *Queries) GetRevenueSnapshot(ctx context.Context) (GetRevenueSnapshotRow, error) {
+	row := q.db.QueryRowContext(ctx, getRevenueSnapshot)
+	var i GetRevenueSnapshotRow
+	err := row.Scan(&i.TotalRevenue, &i.SubscriptionRevenue, &i.OneTimeRevenue)
+	return i, err
+}
+
+const getSubscriptionByAppleTransactionID = `-- name: GetSubscriptionByAppleTransactionID :one
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+WHERE apple_original_transaction_id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetSubscriptionByAppleTransactionID(ctx context.Context, appleOriginalTransactionID sql.NullString) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, getSubscriptionByAppleTransactionID, appleOriginalTransactionID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const getSubscriptionByGooglePurchaseToken = `-- name: GetSubscriptionByGooglePurchaseToken :one
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
+WHERE google_purchase_token = $1
+LIMIT 1
+`
+
+func (q *Queries) GetSubscriptionByGooglePurchaseToken(ctx context.Context, googlePurchaseToken sql.NullString) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, getSubscriptionByGooglePurchaseToken, googlePurchaseToken)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
 	)
 	return i, err
 }
 
 const getSubscriptionByID = `-- name: GetSubscriptionByID :one
-SELECT
-  id,
-  client_id,
-  trainer_id,
-  plan_type,
-  sessions_per_month,
-  sessions_used_this_month,
-  amount,
-  currency,
-  status,
-  current_period_start,
-  current_period_end,
-  created_at,
-  cancelled_at
-FROM subscriptions
+SELECT id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token FROM subscriptions
 WHERE id = $1
 LIMIT 1
 `
@@ -97,28 +412,207 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscr
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
 	)
 	return i, err
+}
+
+const listAdminSubscriptions = `-- name: ListAdminSubscriptions :many
+SELECT
+    s.id,
+    s.client_id,
+    s.trainer_id,
+    s.plan_type,
+    s.amount,
+    s.currency,
+    s.status,
+    s.platform,
+    s.current_period_start,
+    s.current_period_end,
+    s.created_at,
+    s.cancelled_at,
+    cu.name  AS client_name,
+    cu.email AS client_email,
+    tu.name  AS trainer_name,
+    tu.email AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t  ON t.id  = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+WHERE ($1::text = '' OR s.status = $1)
+ORDER BY s.created_at DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListAdminSubscriptionsParams struct {
+	Status     string
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAdminSubscriptionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+// Backfilled from PR #279. Listing for /admin/subscriptions dashboard
+// with optional status filter — empty string in $1 returns all rows.
+func (q *Queries) ListAdminSubscriptions(ctx context.Context, arg ListAdminSubscriptionsParams) ([]ListAdminSubscriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminSubscriptions, arg.Status, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminSubscriptionsRow
+	for rows.Next() {
+		var i ListAdminSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAdminTransactions = `-- name: ListAdminTransactions :many
+SELECT
+  s.id,
+  s.client_id,
+  s.trainer_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.platform,
+  s.current_period_start,
+  s.current_period_end,
+  s.created_at,
+  s.cancelled_at,
+  cu.name   AS client_name,
+  cu.email  AS client_email,
+  tu.name   AS trainer_name,
+  tu.email  AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t ON t.id = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+ORDER BY s.created_at DESC
+LIMIT $2 OFFSET $1
+`
+
+type ListAdminTransactionsParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAdminTransactionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+// Backfilled from PR #274 (was hand-added to the generated file).
+// Listing for the /admin/transactions dashboard — joins client +
+// trainer profiles so the table can render names without N+1 lookups.
+func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransactionsParams) ([]ListAdminTransactionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminTransactions, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminTransactionsRow
+	for rows.Next() {
+		var i ListAdminTransactionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const refundSessionCredit = `-- name: RefundSessionCredit :one
 UPDATE subscriptions
 SET sessions_used_this_month = GREATEST(0, sessions_used_this_month - 1)
 WHERE id = $1
-RETURNING
-  id,
-  client_id,
-  trainer_id,
-  plan_type,
-  sessions_per_month,
-  sessions_used_this_month,
-  amount,
-  currency,
-  status,
-  current_period_start,
-  current_period_end,
-  created_at,
-  cancelled_at
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
 `
 
 func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscription, error) {
@@ -138,6 +632,56 @@ func (q *Queries) RefundSessionCredit(ctx context.Context, id uuid.UUID) (Subscr
 		&i.CurrentPeriodEnd,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
+	)
+	return i, err
+}
+
+const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
+UPDATE subscriptions
+SET status             = $1,
+    current_period_end = $2,
+    cancelled_at       = CASE
+                           WHEN $1 = 'cancelled' AND cancelled_at IS NULL
+                           THEN NOW()
+                           ELSE cancelled_at
+                         END
+WHERE id = $3
+RETURNING id, client_id, trainer_id, plan_type, sessions_per_month, sessions_used_this_month, amount, currency, status, current_period_start, current_period_end, created_at, cancelled_at, plan_id, platform, trial_ends_at, apple_original_transaction_id, google_purchase_token
+`
+
+type UpdateSubscriptionStatusParams struct {
+	Status           string
+	CurrentPeriodEnd sql.NullTime
+	ID               uuid.UUID
+}
+
+func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error) {
+	row := q.db.QueryRowContext(ctx, updateSubscriptionStatus, arg.Status, arg.CurrentPeriodEnd, arg.ID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.ClientID,
+		&i.TrainerID,
+		&i.PlanType,
+		&i.SessionsPerMonth,
+		&i.SessionsUsedThisMonth,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.PlanID,
+		&i.Platform,
+		&i.TrialEndsAt,
+		&i.AppleOriginalTransactionID,
+		&i.GooglePurchaseToken,
 	)
 	return i, err
 }

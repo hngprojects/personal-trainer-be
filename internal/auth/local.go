@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
@@ -71,6 +69,7 @@ func NewLocalHandler(
 func (h *LocalHandler) Register(c *gin.Context) {
 	var req api.HandleRegisterJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("register: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -78,6 +77,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("register: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
@@ -85,6 +85,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	}
 
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("register: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -94,6 +95,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 	if allowed, err := h.registerLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("register rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("register: rate limit hit", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many requests, please try again later", api.CodeTooManyRequests))
 		return
 	}
@@ -148,6 +150,7 @@ func (h *LocalHandler) Register(c *gin.Context) {
 func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	var req api.HandleVerifyEmailJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("verify email: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -156,6 +159,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	code := strings.TrimSpace(req.Code)
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("verify email: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
@@ -163,6 +167,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("verify email: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
@@ -170,12 +175,14 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	if code == "" {
+		h.log.Warn("verify email: code is empty", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code is required"},
 		}))
 		return
 	}
 	if len(code) != 6 || !isDigits(code) {
+		h.log.Warn("verify email: invalid code format", "email_domain", emailDomain(emailAddr), "codeLength", len(code))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "code", Message: "code must be a 6-digit number"},
 		}))
@@ -185,6 +192,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	if allowed, err := h.verifyLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
 		h.log.Warn("verify rate limiter error — failing open", "err", err)
 	} else if !allowed {
+		h.log.Warn("verify email: rate limit hit", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
 		return
 	}
@@ -192,6 +200,7 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	user, err := h.localAuth.ConsumeAndMarkVerified(c.Request.Context(), emailAddr, h.hashOTP(code))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("verify email: invalid or expired code", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired verification code", api.CodeBadRequest))
 			return
 		}
@@ -229,14 +238,9 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 	}
 	h.log.Info("user verified and logged in", "user_id", userIDStr)
 
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.LocalAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
@@ -245,30 +249,70 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 }
 
 // SignIn handles POST /auth/login.
+//
+// Verifies the bcrypt password hash on the user row. All credential
+// failures — wrong password, unknown email, OAuth-only account with
+// no password set, inactive user — collapse to the same 401 with the
+// generic "invalid email or password" message. Distinct messages
+// would let an attacker enumerate valid email addresses by diffing
+// responses.
+//
+// History note: PR #239 deliberately deleted the bcrypt check and
+// minted tokens after just the email lookup. That shipped an auth
+// bypass affecting every account on the platform — anyone who knew
+// a registered email could sign in as that user. This handler
+// restores the check.
 func (h *LocalHandler) SignIn(c *gin.Context) {
-	var req api.HandleLocalAuthJSONRequestBody
+	// Locally-defined request struct: api.HandleLocalAuthJSONRequestBody
+	// is generated from api.yaml, but the generated version in this tree
+	// is out-of-sync with the current spec (codegen hasn't been re-run
+	// since PR #286 added /admin/sessions/{id}/cancel — running it now
+	// surfaces unrelated breakage we shouldn't fix in this PR). Binding
+	// a small local struct lets the spec stay correct AND the runtime
+	// stay correct without rippling that issue. Drop this once codegen
+	// is back in sync with api.yaml.
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("sign-in: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
-	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	emailAddr := strings.ToLower(strings.TrimSpace(req.Email))
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("sign-in: email exceeds max length", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
 		return
 	}
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("sign-in: invalid email format", "email_domain", emailDomain(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
 		return
 	}
+	if req.Password == "" {
+		// Empty password is a client mistake, not a credential
+		// failure — return 400 so the FE can distinguish "you forgot
+		// to fill in the field" from "your password is wrong" and
+		// render a useful message.
+		h.log.Warn("sign-in: empty password", "email_domain", emailDomain(emailAddr))
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "password", Message: "password is required"},
+		}))
+		return
+	}
+
 	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			h.log.Warn("sign-in: user not found", "email_domain", emailDomain(emailAddr))
 			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 			return
 		}
@@ -278,17 +322,29 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	}
 
 	if !user.IsActive {
+		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
+		// Same generic message as other credential failures so an
+		// attacker can't distinguish "exists but deactivated" from
+		// "doesn't exist" or "wrong password".
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 
-	// Verify password credential.
+	// Reject before bcrypt for accounts that have no password (e.g.
+	// Google OAuth-only signups). user.Password is a sql.NullString;
+	// empty + !Valid mean "never set" rather than "bcrypt'd empty
+	// string". Same generic 401 — no enumeration.
 	if !user.Password.Valid || user.Password.String == "" {
-		// Account has no password (e.g. OAuth-only user); reject password-based sign-in.
+		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr), "user_id", user.ID)
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(req.Password)); err != nil {
+
+	if err := CheckPassword(user.Password.String, req.Password); err != nil {
+		// CheckPassword returns ErrPasswordTooLong for >72-byte inputs
+		// AND bcrypt.ErrMismatchedHashAndPassword for wrong passwords.
+		// Either way the credential is invalid — collapse to one 401.
+		h.log.Warn("sign-in: password check failed", "email_domain", emailDomain(emailAddr), "user_id", user.ID, "err", err)
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
@@ -307,23 +363,16 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		return
 	}
 
-	_, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry))
-	if err != nil {
+	if _, err = h.sessions.Create(c.Request.Context(), user.ID, refreshToken, time.Now().Add(refreshTokenExpiry)); err != nil {
 		h.log.Error("sign-in: failed to create session", "user_id", userIDStr, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 		return
 	}
 
 	h.log.Info("user signed in", "user_id", userIDStr)
-
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.LocalAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
@@ -352,7 +401,6 @@ func (h *LocalHandler) hashOTP(code string) string {
 	mac.Write([]byte(code))
 	return hex.EncodeToString(mac.Sum(nil))
 }
-
 
 // emailDomain returns only the domain part of an email for safe logging.
 func emailDomain(email string) string {

@@ -67,6 +67,43 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 	return items, nil
 }
 
+const listAdminUserIDs = `-- name: ListAdminUserIDs :many
+SELECT DISTINCT ur.user_id
+FROM user_roles ur
+INNER JOIN roles r ON r.id = ur.role_id
+WHERE r.name IN ('admin', 'super_admin')
+`
+
+// Returns every user holding the admin OR super_admin role. Used by
+// the notification broadcast helper so a single system event (a new
+// discovery booking, a subscription cancel, etc.) can fan out to all
+// staff without the caller having to know who they are.
+//
+// DISTINCT because a user could in principle hold both roles —
+// without it the broadcast would double-send.
+func (q *Queries) ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const userHasRole = `-- name: UserHasRole :one
 SELECT EXISTS (
     SELECT 1 FROM user_roles ur

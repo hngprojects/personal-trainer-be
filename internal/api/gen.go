@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	BearerAuthScopes bearerAuthContextKey = "bearerAuth.Scopes"
+	BearerAuthScopes  bearerAuthContextKey  = "bearerAuth.Scopes"
+	RefreshAuthScopes refreshAuthContextKey = "refreshAuth.Scopes"
 )
 
 // Defines values for AuthUserUserType.
@@ -32,24 +33,6 @@ func (e AuthUserUserType) Valid() bool {
 	case AuthUserUserTypeClient:
 		return true
 	case AuthUserUserTypeTrainer:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BaseResponseStatus.
-const (
-	BaseResponseStatusError   BaseResponseStatus = "error"
-	BaseResponseStatusSuccess BaseResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the BaseResponseStatus enum.
-func (e BaseResponseStatus) Valid() bool {
-	switch e {
-	case BaseResponseStatusError:
-		return true
-	case BaseResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -122,18 +105,63 @@ func (e CancelBookingResponseDataRefundReason) Valid() bool {
 	}
 }
 
-// Defines values for CancelBookingResponseStatus.
+// Defines values for CreateSubscriptionRequestPlanId.
 const (
-	CancelBookingResponseStatusError   CancelBookingResponseStatus = "error"
-	CancelBookingResponseStatusSuccess CancelBookingResponseStatus = "success"
+	CreateSubscriptionRequestPlanIdCasual     CreateSubscriptionRequestPlanId = "casual"
+	CreateSubscriptionRequestPlanIdCommitted  CreateSubscriptionRequestPlanId = "committed"
+	CreateSubscriptionRequestPlanIdConsistent CreateSubscriptionRequestPlanId = "consistent"
 )
 
-// Valid indicates whether the value is a known member of the CancelBookingResponseStatus enum.
-func (e CancelBookingResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlanId enum.
+func (e CreateSubscriptionRequestPlanId) Valid() bool {
 	switch e {
-	case CancelBookingResponseStatusError:
+	case CreateSubscriptionRequestPlanIdCasual:
 		return true
-	case CancelBookingResponseStatusSuccess:
+	case CreateSubscriptionRequestPlanIdCommitted:
+		return true
+	case CreateSubscriptionRequestPlanIdConsistent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateSubscriptionRequestPlatform.
+const (
+	CreateSubscriptionRequestPlatformApple  CreateSubscriptionRequestPlatform = "apple"
+	CreateSubscriptionRequestPlatformGoogle CreateSubscriptionRequestPlatform = "google"
+)
+
+// Valid indicates whether the value is a known member of the CreateSubscriptionRequestPlatform enum.
+func (e CreateSubscriptionRequestPlatform) Valid() bool {
+	switch e {
+	case CreateSubscriptionRequestPlatformApple:
+		return true
+	case CreateSubscriptionRequestPlatformGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateTrainerRequestGender.
+const (
+	CreateTrainerRequestGenderFemale         CreateTrainerRequestGender = "female"
+	CreateTrainerRequestGenderMale           CreateTrainerRequestGender = "male"
+	CreateTrainerRequestGenderOther          CreateTrainerRequestGender = "other"
+	CreateTrainerRequestGenderPreferNotToSay CreateTrainerRequestGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the CreateTrainerRequestGender enum.
+func (e CreateTrainerRequestGender) Valid() bool {
+	switch e {
+	case CreateTrainerRequestGenderFemale:
+		return true
+	case CreateTrainerRequestGenderMale:
+		return true
+	case CreateTrainerRequestGenderOther:
+		return true
+	case CreateTrainerRequestGenderPreferNotToSay:
 		return true
 	default:
 		return false
@@ -164,36 +192,39 @@ func (e CreateTrainerRequestOnboardingStatus) Valid() bool {
 	}
 }
 
-// Defines values for ErrorResponseStatus.
+// Defines values for OrganisationMediaMediaType.
 const (
-	ErrorResponseStatusError   ErrorResponseStatus = "error"
-	ErrorResponseStatusSuccess ErrorResponseStatus = "success"
+	OrganisationMediaMediaTypeImage OrganisationMediaMediaType = "image"
+	OrganisationMediaMediaTypeVideo OrganisationMediaMediaType = "video"
 )
 
-// Valid indicates whether the value is a known member of the ErrorResponseStatus enum.
-func (e ErrorResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the OrganisationMediaMediaType enum.
+func (e OrganisationMediaMediaType) Valid() bool {
 	switch e {
-	case ErrorResponseStatusError:
+	case OrganisationMediaMediaTypeImage:
 		return true
-	case ErrorResponseStatusSuccess:
+	case OrganisationMediaMediaTypeVideo:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for GoogleAuthResponseStatus.
+// Defines values for OrganisationMediaStatus.
 const (
-	GoogleAuthResponseStatusError   GoogleAuthResponseStatus = "error"
-	GoogleAuthResponseStatusSuccess GoogleAuthResponseStatus = "success"
+	OrganisationMediaStatusFailed     OrganisationMediaStatus = "failed"
+	OrganisationMediaStatusProcessing OrganisationMediaStatus = "processing"
+	OrganisationMediaStatusReady      OrganisationMediaStatus = "ready"
 )
 
-// Valid indicates whether the value is a known member of the GoogleAuthResponseStatus enum.
-func (e GoogleAuthResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the OrganisationMediaStatus enum.
+func (e OrganisationMediaStatus) Valid() bool {
 	switch e {
-	case GoogleAuthResponseStatusError:
+	case OrganisationMediaStatusFailed:
 		return true
-	case GoogleAuthResponseStatusSuccess:
+	case OrganisationMediaStatusProcessing:
+		return true
+	case OrganisationMediaStatusReady:
 		return true
 	default:
 		return false
@@ -230,72 +261,138 @@ func (e RescheduleReason) Valid() bool {
 	}
 }
 
-// Defines values for ReviewResponseStatus.
+// Defines values for SubscriptionPlanId.
 const (
-	ReviewResponseStatusError   ReviewResponseStatus = "error"
-	ReviewResponseStatusSuccess ReviewResponseStatus = "success"
+	SubscriptionPlanIdCasual     SubscriptionPlanId = "casual"
+	SubscriptionPlanIdCommitted  SubscriptionPlanId = "committed"
+	SubscriptionPlanIdConsistent SubscriptionPlanId = "consistent"
 )
 
-// Valid indicates whether the value is a known member of the ReviewResponseStatus enum.
-func (e ReviewResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the SubscriptionPlanId enum.
+func (e SubscriptionPlanId) Valid() bool {
 	switch e {
-	case ReviewResponseStatusError:
+	case SubscriptionPlanIdCasual:
 		return true
-	case ReviewResponseStatusSuccess:
+	case SubscriptionPlanIdCommitted:
+		return true
+	case SubscriptionPlanIdConsistent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for ReviewsListResponseStatus.
+// Defines values for SubscriptionPlatform.
 const (
-	ReviewsListResponseStatusError   ReviewsListResponseStatus = "error"
-	ReviewsListResponseStatusSuccess ReviewsListResponseStatus = "success"
+	SubscriptionPlatformApple  SubscriptionPlatform = "apple"
+	SubscriptionPlatformGoogle SubscriptionPlatform = "google"
 )
 
-// Valid indicates whether the value is a known member of the ReviewsListResponseStatus enum.
-func (e ReviewsListResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the SubscriptionPlatform enum.
+func (e SubscriptionPlatform) Valid() bool {
 	switch e {
-	case ReviewsListResponseStatusError:
+	case SubscriptionPlatformApple:
 		return true
-	case ReviewsListResponseStatusSuccess:
+	case SubscriptionPlatformGoogle:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for SetAvailabilityResponseStatus.
+// Defines values for SubscriptionStatus.
 const (
-	SetAvailabilityResponseStatusError   SetAvailabilityResponseStatus = "error"
-	SetAvailabilityResponseStatusSuccess SetAvailabilityResponseStatus = "success"
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
+	SubscriptionStatusExpired   SubscriptionStatus = "expired"
 )
 
-// Valid indicates whether the value is a known member of the SetAvailabilityResponseStatus enum.
-func (e SetAvailabilityResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the SubscriptionStatus enum.
+func (e SubscriptionStatus) Valid() bool {
 	switch e {
-	case SetAvailabilityResponseStatusError:
+	case SubscriptionStatusActive:
 		return true
-	case SetAvailabilityResponseStatusSuccess:
+	case SubscriptionStatusCancelled:
+		return true
+	case SubscriptionStatusExpired:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for SuccessResponseStatus.
+// Defines values for TopTrainerGender.
 const (
-	SuccessResponseStatusError   SuccessResponseStatus = "error"
-	SuccessResponseStatusSuccess SuccessResponseStatus = "success"
+	TopTrainerGenderFemale         TopTrainerGender = "female"
+	TopTrainerGenderLessThannil    TopTrainerGender = "<nil>"
+	TopTrainerGenderMale           TopTrainerGender = "male"
+	TopTrainerGenderOther          TopTrainerGender = "other"
+	TopTrainerGenderPreferNotToSay TopTrainerGender = "prefer_not_to_say"
 )
 
-// Valid indicates whether the value is a known member of the SuccessResponseStatus enum.
-func (e SuccessResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the TopTrainerGender enum.
+func (e TopTrainerGender) Valid() bool {
 	switch e {
-	case SuccessResponseStatusError:
+	case TopTrainerGenderFemale:
 		return true
-	case SuccessResponseStatusSuccess:
+	case TopTrainerGenderLessThannil:
+		return true
+	case TopTrainerGenderMale:
+		return true
+	case TopTrainerGenderOther:
+		return true
+	case TopTrainerGenderPreferNotToSay:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopTrainerOnboardingStatus.
+const (
+	TopTrainerOnboardingStatusApproved  TopTrainerOnboardingStatus = "approved"
+	TopTrainerOnboardingStatusPending   TopTrainerOnboardingStatus = "pending"
+	TopTrainerOnboardingStatusRejected  TopTrainerOnboardingStatus = "rejected"
+	TopTrainerOnboardingStatusSuspended TopTrainerOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the TopTrainerOnboardingStatus enum.
+func (e TopTrainerOnboardingStatus) Valid() bool {
+	switch e {
+	case TopTrainerOnboardingStatusApproved:
+		return true
+	case TopTrainerOnboardingStatusPending:
+		return true
+	case TopTrainerOnboardingStatusRejected:
+		return true
+	case TopTrainerOnboardingStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrainerGender.
+const (
+	TrainerGenderFemale         TrainerGender = "female"
+	TrainerGenderLessThannil    TrainerGender = "<nil>"
+	TrainerGenderMale           TrainerGender = "male"
+	TrainerGenderOther          TrainerGender = "other"
+	TrainerGenderPreferNotToSay TrainerGender = "prefer_not_to_say"
+)
+
+// Valid indicates whether the value is a known member of the TrainerGender enum.
+func (e TrainerGender) Valid() bool {
+	switch e {
+	case TrainerGenderFemale:
+		return true
+	case TrainerGenderLessThannil:
+		return true
+	case TrainerGenderMale:
+		return true
+	case TrainerGenderOther:
+		return true
+	case TrainerGenderPreferNotToSay:
 		return true
 	default:
 		return false
@@ -326,24 +423,6 @@ func (e TrainerOnboardingStatus) Valid() bool {
 	}
 }
 
-// Defines values for TrainerResponseStatus.
-const (
-	TrainerResponseStatusError   TrainerResponseStatus = "error"
-	TrainerResponseStatusSuccess TrainerResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainerResponseStatus enum.
-func (e TrainerResponseStatus) Valid() bool {
-	switch e {
-	case TrainerResponseStatusError:
-		return true
-	case TrainerResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for TrainerSpecialization.
 const (
 	Cardio    TrainerSpecialization = "cardio"
@@ -365,24 +444,6 @@ func (e TrainerSpecialization) Valid() bool {
 	case Strength:
 		return true
 	case Yoga:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TrainersListResponseStatus.
-const (
-	TrainersListResponseStatusError   TrainersListResponseStatus = "error"
-	TrainersListResponseStatusSuccess TrainersListResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the TrainersListResponseStatus enum.
-func (e TrainersListResponseStatus) Valid() bool {
-	switch e {
-	case TrainersListResponseStatusError:
-		return true
-	case TrainersListResponseStatusSuccess:
 		return true
 	default:
 		return false
@@ -442,19 +503,19 @@ func (e UpdateProfileRequestFitnessLevel) Valid() bool {
 
 // Defines values for UpdateProfileRequestGender.
 const (
-	Female UpdateProfileRequestGender = "female"
-	Male   UpdateProfileRequestGender = "male"
-	Other  UpdateProfileRequestGender = "other"
+	UpdateProfileRequestGenderFemale UpdateProfileRequestGender = "female"
+	UpdateProfileRequestGenderMale   UpdateProfileRequestGender = "male"
+	UpdateProfileRequestGenderOther  UpdateProfileRequestGender = "other"
 )
 
 // Valid indicates whether the value is a known member of the UpdateProfileRequestGender enum.
 func (e UpdateProfileRequestGender) Valid() bool {
 	switch e {
-	case Female:
+	case UpdateProfileRequestGenderFemale:
 		return true
-	case Male:
+	case UpdateProfileRequestGenderMale:
 		return true
-	case Other:
+	case UpdateProfileRequestGenderOther:
 		return true
 	default:
 		return false
@@ -463,40 +524,40 @@ func (e UpdateProfileRequestGender) Valid() bool {
 
 // Defines values for UpdateTrainerRequestOnboardingStatus.
 const (
-	Approved  UpdateTrainerRequestOnboardingStatus = "approved"
-	Pending   UpdateTrainerRequestOnboardingStatus = "pending"
-	Rejected  UpdateTrainerRequestOnboardingStatus = "rejected"
-	Suspended UpdateTrainerRequestOnboardingStatus = "suspended"
+	UpdateTrainerRequestOnboardingStatusApproved  UpdateTrainerRequestOnboardingStatus = "approved"
+	UpdateTrainerRequestOnboardingStatusPending   UpdateTrainerRequestOnboardingStatus = "pending"
+	UpdateTrainerRequestOnboardingStatusRejected  UpdateTrainerRequestOnboardingStatus = "rejected"
+	UpdateTrainerRequestOnboardingStatusSuspended UpdateTrainerRequestOnboardingStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the UpdateTrainerRequestOnboardingStatus enum.
 func (e UpdateTrainerRequestOnboardingStatus) Valid() bool {
 	switch e {
-	case Approved:
+	case UpdateTrainerRequestOnboardingStatusApproved:
 		return true
-	case Pending:
+	case UpdateTrainerRequestOnboardingStatusPending:
 		return true
-	case Rejected:
+	case UpdateTrainerRequestOnboardingStatusRejected:
 		return true
-	case Suspended:
+	case UpdateTrainerRequestOnboardingStatusSuspended:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for HandleLocalAuth200JSONResponseBodyStatus.
+// Defines values for GetAdminClientsParamsStatus.
 const (
-	HandleLocalAuth200JSONResponseBodyStatusError   HandleLocalAuth200JSONResponseBodyStatus = "error"
-	HandleLocalAuth200JSONResponseBodyStatusSuccess HandleLocalAuth200JSONResponseBodyStatus = "success"
+	GetAdminClientsParamsStatusActive   GetAdminClientsParamsStatus = "active"
+	GetAdminClientsParamsStatusInactive GetAdminClientsParamsStatus = "inactive"
 )
 
-// Valid indicates whether the value is a known member of the HandleLocalAuth200JSONResponseBodyStatus enum.
-func (e HandleLocalAuth200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the GetAdminClientsParamsStatus enum.
+func (e GetAdminClientsParamsStatus) Valid() bool {
 	switch e {
-	case HandleLocalAuth200JSONResponseBodyStatusError:
+	case GetAdminClientsParamsStatusActive:
 		return true
-	case HandleLocalAuth200JSONResponseBodyStatusSuccess:
+	case GetAdminClientsParamsStatusInactive:
 		return true
 	default:
 		return false
@@ -505,49 +566,13 @@ func (e HandleLocalAuth200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
-	HandleRefresh200JSONResponseBodyStatusSuccess HandleRefresh200JSONResponseBodyStatus = "success"
+	Success HandleRefresh200JSONResponseBodyStatus = "success"
 )
 
 // Valid indicates whether the value is a known member of the HandleRefresh200JSONResponseBodyStatus enum.
 func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case HandleRefresh200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for HandleVerifyEmail200JSONResponseBodyStatus.
-const (
-	HandleVerifyEmail200JSONResponseBodyStatusError   HandleVerifyEmail200JSONResponseBodyStatus = "error"
-	HandleVerifyEmail200JSONResponseBodyStatusSuccess HandleVerifyEmail200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the HandleVerifyEmail200JSONResponseBodyStatus enum.
-func (e HandleVerifyEmail200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case HandleVerifyEmail200JSONResponseBodyStatusError:
-		return true
-	case HandleVerifyEmail200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetTrainersBookingSlots200JSONResponseBodyStatus.
-const (
-	GetTrainersBookingSlots200JSONResponseBodyStatusError   GetTrainersBookingSlots200JSONResponseBodyStatus = "error"
-	GetTrainersBookingSlots200JSONResponseBodyStatusSuccess GetTrainersBookingSlots200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetTrainersBookingSlots200JSONResponseBodyStatus enum.
-func (e GetTrainersBookingSlots200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetTrainersBookingSlots200JSONResponseBodyStatusError:
-		return true
-	case GetTrainersBookingSlots200JSONResponseBodyStatusSuccess:
+	case Success:
 		return true
 	default:
 		return false
@@ -593,18 +618,108 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	}
 }
 
-// Defines values for ListTrainerImages200JSONResponseBodyStatus.
+// Defines values for ListOrganisationMediaParamsType.
 const (
-	ListTrainerImages200JSONResponseBodyStatusError   ListTrainerImages200JSONResponseBodyStatus = "error"
-	ListTrainerImages200JSONResponseBodyStatusSuccess ListTrainerImages200JSONResponseBodyStatus = "success"
+	ListOrganisationMediaParamsTypeImage ListOrganisationMediaParamsType = "image"
+	ListOrganisationMediaParamsTypeVideo ListOrganisationMediaParamsType = "video"
 )
 
-// Valid indicates whether the value is a known member of the ListTrainerImages200JSONResponseBodyStatus enum.
-func (e ListTrainerImages200JSONResponseBodyStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the ListOrganisationMediaParamsType enum.
+func (e ListOrganisationMediaParamsType) Valid() bool {
 	switch e {
-	case ListTrainerImages200JSONResponseBodyStatusError:
+	case ListOrganisationMediaParamsTypeImage:
 		return true
-	case ListTrainerImages200JSONResponseBodyStatusSuccess:
+	case ListOrganisationMediaParamsTypeVideo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOrganisationMediaParamsStatus.
+const (
+	ListOrganisationMediaParamsStatusFailed     ListOrganisationMediaParamsStatus = "failed"
+	ListOrganisationMediaParamsStatusProcessing ListOrganisationMediaParamsStatus = "processing"
+	ListOrganisationMediaParamsStatusReady      ListOrganisationMediaParamsStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the ListOrganisationMediaParamsStatus enum.
+func (e ListOrganisationMediaParamsStatus) Valid() bool {
+	switch e {
+	case ListOrganisationMediaParamsStatusFailed:
+		return true
+	case ListOrganisationMediaParamsStatusProcessing:
+		return true
+	case ListOrganisationMediaParamsStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleRegisterDeviceJSONBodyPlatform.
+const (
+	Android HandleRegisterDeviceJSONBodyPlatform = "android"
+	Ios     HandleRegisterDeviceJSONBodyPlatform = "ios"
+	Web     HandleRegisterDeviceJSONBodyPlatform = "web"
+)
+
+// Valid indicates whether the value is a known member of the HandleRegisterDeviceJSONBodyPlatform enum.
+func (e HandleRegisterDeviceJSONBodyPlatform) Valid() bool {
+	switch e {
+	case Android:
+		return true
+	case Ios:
+		return true
+	case Web:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetTrainersParamsOnboardingStatus.
+const (
+	Approved  GetTrainersParamsOnboardingStatus = "approved"
+	Pending   GetTrainersParamsOnboardingStatus = "pending"
+	Rejected  GetTrainersParamsOnboardingStatus = "rejected"
+	Suspended GetTrainersParamsOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersParamsOnboardingStatus enum.
+func (e GetTrainersParamsOnboardingStatus) Valid() bool {
+	switch e {
+	case Approved:
+		return true
+	case Pending:
+		return true
+	case Rejected:
+		return true
+	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
+const (
+	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
+	Expired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
+	Invalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
+	Valid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyDataStatus enum.
+func (e HandleValidateSetupToken200JSONResponseBodyDataStatus) Valid() bool {
+	switch e {
+	case Consumed:
+		return true
+	case Expired:
+		return true
+	case Invalid:
+		return true
+	case Valid:
 		return true
 	default:
 		return false
@@ -626,24 +741,6 @@ func (e UploadTrainerImages202JSONResponseBodyDataStatus) Valid() bool {
 	}
 }
 
-// Defines values for UploadTrainerImages202JSONResponseBodyStatus.
-const (
-	UploadTrainerImages202JSONResponseBodyStatusError   UploadTrainerImages202JSONResponseBodyStatus = "error"
-	UploadTrainerImages202JSONResponseBodyStatusSuccess UploadTrainerImages202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadTrainerImages202JSONResponseBodyStatus enum.
-func (e UploadTrainerImages202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadTrainerImages202JSONResponseBodyStatusError:
-		return true
-	case UploadTrainerImages202JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UploadTrainerIntroVideo202JSONResponseBodyDataStatus.
 const (
 	UploadTrainerIntroVideo202JSONResponseBodyDataStatusProcessing UploadTrainerIntroVideo202JSONResponseBodyDataStatus = "processing"
@@ -653,60 +750,6 @@ const (
 func (e UploadTrainerIntroVideo202JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
 	case UploadTrainerIntroVideo202JSONResponseBodyDataStatusProcessing:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UploadTrainerIntroVideo202JSONResponseBodyStatus.
-const (
-	UploadTrainerIntroVideo202JSONResponseBodyStatusError   UploadTrainerIntroVideo202JSONResponseBodyStatus = "error"
-	UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess UploadTrainerIntroVideo202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadTrainerIntroVideo202JSONResponseBodyStatus enum.
-func (e UploadTrainerIntroVideo202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadTrainerIntroVideo202JSONResponseBodyStatusError:
-		return true
-	case UploadTrainerIntroVideo202JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetUserProfile200JSONResponseBodyStatus.
-const (
-	GetUserProfile200JSONResponseBodyStatusError   GetUserProfile200JSONResponseBodyStatus = "error"
-	GetUserProfile200JSONResponseBodyStatusSuccess GetUserProfile200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the GetUserProfile200JSONResponseBodyStatus enum.
-func (e GetUserProfile200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case GetUserProfile200JSONResponseBodyStatusError:
-		return true
-	case GetUserProfile200JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateUserProfile200JSONResponseBodyStatus.
-const (
-	UpdateUserProfile200JSONResponseBodyStatusError   UpdateUserProfile200JSONResponseBodyStatus = "error"
-	UpdateUserProfile200JSONResponseBodyStatusSuccess UpdateUserProfile200JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UpdateUserProfile200JSONResponseBodyStatus enum.
-func (e UpdateUserProfile200JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UpdateUserProfile200JSONResponseBodyStatusError:
-		return true
-	case UpdateUserProfile200JSONResponseBodyStatusSuccess:
 		return true
 	default:
 		return false
@@ -728,31 +771,36 @@ func (e UploadProfilePicture202JSONResponseBodyDataStatus) Valid() bool {
 	}
 }
 
-// Defines values for UploadProfilePicture202JSONResponseBodyStatus.
-const (
-	UploadProfilePicture202JSONResponseBodyStatusError   UploadProfilePicture202JSONResponseBodyStatus = "error"
-	UploadProfilePicture202JSONResponseBodyStatusSuccess UploadProfilePicture202JSONResponseBodyStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the UploadProfilePicture202JSONResponseBodyStatus enum.
-func (e UploadProfilePicture202JSONResponseBodyStatus) Valid() bool {
-	switch e {
-	case UploadProfilePicture202JSONResponseBodyStatusError:
-		return true
-	case UploadProfilePicture202JSONResponseBodyStatusSuccess:
-		return true
-	default:
-		return false
-	}
+// AddAvailabilityRequest Request body for the additive POST availability endpoints. Same
+// shape as SetAvailabilityRequest but the semantics differ:
+// supplied slots are appended to the trainer's existing schedule
+// rather than replacing it. Use PUT (SetAvailabilityRequest) when
+// you want to wipe-and-reseed; use this when you want to add a
+// slot without resending the whole list.
+type AddAvailabilityRequest struct {
+	// Availability Slots to append. At least one is required (empty arrays are rejected with 400).
+	Availability []AvailabilitySlot `json:"availability"`
 }
 
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
-	Email           string             `json:"email"`
+	Email string `json:"email"`
+
+	// Id Universal user identifier (users.id). Stable across every
+	// auth flow regardless of role.
 	Id              openapi_types.UUID `json:"id"`
 	Name            string             `json:"name"`
 	ProfileComplete bool               `json:"profile_complete"`
-	UserType        AuthUserUserType   `json:"user_type"`
+
+	// TrainerId Trainer profile UUID (trainers.id) for users whose role is
+	// "trainer". Populated only when the user has a trainer profile
+	// — omitted otherwise so a client/admin response doesn't carry
+	// a meaningless null. FE uses this when calling endpoints that
+	// target a trainer by trainers.id (e.g. GET /trainers/{id},
+	// GET /trainers/sessions?trainer_id=…), distinct from the
+	// users.id returned in `id`.
+	TrainerId *openapi_types.UUID `json:"trainer_id,omitempty"`
+	UserType  AuthUserUserType    `json:"user_type"`
 }
 
 // AuthUserUserType defines model for AuthUser.UserType.
@@ -776,13 +824,9 @@ type AvailabilitySlot struct {
 // BaseResponse defines model for BaseResponse.
 type BaseResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string             `json:"code"`
-	Message string             `json:"message"`
-	Status  BaseResponseStatus `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
-
-// BaseResponseStatus defines model for BaseResponse.Status.
-type BaseResponseStatus string
 
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
@@ -836,6 +880,13 @@ type BookingSlotResponse struct {
 	Timezone *string `json:"timezone,omitempty"`
 }
 
+// BookingSlotsBulkRequest Array of slot specs for POST /discovery-slots/bulk. The whole
+// batch is inserted in a single transaction; any validation
+// failure rolls everything back.
+type BookingSlotsBulkRequest struct {
+	Slots []BookingSlotRequest `json:"slots"`
+}
+
 // CancelBookingRequest defines model for CancelBookingRequest.
 type CancelBookingRequest struct {
 	// Notes Optional additional details about cancellation
@@ -869,15 +920,11 @@ type CancelBookingResponse struct {
 	Message string `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}                `json:"meta,omitempty"`
-	Status CancelBookingResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
 
 // CancelBookingResponseDataRefundReason Why the refund amount was calculated this way
 type CancelBookingResponseDataRefundReason string
-
-// CancelBookingResponseStatus defines model for CancelBookingResponse.Status.
-type CancelBookingResponseStatus string
 
 // CreateReviewRequest defines model for CreateReviewRequest.
 type CreateReviewRequest struct {
@@ -885,6 +932,33 @@ type CreateReviewRequest struct {
 	Rating    int                `json:"rating"`
 	Review    *string            `json:"review,omitempty"`
 }
+
+// CreateSubscriptionRequest defines model for CreateSubscriptionRequest.
+type CreateSubscriptionRequest struct {
+	// PlanId The plan tier the client is subscribing to
+	PlanId CreateSubscriptionRequestPlanId `json:"plan_id"`
+
+	// Platform The payment platform used
+	Platform CreateSubscriptionRequestPlatform `json:"platform"`
+
+	// ProductId App store product ID (must match the plan)
+	ProductId string `json:"product_id"`
+
+	// PurchaseToken Google Play purchase token (required when platform=google)
+	PurchaseToken *string `json:"purchase_token,omitempty"`
+
+	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
+	ReceiptData *string `json:"receipt_data,omitempty"`
+
+	// TrainerId The trainer this subscription is for
+	TrainerId openapi_types.UUID `json:"trainer_id"`
+}
+
+// CreateSubscriptionRequestPlanId The plan tier the client is subscribing to
+type CreateSubscriptionRequestPlanId string
+
+// CreateSubscriptionRequestPlatform The payment platform used
+type CreateSubscriptionRequestPlatform string
 
 // CreateTrainerRequest Multipart form body for POST /trainers. An admin (admin or super_admin
 // role) provisions a new trainer: we create the underlying user account
@@ -917,11 +991,21 @@ type CreateTrainerRequest struct {
 	// Email Trainer's login email. Used to create the user account and to mail the generated credentials.
 	Email openapi_types.Email `json:"email"`
 
+	// Gender Optional. Stored on the underlying users row. Closed enum
+	// enforced server-side and by the DB CHECK constraint added
+	// in migration 000047 — any other value returns 400.
+	Gender *CreateTrainerRequestGender `json:"gender,omitempty"`
+
 	// Name Display name for the trainer.
 	Name string `json:"name"`
 
 	// OnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 	OnboardingStatus *CreateTrainerRequestOnboardingStatus `json:"onboarding_status,omitempty"`
+
+	// PhoneNumber Optional. E.164 format (e.g. +2348012345678) — same shape
+	// the discovery-call phone_callback field requires. Stored
+	// on users.phone_number. Invalid format returns 400.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations One or more specializations from the fixed catalog
 	// (yoga, speed, cardio, endurance, strength). At least one is required
@@ -933,6 +1017,11 @@ type CreateTrainerRequest struct {
 	TrainingStyles    *[]string `json:"training_styles,omitempty"`
 	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
 }
+
+// CreateTrainerRequestGender Optional. Stored on the underlying users row. Closed enum
+// enforced server-side and by the DB CHECK constraint added
+// in migration 000047 — any other value returns 400.
+type CreateTrainerRequestGender string
 
 // CreateTrainerRequestOnboardingStatus Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
 type CreateTrainerRequestOnboardingStatus string
@@ -948,14 +1037,10 @@ type CursorPaginationMeta struct {
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string              `json:"code"`
-	Errors  *[]FieldError       `json:"errors,omitempty"`
-	Message string              `json:"message"`
-	Status  ErrorResponseStatus `json:"status"`
+	Code    string        `json:"code"`
+	Errors  *[]FieldError `json:"errors,omitempty"`
+	Message string        `json:"message"`
 }
-
-// ErrorResponseStatus defines model for ErrorResponse.Status.
-type ErrorResponseStatus string
 
 // FieldError defines model for FieldError.
 type FieldError struct {
@@ -988,12 +1073,8 @@ type GoogleAuthResponse struct {
 	Message string         `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}             `json:"meta,omitempty"`
-	Status GoogleAuthResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// GoogleAuthResponseStatus defines model for GoogleAuthResponse.Status.
-type GoogleAuthResponseStatus string
 
 // GoogleMobileSignInRequest defines model for GoogleMobileSignInRequest.
 type GoogleMobileSignInRequest struct {
@@ -1008,6 +1089,33 @@ type LocalAuthData struct {
 	RefreshToken string   `json:"refresh_token"`
 	User         AuthUser `json:"user"`
 }
+
+// OrganisationMedia One record from the org-level media library. Same shape for
+// images and videos — discriminated by `media_type`. `public_url`
+// is reachable as soon as `status == "ready"`; while
+// `status == "processing"` the FE should treat the URL as
+// unreachable (the worker hasn't pushed bytes to storage yet).
+type OrganisationMedia struct {
+	Category    *string                    `json:"category,omitempty"`
+	CreatedAt   time.Time                  `json:"created_at"`
+	Description *string                    `json:"description,omitempty"`
+	Id          openapi_types.UUID         `json:"id"`
+	MediaType   OrganisationMediaMediaType `json:"media_type"`
+	MimeType    string                     `json:"mime_type"`
+	ObjectKey   string                     `json:"object_key"`
+	PublicUrl   string                     `json:"public_url"`
+	SizeBytes   int64                      `json:"size_bytes"`
+	Status      OrganisationMediaStatus    `json:"status"`
+	Title       string                     `json:"title"`
+	UpdatedAt   time.Time                  `json:"updated_at"`
+	UploadedBy  *openapi_types.UUID        `json:"uploaded_by,omitempty"`
+}
+
+// OrganisationMediaMediaType defines model for OrganisationMedia.MediaType.
+type OrganisationMediaMediaType string
+
+// OrganisationMediaStatus defines model for OrganisationMedia.Status.
+type OrganisationMediaStatus string
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
@@ -1060,25 +1168,17 @@ type ReviewResponse struct {
 	Message string `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}         `json:"meta,omitempty"`
-	Status ReviewResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// ReviewResponseStatus defines model for ReviewResponse.Status.
-type ReviewResponseStatus string
 
 // ReviewsListResponse defines model for ReviewsListResponse.
 type ReviewsListResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
-	Code    string                    `json:"code"`
-	Data    []Review                  `json:"data"`
-	Message string                    `json:"message"`
-	Meta    CursorPaginationMeta      `json:"meta"`
-	Status  ReviewsListResponseStatus `json:"status"`
+	Code    string               `json:"code"`
+	Data    []Review             `json:"data"`
+	Message string               `json:"message"`
+	Meta    CursorPaginationMeta `json:"meta"`
 }
-
-// ReviewsListResponseStatus defines model for ReviewsListResponse.Status.
-type ReviewsListResponseStatus string
 
 // SetAvailabilityRequest defines model for SetAvailabilityRequest.
 type SetAvailabilityRequest struct {
@@ -1094,12 +1194,110 @@ type SetAvailabilityResponse struct {
 	Message string              `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}                  `json:"meta,omitempty"`
-	Status SetAvailabilityResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
 
-// SetAvailabilityResponseStatus defines model for SetAvailabilityResponse.Status.
-type SetAvailabilityResponseStatus string
+// Subscription defines model for Subscription.
+type Subscription struct {
+	// Amount Price in cents
+	Amount                *int                  `json:"amount,omitempty"`
+	ClientId              openapi_types.UUID    `json:"client_id"`
+	CreatedAt             time.Time             `json:"created_at"`
+	Currency              string                `json:"currency"`
+	CurrentPeriodEnd      *time.Time            `json:"current_period_end,omitempty"`
+	CurrentPeriodStart    *time.Time            `json:"current_period_start,omitempty"`
+	Id                    openapi_types.UUID    `json:"id"`
+	PlanId                *SubscriptionPlanId   `json:"plan_id,omitempty"`
+	Platform              *SubscriptionPlatform `json:"platform,omitempty"`
+	SessionsPerMonth      *int                  `json:"sessions_per_month,omitempty"`
+	SessionsUsedThisMonth int                   `json:"sessions_used_this_month"`
+	Status                SubscriptionStatus    `json:"status"`
+	TrainerId             openapi_types.UUID    `json:"trainer_id"`
+}
+
+// SubscriptionPlanId defines model for Subscription.PlanId.
+type SubscriptionPlanId string
+
+// SubscriptionPlatform defines model for Subscription.Platform.
+type SubscriptionPlatform string
+
+// SubscriptionStatus defines model for Subscription.Status.
+type SubscriptionStatus string
+
+// SubscriptionPlan defines model for SubscriptionPlan.
+type SubscriptionPlan struct {
+	// Amount Price in minor currency units (e.g. cents / kobo)
+	Amount int `json:"amount"`
+
+	// AmountDisplay Human-readable price string (e.g. "$80/month")
+	AmountDisplay string `json:"amount_display"`
+
+	// AppleProductId Apple App Store product identifier for IAP
+	AppleProductId string `json:"apple_product_id"`
+
+	// Currency ISO 4217 currency code
+	Currency string `json:"currency"`
+
+	// Features List of feature highlights shown on the plan card
+	Features []string `json:"features"`
+
+	// GoogleProductId Google Play product identifier for billing
+	GoogleProductId string `json:"google_product_id"`
+
+	// Id Unique plan identifier (casual, committed, consistent)
+	Id string `json:"id"`
+
+	// Name Display name (e.g. "The Casual")
+	Name string `json:"name"`
+
+	// SessionsPerMonth Number of guided sessions included per month
+	SessionsPerMonth int `json:"sessions_per_month"`
+
+	// Tag Optional badge label (e.g. "Most Popular")
+	Tag *string `json:"tag,omitempty"`
+}
+
+// SubscriptionPlansResponse defines model for SubscriptionPlansResponse.
+type SubscriptionPlansResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    []SubscriptionPlan `json:"data"`
+	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionResponse defines model for SubscriptionResponse.
+type SubscriptionResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string        `json:"code"`
+	Data    *Subscription `json:"data,omitempty"`
+	Message string        `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// SubscriptionUsage defines model for SubscriptionUsage.
+type SubscriptionUsage struct {
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	SessionsPerMonth   int       `json:"sessions_per_month"`
+	SessionsRemaining  int       `json:"sessions_remaining"`
+	SessionsUsed       int       `json:"sessions_used"`
+}
+
+// SubscriptionUsageResponse defines model for SubscriptionUsageResponse.
+type SubscriptionUsageResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string             `json:"code"`
+	Data    *SubscriptionUsage `json:"data,omitempty"`
+	Message string             `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -1111,28 +1309,47 @@ type SuccessResponse struct {
 	Message string       `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}          `json:"meta,omitempty"`
-	Status SuccessResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
 
-// SuccessResponseStatus defines model for SuccessResponse.Status.
-type SuccessResponseStatus string
-
-// Trainer defines model for Trainer.
-type Trainer struct {
+// TopTrainer defines model for TopTrainer.
+type TopTrainer struct {
 	// AverageRating Average rating from client reviews. Null if no reviews yet.
 	AverageRating *float32 `json:"average_rating"`
 
 	// Benefits Marketing-style "what you get working with this trainer" copy.
 	// Populated on Trainer responses that join the trainer_benefits
 	// table; absent when the source query doesn't fetch them.
-	Benefits         *[]TrainerBenefit       `json:"benefits,omitempty"`
-	Bio              *string                 `json:"bio,omitempty"`
-	CreatedAt        time.Time               `json:"created_at"`
-	DisplayPicture   *string                 `json:"display_picture,omitempty"`
-	Id               openapi_types.UUID      `json:"id"`
-	IntroVideoUrl    *string                 `json:"intro_video_url,omitempty"`
-	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
+	Benefits       *[]TrainerBenefit `json:"benefits,omitempty"`
+	Bio            *string           `json:"bio,omitempty"`
+	BookingCount   int               `json:"booking_count"`
+	CreatedAt      time.Time         `json:"created_at"`
+	DisplayPicture *string           `json:"display_picture,omitempty"`
+
+	// Email Trainer's email, joined from users.email. Same population
+	// rules as `name` — present on the user-joined endpoints, may
+	// be absent elsewhere.
+	Email *openapi_types.Email `json:"email,omitempty"`
+
+	// Gender Trainer's gender, joined from users.gender. Closed set
+	// enforced by the users_gender_valid CHECK constraint
+	// (migration 000047); existing pre-constraint rows whose
+	// value didn't match were normalized to NULL.
+	Gender        *TopTrainerGender  `json:"gender,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+	IntroVideoUrl *string            `json:"intro_video_url,omitempty"`
+
+	// Name Trainer's display name, joined from users.name. Populated on
+	// responses that join users (GET /trainers, GET /trainers/{id},
+	// GET /trainers/me); absent on response paths that return the
+	// raw trainers row without the join (e.g. POST/PATCH /trainers
+	// result, internal admin queries).
+	Name             *string                    `json:"name,omitempty"`
+	OnboardingStatus TopTrainerOnboardingStatus `json:"onboarding_status"`
+
+	// PhoneNumber E.164 phone number from users.phone_number. Optional on
+	// create; null when never supplied.
+	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
 	Specializations []TrainerSpecialization `json:"specializations"`
@@ -1144,6 +1361,83 @@ type Trainer struct {
 	UserId            openapi_types.UUID `json:"user_id"`
 	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
 }
+
+// TopTrainerGender Trainer's gender, joined from users.gender. Closed set
+// enforced by the users_gender_valid CHECK constraint
+// (migration 000047); existing pre-constraint rows whose
+// value didn't match were normalized to NULL.
+type TopTrainerGender string
+
+// TopTrainerOnboardingStatus defines model for TopTrainer.OnboardingStatus.
+type TopTrainerOnboardingStatus string
+
+// TopTrainersResponse defines model for TopTrainersResponse.
+type TopTrainersResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code string `json:"code"`
+	Data struct {
+		TopTrainers *[]TopTrainer `json:"top_trainers"`
+	} `json:"data"`
+	Message string `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
+// Trainer defines model for Trainer.
+type Trainer struct {
+	// AverageRating Average rating from client reviews. Null if no reviews yet.
+	AverageRating *float32 `json:"average_rating"`
+
+	// Benefits Marketing-style "what you get working with this trainer" copy.
+	// Populated on Trainer responses that join the trainer_benefits
+	// table; absent when the source query doesn't fetch them.
+	Benefits       *[]TrainerBenefit `json:"benefits,omitempty"`
+	Bio            *string           `json:"bio,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	DisplayPicture *string           `json:"display_picture,omitempty"`
+
+	// Email Trainer's email, joined from users.email. Same population
+	// rules as `name` — present on the user-joined endpoints, may
+	// be absent elsewhere.
+	Email *openapi_types.Email `json:"email,omitempty"`
+
+	// Gender Trainer's gender, joined from users.gender. Closed set
+	// enforced by the users_gender_valid CHECK constraint
+	// (migration 000047); existing pre-constraint rows whose
+	// value didn't match were normalized to NULL.
+	Gender        *TrainerGender     `json:"gender,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+	IntroVideoUrl *string            `json:"intro_video_url,omitempty"`
+
+	// Name Trainer's display name, joined from users.name. Populated on
+	// responses that join users (GET /trainers, GET /trainers/{id},
+	// GET /trainers/me); absent on response paths that return the
+	// raw trainers row without the join (e.g. POST/PATCH /trainers
+	// result, internal admin queries).
+	Name             *string                 `json:"name,omitempty"`
+	OnboardingStatus TrainerOnboardingStatus `json:"onboarding_status"`
+
+	// PhoneNumber E.164 phone number from users.phone_number. Optional on
+	// create; null when never supplied.
+	PhoneNumber *string `json:"phone_number,omitempty"`
+
+	// Specializations Multi-valued; cardinality 0..5 from the fixed catalog.
+	Specializations []TrainerSpecialization `json:"specializations"`
+	TotalReviews    int                     `json:"total_reviews"`
+
+	// TrainingStyles Up to 4 free-text single-word tags chosen by the admin.
+	TrainingStyles    []string           `json:"training_styles"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	UserId            openapi_types.UUID `json:"user_id"`
+	YearsOfExperience *int               `json:"years_of_experience,omitempty"`
+}
+
+// TrainerGender Trainer's gender, joined from users.gender. Closed set
+// enforced by the users_gender_valid CHECK constraint
+// (migration 000047); existing pre-constraint rows whose
+// value didn't match were normalized to NULL.
+type TrainerGender string
 
 // TrainerOnboardingStatus defines model for Trainer.OnboardingStatus.
 type TrainerOnboardingStatus string
@@ -1172,6 +1466,30 @@ type TrainerBenefitInput struct {
 	Title string `json:"title"`
 }
 
+// TrainerClient defines model for TrainerClient.
+type TrainerClient struct {
+	ClientAvatar       *string              `json:"client_avatar,omitempty"`
+	ClientEmail        *openapi_types.Email `json:"client_email,omitempty"`
+	ClientFitnessGoals *[]string            `json:"client_fitness_goals,omitempty"`
+	ClientFitnessLevel *string              `json:"client_fitness_level,omitempty"`
+	ClientGender       *string              `json:"client_gender,omitempty"`
+	ClientId           *openapi_types.UUID  `json:"client_id,omitempty"`
+	ClientName         *string              `json:"client_name,omitempty"`
+	LastBookingDate    *time.Time           `json:"last_booking_date,omitempty"`
+	TotalBookings      *int64               `json:"total_bookings,omitempty"`
+}
+
+// TrainerClientsListResponse defines model for TrainerClientsListResponse.
+type TrainerClientsListResponse struct {
+	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
+	Code    string           `json:"code"`
+	Data    *[]TrainerClient `json:"data,omitempty"`
+	Message string           `json:"message"`
+
+	// Meta Any JSON value (usually object)
+	Meta *interface{} `json:"meta,omitempty"`
+}
+
 // TrainerResponse defines model for TrainerResponse.
 type TrainerResponse struct {
 	// Code Machine-readable response code (e.g., OK, BAD_REQUEST, NOT_FOUND)
@@ -1180,12 +1498,8 @@ type TrainerResponse struct {
 	Message string   `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}          `json:"meta,omitempty"`
-	Status TrainerResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// TrainerResponseStatus defines model for TrainerResponse.Status.
-type TrainerResponseStatus string
 
 // TrainerSpecialization Canonical specialization tag. A trainer can hold multiple — the set
 // is fixed (yoga, speed, cardio, endurance, strength) and enforced
@@ -1201,12 +1515,8 @@ type TrainersListResponse struct {
 	Message string     `json:"message"`
 
 	// Meta Any JSON value (usually object)
-	Meta   *interface{}               `json:"meta,omitempty"`
-	Status TrainersListResponseStatus `json:"status"`
+	Meta *interface{} `json:"meta,omitempty"`
 }
-
-// TrainersListResponseStatus defines model for TrainersListResponse.Status.
-type TrainersListResponseStatus string
 
 // UpdateProfileRequest Partial profile update. avatar_url is intentionally NOT on this
 // request — avatars are set exclusively via
@@ -1293,10 +1603,37 @@ type WaitlistRequest struct {
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
+// refreshAuthContextKey is the context key for refreshAuth security scheme
+type refreshAuthContextKey string
+
 // AdminAddJSONBody defines parameters for AdminAdd.
 type AdminAddJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 	Name  string              `json:"name"`
+}
+
+// GetAdminClientsParams defines parameters for GetAdminClients.
+type GetAdminClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Filter by account status. Omit to return all clients.
+	Status *GetAdminClientsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetAdminClientsParamsStatus defines parameters for GetAdminClients.
+type GetAdminClientsParamsStatus string
+
+// AdminListDiscoveryBookingsParams defines parameters for AdminListDiscoveryBookings.
+type AdminListDiscoveryBookingsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AdminListSessionsParams defines parameters for AdminListSessions.
+type AdminListSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
@@ -1313,32 +1650,16 @@ type HandleGoogleCallbackParams struct {
 
 // HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
 type HandleLocalAuthJSONBody struct {
-	Email    openapi_types.Email `json:"email"`
-	Password string              `json:"password"`
+	Email openapi_types.Email `json:"email"`
 }
-
-// HandleLocalAuth200JSONResponseBodyStatus defines parameters for HandleLocalAuth.
-type HandleLocalAuth200JSONResponseBodyStatus string
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
 type HandleLogoutJSONBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// HandleRefreshJSONBody defines parameters for HandleRefresh.
-type HandleRefreshJSONBody struct {
-	// AccessToken The current access token to invalidate
-	AccessToken string `json:"access_token"`
-}
-
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
 type HandleRefresh200JSONResponseBodyStatus string
-
-// HandleVerifyEmail200JSONResponseBodyStatus defines parameters for HandleVerifyEmail.
-type HandleVerifyEmail200JSONResponseBodyStatus string
-
-// GetTrainersBookingSlots200JSONResponseBodyStatus defines parameters for GetTrainersBookingSlots.
-type GetTrainersBookingSlots200JSONResponseBodyStatus string
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
@@ -1380,6 +1701,57 @@ type GetDiscoverySlotsParams struct {
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
 }
 
+// ListOrganisationMediaParams defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParams struct {
+	Type     *ListOrganisationMediaParamsType   `form:"type,omitempty" json:"type,omitempty"`
+	Category *string                            `form:"category,omitempty" json:"category,omitempty"`
+	Status   *ListOrganisationMediaParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Page     *int                               `form:"page,omitempty" json:"page,omitempty"`
+	Limit    *int                               `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListOrganisationMediaParamsType defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParamsType string
+
+// ListOrganisationMediaParamsStatus defines parameters for ListOrganisationMedia.
+type ListOrganisationMediaParamsStatus string
+
+// UploadOrganisationImageMultipartBody defines parameters for UploadOrganisationImage.
+type UploadOrganisationImageMultipartBody struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// File JPEG / PNG / WebP / HEIC, max 5 MiB
+	File  openapi_types.File `json:"file"`
+	Title string             `json:"title"`
+}
+
+// UploadOrganisationVideoMultipartBody defines parameters for UploadOrganisationVideo.
+type UploadOrganisationVideoMultipartBody struct {
+	Category    *string `json:"category,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// File MP4 / MOV / WebM / etc, max 500 MiB, max 10 min
+	File  openapi_types.File `json:"file"`
+	Title string             `json:"title"`
+}
+
+// HandleSendNotificationJSONBody defines parameters for HandleSendNotification.
+type HandleSendNotificationJSONBody struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Message        string `json:"message"`
+	Title          string `json:"title"`
+}
+
+// HandleRegisterDeviceJSONBody defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBody struct {
+	DeviceToken string                               `json:"device_token"`
+	Platform    HandleRegisterDeviceJSONBodyPlatform `json:"platform"`
+}
+
+// HandleRegisterDeviceJSONBodyPlatform defines parameters for HandleRegisterDevice.
+type HandleRegisterDeviceJSONBodyPlatform string
+
 // HandleTrainersNoteJSONBody defines parameters for HandleTrainersNote.
 type HandleTrainersNoteJSONBody struct {
 	Note string `json:"note"`
@@ -1389,10 +1761,58 @@ type HandleTrainersNoteJSONBody struct {
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
+
+	// OnboardingStatus Filter by onboarding_status (maps to trainers.onboarding_status)
+	OnboardingStatus *GetTrainersParamsOnboardingStatus `form:"onboarding_status,omitempty" json:"onboarding_status,omitempty"`
+	Page             *int                               `form:"page,omitempty" json:"page,omitempty"`
+	Limit            *int                               `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// ListTrainerImages200JSONResponseBodyStatus defines parameters for ListTrainerImages.
-type ListTrainerImages200JSONResponseBodyStatus string
+// GetTrainersParamsOnboardingStatus defines parameters for GetTrainers.
+type GetTrainersParamsOnboardingStatus string
+
+// GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
+type GetTrainersMeClientsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetTrainersMeSessionsParams defines parameters for GetTrainersMeSessions.
+type GetTrainersMeSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ResendTrainerSetupJSONBody defines parameters for ResendTrainerSetup.
+type ResendTrainerSetupJSONBody struct {
+	// Email Email address of the trainer to re-invite.
+	Email openapi_types.Email `json:"email"`
+}
+
+// ListTrainerSessionsParams defines parameters for ListTrainerSessions.
+type ListTrainerSessionsParams struct {
+	// TrainerId The trainer whose sessions to list
+	TrainerId openapi_types.UUID `form:"trainer_id" json:"trainer_id"`
+	Page      *int               `form:"page,omitempty" json:"page,omitempty"`
+	Limit     *int               `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// HandleSetPasswordJSONBody defines parameters for HandleSetPassword.
+type HandleSetPasswordJSONBody struct {
+	NewPassword string `json:"new_password"`
+
+	// Token Activation token from the setup email link
+	Token string `json:"token"`
+}
+
+// HandleValidateSetupTokenParams defines parameters for HandleValidateSetupToken.
+type HandleValidateSetupTokenParams struct {
+	// Token Activation token from the setup email link
+	Token string `form:"token" json:"token"`
+}
+
+// HandleValidateSetupToken200JSONResponseBodyDataStatus defines parameters for HandleValidateSetupToken.
+type HandleValidateSetupToken200JSONResponseBodyDataStatus string
 
 // UploadTrainerImagesMultipartBody defines parameters for UploadTrainerImages.
 type UploadTrainerImagesMultipartBody struct {
@@ -1401,9 +1821,6 @@ type UploadTrainerImagesMultipartBody struct {
 
 // UploadTrainerImages202JSONResponseBodyDataStatus defines parameters for UploadTrainerImages.
 type UploadTrainerImages202JSONResponseBodyDataStatus string
-
-// UploadTrainerImages202JSONResponseBodyStatus defines parameters for UploadTrainerImages.
-type UploadTrainerImages202JSONResponseBodyStatus string
 
 // UploadTrainerIntroVideoMultipartBody defines parameters for UploadTrainerIntroVideo.
 type UploadTrainerIntroVideoMultipartBody struct {
@@ -1414,9 +1831,6 @@ type UploadTrainerIntroVideoMultipartBody struct {
 // UploadTrainerIntroVideo202JSONResponseBodyDataStatus defines parameters for UploadTrainerIntroVideo.
 type UploadTrainerIntroVideo202JSONResponseBodyDataStatus string
 
-// UploadTrainerIntroVideo202JSONResponseBodyStatus defines parameters for UploadTrainerIntroVideo.
-type UploadTrainerIntroVideo202JSONResponseBodyStatus string
-
 // GetTrainerReviewsParams defines parameters for GetTrainerReviews.
 type GetTrainerReviewsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -1424,12 +1838,6 @@ type GetTrainerReviewsParams struct {
 	// Cursor Opaque cursor from the previous response.
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
-
-// GetUserProfile200JSONResponseBodyStatus defines parameters for GetUserProfile.
-type GetUserProfile200JSONResponseBodyStatus string
-
-// UpdateUserProfile200JSONResponseBodyStatus defines parameters for UpdateUserProfile.
-type UpdateUserProfile200JSONResponseBodyStatus string
 
 // UploadProfilePictureMultipartBody defines parameters for UploadProfilePicture.
 type UploadProfilePictureMultipartBody struct {
@@ -1440,12 +1848,25 @@ type UploadProfilePictureMultipartBody struct {
 // UploadProfilePicture202JSONResponseBodyDataStatus defines parameters for UploadProfilePicture.
 type UploadProfilePicture202JSONResponseBodyDataStatus string
 
-// UploadProfilePicture202JSONResponseBodyStatus defines parameters for UploadProfilePicture.
-type UploadProfilePicture202JSONResponseBodyStatus string
-
 // HandleGetWaitlistParams defines parameters for HandleGetWaitlist.
 type HandleGetWaitlistParams struct {
 	Email *string `form:"email,omitempty" json:"email,omitempty"`
+}
+
+// HandleAppleWebhookJSONBody defines parameters for HandleAppleWebhook.
+type HandleAppleWebhookJSONBody struct {
+	// SignedPayload JWS-encoded notification payload from Apple
+	SignedPayload string `json:"signedPayload"`
+}
+
+// HandleGoogleWebhookJSONBody defines parameters for HandleGoogleWebhook.
+type HandleGoogleWebhookJSONBody struct {
+	Message struct {
+		// Data Base64-encoded notification payload
+		Data        string  `json:"data"`
+		MessageId   *string `json:"messageId,omitempty"`
+		PublishTime *string `json:"publishTime,omitempty"`
+	} `json:"message"`
 }
 
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
@@ -1465,9 +1886,6 @@ type HandleLocalAuthJSONRequestBody HandleLocalAuthJSONBody
 
 // HandleLogoutJSONRequestBody defines body for HandleLogout for application/json ContentType.
 type HandleLogoutJSONRequestBody HandleLogoutJSONBody
-
-// HandleRefreshJSONRequestBody defines body for HandleRefresh for application/json ContentType.
-type HandleRefreshJSONRequestBody HandleRefreshJSONBody
 
 // HandleRegisterJSONRequestBody defines body for HandleRegister for application/json ContentType.
 type HandleRegisterJSONRequestBody = RegisterRequest
@@ -1496,8 +1914,23 @@ type HandleContactUsJSONRequestBody HandleContactUsJSONBody
 // CreateDiscoverySlotJSONRequestBody defines body for CreateDiscoverySlot for application/json ContentType.
 type CreateDiscoverySlotJSONRequestBody = BookingSlotRequest
 
+// CreateDiscoverySlotsBulkJSONRequestBody defines body for CreateDiscoverySlotsBulk for application/json ContentType.
+type CreateDiscoverySlotsBulkJSONRequestBody = BookingSlotsBulkRequest
+
 // UpdateDiscoverySlotJSONRequestBody defines body for UpdateDiscoverySlot for application/json ContentType.
 type UpdateDiscoverySlotJSONRequestBody = BookingSlotRequest
+
+// UploadOrganisationImageMultipartRequestBody defines body for UploadOrganisationImage for multipart/form-data ContentType.
+type UploadOrganisationImageMultipartRequestBody UploadOrganisationImageMultipartBody
+
+// UploadOrganisationVideoMultipartRequestBody defines body for UploadOrganisationVideo for multipart/form-data ContentType.
+type UploadOrganisationVideoMultipartRequestBody UploadOrganisationVideoMultipartBody
+
+// HandleSendNotificationJSONRequestBody defines body for HandleSendNotification for application/json ContentType.
+type HandleSendNotificationJSONRequestBody HandleSendNotificationJSONBody
+
+// HandleRegisterDeviceJSONRequestBody defines body for HandleRegisterDevice for application/json ContentType.
+type HandleRegisterDeviceJSONRequestBody HandleRegisterDeviceJSONBody
 
 // CreateReviewJSONRequestBody defines body for CreateReview for application/json ContentType.
 type CreateReviewJSONRequestBody = CreateReviewRequest
@@ -1505,14 +1938,29 @@ type CreateReviewJSONRequestBody = CreateReviewRequest
 // HandleTrainersNoteJSONRequestBody defines body for HandleTrainersNote for application/json ContentType.
 type HandleTrainersNoteJSONRequestBody HandleTrainersNoteJSONBody
 
+// CreateSubscriptionJSONRequestBody defines body for CreateSubscription for application/json ContentType.
+type CreateSubscriptionJSONRequestBody = CreateSubscriptionRequest
+
 // CreateTrainerMultipartRequestBody defines body for CreateTrainer for multipart/form-data ContentType.
 type CreateTrainerMultipartRequestBody = CreateTrainerRequest
+
+// AddTrainersMeAvailabilityJSONRequestBody defines body for AddTrainersMeAvailability for application/json ContentType.
+type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
+// ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
+type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
+
+// HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
+type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
+
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
+
+// AddTrainerAvailabilityJSONRequestBody defines body for AddTrainerAvailability for application/json ContentType.
+type AddTrainerAvailabilityJSONRequestBody = AddAvailabilityRequest
 
 // PutTrainerAvailabilityJSONRequestBody defines body for PutTrainerAvailability for application/json ContentType.
 type PutTrainerAvailabilityJSONRequestBody = SetAvailabilityRequest
@@ -1532,6 +1980,12 @@ type UploadProfilePictureMultipartRequestBody UploadProfilePictureMultipartBody
 // HandleAddWaitlistJSONRequestBody defines body for HandleAddWaitlist for application/json ContentType.
 type HandleAddWaitlistJSONRequestBody = WaitlistRequest
 
+// HandleAppleWebhookJSONRequestBody defines body for HandleAppleWebhook for application/json ContentType.
+type HandleAppleWebhookJSONRequestBody HandleAppleWebhookJSONBody
+
+// HandleGoogleWebhookJSONRequestBody defines body for HandleGoogleWebhook for application/json ContentType.
+type HandleGoogleWebhookJSONRequestBody HandleGoogleWebhookJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Root endpoint
@@ -1540,9 +1994,33 @@ type ServerInterface interface {
 	// Create an admin account (super_admin only)
 	// (POST /admin/add)
 	AdminAdd(c *gin.Context)
+	// List all clients (super_admin only)
+	// (GET /admin/clients)
+	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
+	// Get a single client by ID (super_admin only)
+	// (GET /admin/clients/{id})
+	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
+	// List every booked discovery call (admin or super_admin) — paginated
+	// (GET /admin/discovery-bookings)
+	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
+	// Revenue snapshot and latest payment (super_admin only)
+	// (GET /admin/revenue)
+	GetAdminRevenue(c *gin.Context)
+	// List every booked training session (admin or super_admin) — paginated
+	// (GET /admin/sessions)
+	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// Count of active subscriptions (super_admin only)
+	// (GET /admin/subscriptions/count)
+	GetAdminSubscriptionCount(c *gin.Context)
+	// Get the top trainers for the past month
+	// (GET /admin/top-trainers)
+	GetAdminTopTrainers(c *gin.Context)
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
+	// Get total count of active clients and approved trainers (super_admin only)
+	// (GET /admin/user/trainer/count)
+	GetUserTrainerCount(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
@@ -1594,6 +2072,9 @@ type ServerInterface interface {
 	// Reschedule an existing discovery call booking
 	// (PUT /bookings/{id}/reschedule)
 	RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
+	// Cancel my subscription
+	// (POST /client/cancel/subscription)
+	CancelMySubscription(c *gin.Context)
 	// Handle taking user feedback
 	// (POST /contact-us)
 	HandleContactUs(c *gin.Context)
@@ -1606,6 +2087,9 @@ type ServerInterface interface {
 	// Create a discovery slot (admin or customer_care only)
 	// (POST /discovery-slots)
 	CreateDiscoverySlot(c *gin.Context)
+	// Create multiple discovery slots in one request (admin or customer_care)
+	// (POST /discovery-slots/bulk)
+	CreateDiscoverySlotsBulk(c *gin.Context)
 	// Delete a discovery slot (admin or customer_care only)
 	// (DELETE /discovery-slots/{id})
 	DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID)
@@ -1615,6 +2099,30 @@ type ServerInterface interface {
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
+	// List organisation-level media (public, paginated)
+	// (GET /media)
+	ListOrganisationMedia(c *gin.Context, params ListOrganisationMediaParams)
+	// Upload an organisation-level image (admin only)
+	// (POST /media/images)
+	UploadOrganisationImage(c *gin.Context)
+	// Upload an organisation-level video (admin only)
+	// (POST /media/videos)
+	UploadOrganisationVideo(c *gin.Context)
+	// Delete an organisation-media record (admin only)
+	// (DELETE /media/{id})
+	DeleteOrganisationMedia(c *gin.Context, id openapi_types.UUID)
+	// Get one organisation-media record (public)
+	// (GET /media/{id})
+	GetOrganisationMediaByID(c *gin.Context, id openapi_types.UUID)
+	// Get a list of notifications for the authenticated user
+	// (GET /notifications)
+	HandleGetUserNotifications(c *gin.Context)
+	// Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+	// (POST /notifications)
+	HandleSendNotification(c *gin.Context)
+	// Register a device for push notifications (FCM)
+	// (POST /register/device)
+	HandleRegisterDevice(c *gin.Context)
 	// Submit a review for a completed booking
 	// (POST /reviews)
 	CreateReview(c *gin.Context)
@@ -1633,18 +2141,57 @@ type ServerInterface interface {
 	// A trainer starts a session via this endpoint.
 	// (PUT /sessions/{id}/start)
 	HandleStartSession(c *gin.Context, id openapi_types.UUID)
-	// Get trainers (admin only)
+	// Create a subscription via Apple/Google IAP
+	// (POST /subscriptions)
+	CreateSubscription(c *gin.Context)
+	// Get my active subscription
+	// (GET /subscriptions/me)
+	GetMySubscription(c *gin.Context)
+	// Get session usage for my subscription
+	// (GET /subscriptions/me/usage)
+	GetMySubscriptionUsage(c *gin.Context)
+	// List available subscription plans
+	// (GET /subscriptions/plans)
+	GetSubscriptionPlans(c *gin.Context)
+	// Get trainers (admin only) — paginated
 	// (GET /trainers)
 	GetTrainers(c *gin.Context, params GetTrainersParams)
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
+	// Get the authenticated trainer's own profile
+	// (GET /trainers/me)
+	GetTrainersMe(c *gin.Context)
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
+	// Append one or more availability slots without replacing existing ones
+	// (POST /trainers/me/availability)
+	AddTrainersMeAvailability(c *gin.Context)
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
+	// Delete a single availability slot owned by the authenticated trainer
+	// (DELETE /trainers/me/availability/{slot_id})
+	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
+	// List distinct clients who have booked with the authenticated trainer
+	// (GET /trainers/me/clients)
+	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
+	// List sessions booked with the authenticated trainer — paginated
+	// (GET /trainers/me/sessions)
+	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
+	// Resend the account-setup link to a trainer
+	// (POST /trainers/resend-setup)
+	ResendTrainerSetup(c *gin.Context)
+	// List sessions booked with a specific trainer — paginated
+	// (GET /trainers/sessions)
+	ListTrainerSessions(c *gin.Context, params ListTrainerSessionsParams)
+	// Set the initial password for an admin-provisioned trainer account
+	// (POST /trainers/set-password)
+	HandleSetPassword(c *gin.Context)
+	// Check whether a trainer setup token is still valid (no consume)
+	// (GET /trainers/set-password/validate)
+	HandleValidateSetupToken(c *gin.Context, params HandleValidateSetupTokenParams)
 	// Delete trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
@@ -1657,9 +2204,15 @@ type ServerInterface interface {
 	// Get a trainer's weekly availability
 	// (GET /trainers/{id}/availability)
 	GetTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Admin appends slots to a trainer's weekly availability
+	// (POST /trainers/{id}/availability)
+	AddTrainerAvailability(c *gin.Context, id openapi_types.UUID)
 	// Admin sets a trainer's weekly availability
 	// (PUT /trainers/{id}/availability)
 	PutTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Admin deletes one availability slot for a specific trainer
+	// (DELETE /trainers/{id}/availability/{slot_id})
+	DeleteTrainerAvailabilitySlot(c *gin.Context, id openapi_types.UUID, slotId openapi_types.UUID)
 	// List the gallery images for a trainer
 	// (GET /trainers/{id}/images)
 	ListTrainerImages(c *gin.Context, id openapi_types.UUID)
@@ -1693,6 +2246,12 @@ type ServerInterface interface {
 	// Handle adding an email address to the waitlist table
 	// (POST /waitlist)
 	HandleAddWaitlist(c *gin.Context)
+	// Apple App Store Server Notification V2
+	// (POST /webhooks/apple)
+	HandleAppleWebhook(c *gin.Context)
+	// Google Play Real-Time Developer Notification
+	// (POST /webhooks/google)
+	HandleGoogleWebhook(c *gin.Context)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1732,6 +2291,197 @@ func (siw *ServerInterfaceWrapper) AdminAdd(c *gin.Context) {
 	siw.Handler.AdminAdd(c)
 }
 
+// GetAdminClients operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminClients(c, params)
+}
+
+// GetAdminClientByID operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminClientByID(c, id)
+}
+
+// AdminListDiscoveryBookings operation middleware
+func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminListDiscoveryBookingsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListDiscoveryBookings(c, params)
+}
+
+// GetAdminRevenue operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminRevenue(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminRevenue(c)
+}
+
+// AdminListSessions operation middleware
+func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdminListSessionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListSessions(c, params)
+}
+
+// GetAdminSubscriptionCount operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminSubscriptionCount(c)
+}
+
+// GetAdminTopTrainers operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTopTrainers(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminTopTrainers(c)
+}
+
 // AdminApproveTrainer operation middleware
 func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 
@@ -1757,6 +2507,21 @@ func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.AdminApproveTrainer(c, id)
+}
+
+// GetUserTrainerCount operation middleware
+func (siw *ServerInterfaceWrapper) GetUserTrainerCount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserTrainerCount(c)
 }
 
 // HandleAdminLogin operation middleware
@@ -1876,6 +2641,8 @@ func (siw *ServerInterfaceWrapper) HandleLogout(c *gin.Context) {
 
 // HandleRefresh operation middleware
 func (siw *ServerInterfaceWrapper) HandleRefresh(c *gin.Context) {
+
+	c.Set(string(RefreshAuthScopes), []string{})
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -2090,6 +2857,21 @@ func (siw *ServerInterfaceWrapper) RescheduleDiscoveryCall(c *gin.Context) {
 	siw.Handler.RescheduleDiscoveryCall(c, id)
 }
 
+// CancelMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) CancelMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelMySubscription(c)
+}
+
 // HandleContactUs operation middleware
 func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 
@@ -2158,6 +2940,21 @@ func (siw *ServerInterfaceWrapper) CreateDiscoverySlot(c *gin.Context) {
 	siw.Handler.CreateDiscoverySlot(c)
 }
 
+// CreateDiscoverySlotsBulk operation middleware
+func (siw *ServerInterfaceWrapper) CreateDiscoverySlotsBulk(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateDiscoverySlotsBulk(c)
+}
+
 // DeleteDiscoverySlot operation middleware
 func (siw *ServerInterfaceWrapper) DeleteDiscoverySlot(c *gin.Context) {
 
@@ -2223,6 +3020,192 @@ func (siw *ServerInterfaceWrapper) HealthCheck(c *gin.Context) {
 	}
 
 	siw.Handler.HealthCheck(c)
+}
+
+// ListOrganisationMedia operation middleware
+func (siw *ServerInterfaceWrapper) ListOrganisationMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListOrganisationMediaParams
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "category" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListOrganisationMedia(c, params)
+}
+
+// UploadOrganisationImage operation middleware
+func (siw *ServerInterfaceWrapper) UploadOrganisationImage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadOrganisationImage(c)
+}
+
+// UploadOrganisationVideo operation middleware
+func (siw *ServerInterfaceWrapper) UploadOrganisationVideo(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadOrganisationVideo(c)
+}
+
+// DeleteOrganisationMedia operation middleware
+func (siw *ServerInterfaceWrapper) DeleteOrganisationMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteOrganisationMedia(c, id)
+}
+
+// GetOrganisationMediaByID operation middleware
+func (siw *ServerInterfaceWrapper) GetOrganisationMediaByID(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetOrganisationMediaByID(c, id)
+}
+
+// HandleGetUserNotifications operation middleware
+func (siw *ServerInterfaceWrapper) HandleGetUserNotifications(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGetUserNotifications(c)
+}
+
+// HandleSendNotification operation middleware
+func (siw *ServerInterfaceWrapper) HandleSendNotification(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSendNotification(c)
+}
+
+// HandleRegisterDevice operation middleware
+func (siw *ServerInterfaceWrapper) HandleRegisterDevice(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleRegisterDevice(c)
 }
 
 // CreateReview operation middleware
@@ -2375,6 +3358,64 @@ func (siw *ServerInterfaceWrapper) HandleStartSession(c *gin.Context) {
 	siw.Handler.HandleStartSession(c, id)
 }
 
+// CreateSubscription operation middleware
+func (siw *ServerInterfaceWrapper) CreateSubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSubscription(c)
+}
+
+// GetMySubscription operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscription(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscription(c)
+}
+
+// GetMySubscriptionUsage operation middleware
+func (siw *ServerInterfaceWrapper) GetMySubscriptionUsage(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMySubscriptionUsage(c)
+}
+
+// GetSubscriptionPlans operation middleware
+func (siw *ServerInterfaceWrapper) GetSubscriptionPlans(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSubscriptionPlans(c)
+}
+
 // GetTrainers operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 
@@ -2391,6 +3432,30 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "category", c.Request.URL.Query(), &params.Category, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "onboarding_status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "onboarding_status", c.Request.URL.Query(), &params.OnboardingStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter onboarding_status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2419,6 +3484,21 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
+// GetTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMe(c)
+}
+
 // GetTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 
@@ -2434,6 +3514,21 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 	siw.Handler.GetTrainersMeAvailability(c)
 }
 
+// AddTrainersMeAvailability operation middleware
+func (siw *ServerInterfaceWrapper) AddTrainersMeAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddTrainersMeAvailability(c)
+}
+
 // PutTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 
@@ -2447,6 +3542,207 @@ func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainersMeAvailability(c)
+}
+
+// DeleteTrainersMeAvailabilitySlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "slot_id" -------------
+	var slotId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot_id", c.Param("slot_id"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slot_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTrainersMeAvailabilitySlot(c, slotId)
+}
+
+// GetTrainersMeClients operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeClientsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeClients(c, params)
+}
+
+// GetTrainersMeSessions operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMeSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersMeSessionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMeSessions(c, params)
+}
+
+// ResendTrainerSetup operation middleware
+func (siw *ServerInterfaceWrapper) ResendTrainerSetup(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendTrainerSetup(c)
+}
+
+// ListTrainerSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListTrainerSessions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTrainerSessionsParams
+
+	// ------------- Required query parameter "trainer_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "trainer_id", c.Request.URL.Query(), &params.TrainerId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trainer_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListTrainerSessions(c, params)
+}
+
+// HandleSetPassword operation middleware
+func (siw *ServerInterfaceWrapper) HandleSetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleSetPassword(c)
+}
+
+// HandleValidateSetupToken operation middleware
+func (siw *ServerInterfaceWrapper) HandleValidateSetupToken(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleValidateSetupTokenParams
+
+	// ------------- Required query parameter "token" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "token", c.Request.URL.Query(), &params.Token, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter token: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleValidateSetupToken(c, params)
 }
 
 // DeleteTrainer operation middleware
@@ -2557,6 +3853,33 @@ func (siw *ServerInterfaceWrapper) GetTrainerAvailability(c *gin.Context) {
 	siw.Handler.GetTrainerAvailability(c, id)
 }
 
+// AddTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) AddTrainerAvailability(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddTrainerAvailability(c, id)
+}
+
 // PutTrainerAvailability operation middleware
 func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 
@@ -2582,6 +3905,42 @@ func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainerAvailability(c, id)
+}
+
+// DeleteTrainerAvailabilitySlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrainerAvailabilitySlot(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "slot_id" -------------
+	var slotId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot_id", c.Param("slot_id"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slot_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteTrainerAvailabilitySlot(c, id, slotId)
 }
 
 // ListTrainerImages operation middleware
@@ -2859,6 +4218,32 @@ func (siw *ServerInterfaceWrapper) HandleAddWaitlist(c *gin.Context) {
 	siw.Handler.HandleAddWaitlist(c)
 }
 
+// HandleAppleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleAppleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAppleWebhook(c)
+}
+
+// HandleGoogleWebhook operation middleware
+func (siw *ServerInterfaceWrapper) HandleGoogleWebhook(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleGoogleWebhook(c)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -2888,7 +4273,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
+	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
+	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
+	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
+	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
+	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
+	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
@@ -2906,28 +4299,53 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/bookings/upcoming", wrapper.GetUpcomingBookings)
 	router.PUT(options.BaseURL+"/bookings/:id/cancel", wrapper.CancelBooking)
 	router.PUT(options.BaseURL+"/bookings/:id/reschedule", wrapper.RescheduleDiscoveryCall)
+	router.POST(options.BaseURL+"/client/cancel/subscription", wrapper.CancelMySubscription)
 	router.POST(options.BaseURL+"/contact-us", wrapper.HandleContactUs)
 	router.GET(options.BaseURL+"/dev/token", wrapper.HandleCreateDevToken)
 	router.GET(options.BaseURL+"/discovery-slots", wrapper.GetDiscoverySlots)
 	router.POST(options.BaseURL+"/discovery-slots", wrapper.CreateDiscoverySlot)
+	router.POST(options.BaseURL+"/discovery-slots/bulk", wrapper.CreateDiscoverySlotsBulk)
 	router.DELETE(options.BaseURL+"/discovery-slots/:id", wrapper.DeleteDiscoverySlot)
 	router.PUT(options.BaseURL+"/discovery-slots/:id", wrapper.UpdateDiscoverySlot)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
+	router.GET(options.BaseURL+"/media", wrapper.ListOrganisationMedia)
+	router.POST(options.BaseURL+"/media/images", wrapper.UploadOrganisationImage)
+	router.POST(options.BaseURL+"/media/videos", wrapper.UploadOrganisationVideo)
+	router.DELETE(options.BaseURL+"/media/:id", wrapper.DeleteOrganisationMedia)
+	router.GET(options.BaseURL+"/media/:id", wrapper.GetOrganisationMediaByID)
+	router.GET(options.BaseURL+"/notifications", wrapper.HandleGetUserNotifications)
+	router.POST(options.BaseURL+"/notifications", wrapper.HandleSendNotification)
+	router.POST(options.BaseURL+"/register/device", wrapper.HandleRegisterDevice)
 	router.POST(options.BaseURL+"/reviews", wrapper.CreateReview)
 	router.GET(options.BaseURL+"/sessions/:id", wrapper.HandleGetSessionById)
 	router.PUT(options.BaseURL+"/sessions/:id/complete", wrapper.HandleCompleteSession)
 	router.PUT(options.BaseURL+"/sessions/:id/join", wrapper.HandleJoinSession)
 	router.PUT(options.BaseURL+"/sessions/:id/notes", wrapper.HandleTrainersNote)
 	router.PUT(options.BaseURL+"/sessions/:id/start", wrapper.HandleStartSession)
+	router.POST(options.BaseURL+"/subscriptions", wrapper.CreateSubscription)
+	router.GET(options.BaseURL+"/subscriptions/me", wrapper.GetMySubscription)
+	router.GET(options.BaseURL+"/subscriptions/me/usage", wrapper.GetMySubscriptionUsage)
+	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
+	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
+	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
+	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
+	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
+	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
+	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
+	router.POST(options.BaseURL+"/trainers/set-password", wrapper.HandleSetPassword)
+	router.GET(options.BaseURL+"/trainers/set-password/validate", wrapper.HandleValidateSetupToken)
 	router.DELETE(options.BaseURL+"/trainers/:id", wrapper.DeleteTrainer)
 	router.GET(options.BaseURL+"/trainers/:id", wrapper.GetTrainerByID)
 	router.PATCH(options.BaseURL+"/trainers/:id", wrapper.UpdateTrainer)
 	router.GET(options.BaseURL+"/trainers/:id/availability", wrapper.GetTrainerAvailability)
+	router.POST(options.BaseURL+"/trainers/:id/availability", wrapper.AddTrainerAvailability)
 	router.PUT(options.BaseURL+"/trainers/:id/availability", wrapper.PutTrainerAvailability)
+	router.DELETE(options.BaseURL+"/trainers/:id/availability/:slot_id", wrapper.DeleteTrainerAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
 	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)
 	router.DELETE(options.BaseURL+"/trainers/:id/images/:image_id", wrapper.DeleteTrainerImage)
@@ -2939,4 +4357,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
+	router.POST(options.BaseURL+"/webhooks/apple", wrapper.HandleAppleWebhook)
+	router.POST(options.BaseURL+"/webhooks/google", wrapper.HandleGoogleWebhook)
 }

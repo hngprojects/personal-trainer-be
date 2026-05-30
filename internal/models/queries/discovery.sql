@@ -33,6 +33,18 @@ LIMIT 1;
 SELECT * FROM discovery_bookings
 ORDER BY selected_datetime ASC;
 
+-- name: ListDiscoveryBookingsPaginated :many
+-- Admin paginated view of every discovery call ever booked. Newest first so
+-- the most-recent activity is the top of page 1; supports
+-- LIMIT/OFFSET pagination matching the admin sessions endpoint.
+SELECT * FROM discovery_bookings
+ORDER BY selected_datetime DESC, id DESC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountDiscoveryBookings :one
+SELECT COUNT(*) FROM discovery_bookings;
+
 -- name: GetActiveBookingSlots :many
 SELECT * FROM booking_slots
 WHERE is_active = true
@@ -135,8 +147,11 @@ WHERE selected_datetime > sqlc.arg(selected_datetime)::timestamptz - INTERVAL '3
   AND id != sqlc.arg(exclude_id);
 
 -- name: GetUpcomingDiscoveryBookings :many
+-- Mirror of GetUpcomingPaidSessions: keep showing the call until the user
+-- explicitly cancels/completes it. The 7-day grace past selected_datetime
+-- bounds the visibility of abandoned bookings.
 SELECT * FROM discovery_bookings
 WHERE user_id = sqlc.arg(user_id)
-  AND selected_datetime > NOW()
+  AND selected_datetime > NOW() - INTERVAL '7 days'
   AND status NOT IN ('cancelled', 'completed')
 ORDER BY selected_datetime ASC;

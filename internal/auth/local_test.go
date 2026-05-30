@@ -33,6 +33,8 @@ type fakeLocalUserRepo struct {
 	findErr         error
 	createUserErr   error
 	markVerifiedErr error
+	roleIDs         auth.RoleIDs
+	roleIDsErr      error
 }
 
 func (f *fakeLocalUserRepo) FindByEmailAndProvider(_ context.Context, _, _ string) (*db.User, error) {
@@ -52,6 +54,10 @@ func (f *fakeLocalUserRepo) CreateEmailUser(_ context.Context, email string) (*d
 		return nil, f.createUserErr
 	}
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local"}, nil
+}
+
+func (f *fakeLocalUserRepo) LookupRoleIDs(_ context.Context, _ uuid.UUID) (auth.RoleIDs, error) {
+	return f.roleIDs, f.roleIDsErr
 }
 
 func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.User, error) {
@@ -128,6 +134,10 @@ func (m *fakeMailer) SendTrainerCredentials(_, _ string) error {
 	return m.err
 }
 
+func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
+	return m.err
+}
+
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
@@ -151,6 +161,12 @@ func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _
 }
 func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
 	return m.err
+}
+func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
+	return nil
+}
+func (m *fakeMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
+	return nil
 }
 
 // fakeRateLimiter always allows (or always blocks when allowed=false).

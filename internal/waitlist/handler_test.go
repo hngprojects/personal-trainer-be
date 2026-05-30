@@ -63,7 +63,10 @@ func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return ni
 func (m *fakeMailer) SendWaitlistConfirmation(_ string) error        { return nil }
 func (m *fakeMailer) SendAdminCredentials(_, _ string) error         { return nil }
 func (m *fakeMailer) SendTrainerCredentials(_, _ string) error       { return nil }
-func (m *fakeMailer) SendContactConfirmation(_, _ string) error      { return nil }
+func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
+	return nil
+}
+func (m *fakeMailer) SendContactConfirmation(_, _ string) error { return nil }
 func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
 	return nil
 }
@@ -80,6 +83,12 @@ func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _
 	return nil
 }
 func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
+	return nil
+}
+func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
+	return nil
+}
+func (m *fakeMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
 	return nil
 }
 
@@ -124,9 +133,6 @@ func TestHandleAddWaitlist_Success(t *testing.T) {
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "success" {
-		t.Errorf("expected status 'success', got %v", resp["status"])
-	}
 	if resp["code"] != "CREATED" {
 		t.Errorf("expected code 'CREATED', got %v", resp["code"])
 	}
@@ -185,9 +191,6 @@ func TestHandleAddWaitlist_InvalidEmail(t *testing.T) {
 			var resp map[string]interface{}
 			_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-			if resp["status"] != "error" {
-				t.Errorf("expected status 'error', got %v", resp["status"])
-			}
 		})
 	}
 }
@@ -225,18 +228,15 @@ func TestHandleAddWaitlist_EmailAlreadyExists(t *testing.T) {
 	handler.HandleAddWaitlist(c)
 
 	// Should return 200 OK (not 201) when email already exists
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d", w.Code)
 	}
 
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "success" {
-		t.Errorf("expected status 'success', got %v", resp["status"])
-	}
-	if resp["code"] != "OK" {
-		t.Errorf("expected code 'OK', got %v", resp["code"])
+	if resp["code"] != "CONFLICT" {
+		t.Errorf("expected code 'CONFLICT', got %v", resp["code"])
 	}
 }
 
@@ -307,9 +307,6 @@ func TestHandleAddWaitlist_RepositoryError(t *testing.T) {
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "error" {
-		t.Errorf("expected status 'error', got %v", resp["status"])
-	}
 }
 
 // TestHandleGetWaitlist_GetAll tests getting all waitlist entries
@@ -349,10 +346,6 @@ func TestHandleGetWaitlist_GetAll(t *testing.T) {
 
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-
-	if resp["status"] != "success" {
-		t.Errorf("expected status 'success', got %v", resp["status"])
-	}
 
 	// Check data is array
 	data := resp["data"]
@@ -396,9 +389,6 @@ func TestHandleGetWaitlist_GetByEmail(t *testing.T) {
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "success" {
-		t.Errorf("expected status 'success', got %v", resp["status"])
-	}
 }
 
 // TestHandleGetWaitlist_GetByEmail_NotFound tests getting non-existent email
@@ -426,9 +416,6 @@ func TestHandleGetWaitlist_GetByEmail_NotFound(t *testing.T) {
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "error" {
-		t.Errorf("expected status 'error', got %v", resp["status"])
-	}
 }
 
 // TestHandleGetWaitlist_EmailNormalization tests email parameter is normalized
@@ -481,7 +468,4 @@ func TestHandleGetWaitlist_RepositoryError(t *testing.T) {
 	var resp map[string]interface{}
 	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
-	if resp["status"] != "error" {
-		t.Errorf("expected status 'error', got %v", resp["status"])
-	}
 }

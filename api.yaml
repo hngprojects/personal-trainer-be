@@ -24,12 +24,41 @@ tags:
     description: Trainer endpoints to manage all trainer activities.
   - name: Waitlist
     description: Endpoints to handle waitlist data.
+  - name: Subscriptions
+    description: Subscription plan listing and lifecycle management.
   - name: User
     description: User profile and onboarding endpoints.
+  - name: Zoom
+    description: |
+      Per-trainer Zoom OAuth, in-app Meeting SDK joins, and client-facing
+      config. Routes are hand-wired (not generated from this spec) — the
+      definitions below exist only so Swagger UI can render them. See
+      internal/routes/zoom_*.go for the source of truth.
+  - name: Activities
+    description: |
+      Recent-activity feed surfaced to trainers (own activity) and admins
+      (system-wide). Hand-wired routes — see internal/activities/.
+  - name: Well-Known
+    description: |
+      Universal-link claim files served at the domain root for
+      iOS Associated Domains and Android App Links verification.
+  - name: Settings
+    description: |
+      Admin Settings page — general defaults, trainer rules, and the
+      category catalog. Hand-wired routes; see internal/settings/.
+  - name: Categories
+    description: |
+      Client-facing specialty catalog the admin manages from the
+      Settings page. Hand-wired route; see internal/settings/.
 
 components:
   securitySchemes:
     bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+    refreshAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
@@ -39,9 +68,6 @@ components:
       type: object
       required: [status, message, code]
       properties:
-        status:
-          type: string
-          enum: [success, error]
         message:
           type: string
         code:
@@ -115,6 +141,9 @@ components:
         id:
           type: string
           format: uuid
+          description: |
+            Universal user identifier (users.id). Stable across every
+            auth flow regardless of role.
         email:
           type: string
         name:
@@ -124,6 +153,17 @@ components:
           enum: [client, trainer, admin]
         profile_complete:
           type: boolean
+        trainer_id:
+          type: string
+          format: uuid
+          description: |
+            Trainer profile UUID (trainers.id) for users whose role is
+            "trainer". Populated only when the user has a trainer profile
+            — omitted otherwise so a client/admin response doesn't carry
+            a meaningless null. FE uses this when calling endpoints that
+            target a trainer by trainers.id (e.g. GET /trainers/{id},
+            GET /trainers/sessions?trainer_id=…), distinct from the
+            users.id returned in `id`.
 
     GoogleAuthData:
       type: object
@@ -228,6 +268,21 @@ components:
         user_id:
           type: string
           format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
         specializations:
           type: array
           items:
@@ -261,6 +316,21 @@ components:
         display_picture:
           type: string
           nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other, prefer_not_to_say, null]
+          description: |
+            Trainer's gender, joined from users.gender. Closed set
+            enforced by the users_gender_valid CHECK constraint
+            (migration 000047); existing pre-constraint rows whose
+            value didn't match were normalized to NULL.
+        phone_number:
+          type: string
+          nullable: true
+          description: |
+            E.164 phone number from users.phone_number. Optional on
+            create; null when never supplied.
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
@@ -278,6 +348,108 @@ components:
           type: string
           format: date-time
 
+    TopTrainer:
+      type: object
+      required:
+        - id
+        - user_id
+        - specializations
+        - training_styles
+        - onboarding_status
+        - average_rating
+        - total_reviews
+        - booking_count
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: |
+            Trainer's display name, joined from users.name. Populated on
+            responses that join users (GET /trainers, GET /trainers/{id},
+            GET /trainers/me); absent on response paths that return the
+            raw trainers row without the join (e.g. POST/PATCH /trainers
+            result, internal admin queries).
+        email:
+          type: string
+          format: email
+          description: |
+            Trainer's email, joined from users.email. Same population
+            rules as `name` — present on the user-joined endpoints, may
+            be absent elsewhere.
+        specializations:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerSpecialization"
+          minItems: 0
+          maxItems: 5
+          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+        training_styles:
+          type: array
+          items:
+            type: string
+          maxItems: 4
+          description: Up to 4 free-text single-word tags chosen by the admin.
+        benefits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrainerBenefit"
+          description: |
+            Marketing-style "what you get working with this trainer" copy.
+            Populated on Trainer responses that join the trainer_benefits
+            table; absent when the source query doesn't fetch them.
+        bio:
+          type: string
+          nullable: true
+        years_of_experience:
+          type: integer
+          nullable: true
+        intro_video_url:
+          type: string
+          nullable: true
+        display_picture:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other, prefer_not_to_say, null]
+          description: |
+            Trainer's gender, joined from users.gender. Closed set
+            enforced by the users_gender_valid CHECK constraint
+            (migration 000047); existing pre-constraint rows whose
+            value didn't match were normalized to NULL.
+        phone_number:
+          type: string
+          nullable: true
+          description: |
+            E.164 phone number from users.phone_number. Optional on
+            create; null when never supplied.
+        onboarding_status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+        average_rating:
+          type: number
+          nullable: true
+          format: float
+          description: Average rating from client reviews. Null if no reviews yet.
+        total_reviews:
+          type: integer
+        booking_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     TrainerResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -285,6 +457,224 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/Trainer"
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - plan_id
+        - trainer_id
+        - platform
+        - product_id
+      properties:
+        plan_id:
+          type: string
+          enum: [casual, committed, consistent]
+          description: The plan tier the client is subscribing to
+        trainer_id:
+          type: string
+          format: uuid
+          description: The trainer this subscription is for
+        platform:
+          type: string
+          enum: [apple, google]
+          description: The payment platform used
+        product_id:
+          type: string
+          description: App store product ID (must match the plan)
+          example: com.fitcal.plan.committed.monthly
+        receipt_data:
+          type: string
+          description: Base64-encoded Apple App Store receipt (required when platform=apple)
+        purchase_token:
+          type: string
+          description: Google Play purchase token (required when platform=google)
+
+    Subscription:
+      type: object
+      required:
+        - id
+        - client_id
+        - trainer_id
+        - status
+        - sessions_used_this_month
+        - currency
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        trainer_id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          enum: [casual, committed, consistent]
+        platform:
+          type: string
+          enum: [apple, google]
+        sessions_per_month:
+          type: integer
+        sessions_used_this_month:
+          type: integer
+        amount:
+          type: integer
+          description: Price in cents
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [active, cancelled, expired]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    SubscriptionResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Subscription"
+
+    SubscriptionUsage:
+      type: object
+      required:
+        - sessions_per_month
+        - sessions_used
+        - sessions_remaining
+        - current_period_start
+        - current_period_end
+      properties:
+        sessions_per_month:
+          type: integer
+        sessions_used:
+          type: integer
+        sessions_remaining:
+          type: integer
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+
+    SubscriptionUsageResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SubscriptionUsage"
+
+    SubscriptionPlan:
+      type: object
+      required:
+        - id
+        - name
+        - sessions_per_month
+        - amount
+        - currency
+        - amount_display
+        - features
+        - apple_product_id
+        - google_product_id
+      properties:
+        id:
+          type: string
+          description: Unique plan identifier (casual, committed, consistent)
+        name:
+          type: string
+          description: Display name (e.g. "The Casual")
+        tag:
+          type: string
+          nullable: true
+          description: Optional badge label (e.g. "Most Popular")
+        sessions_per_month:
+          type: integer
+          description: Number of guided sessions included per month
+        amount:
+          type: integer
+          description: Price in minor currency units (e.g. cents / kobo)
+        currency:
+          type: string
+          description: ISO 4217 currency code
+        amount_display:
+          type: string
+          description: Human-readable price string (e.g. "$80/month")
+        features:
+          type: array
+          items:
+            type: string
+          description: List of feature highlights shown on the plan card
+        apple_product_id:
+          type: string
+          description: Apple App Store product identifier for IAP
+        google_product_id:
+          type: string
+          description: Google Play product identifier for billing
+
+    SubscriptionPlansResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/SubscriptionPlan"
+
+    TrainerClient:
+      type: object
+      properties:
+        client_id:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+        client_email:
+          type: string
+          format: email
+        client_avatar:
+          type: string
+          nullable: true
+        client_gender:
+          type: string
+          nullable: true
+        client_fitness_goals:
+          type: array
+          items:
+            type: string
+          nullable: true
+        client_fitness_level:
+          type: string
+          nullable: true
+        total_bookings:
+          type: integer
+          format: int64
+        last_booking_date:
+          type: string
+          format: date-time
+
+    TrainerClientsListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrainerClient"
 
     TrainersListResponse:
       allOf:
@@ -366,6 +756,20 @@ components:
           type: string
           enum: [pending, approved, rejected, suspended]
           description: Initial onboarding state. Defaults to "pending" when omitted; admin can fast-forward an internally-known trainer straight to "approved".
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+          description: |
+            Optional. Stored on the underlying users row. Closed enum
+            enforced server-side and by the DB CHECK constraint added
+            in migration 000047 — any other value returns 400.
+        phone_number:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: |
+            Optional. E.164 format (e.g. +2348012345678) — same shape
+            the discovery-call phone_callback field requires. Stored
+            on users.phone_number. Invalid format returns 400.
         display_picture:
           type: string
           format: binary
@@ -444,6 +848,63 @@ components:
           items:
             $ref: "#/components/schemas/AvailabilitySlot"
           description: "List of weekly availability slots. Empty array clears all slots."
+
+    OrganisationMedia:
+      type: object
+      description: |
+        One record from the org-level media library. Same shape for
+        images and videos — discriminated by `media_type`. `public_url`
+        is reachable as soon as `status == "ready"`; while
+        `status == "processing"` the FE should treat the URL as
+        unreachable (the worker hasn't pushed bytes to storage yet).
+      required:
+        - id
+        - media_type
+        - title
+        - object_key
+        - public_url
+        - mime_type
+        - size_bytes
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        media_type: { type: string, enum: [image, video] }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        object_key: { type: string }
+        public_url: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        status:
+          type: string
+          enum: [processing, ready, failed]
+        uploaded_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AddAvailabilityRequest:
+      type: object
+      required: [availability]
+      description: |
+        Request body for the additive POST availability endpoints. Same
+        shape as SetAvailabilityRequest but the semantics differ:
+        supplied slots are appended to the trainer's existing schedule
+        rather than replacing it. Use PUT (SetAvailabilityRequest) when
+        you want to wipe-and-reseed; use this when you want to add a
+        slot without resending the whole list.
+      properties:
+        availability:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AvailabilitySlot"
+          description: "Slots to append. At least one is required (empty arrays are rejected with 400)."
 
     SetAvailabilityResponse:
       allOf:
@@ -696,6 +1157,21 @@ components:
             data:
               $ref: "#/components/schemas/Review"
 
+    TopTrainersResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [top_trainers]
+              properties:
+                top_trainers:
+                  type: array
+                  nullable: true
+                  items:
+                    $ref: "#/components/schemas/TopTrainer"
     ReviewsListResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -869,6 +1345,20 @@ components:
         is_active:
           type: boolean
           default: true
+    BookingSlotsBulkRequest:
+      type: object
+      required: [slots]
+      description: |
+        Array of slot specs for POST /discovery-slots/bulk. The whole
+        batch is inserted in a single transaction; any validation
+        failure rolls everything back.
+      properties:
+        slots:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/BookingSlotRequest"
     BookingSlotResponse:
       type: object
       properties:
@@ -949,7 +1439,16 @@ paths:
       tags:
         - Auth — Local
         - Authentication
-      summary: Login with email
+      summary: Login with email + password
+      description: |
+        Verifies the bcrypt password hash on the user row and returns
+        access + refresh tokens on success.
+
+        Newly registered users who haven't yet set a password go via
+        the OTP flow (POST /auth/verify-email). OAuth-only accounts
+        (Google) have no password set; this endpoint returns 401 for
+        them with the same "invalid email or password" message used
+        for every credential failure — no account enumeration.
       requestBody:
         required: true
         content:
@@ -963,7 +1462,13 @@ paths:
                   format: email
                 password:
                   type: string
-                  format: password
+                  minLength: 1
+                  maxLength: 72
+                  description: |
+                    The user's password. Capped at 72 bytes because
+                    bcrypt silently truncates beyond that — accepting
+                    longer inputs would let any password sharing the
+                    first 72 bytes authenticate.
       responses:
         "200":
           description: Login successful
@@ -1082,7 +1587,8 @@ paths:
       # security from the framework's perspective and the handler does its own
       # refresh-token validation. Without this override the middleware short-
       # circuits with "invalid token type" before the handler ever runs.
-      security: []
+      security:
+        - refreshAuth: []
       operationId: HandleRefresh
       tags:
         - Auth — Session
@@ -1091,17 +1597,6 @@ paths:
         Invalidates the current access token by adding it to the blocklist (via cache)
         and issues a new access token. Send the refresh token as `Authorization: Bearer <refresh_token>`
         and the current (possibly expired) access token in the body.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [access_token]
-              properties:
-                access_token:
-                  type: string
-                  description: The current access token to invalidate
       responses:
         "200":
           description: Token refresh successful
@@ -1452,6 +1947,239 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /subscriptions:
+    post:
+      operationId: CreateSubscription
+      summary: Create a subscription via Apple/Google IAP
+      tags: [Subscriptions]
+      security:
+        - bearerAuth: []
+      description: |
+        Verifies an Apple App Store receipt or Google Play purchase token,
+        then activates a subscription for the authenticated client.
+        Returns 409 if the receipt/token has already been used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubscriptionRequest"
+      responses:
+        "201":
+          description: Subscription activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "400":
+          description: Invalid request body or receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Subscription already exists for this receipt/token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error or IAP verification failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me:
+    get:
+      summary: Get my active subscription
+      description: Returns the authenticated client's current active subscription.
+      tags: [Subscriptions]
+      operationId: GetMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active subscription returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/me/usage:
+    get:
+      summary: Get session usage for my subscription
+      description: Returns sessions used and remaining for the current billing period.
+      tags: [Subscriptions]
+      operationId: GetMySubscriptionUsage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usage stats returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionUsageResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /client/cancel/subscription:
+    post:
+      summary: Cancel my subscription
+      description: Cancels the authenticated client's active subscription immediately.
+      tags: [Subscriptions]
+      operationId: CancelMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "404":
+          description: No active subscription found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Subscription already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /subscriptions/plans:
+    get:
+      operationId: GetSubscriptionPlans
+      summary: List available subscription plans
+      tags: [Subscriptions]
+      security: []
+      description: |
+        Returns the fixed catalogue of subscription plans a client can
+        choose from. Plans are ordered by price. Each plan includes the
+        trial period, sessions per month, amount, and feature highlights.
+      responses:
+        "200":
+          description: Plans fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlansResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/apple:
+    post:
+      operationId: HandleAppleWebhook
+      summary: Apple App Store Server Notification V2
+      tags: [Webhooks]
+      security: []
+      description: |
+        Receives signed JWS payloads from Apple's App Store Server
+        Notifications V2. Validates and processes subscription lifecycle
+        events (renewals, expirations, cancellations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedPayload]
+              properties:
+                signedPayload:
+                  type: string
+                  description: JWS-encoded notification payload from Apple
+      responses:
+        "200":
+          description: Notification acknowledged
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/google:
+    post:
+      operationId: HandleGoogleWebhook
+      summary: Google Play Real-Time Developer Notification
+      tags: [Webhooks]
+      security: []
+      description: |
+        Receives Pub/Sub push messages from Google Play's Real-Time
+        Developer Notifications. Decodes and processes subscription
+        lifecycle events (renewals, expirations, cancellations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: string
+                      description: Base64-encoded notification payload
+                    messageId:
+                      type: string
+                    publishTime:
+                      type: string
+      responses:
+        "200":
+          description: Notification acknowledged
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /bookings:
     post:
       operationId: CreateBooking
@@ -1721,7 +2449,12 @@ paths:
       operationId: GetTrainers
       tags:
         - Trainer
-      summary: Get trainers (admin only)
+      summary: Get trainers (admin only) — paginated
+      description: |
+        Paginated list of trainers. Each item includes the trainer's display
+        name (sourced from users.name), so the FE doesn't have to join
+        against a separate user lookup. Pagination metadata is returned in
+        the standard `meta` block.
       parameters:
         - name: category
           in: query
@@ -1729,6 +2462,32 @@ paths:
           schema:
             type: string
           description: Filter by category (maps to trainers.specialization)
+        - name: onboarding_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - suspended
+          description: Filter by onboarding_status (maps to trainers.onboarding_status)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
       responses:
         "200":
           description: Trainers fetched
@@ -1938,7 +2697,11 @@ paths:
       operationId: DeleteTrainer
       tags:
         - Trainer
-      summary: Delete trainer (admin only)
+      summary: Deactivate trainer (admin only)
+      description: |
+        Soft-deletes the trainer by setting their user account to inactive.
+        The trainer record and all associated data are preserved.
+        The trainer can no longer log in or appear in active listings.
       parameters:
         - name: id
           in: path
@@ -1947,14 +2710,17 @@ paths:
             type: string
             format: uuid
       responses:
-        "204":
-          description: Trainer deleted
-        "404":
-          description: Trainer not found
+        "200":
+          description: Trainer deactivated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: trainer deactivated successfully
+                data: null
         "401":
           description: Unauthorized
           content:
@@ -1967,8 +2733,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
           content:
             application/json:
               schema:
@@ -2331,6 +3115,265 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/resend-setup:
+    post:
+      operationId: ResendTrainerSetup
+      summary: Resend the account-setup link to a trainer
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Admin-only. Rotates the trainer's account-setup token and re-sends
+        the activation link to the trainer's email. Identifies the trainer
+        by email (the value the admin entered when the trainer was first
+        invited), so the admin doesn't need to know the internal
+        trainers.id.
+
+        Use this when the original invite email was lost, rate-limited by
+        the SMTP provider, or otherwise needs to be re-issued — preferable
+        to calling POST /trainers again (which would attempt to recreate
+        the user/trainer row pair).
+
+        The handler intentionally returns the same 404 for "no such email"
+        and "email exists but isn't a trainer" — a small guard against
+        admin-side enumeration of which emails belong to trainers.
+
+        Returns 409 if the trainer has already activated their account.
+        The trainer should use the existing forgot-password flow to set a
+        new password instead of receiving another setup link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address of the trainer to re-invite.
+      responses:
+        "200":
+          description: Setup link resent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+              example:
+                status: success
+                message: setup link resent
+                code: OK
+                data:
+                  email: trainer@example.com
+        "400":
+          description: Missing or malformed email in the request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile found for the supplied email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Trainer has already activated their account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Email delivery or token persistence failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me:
+    get:
+      operationId: GetTrainersMe
+      summary: Get the authenticated trainer's own profile
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Resolves the trainer profile (including trainer.id) from the JWT
+        user_id, so the FE doesn't need to know its own trainer.id to
+        fetch records. Returns the same payload shape as
+        GET /trainers/{id} (trainer fields + name/email joined from
+        users + benefits). 404 when the authenticated user has no
+        trainer profile (e.g. plain client trying to use a trainer-only
+        endpoint).
+      responses:
+        "200":
+          description: Trainer profile fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/clients:
+    get:
+      operationId: GetTrainersMeClients
+      summary: List distinct clients who have booked with the authenticated trainer
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated list of distinct clients (users) who have booked
+        at least one session with the authenticated trainer. Includes client
+        profile details and aggregate booking stats so the trainer dashboard
+        can render a full client roster without per-row user lookups.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Clients fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainerClientsListResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/sessions:
+    get:
+      operationId: GetTrainersMeSessions
+      summary: List sessions booked with the authenticated trainer — paginated
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Convenience variant of GET /trainers/sessions?trainer_id=... that
+        resolves the trainer from the JWT, so a trainer never has to
+        send their own trainer.id. Same response shape and pagination
+        semantics as the trainer_id-explicit endpoint. 404 when the
+        authenticated user has no trainer profile.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Sessions fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No trainer profile for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/me/availability:
     put:
       operationId: PutTrainersMeAvailability
@@ -2363,6 +3406,62 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: AddTrainersMeAvailability
+      summary: Append one or more availability slots without replacing existing ones
+      tags: [Trainer]
+      description: |
+        Additive variant of PUT /trainers/me/availability — the supplied
+        slots are inserted alongside any existing slots instead of replacing
+        them. Validation rules are identical (well-formed times, end > start,
+        valid IANA timezone) and slots in the request body must not overlap
+        each other or any existing slot for the same day. Exact duplicates
+        of an existing (day, start, end) tuple return 409; any other
+        overlap returns 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAvailabilityRequest"
+      responses:
+        "201":
+          description: Slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer profile not found for this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Exact duplicate of an existing slot
           content:
             application/json:
               schema:
@@ -2409,6 +3508,126 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /trainers/me/availability/{slot_id}:
+    delete:
+      operationId: DeleteTrainersMeAvailabilitySlot
+      summary: Delete a single availability slot owned by the authenticated trainer
+      tags: [Trainer]
+      description: |
+        Removes the slot with the given id only if it belongs to the
+        calling trainer. Trying to delete another trainer's slot returns
+        404 — the data layer matches both id AND trainer_id so an attacker
+        can't tell whether the id exists at all.
+      parameters:
+        - name: slot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Slot deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found (or not owned by the calling trainer)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/sessions:
+    get:
+      operationId: ListTrainerSessions
+      summary: List sessions booked with a specific trainer — paginated
+      tags: [Trainer]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated list of bookings (paid training sessions)
+        where the trainer of record matches the supplied trainer_id
+        query parameter. Includes the client's name + email per booking
+        so the trainer dashboard doesn't have to do per-row user
+        lookups. Newest scheduled first.
+
+        Replaces the earlier GET /trainers/me/sessions which derived
+        the trainer from the JWT user — that path 404'd whenever the
+        caller wasn't a trainer (admin tools, etc.). This endpoint
+        takes the trainer_id explicitly and authorizes either the
+        trainer owner (caller.user_id matches trainers.user_id) OR an
+        admin / super_admin.
+      parameters:
+        - name: trainer_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The trainer whose sessions to list
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Sessions fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid or missing trainer_id / pagination params
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is neither the owner of this trainer profile nor an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /trainers/{id}/availability:
     get:
       operationId: GetTrainerAvailability
@@ -2440,6 +3659,71 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: AddTrainerAvailability
+      summary: Admin appends slots to a trainer's weekly availability
+      tags: [Trainer]
+      description: |
+        Admin-only additive variant of PUT — the supplied slots are
+        inserted alongside the trainer's existing slots instead of
+        replacing them. Validation matches the trainer-facing POST.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAvailabilityRequest"
+      responses:
+        "201":
+          description: Slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAvailabilityResponse"
+        "400":
+          description: Bad request (invalid timezone, overlapping slots, etc)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Exact duplicate of an existing slot
           content:
             application/json:
               schema:
@@ -2505,6 +3789,57 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/availability/{slot_id}:
+    delete:
+      operationId: DeleteTrainerAvailabilitySlot
+      summary: Admin deletes one availability slot for a specific trainer
+      tags: [Trainer]
+      description: |
+        Admin-only. Removes a single availability slot from a given
+        trainer's schedule, identified by both trainer id and slot id —
+        the slot_id must already belong to the path trainer, otherwise
+        the response is 404 (same shape as the trainer-facing endpoint).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: slot_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Slot deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Slot not found for this trainer
           content:
             application/json:
               schema:
@@ -2701,6 +4036,7 @@ paths:
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a
+        trainer or
         registered local user that holds the `admin` role. The endpoint
         always returns the same generic success response regardless of
         whether the email exists or whether the user is an admin — this
@@ -2759,6 +4095,72 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /auth/verify-reset-code:
+    post:
+      operationId: HandleVerifyResetCode
+      security: []
+      tags:
+        - Authentication
+      summary: Verify a password reset OTP code
+      description: |
+        Confirms that the 6-digit OTP code sent to an email address is valid
+        and has not expired, without consuming it. Use this between the
+        forgot-password and reset-password steps so clients can validate the
+        code before asking the user to enter a new password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - code
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: trainer@example.com
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  pattern: '^[0-9]{6}$'
+                  example: "123456"
+            example:
+              email: trainer@example.com
+              code: "123456"
+      responses:
+        "200":
+          description: Code is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: code is valid
+                data: null
+        "400":
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/reset-password:
     post:
       security: []
@@ -2824,6 +4226,953 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /trainers/set-password:
+    post:
+      security: []
+      operationId: HandleSetPassword
+      tags:
+        - Trainer
+        - Authentication
+      summary: Set the initial password for an admin-provisioned trainer account
+      description: >-
+        Consumes a one-time activation token emailed to a newly provisioned
+        trainer and stores the chosen password. The token is single-use and
+        expires after a configurable window (default 7 days). Every failure
+        branch returns the same generic 400 so an attacker cannot tell
+        "wrong token" from "already consumed" from "expired".
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                  description: Activation token from the setup email link
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  # maxLength matches bcrypt's 72-byte ceiling — same cap
+                  # the reset-password endpoint enforces server-side. Kept
+                  # in the spec so the FE rejects oversize inputs before
+                  # round-tripping to the server.
+                  maxLength: 72
+      responses:
+        "200":
+          description: Password set successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: password set successfully
+                code: OK
+                data: null
+        "400":
+          description: Validation error or invalid/expired setup token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid or expired setup token
+                code: BAD_REQUEST
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: >-
+            Service unavailable — the account-setup handler is not wired on
+            this server (configuration issue, e.g. DB unavailable at boot).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/set-password/validate:
+    get:
+      security: []
+      operationId: HandleValidateSetupToken
+      tags:
+        - Trainer
+        - Authentication
+      summary: Check whether a trainer setup token is still valid (no consume)
+      description: >-
+        Pre-flight check used by the FE set-password page. Returns 200 with
+        a `status` field describing the token's state so the FE can branch
+        on it: `valid` (show password form), `expired` (link timed out),
+        `consumed` (already used), `invalid` (unknown token). Does NOT
+        mark the token used — that only happens on
+        `POST /trainers/set-password`.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Activation token from the setup email link
+      responses:
+        "200":
+          description: Token state returned
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum: [valid, expired, consumed, invalid]
+                          valid:
+                            type: boolean
+                          expires_at:
+                            type: string
+                            format: date-time
+              example:
+                status: success
+                message: setup token checked
+                code: OK
+                data:
+                  status: valid
+                  valid: true
+                  expires_at: "2026-05-29T12:00:00Z"
+        "400":
+          description: Missing or empty `token` query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: >-
+            Service unavailable — the account-setup handler is not wired on
+            this server (configuration issue, e.g. DB unavailable at boot).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/user/trainer/count:
+    get:
+      operationId: GetUserTrainerCount
+      tags:
+        - Admin
+      summary: Get total count of active clients and approved trainers (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          total_clients:
+                            type: integer
+                            format: int64
+                            description: Number of active users with role client
+                            example: 120
+                          total_approved_trainers:
+                            type: integer
+                            format: int64
+                            description: Number of trainers with onboarding_status approved
+                            example: 45
+              example:
+                status: success
+                message: Stats retrieved successfully
+                code: OK
+                data:
+                  total_clients: 120
+                  total_approved_trainers: 45
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/subscriptions:
+    get:
+      operationId: GetAdminSubscriptions
+      tags:
+        - Admin
+      summary: List all subscriptions with optional status filter (super_admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, cancelled, expired]
+          description: Filter by status (omit for all)
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number (default 1)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Items per page (default 20, max 100)
+      responses:
+        "200":
+          description: Subscriptions returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            client_id:
+                              type: string
+                              format: uuid
+                            client_name:
+                              type: string
+                            client_email:
+                              type: string
+                              format: email
+                            trainer_id:
+                              type: string
+                              format: uuid
+                            trainer_name:
+                              type: string
+                            trainer_email:
+                              type: string
+                              format: email
+                            plan_type:
+                              type: string
+                            amount:
+                              type: integer
+                              format: int64
+                              nullable: true
+                            currency:
+                              type: string
+                            status:
+                              type: string
+                            platform:
+                              type: string
+                              nullable: true
+                            current_period_start:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            current_period_end:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            created_at:
+                              type: string
+                              format: date-time
+                            cancelled_at:
+                              type: string
+                              format: date-time
+                              nullable: true
+                      meta:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          page_size:
+                            type: integer
+                          total:
+                            type: integer
+                          total_pages:
+                            type: integer
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/subscriptions/count:
+    get:
+      operationId: GetAdminSubscriptionCount
+      tags:
+        - Subscriptions
+      summary: Count of active subscriptions (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active subscription count returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          active_subscriptions:
+                            type: integer
+                            format: int64
+                            description: Number of subscriptions with status active and not yet expired
+                            example: 18
+              example:
+                status: success
+                message: Active subscriptions retrieved successfully
+                code: OK
+                data:
+                  active_subscriptions: 18
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/revenue:
+    get:
+      operationId: GetAdminRevenue
+      tags:
+        - Admin
+      summary: Revenue snapshot and latest payment (super_admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Revenue data returned successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          revenue:
+                            type: object
+                            properties:
+                              total:
+                                type: integer
+                                format: int64
+                                description: All-time total revenue in cents
+                                example: 120000
+                              subscriptions:
+                                type: integer
+                                format: int64
+                                description: Revenue from monthly subscriptions in cents
+                                example: 100000
+                              one_time_sessions:
+                                type: integer
+                                format: int64
+                                description: Revenue from one-time sessions in cents
+                                example: 20000
+                              trial_conversions:
+                                type: integer
+                                format: int64
+                                description: Revenue from trial conversions (always 0)
+                                example: 0
+                          latest_payment:
+                            nullable: true
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                format: uuid
+                              client_name:
+                                type: string
+                              client_email:
+                                type: string
+                              plan_type:
+                                type: string
+                              plan_id:
+                                type: string
+                                nullable: true
+                              amount:
+                                type: integer
+                                format: int64
+                              currency:
+                                type: string
+                              status:
+                                type: string
+                              created_at:
+                                type: string
+                                format: date-time
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/clients:
+    get:
+      operationId: GetAdminClients
+      tags:
+        - Admin
+      summary: List all clients (super_admin only)
+      description: |
+        Returns a paginated list of all client accounts with basic info,
+        activity status, and session booking count. Revenue is returned as 0
+        and reserved for future implementation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          required: false
+          description: Filter by account status. Omit to return all clients.
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        "200":
+          description: Clients retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Bad request (invalid page, limit, or status value)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/clients/{id}:
+    delete:
+      operationId: DeleteAdminClient
+      tags:
+        - Admin
+      summary: Deactivate a client account (super_admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client user ID
+      responses:
+        "200":
+          description: Client deactivated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: client deactivated successfully
+                data: null
+        "400":
+          description: Invalid client ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Client is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: GetAdminClientByID
+      tags:
+        - Admin
+      summary: Get a single client by ID (super_admin only)
+      description: Returns full profile details for a specific client account.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Client retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid client ID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions/{id}/cancel:
+    put:
+      operationId: AdminCancelSession
+      tags:
+        - Admin
+      summary: Cancel a session (super_admin only)
+      description: Cancels any booking regardless of who owns it. Cannot cancel already cancelled or completed sessions.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  description: Reason for cancellation
+                  example: admin override
+            example:
+              reason: admin override
+      responses:
+        "200":
+          description: Session cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: session cancelled successfully
+                data:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  booking_status: cancelled
+                  cancellation_reason: admin override
+                  cancelled_at: "2026-05-29T10:00:00Z"
+        "400":
+          description: Invalid session ID or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Session is already cancelled or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions/{id}/reschedule:
+    put:
+      operationId: AdminRescheduleSession
+      tags:
+        - Admin
+      summary: Reschedule a session (super_admin only)
+      description: Reschedules any booking to a new time. Bypasses the 3-reschedule limit that applies to clients. Cannot reschedule cancelled or completed sessions.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - scheduled_start
+                - scheduled_end
+              properties:
+                scheduled_start:
+                  type: string
+                  format: date-time
+                  description: New start time (RFC3339)
+                  example: "2026-06-01T10:00:00Z"
+                scheduled_end:
+                  type: string
+                  format: date-time
+                  description: New end time (RFC3339)
+                  example: "2026-06-01T11:00:00Z"
+            example:
+              scheduled_start: "2026-06-01T10:00:00Z"
+              scheduled_end: "2026-06-01T11:00:00Z"
+      responses:
+        "200":
+          description: Session rescheduled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: session rescheduled successfully
+                data:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  booking_status: confirmed
+                  scheduled_start: "2026-06-01T10:00:00Z"
+                  scheduled_end: "2026-06-01T11:00:00Z"
+                  reschedule_count: 1
+        "400":
+          description: Invalid session ID, missing fields, or scheduled_end not after scheduled_start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Session cannot be rescheduled (already cancelled or completed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/transactions:
+    get:
+      operationId: GetAdminTransactions
+      tags:
+        - Admin
+      summary: List all client transactions/subscriptions (super_admin only)
+      description: |
+        Returns a paginated list of all client subscriptions across the platform,
+        including client and trainer details, plan type, amount, currency, status,
+        and period dates. Ordered by created_at descending.
+        Requires super_admin role.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: transactions fetched
+                data:
+                  - id: "462173eb-12a7-485a-b526-3630392b57ce"
+                    client_id: "f403497f-ff8c-4fdf-b897-5b23dadbfd9e"
+                    client_name: "John Doe"
+                    client_email: "john@example.com"
+                    trainer_id: "bbbbbbbb-0000-0000-0000-000000000001"
+                    trainer_name: "Test Trainer"
+                    trainer_email: "trainer@example.com"
+                    plan_type: "monthly_12"
+                    amount: 8000
+                    currency: "USD"
+                    status: "active"
+                    platform: null
+                    current_period_start: "2026-05-26T10:32:01Z"
+                    current_period_end: "2026-06-26T10:32:01Z"
+                    created_at: "2026-05-26T10:32:01Z"
+                    cancelled_at: null
+                meta:
+                  page: 1
+                  per_page: 20
+                  total_pages: 3
+                  total_count: 55
+                  next: "?page=2"
+        "400":
+          description: Bad request (invalid page or limit)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/add:
     post:
@@ -2911,6 +5260,126 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions:
+    get:
+      operationId: AdminListSessions
+      tags:
+        - Admin
+      summary: List every booked training session (admin or super_admin) — paginated
+      description: |
+        Paginated administrative view of every booking in the bookings table,
+        joined with client and trainer names. Ordered newest first. Accessible
+        to both `admin` and `super_admin` roles (read-only listing).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Booked sessions retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/discovery-bookings:
+    get:
+      operationId: AdminListDiscoveryBookings
+      tags:
+        - Admin
+      summary: List every booked discovery call (admin or super_admin) — paginated
+      description: |
+        Paginated administrative view of every row in discovery_bookings,
+        ordered by selected_datetime descending. Accessible to both `admin`
+        and `super_admin` roles (read-only listing).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Discovery bookings retrieved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid pagination parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — caller is not a super_admin
           content:
             application/json:
               schema:
@@ -3237,7 +5706,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: BookDiscoveryCall
       summary: Book a discovery call with a FitCall rep
       requestBody:
@@ -3276,7 +5745,7 @@ paths:
     put:
       operationId: RescheduleDiscoveryCall
       tags:
-        - Booking
+        - Discovery
       summary: Reschedule an existing discovery call booking
       description: |
         Allows a client to reschedule their discovery call to a new date and time.
@@ -3420,7 +5889,7 @@ paths:
       security: []
       operationId: GetDiscoverySlots
       tags:
-        - Booking
+        - Discovery
       summary: List all active discovery slots (public)
       parameters:
         - name: timezone
@@ -3446,6 +5915,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: CreateDiscoverySlot
+      tags:
+        - Discovery
       summary: Create a discovery slot (admin or customer_care only)
       requestBody:
         required: true
@@ -3485,12 +5956,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /discovery-slots/bulk:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: CreateDiscoverySlotsBulk
+      tags:
+        - Discovery
+      summary: Create multiple discovery slots in one request (admin or customer_care)
+      description: |
+        Additive bulk variant of POST /discovery-slots. The body is an
+        array of slot specs; each is validated, then all are inserted in
+        a single transaction. Per-slot validation matches the single
+        endpoint (well-formed times, end > start, valid timezone). Any
+        in-request overlap or any exact-duplicate of an existing slot
+        rolls back the entire batch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingSlotsBulkRequest"
+      responses:
+        "201":
+          description: Booking slots created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: One of the supplied slots duplicates an existing one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /discovery-slots/{id}:
     put:
       security:
         - bearerAuth: []
       tags:
-        - Booking
+        - Discovery
       operationId: UpdateDiscoverySlot
       summary: Update a discovery slot (admin or customer_care only)
       parameters:
@@ -3547,6 +6077,8 @@ paths:
       security:
         - bearerAuth: []
       operationId: DeleteDiscoverySlot
+      tags:
+        - Discovery
       summary: Delete a discovery slot (admin or customer_care only)
       parameters:
         - name: id
@@ -3629,6 +6161,8 @@ paths:
     get:
       security: []
       operationId: HandleCreateDevToken
+      tags:
+        - Dev
       responses:
         "200":
           description: Token generated
@@ -3958,3 +6492,1529 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+
+  /media:
+    get:
+      security: []
+      operationId: ListOrganisationMedia
+      tags: [Media]
+      summary: List organisation-level media (public, paginated)
+      description: |
+        Public read of the org-level media library. Optional filters:
+        type=image|video, category=<freetext>, status=ready|processing|failed
+        (defaults to ready so callers never see half-uploaded rows;
+        pass status= explicitly to see everything).
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema: { type: string, enum: [image, video] }
+        - name: category
+          in: query
+          required: false
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [ready, processing, failed] }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        "200":
+          description: Media list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/OrganisationMedia"
+        "400":
+          description: Invalid query parameter
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "500":
+          description: Internal server error
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+
+  /media/images:
+    post:
+      operationId: UploadOrganisationImage
+      tags: [Media]
+      summary: Upload an organisation-level image (admin only)
+      description: |
+        Multipart upload. Returns 202 immediately with the row in
+        status=processing; the worker uploads to MinIO and flips
+        status to ready or failed shortly after.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, file]
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                category: { type: string, maxLength: 64 }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "JPEG / PNG / WebP / HEIC, max 5 MiB",
+                  }
+      responses:
+        "202":
+          description: Image accepted; upload in progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/OrganisationMedia" }
+        "400":
+          description: Validation failure
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "401":
+          description: Unauthorized
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "413":
+          description: File exceeds 5 MiB cap
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "503":
+          description: Storage / uploader not configured or busy
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+
+  /media/videos:
+    post:
+      operationId: UploadOrganisationVideo
+      tags: [Media]
+      summary: Upload an organisation-level video (admin only)
+      description: |
+        Multipart upload. Same async semantics as POST /media/images.
+        Worker transcodes to MP4 (H.264, faststart) and uploads to
+        MinIO. Max 500 MiB pre-transcode, max 10 minutes duration.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, file]
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                category: { type: string, maxLength: 64 }
+                file:
+                  {
+                    type: string,
+                    format: binary,
+                    description: "MP4 / MOV / WebM / etc, max 500 MiB, max 10 min",
+                  }
+      responses:
+        "202":
+          description: Video accepted; transcode + upload in progress
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/OrganisationMedia" }
+        "400":
+          description: Validation failure
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "401":
+          description: Unauthorized
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "413":
+          description: File exceeds upload cap
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "503":
+          description: Storage / transcoder / uploader not configured or busy
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+
+  /media/{id}:
+    get:
+      security: []
+      operationId: GetOrganisationMediaByID
+      tags: [Media]
+      summary: Get one organisation-media record (public)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Media record
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/OrganisationMedia" }
+        "404":
+          description: Not found
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "500":
+          description: Internal server error
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+
+    delete:
+      operationId: DeleteOrganisationMedia
+      tags: [Media]
+      summary: Delete an organisation-media record (admin only)
+      description: |
+        Removes the DB row AND the underlying MinIO object so storage
+        does not drift. 409 if the row is still processing - admin
+        should wait for status to flip then retry.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "403":
+          description: Caller is not admin or super_admin
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "404":
+          description: Not found
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "409":
+          description: Media is still processing
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+        "500":
+          description: Internal server error
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ErrorResponse" } },
+            }
+  /register/device:
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleRegisterDevice
+      tags:
+        - Device
+      summary: Register a device for push notifications (FCM)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_token, platform]
+              properties:
+                device_token:
+                  type: string
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+      responses:
+        "200":
+          description: Device registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: Device registered for notifications
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+  /notifications:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: HandleGetUserNotifications
+      tags:
+        - Notification
+      summary: Get a list of notifications for the authenticated user
+      responses:
+        "200":
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "404":
+          description: Could not retrieve notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: failedto retrieve notification
+                code: NOT_FOUND
+        "500":
+          description: Internal server error (e.g. database failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+    post:
+      security:
+        - bearerAuth: []
+      operationId: HandleSendNotification
+      tags:
+        - Notification
+      summary: Send a test FCM notification to the authenticated trainer (for testing FCM integration)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, title, message, idempotency_key]
+              properties:
+                title:
+                  type: string
+                message:
+                  type: string
+                idempotency_key:
+                  type: string
+      responses:
+        "200":
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                data:
+                  id: "11111111-1111-1111-1111-111111111111"
+                  user_id: "11111111-1111-1111-1111-111111111111"
+                  title: "Test Notification"
+                  message: "This is a test notification"
+                  type: "test"
+                  status: "sent"
+                  idempotency_key: "11111111-1111-1111-1111-111111111111"
+                  retry_count: 0
+                  sent_at: "2023-01-01T00:00:00Z"
+                  created_at: "2023-01-01T00:00:00Z"
+                  updated_at: "2023-01-01T00:00:00Z"
+                message: Test notification sent
+                code: OK
+        "400":
+          description: Invalid or missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid or missing parameters
+                code: BAD_REQUEST
+        "401":
+          description: Unauthorized (missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Unauthorized access
+                code: UNAUTHORIZED
+        "500":
+          description: Internal server error (e.g. FCM send failure)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: SERVER_ERROR
+
+  # ─── Notifications WebSocket ─────────────────────────────────────────────
+  # OpenAPI doesn't have a first-class WebSocket primitive, so this entry is
+  # documented as a GET that the server upgrades to a wss:// connection.
+  # Swagger renders the description; the actual handler is hand-wired in
+  # internal/routes/routes.go and excluded from oapi-codegen via
+  # output-options.exclude-operation-ids.
+
+  /notifications/ws:
+    get:
+      operationId: NotificationsWebSocketUpgrade
+      summary: Real-time notification stream (WebSocket upgrade)
+      tags: [Notification]
+      # Override the document-level bearerAuth default — the WS handshake
+      # accepts the token either in the Authorization header (when the
+      # client controls headers, e.g. a server-to-server bridge) OR in
+      # the `?token=` query string (browser/RN WebSocket APIs can't set
+      # custom headers on the upgrade request). Documented as a custom
+      # query param so Swagger doesn't enforce a single auth shape.
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: false
+          description: |
+            Access token (the same `access_token` returned by login).
+            Used when the client cannot set the Authorization header on
+            the WebSocket upgrade request — primarily browsers and React
+            Native. Server-side clients SHOULD use the Authorization
+            header instead.
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: false
+          description: |
+            `Bearer <access_token>`. Alternative to the `token` query
+            parameter. The middleware tries the Authorization header
+            first, then falls back to `token`.
+          schema:
+            type: string
+      description: |
+        Long-lived WebSocket the client opens once per session to
+        receive notifications in real time. Eliminates polling — the
+        server pushes messages as events fire.
+
+        ## Who gets WS pushes
+        Notifications routed to **trainers** and **admins** stream
+        over this WS. **Client** users currently receive notifications
+        via FCM push, not WS — opening a WS as a client succeeds and
+        replays any pending notifications at connect time, but new
+        client-targeted events will land via FCM, not over the WS.
+
+        ## Connection
+        ```
+        wss://<host>/api/v1/notifications/ws?token=<access_token>
+        ```
+        Server responds with HTTP 101 Switching Protocols. Any 4xx
+        before the upgrade indicates an auth or token issue — see the
+        response codes below.
+
+        ## Message shape
+        Each message is a single JSON object on the wire:
+        ```json
+        {
+          "id":         "<uuid>",
+          "title":      "<short label>",
+          "message":    "<body text>",
+          "type":       "notification",
+          "created_at": "2026-05-29T10:00:00Z"
+        }
+        ```
+        The `type` field is always the string `"notification"` for
+        notification events. Other message types may be added in future
+        (presence pings, system messages); clients SHOULD ignore
+        messages with unrecognised `type` rather than erroring.
+
+        ## Replay on connect
+        On a fresh WS connection, the server immediately delivers
+        every notification row for this user whose status is `pending`
+        — i.e. events that fired while the user was offline. The same
+        message shape is used for replay and live messages, so the
+        client has one code path. After replay, the connection stays
+        open for future events.
+
+        Replay is currently un-acknowledged: the same backlog will
+        re-deliver on every reconnect until a future mark-as-read
+        endpoint lands. Clients SHOULD de-dupe on `id` while that's
+        true.
+
+        ## Keepalive + reconnect
+        The server does not currently send heartbeats. Long-idle
+        connections may be dropped by load balancers / reverse proxies
+        after ~60s. Clients SHOULD:
+        - send a ping frame every 30s (the gorilla/websocket library
+          will respond automatically to the server's pong handler if
+          one is configured later);
+        - reconnect with exponential backoff on `close` (start at
+          1s, cap at 30s);
+        - re-issue the WS connect with a fresh access_token if the
+          previous one expired (re-use the same refresh-token endpoint
+          you use for REST).
+
+        ## Client recipe (RN / browser)
+        ```js
+        const ws = new WebSocket(
+          `wss://${HOST}/api/v1/notifications/ws?token=${accessToken}`,
+        );
+        ws.onmessage = (evt) => {
+          const n = JSON.parse(evt.data);
+          if (n.type !== "notification") return;
+          appStore.notifications.prepend({
+            id: n.id, title: n.title, message: n.message,
+            createdAt: n.created_at,
+          });
+        };
+        ws.onclose = scheduleReconnectWithBackoff;
+        ```
+
+        ## What the WS does NOT replace
+        - The REST `GET /notifications` is still useful for paginated
+          history rendering on app launch and on a "load older"
+          scroll. The WS only ships realtime + on-connect-pending.
+        - For client users on mobile, FCM is still the system-tray
+          delivery channel.
+      responses:
+        "101":
+          description: |
+            Switching Protocols — the upgrade succeeded. From this
+            point the connection is a WebSocket; no further HTTP
+            semantics apply. See the description for the JSON message
+            shape the server sends over the socket.
+        "400":
+          description: |
+            Bad WebSocket upgrade request (e.g. missing
+            `Upgrade: websocket` / `Connection: Upgrade` headers).
+            The standard WebSocket client libraries set these
+            automatically; this usually means a request was sent by a
+            plain HTTP tool (curl without `--include`, etc.).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: |
+            Missing, invalid, or expired access token. Use a fresh
+            token from the refresh endpoint and reconnect. The reason
+            is logged server-side but NOT echoed to the client — don't
+            try to parse it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid token
+                code: UNAUTHORIZED
+        "500":
+          description: |
+            Server failed to upgrade the connection or fetch pending
+            notifications. Client should retry with backoff — this is
+            usually a transient hub or DB issue, not a client error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/top-trainers:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: GetAdminTopTrainers
+      tags:
+        - Admin
+      summary: Get the top trainers for the past month
+      responses:
+        "200":
+          description: Top trainers fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopTrainersResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Invalid credentials
+                code: UNAUTHORIZED
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: Internal server error
+                code: INTERNAL_ERROR
+  # ─── Hand-wired routes (Zoom + Activities + Well-Known) ────────────────────
+  #
+  # The operations below describe routes registered directly via Gin
+  # (NOT generated through the ServerInterface). Their definitions live
+  # here so Swagger UI renders them; runtime behaviour is owned by the
+  # files in internal/routes/zoom_*.go and internal/activities/.
+  #
+  # `make codegen` skips these operations via the
+  # output-options.exclude-operation-ids list in oapi-codegen.yaml so the
+  # generated gen.go stays small and routerImpl does NOT have to
+  # implement no-op stubs. If you add a new path here, add its
+  # operationId to that exclude list too.
+
+  /trainers/me/zoom/connect:
+    get:
+      operationId: GetTrainersMeZoomConnect
+      summary: Start the per-trainer Zoom OAuth flow
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Mints a CSRF state nonce, persists it (state to trainer user_id)
+        for 10 minutes, and returns the Zoom authorize URL the caller
+        should open in an in-app browser. After the trainer consents,
+        Zoom redirects to /trainers/me/zoom/callback.
+      responses:
+        "200":
+          description: Authorize URL ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: authorize the app on Zoom
+                code: OK
+                data:
+                  authorize_url: "https://zoom.us/oauth/authorize?response_type=code&client_id=...&redirect_uri=...&state=..."
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom/callback:
+    get:
+      operationId: GetTrainersMeZoomCallback
+      summary: OAuth callback from Zoom; exchange code, persist tokens
+      tags: [Zoom]
+      # Public — Zoom redirects the browser here directly with no
+      # Authorization header. Identity is recovered server-side from the
+      # single-use `state` token stashed by /connect. Required because
+      # the document-level `security:` would otherwise apply bearerAuth
+      # and mislead clients into thinking they need to pass a token.
+      security: []
+      description: |
+        Hit by Zoom directly after the trainer consents. No bearer auth;
+        identity is recovered from the single-use `state` token stashed
+        by /connect. Tokens are encrypted at rest (AES-256-GCM); the
+        refresh token rotates on every refresh.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zoom account connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                message: zoom connected
+                code: OK
+                data:
+                  zoom_email: trainer@example.com
+                  expires_at: "2026-05-26T16:45:00Z"
+        "400":
+          description: Missing/expired state, or invalid code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Zoom rejected the authorization code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom/status:
+    get:
+      operationId: GetTrainersMeZoomStatus
+      summary: Whether the authenticated trainer has connected Zoom
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Lightweight read; does NOT trigger a refresh. Use this to render
+        the "Connect Zoom" / "Disconnect Zoom" toggle in the trainer's
+        settings screen.
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                connected:
+                  value:
+                    status: success
+                    code: OK
+                    message: ok
+                    data:
+                      connected: true
+                      zoom_email: trainer@example.com
+                      access_token_expires_at: "2026-05-26T16:45:00Z"
+                notConnected:
+                  value:
+                    status: success
+                    code: OK
+                    message: ok
+                    data:
+                      connected: false
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/zoom:
+    delete:
+      operationId: DeleteTrainersMeZoom
+      summary: Disconnect the authenticated trainer's Zoom account
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Removes the stored OAuth grant. Idempotent; 404 when there was
+        nothing to disconnect so the client can distinguish "already
+        gone" from "success".
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: zoom disconnected
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: This trainer has no Zoom connection to disconnect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Per-trainer Zoom OAuth is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/join-info:
+    get:
+      operationId: GetSessionsIdJoinInfo
+      summary: Mint a Meeting SDK signature so the client can join in-app
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns everything the mobile/web Zoom Meeting SDK needs to drop
+        the user straight into the meeting:
+          - sdk_key (public; safe to log)
+          - meeting_number (Zoom numeric ID)
+          - signature (HS256 JWT, ~2h expiry)
+          - role (0 = participant, 1 = host)
+          - join_url (fallback for clients without the SDK)
+
+        Auth: the caller must be either the booking's client OR the
+        booking's trainer. Anyone else 403s.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: booking_session.id (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Join info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  sdk_key: "abc123"
+                  meeting_number: "98765432100"
+                  signature: "eyJhbGciOi..."
+                  role: 0
+                  join_url: "https://us05web.zoom.us/j/..."
+        "400":
+          description: Invalid session id, or session has no Zoom meeting attached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a participant of this session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: |
+            Server-side failure during session/booking lookup or while
+            minting the SDK signature. The caller should retry with
+            backoff; a persistent 500 indicates an upstream Zoom or DB
+            outage.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Meeting SDK is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /config/zoom:
+    get:
+      operationId: GetConfigZoom
+      summary: Public-config the mobile/web client reads on launch
+      tags: [Zoom]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the feature-flag + public-key surface the client needs to
+        decide which join flow to use (raw link vs in-app SDK) and which
+        SDK key to initialise with. Auth-gated even though the data is
+        public, so the mobile network layer's 401-by-default handling
+        works the same as everywhere else.
+      responses:
+        "200":
+          description: Client-facing Zoom config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  join_mode: "sdk"
+                  sdk_configured: true
+                  sdk_key: "abc123"
+                  universal_link_domain: "app.fitcall.me"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/me/activities:
+    get:
+      operationId: GetTrainersMeActivities
+      summary: Chronological feed of events touching this trainer's account
+      tags: [Activities]
+      security:
+        - bearerAuth: []
+      description: |
+        Cursor-paginated feed. Event types include booking_created,
+        booking_cancelled, booking_rescheduled, discovery_booked,
+        discovery_rescheduled, review_received. Caller must have a
+        trainer role; clients/admins get 403 here.
+
+        Pass back `data.next_cursor` from each response as the next
+        request's `?cursor=` parameter. Stop when next_cursor is absent
+        or the empty string.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor from a previous response's next_cursor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      type: "booking_created"
+                      occurred_at: "2026-05-26T09:15:23.521Z"
+                      target_id: "22222222-2222-2222-2222-222222222222"
+                      target_type: "booking"
+                      actor:
+                        user_id: "33333333-3333-3333-3333-333333333333"
+                        name: "Jane Doe"
+                      event_time: "2026-05-28T15:00:00Z"
+                      extra: "confirmed"
+                      summary: "Jane Doe booked a session with you on Thu, May 28 3:00 PM UTC"
+                  next_cursor: "MjAyNi0wNS0yNlQwOToxMjowMC4wMDBafGFiYy0xMjMt"
+        "400":
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a trainer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/activities:
+    get:
+      operationId: GetAdminActivities
+      summary: System-wide chronological activity feed (admin)
+      tags: [Activities]
+      security:
+        - bearerAuth: []
+      description: |
+        Same event types as /trainers/me/activities but unfiltered by
+        trainer, with each row carrying the trainer the event belonged
+        to. Gated by SuperAdminOnly middleware; plain `admin` role is
+        allow-listed for this read-only endpoint.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      type: "booking_created"
+                      occurred_at: "2026-05-26T09:15:23.521Z"
+                      target_id: "22222222-2222-2222-2222-222222222222"
+                      target_type: "booking"
+                      actor:
+                        user_id: "33333333-3333-3333-3333-333333333333"
+                        name: "Jane Doe"
+                      trainer:
+                        trainer_id: "44444444-4444-4444-4444-444444444444"
+                        user_id: "55555555-5555-5555-5555-555555555555"
+                        name: "Trainer Mike"
+                      event_time: "2026-05-28T15:00:00Z"
+                      summary: "Jane Doe booked a session with Trainer Mike on Thu, May 28 3:00 PM UTC"
+                  next_cursor: ""
+        "400":
+          description: Invalid limit or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient role (need admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /.well-known/apple-app-site-association:
+    servers:
+      - url: /
+        description: Served at the domain root (not under /api/v1)
+    get:
+      operationId: GetAppleAppSiteAssociation
+      summary: iOS Associated Domains claim file
+      tags: [Well-Known]
+      # Public — iOS fetches this directly on first install and
+      # periodically afterwards, never with an Authorization header.
+      # Override the document-level `security:` default to bearerAuth.
+      security: []
+      description: |
+        iOS fetches this on first install (and periodically afterwards)
+        to verify the app's claim on universal links into this host.
+        Content is generated from env vars IOS_APP_BUNDLE_ID +
+        IOS_APP_TEAM_ID. Returns 404 (with `{}` body) when those env
+        vars aren't set, so a missing-config deploy fails fast for iOS
+        verification rather than silently degrading.
+
+        NOTE: per Apple's spec the URL has NO `.json` extension, and the
+        Content-Type must be application/json.
+      responses:
+        "200":
+          description: AASA JSON (env vars configured)
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Not configured on this server (IOS_APP_BUNDLE_ID / IOS_APP_TEAM_ID missing)
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /.well-known/assetlinks.json:
+    servers:
+      - url: /
+        description: Served at the domain root (not under /api/v1)
+    get:
+      operationId: GetAssetlinksJson
+      summary: Android App Links verification file
+      tags: [Well-Known]
+      # Public — Android's PackageManager fetches this on app install,
+      # never with an Authorization header. Override the document-level
+      # `security:` default to bearerAuth.
+      security: []
+      description: |
+        Android verifies this on app install (autoVerify intent-filter)
+        to allow the app to claim https://<host>/sessions/*/join URLs.
+        Content is generated from ANDROID_APP_PACKAGE +
+        ANDROID_APP_SHA256. Returns 404 (with `[]` body) when those env
+        vars aren't set.
+      responses:
+        "200":
+          description: assetlinks JSON (env vars configured)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "404":
+          description: Not configured on this server (ANDROID_APP_PACKAGE / ANDROID_APP_SHA256 missing)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  # ─── Settings + Categories (hand-wired) ────────────────────────────────────
+  # Documented for Swagger only; handlers live in internal/settings/.
+  # operationIds appear in oapi-codegen.yaml's exclude-operation-ids list
+  # so `make codegen` does not grow gen.go.
+
+  /admin/settings:
+    get:
+      operationId: GetAdminSettings
+      summary: Read all admin settings + the category catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the four scalar settings (default session duration, max
+        trainers displayed, require-video toggle, auto-assign toggle)
+        plus the full categories list in one round-trip so the Settings
+        page renders without a second fetch. Allowed for plain `admin`
+        as well as super_admin (the path is in adminReadablePaths).
+      responses:
+        "200":
+          description: Current settings + categories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  default_session_duration_min: 60
+                  max_trainers_displayed: 6
+                  require_video_before_listing: true
+                  auto_assign_trainer: false
+                  categories:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      name: "Strength"
+                      slug: "strength"
+                    - id: "22222222-2222-2222-2222-222222222222"
+                      name: "Yoga"
+                      slug: "yoga"
+                  updated_at: "2026-05-28T10:00:00Z"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: PutAdminSettings
+      summary: Partial-update the four scalar settings
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Any field present in the body is updated; any field absent is
+        left as-is. Use this to flip a single toggle without re-sending
+        every setting. Requires super_admin role (this path is NOT in
+        adminReadablePaths).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                default_session_duration_min:
+                  type: integer
+                  minimum: 5
+                  maximum: 480
+                  description: Default session length in minutes; bounded to a sensible range.
+                max_trainers_displayed:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Cap on how many trainers the client discovery page lists.
+                require_video_before_listing:
+                  type: boolean
+                  description: When true, trainers without an active intro video are hidden from listings.
+                auto_assign_trainer:
+                  type: boolean
+                  description: When true, new client requests are auto-matched to a trainer.
+            examples:
+              flipSingleToggle:
+                value:
+                  auto_assign_trainer: true
+              fullUpdate:
+                value:
+                  default_session_duration_min: 90
+                  max_trainers_displayed: 12
+                  require_video_before_listing: false
+                  auto_assign_trainer: true
+      responses:
+        "200":
+          description: Settings updated (same shape as GET response)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Field validation failed (out-of-range integer, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/categories:
+    post:
+      operationId: PostAdminCategories
+      summary: Add a category to the catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        `name` is the display label; `slug` is the URL-safe key. When
+        slug is omitted the server derives one from name (e.g. "Weight
+        loss" → "weight-loss"). Both fields are uniquely indexed —
+        duplicates return 409. Requires super_admin role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 60
+                  example: "HIIT"
+                slug:
+                  type: string
+                  pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  example: "hiit"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: CREATED
+                message: category created
+                data:
+                  id: "33333333-3333-3333-3333-333333333333"
+                  name: "HIIT"
+                  slug: "hiit"
+        "400":
+          description: Missing/empty name or malformed slug
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A category with this name or slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/categories/{id}:
+    delete:
+      operationId: DeleteAdminCategoriesId
+      summary: Remove a category from the catalog
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      description: |
+        Removes the category by id. Does NOT cascade into trainer
+        specializations — those still validate against the existing
+        CHECK constraint from migration 000037. Requires super_admin
+        role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid uuid in path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No category with that id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /categories:
+    get:
+      operationId: GetCategories
+      summary: Client-facing list of available specialty categories
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      description: |
+        The same catalog the admin Settings page manages. Used by the
+        client-side UI to render filter chips, trainer-search
+        specialty pickers, etc.
+      responses:
+        "200":
+          description: Category list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: ok
+                data:
+                  items:
+                    - id: "11111111-1111-1111-1111-111111111111"
+                      name: "Strength"
+                      slug: "strength"
+                    - id: "22222222-2222-2222-2222-222222222222"
+                      name: "Yoga"
+                      slug: "yoga"
+        "401":
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

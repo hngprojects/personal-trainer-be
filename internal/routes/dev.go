@@ -9,6 +9,7 @@ import (
 
 func (s *routerImpl) HandleCreateDevToken(c *gin.Context) {
 	if s.dev == nil {
+		s.logger.Warn("HandleCreateDevToken: dev handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
