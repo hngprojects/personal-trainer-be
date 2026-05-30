@@ -697,3 +697,18 @@ func (q *Queries) UpdateTrainerIntroVideo(ctx context.Context, arg UpdateTrainer
 	}
 	return result.RowsAffected()
 }
+
+const deactivateTrainer = `-- name: DeactivateTrainer :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE id = (SELECT user_id FROM trainers WHERE id = $1)
+  AND role = 'trainer'
+  AND is_active = true
+RETURNING id
+`
+
+func (q *Queries) DeactivateTrainer(ctx context.Context, trainerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateTrainer, trainerID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
