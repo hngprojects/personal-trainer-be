@@ -21,6 +21,13 @@ type Storage interface {
 	// Returns nil on success. The caller is responsible for constructing the
 	// public URL — Storage does not concern itself with URL shape.
 	PutObject(ctx context.Context, key string, body io.Reader, size int64, contentType string) error
+
+	// RemoveObject deletes the object at the given key. Used by the
+	// admin DELETE /media/{id} path so removing the DB row also frees
+	// the underlying storage. A non-existent key is NOT an error
+	// (idempotent delete) — callers can safely call this on objects
+	// whose row state suggests the upload may have never completed.
+	RemoveObject(ctx context.Context, key string) error
 }
 
 // NoopStorage is wired in when MinIO env vars are missing so the rest of the
@@ -28,5 +35,9 @@ type Storage interface {
 type NoopStorage struct{}
 
 func (NoopStorage) PutObject(_ context.Context, _ string, _ io.Reader, _ int64, _ string) error {
+	return ErrNotConfigured
+}
+
+func (NoopStorage) RemoveObject(_ context.Context, _ string) error {
 	return ErrNotConfigured
 }

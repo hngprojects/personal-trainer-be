@@ -48,10 +48,12 @@ var imageAcceptedMIMEs = map[string]string{
 // POST /trainers/{id}/images
 func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) {
 	if s.trainerImageUploader == nil {
+		s.logger.Warn("upload trainer images: image uploader not configured")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("trainer image upload is not configured on this server", api.CodeServerError))
 		return
 	}
 	if s.trainers == nil {
+		s.logger.Warn("upload trainer images: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -61,9 +63,11 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 	// Pre-flight: trainer exists?
 	if _, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("upload trainer images: trainer not found", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("upload trainer images: failed to look up trainer", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
 		return
 	}
@@ -74,19 +78,23 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 	if err := c.Request.ParseMultipartForm(trainerImagesMaxRequestBytes); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			s.logger.Warn("upload trainer images: request too large", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("request exceeds %d-byte limit", trainerImagesMaxRequestBytes), api.CodeBadRequest))
 			return
 		}
+		s.logger.Warn("upload trainer images: invalid multipart form", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid multipart form: "+err.Error(), api.CodeBadRequest))
 		return
 	}
 
 	files := c.Request.MultipartForm.File[trainerImagesMultipartField]
 	if len(files) == 0 {
+		s.logger.Warn("upload trainer images: missing images files", "trainerID", trainerID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("missing 'images' files in multipart form", api.CodeBadRequest))
 		return
 	}
 	if len(files) > trainerImagesMaxTotal {
+		s.logger.Warn("upload trainer images: too many images per request", "trainerID", trainerID.String(), "count", len(files))
 		c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("at most %d images per request", trainerImagesMaxTotal), api.CodeBadRequest))
 		return
 	}
@@ -98,10 +106,12 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 	// (trainer_id, position) prevents corruption.
 	existing, err := s.trainers.q.CountTrainerImages(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("upload trainer images: failed to count existing images", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not check existing images", api.CodeServerError))
 		return
 	}
 	if int(existing)+len(files) > trainerImagesMaxTotal {
+		s.logger.Warn("upload trainer images: trainer image limit exceeded", "trainerID", trainerID.String(), "existing", existing)
 		c.JSON(http.StatusBadRequest, api.NewError(fmt.Sprintf("trainer already has %d images; can upload at most %d more", existing, trainerImagesMaxTotal-int(existing)), api.CodeBadRequest))
 		return
 	}
@@ -118,23 +128,27 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 	queue := make([]pending, 0, len(files))
 	for _, fh := range files {
 		if fh.Size > trainerImageMaxBytes {
+			s.logger.Warn("upload trainer images: file exceeds size limit", "trainerID", trainerID.String(), "filename", fh.Filename, "size", fh.Size)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("file %q exceeds %d-byte limit", fh.Filename, trainerImageMaxBytes), api.CodeBadRequest))
 			return
 		}
 		f, err := fh.Open()
 		if err != nil {
+			s.logger.Warn("upload trainer images: could not open file", "trainerID", trainerID.String(), "filename", fh.Filename, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("could not open uploaded file: "+err.Error(), api.CodeBadRequest))
 			return
 		}
 		raw, err := io.ReadAll(f)
 		_ = f.Close()
 		if err != nil {
+			s.logger.Warn("upload trainer images: could not read file", "trainerID", trainerID.String(), "filename", fh.Filename, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("could not read uploaded file: "+err.Error(), api.CodeBadRequest))
 			return
 		}
 
 		mime, err := detectTrainerImage(raw)
 		if err != nil {
+			s.logger.Warn("upload trainer images: unsupported image format", "trainerID", trainerID.String(), "filename", fh.Filename, "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 			return
 		}
@@ -170,9 +184,11 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 	}
 	if err := s.trainerImageUploader.EnqueueBatch(jobs); err != nil {
 		if errors.Is(err, uploads.ErrQueueFull) || errors.Is(err, uploads.ErrUploaderClosed) {
+			s.logger.Warn("upload trainer images: upload service busy", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusServiceUnavailable, api.NewError("image upload service is busy, please retry shortly", api.CodeServerError))
 			return
 		}
+		s.logger.Warn("upload trainer images: could not enqueue upload", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not enqueue upload", api.CodeServerError))
 		return
 	}
@@ -186,6 +202,7 @@ func (s *routerImpl) UploadTrainerImages(c *gin.Context, id openapi_types.UUID) 
 // GET /trainers/{id}/images
 func (s *routerImpl) ListTrainerImages(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("list trainer images: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -195,14 +212,17 @@ func (s *routerImpl) ListTrainerImages(c *gin.Context, id openapi_types.UUID) {
 	// 200 with an empty array — which would mask a typo in the URL.
 	if _, err := s.trainers.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("list trainer images: trainer not found", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("trainer not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("list trainer images: failed to look up trainer", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
 		return
 	}
 	rows, err := s.trainers.q.ListTrainerImages(c.Request.Context(), trainerID)
 	if err != nil {
+		s.logger.Warn("list trainer images: failed to list images", "trainerID", trainerID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to list images", api.CodeServerError))
 		return
 	}
@@ -220,6 +240,7 @@ func (s *routerImpl) ListTrainerImages(c *gin.Context, id openapi_types.UUID) {
 // DELETE /trainers/{id}/images/{image_id}
 func (s *routerImpl) DeleteTrainerImage(c *gin.Context, id openapi_types.UUID, imageID openapi_types.UUID) {
 	if s.trainers == nil {
+		s.logger.Warn("delete trainer image: trainers store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
@@ -228,10 +249,12 @@ func (s *routerImpl) DeleteTrainerImage(c *gin.Context, id openapi_types.UUID, i
 		TrainerID: uuid.UUID(id),
 	})
 	if err != nil {
+		s.logger.Warn("delete trainer image: failed to delete image", "imageID", uuid.UUID(imageID).String(), "trainerID", uuid.UUID(id).String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete image", api.CodeServerError))
 		return
 	}
 	if rows == 0 {
+		s.logger.Warn("delete trainer image: image not found", "imageID", uuid.UUID(imageID).String(), "trainerID", uuid.UUID(id).String())
 		c.JSON(http.StatusNotFound, api.NewError("image not found for this trainer", api.CodeNotFound))
 		return
 	}

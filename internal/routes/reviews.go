@@ -16,24 +16,28 @@ import (
 
 func (s *routerImpl) CreateReview(c *gin.Context) {
 	if s.reviews == nil {
+		s.logger.Warn("CreateReview: reviews service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeInternalError))
 		return
 	}
 
 	userIDValue, ok := c.Get(string(common.ContextKeyUserID))
 	if !ok {
+		s.logger.Warn("CreateReview: missing authenticated user in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 
 	userID, ok := userIDValue.(uuid.UUID)
 	if !ok {
+		s.logger.Warn("CreateReview: invalid user id type in context")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid authenticated user", api.CodeUnauthorized))
 		return
 	}
 
 	var body api.CreateReviewRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("CreateReview: invalid request body", "err", err)
 		c.JSON(http.StatusUnprocessableEntity, api.NewError("invalid request body", api.CodeInvalidInput))
 		return
 	}
@@ -46,8 +50,23 @@ func (s *routerImpl) CreateReview(c *gin.Context) {
 	})
 	if err != nil {
 		status, code, message := mapReviewError(err)
+		s.logger.Warn("CreateReview: review creation failed", "err", err)
 		c.JSON(status, api.NewError(message, code))
 		return
+	}
+
+	// Notify trainer about the new review
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), review.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"New Review",
+			"You received a new review.",
+			"review-"+review.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("review notification to trainer failed", "trainerID", review.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("create review: could not resolve trainer user", "trainerID", review.TrainerID, "err", tdErr)
 	}
 
 	c.JSON(http.StatusCreated, api.NewSuccess("Review created", api.CodeCreated, reviewToAPI(review)))
@@ -55,6 +74,7 @@ func (s *routerImpl) CreateReview(c *gin.Context) {
 
 func (s *routerImpl) GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params api.GetTrainerReviewsParams) {
 	if s.reviews == nil {
+		s.logger.Warn("GetTrainerReviews: reviews service is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeInternalError))
 		return
 	}
@@ -71,6 +91,7 @@ func (s *routerImpl) GetTrainerReviews(c *gin.Context, id openapi_types.UUID, pa
 	})
 	if err != nil {
 		status, code, message := mapReviewError(err)
+		s.logger.Warn("GetTrainerReviews: listing reviews failed", "trainer_id", id, "err", err)
 		c.JSON(status, api.NewError(message, code))
 		return
 	}

@@ -15,6 +15,12 @@ type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
 	SendAdminCredentials(to, password string) error
 	SendTrainerCredentials(to, password string) error
+	// SendAccountSetupLink mails a one-time activation link to a newly
+	// provisioned account (currently used for trainer onboarding). The
+	// trainer never sees a server-generated password — they click the link,
+	// land on the FE set-password page, and POST the supplied token to
+	// /auth/set-password along with their chosen password.
+	SendAccountSetupLink(to, name, link string, expiryHours int) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
 	SendContactConfirmation(to, name string) error
@@ -24,6 +30,8 @@ type Mailer interface {
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error
+	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
+	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -77,6 +85,30 @@ func (m *SMTPMailer) SendAdminCredentials(to, password string) error {
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, adminCredentialsSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+// SendAccountSetupLink mails the one-time activation link used by the
+// trainer-onboarding flow. Replaces the previous SendTrainerCredentials
+// path so the trainer is never sent a server-generated plaintext password.
+func (m *SMTPMailer) SendAccountSetupLink(to, name, link string, expiryHours int) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := accountSetupHTML(name, link, expiryHours)
+	if err != nil {
+		return fmt.Errorf("build account setup email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, accountSetupSubject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -164,6 +196,19 @@ func (m *LogMailer) SendTrainerCredentials(to, _ string) error {
 	return nil
 }
 
+// SendAccountSetupLink logs only metadata — never the rendered body or the
+// link itself, which contains a live one-time activation token. Same
+// reasoning as SendTrainerCredentials: someone reading logs could otherwise
+// claim a brand-new account before the legitimate user does.
+func (m *LogMailer) SendAccountSetupLink(to, _, _ string, expiryHours int) error {
+	slog.Info("email (account setup link redacted)",
+		"to", to,
+		"subject", accountSetupSubject,
+		"expires_in_hours", expiryHours,
+	)
+	return nil
+}
+
 // SendPasswordResetCode logs only metadata — never the rendered body, which
 // contains the live reset code. If the LogMailer is ever enabled outside an
 // isolated local workflow, anyone with log access could otherwise reset
@@ -219,6 +264,16 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 
 func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "zoom_link", zoomLink)
+	return nil
+}
+
+func (m *LogMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	slog.Info("email (session reminder client)", "to", to, "client", clientName, "trainer", trainerName, "start", scheduledStart, "timezone", timezone)
+	return nil
+}
+
+func (m *LogMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	slog.Info("email (session reminder trainer)", "to", to, "trainer", trainerName, "client", clientName, "start", scheduledStart, "timezone", timezone)
 	return nil
 }
 
@@ -585,6 +640,63 @@ func trainerCredentialsHTML(emailAddr, password string) (string, error) {
 	return body.String(), nil
 }
 
+const accountSetupSubject = "Set up your FitCall account"
+
+// accountSetupTemplate renders the one-time activation link. The link
+// embeds the token in the query string; the FE set-password page extracts
+// it and POSTs it to /auth/set-password with the chosen new password.
+//
+// We deliberately don't include the email address in the link — the token
+// is the only identifier the consume endpoint uses, and omitting the
+// email reduces the shoulder-surfing surface (recipient already knows
+// their own email; the link doesn't need to advertise it).
+var accountSetupTemplate = template.Must(template.New("account-setup-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td align="center" style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#111827;">Welcome to FitCall{{ if .Name }}, {{ .Name }}{{ end }}</h2>
+        </td></tr>
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:14px;color:#6b7280;">An account was created for you. To finish setting it up, choose a password using the secure link below.</p>
+        </td></tr>
+        <tr><td align="center" style="padding:24px 0;">
+          <a href="{{ .Link }}" style="display:inline-block;background:#111827;color:#ffffff;font-size:15px;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;">Set your password</a>
+        </td></tr>
+        <tr><td align="center" style="padding-bottom:24px;">
+          <p style="margin:0;font-size:12px;color:#6b7280;">Or copy this link into your browser:<br><span style="font-family:monospace;color:#374151;word-break:break-all;">{{ .Link }}</span></p>
+        </td></tr>
+        <tr><td align="center" style="padding-top:8px;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;">This link expires in {{ .ExpiryHours }} hours and can only be used once. If you weren't expecting this email, you can ignore it.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func accountSetupHTML(name, link string, expiryHours int) (string, error) {
+	var body bytes.Buffer
+	if err := accountSetupTemplate.Execute(&body, struct {
+		Name        string
+		Link        string
+		ExpiryHours int
+	}{
+		Name:        name,
+		Link:        link,
+		ExpiryHours: expiryHours,
+	}); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
 const passwordResetSubject = "Your password reset code"
 
 var passwordResetTemplate = template.Must(template.New("password-reset-email").Parse(`<!DOCTYPE html>
@@ -749,6 +861,7 @@ func (m *SMTPMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTim
 		return fmt.Errorf("smtp: invalid recipient address: %w", err)
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, discoveryRescheduleSubject, html,
@@ -996,6 +1109,127 @@ func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string,
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, bookingConfirmationSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const (
+	sessionReminderClientSubject  = "Your FitCall Session Starts in 1 Hour"
+	sessionReminderTrainerSubject = "Upcoming FitCall Session in 1 Hour"
+)
+
+const sessionReminderClientTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Reminder</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi {{.ClientName}},</h2>
+  <p>This is a reminder that your FitCall session with Coach <strong>{{.TrainerName}}</strong> starts in <strong>1 hour</strong>.</p>
+  <ul>
+    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
+    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
+  </ul>
+  <p>Get ready and have a great session!</p>
+  — Team FitCall
+</body>
+</html>`
+
+const sessionReminderTrainerTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Reminder</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi Coach {{.TrainerName}},</h2>
+  <p>You have a FitCall session with <strong>{{.ClientName}}</strong> starting in <strong>1 hour</strong>.</p>
+  <ul>
+    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
+    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
+  </ul>
+  <p>Prepare your materials and be ready!</p>
+  — Team FitCall
+</body>
+</html>`
+
+func sessionReminderClientHTML(clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+		timezoneLabel = "UTC"
+	}
+	t, err := template.New("session-reminder-client").Parse(sessionReminderClientTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"ClientName":  clientName,
+		"TrainerName": trainerName,
+		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
+		"Timezone":    timezoneLabel,
+		"ZoomLink":    zoomLink,
+	})
+	return buf.String(), err
+}
+
+func sessionReminderTrainerHTML(trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+		timezoneLabel = "UTC"
+	}
+	t, err := template.New("session-reminder-trainer").Parse(sessionReminderTrainerTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"TrainerName": trainerName,
+		"ClientName":  clientName,
+		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
+		"Timezone":    timezoneLabel,
+		"ZoomLink":    zoomLink,
+	})
+	return buf.String(), err
+}
+
+func (m *SMTPMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderClientHTML(clientName, trainerName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build session reminder email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, sessionReminderClientSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderTrainerHTML(trainerName, clientName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build session reminder trainer email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, sessionReminderTrainerSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }

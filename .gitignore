@@ -29,3 +29,6 @@ coverage.txt
 /tmp/
 /dist/
 .claude/
+tokenserver.log
+
+token

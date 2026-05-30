@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -14,35 +14,49 @@ import (
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
-func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
+func AuthMiddleware(redis appredis.RedisClient, log *slog.Logger) gin.HandlerFunc {
+	return authMiddleware(redis, auth.AccessToken, log)
+}
+
+func AuthMiddlewareWithType(redis appredis.RedisClient, tokenType auth.TokenType, log *slog.Logger) gin.HandlerFunc {
+	return authMiddleware(redis, tokenType, log)
+}
+
+func authMiddleware(redis appredis.RedisClient, expectedType auth.TokenType, log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
+			log.Warn("AuthMiddleware: missing Authorization header")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("missing token", api.CodeUnauthorized))
 			return
 		}
 
 		parts := strings.Split(header, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
+			log.Warn("AuthMiddleware: invalid token format")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token format", api.CodeUnauthorized))
 			return
 		}
 
 		token, err := auth.ValidateToken(parts[1])
 		if err != nil || !token.Valid {
-			log.Println("validate token err: ", err)
+			log.Warn("AuthMiddleware: invalid token", "err", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token", api.CodeUnauthorized))
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
+			log.Warn("AuthMiddleware: token claims not MapClaims")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token claims", api.CodeUnauthorized))
 			return
 		}
 
 		tokenType, _ := claims["type"].(string)
-		if tokenType != string(auth.AccessToken) {
+		expFloat, _ := claims["exp"].(float64) // jwt.MapClaims always decodes numbers as float64
+		exp := int64(expFloat)                 // convert once; stored as int64 for RequestExpFromContext
+		if tokenType != string(expectedType) {
+			log.Warn("AuthMiddleware: invalid token type", "expected", expectedType, "got", tokenType)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid token type", api.CodeUnauthorized))
 			return
 		}
@@ -53,11 +67,12 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 		if redis != nil && jti != "" {
 			blocked, err := redis.Exists(c.Request.Context(), common.RedisKeyBlocklist+jti)
 			if err != nil {
-				log.Println("redis check err: ", err)
+				log.Warn("AuthMiddleware: redis check failed", "err", err)
 				c.AbortWithStatusJSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
 				return
 			}
 			if blocked {
+				log.Warn("AuthMiddleware: revoked token used", "jti", jti)
 				c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("token has been revoked", api.CodeUnauthorized))
 				return
 			}
@@ -65,12 +80,21 @@ func AuthMiddleware(redis appredis.RedisClient) gin.HandlerFunc {
 
 		parsedUserID, err := uuid.Parse(userID)
 		if err != nil {
+			log.Warn("AuthMiddleware: invalid user id in token claims", "sub", userID, "err", err)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid user id in token", api.CodeUnauthorized))
 			return
 		}
 
 		c.Set(string(common.ContextKeyUserID), parsedUserID)
 		c.Set(string(common.ContextKeyJTI), jti)
+		// Set exp unconditionally, not just on refresh tokens. The previous
+		// `if expectedType == "refresh"` guard was the single line that, in
+		// production, kept the refresh handler from seeing the exp value —
+		// the handler then 401'd with "missing or invalid exp in token
+		// context" on every refresh attempt, forcing users out after the
+		// access token expired. Setting exp on access-token paths too is
+		// harmless: no other handler reads this key.
+		c.Set(string(common.ContextKeyExpTime), exp)
 		c.Next()
 	}
 }

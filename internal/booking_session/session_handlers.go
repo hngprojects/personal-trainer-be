@@ -10,7 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
-	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
 )
 
@@ -18,6 +19,8 @@ type sessionHandler struct {
 	service SessionInterface
 	redis   redis.Client
 	log     *slog.Logger
+	notif   *notification.NotificationService
+	q       *db.Queries
 }
 
 type SessionHandler interface {
@@ -28,29 +31,29 @@ type SessionHandler interface {
 	TrainersNote(c *gin.Context, sessionID uuid.UUID)
 }
 
-func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger) *sessionHandler {
-	return &sessionHandler{service: service, redis: redis, log: log}
+func NewSessionHandler(service SessionInterface, redis redis.Client, log *slog.Logger, notif *notification.NotificationService, q *db.Queries) *sessionHandler {
+	return &sessionHandler{service: service, redis: redis, log: log, notif: notif, q: q}
 }
 
 func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUID) {
 	cachedKey := "session:" + sessionID.String()
 	cached := h.redis.Get(c.Request.Context(), cachedKey)
 	if cached.Err() == nil {
-		h.log.Info("Cache hit!!")
-		var body db.BookingSession
+		h.log.Info("HandleGetSessionById: cache hit", "session_id", sessionID)
+		var body db.GetBookingSessionByIdRow
 		if err := json.Unmarshal([]byte(cached.Val()), &body); err != nil {
-			h.log.Error("failed to unmarshal data into body")
+			h.log.Warn("HandleGetSessionById: failed to unmarshal cached data, falling back to DB", "session_id", sessionID, "err", err)
 		} else {
-			result := ParseResponse(&body)
+			result := ParseResponseWithTrainer(&body)
 			c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 			return
 		}
 	} else {
-		h.log.Error("redis error", "err", cached.Err())
+		h.log.Warn("HandleGetSessionById: redis error: could not fetch session", "session_id", sessionID, "err", cached.Err())
 	}
 	session, err := h.service.GetSessionById(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("HandleGetSessionById: failed to fetch session", "session_id", sessionID, "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session data", api.CodeNotFound, nil))
 			return
@@ -61,14 +64,14 @@ func (h *sessionHandler) HandleGetSessionById(c *gin.Context, sessionID uuid.UUI
 	}
 	marshalCacheData, err := json.Marshal(session)
 	if err != nil {
-		h.log.Error("failed to marshall cache data", "err", err)
+		h.log.Warn("HandleGetSessionById: failed to marshal session for cache", "session_id", sessionID, "err", err)
 	}
 	if err := h.redis.Set(c.Request.Context(), cachedKey, marshalCacheData, 5*time.Minute); err != nil {
-		h.log.Error("failed to save session to cache", "err", err)
+		h.log.Warn("HandleGetSessionById: failed to save session to cache", "session_id", sessionID, "err", err)
 	} else {
-		h.log.Info("session saved to cache", "info", err)
+		h.log.Info("HandleGetSessionById: session saved to cache", "session_id", sessionID)
 	}
-	result := ParseResponse(session)
+	result := ParseResponseWithTrainer(session)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session fetched successfully", api.CodeOK, result, nil))
 }
 
@@ -76,21 +79,32 @@ func (h *sessionHandler) StartSessionHandler(c *gin.Context, sessionID uuid.UUID
 	cachedKey := "session:" + sessionID.String()
 	cacheCmd := h.redis.Delete(c.Request.Context(), cachedKey)
 	if cacheCmd.Val() == 0 {
-		h.log.Info("session not found in cache")
+		h.log.Info("StartSessionHandler: session not found in cache", "session_id", sessionID)
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("StartSessionHandler: cache delete error", "session_id", sessionID, "err", cacheCmd.Err())
 	}
-	h.log.Info("data deleted from cache", "data", cacheCmd)
+	h.log.Info("StartSessionHandler: cache entry deleted", "session_id", sessionID)
 	updateData, err := h.service.StartSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("StartSessionHandler: service error", "session_id", sessionID, "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
 		} else {
 			c.JSON(http.StatusBadRequest, api.NewErrorResponse(err.Error(), api.CodeBadRequest, nil))
 			return
+		}
+	}
+	if h.notif != nil {
+		booking, bErr := h.q.GetBookingByID(c.Request.Context(), updateData.BookingID)
+		if bErr == nil {
+			_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), booking.ClientID, "Session Started", "Your session has started", "session-started-"+sessionID.String())
+			if nErr != nil {
+				h.log.Warn("StartSessionHandler: failed to notify client", "session_id", sessionID, "err", nErr)
+			}
+		} else {
+			h.log.Warn("StartSessionHandler: failed to fetch booking for notification", "session_id", sessionID, "err", bErr)
 		}
 	}
 	result := ParseResponse(updateData)
@@ -101,21 +115,37 @@ func (h *sessionHandler) JoinSessionHandler(c *gin.Context, sessionID uuid.UUID)
 	cachedKey := "session:" + sessionID.String()
 	cacheCmd := h.redis.Delete(c.Request.Context(), cachedKey)
 	if cacheCmd.Val() == 0 {
-		h.log.Info("session not found in cache")
+		h.log.Info("JoinSessionHandler: session not found in cache", "session_id", sessionID)
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("JoinSessionHandler: cache delete error", "session_id", sessionID, "err", cacheCmd.Err())
 	}
-	h.log.Info("data deleted from cache", "data", cacheCmd)
+	h.log.Info("JoinSessionHandler: cache entry deleted", "session_id", sessionID)
 	updateData, err := h.service.JoinSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("JoinSessionHandler: service error", "session_id", sessionID, "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
 		} else {
 			c.JSON(http.StatusBadRequest, api.NewErrorResponse(err.Error(), api.CodeBadRequest, nil))
 			return
+		}
+	}
+	if h.notif != nil {
+		session, sErr := h.service.GetSessionById(c.Request.Context(), sessionID)
+		if sErr == nil {
+			trainerUser, tErr := h.q.GetTrainerUserDetails(c.Request.Context(), session.TrainerID)
+			if tErr == nil {
+				_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), trainerUser.ID, "Client Joined", "Your client has joined the session", "session-joined-"+sessionID.String())
+				if nErr != nil {
+					h.log.Warn("JoinSessionHandler: failed to notify trainer", "session_id", sessionID, "err", nErr)
+				}
+			} else {
+				h.log.Warn("JoinSessionHandler: failed to resolve trainer user", "session_id", sessionID, "err", tErr)
+			}
+		} else {
+			h.log.Warn("JoinSessionHandler: failed to get session for notification", "session_id", sessionID, "err", sErr)
 		}
 	}
 	result := ParseResponse(updateData)
@@ -126,15 +156,15 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 	cachedKey := "session:" + sessionID.String()
 	cacheCmd := h.redis.Delete(c.Request.Context(), cachedKey)
 	if cacheCmd.Val() == 0 {
-		h.log.Info("session not found in cache")
+		h.log.Info("CompleteSession: session not found in cache", "session_id", sessionID)
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("CompleteSession: cache delete error", "session_id", sessionID, "err", cacheCmd.Err())
 	}
-	h.log.Info("data deleted from cache", "data", cacheCmd)
+	h.log.Info("CompleteSession: cache entry deleted", "session_id", sessionID)
 	updateData, err := h.service.CompleteSession(c.Request.Context(), sessionID)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("CompleteSession: service error", "session_id", sessionID, "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return
@@ -143,7 +173,17 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 			return
 		}
 	}
-	// send notification to client to rate session.
+	if h.notif != nil {
+		booking, bErr := h.q.GetBookingByID(c.Request.Context(), updateData.BookingID)
+		if bErr == nil {
+			_, nErr := h.notif.SendNotificationToUser(c.Request.Context(), booking.ClientID, "Session Complete", "Please rate your session", "session-completed-"+sessionID.String())
+			if nErr != nil {
+				h.log.Warn("CompleteSession: failed to notify client", "session_id", sessionID, "err", nErr)
+			}
+		} else {
+			h.log.Warn("CompleteSession: failed to fetch booking for notification", "session_id", sessionID, "err", bErr)
+		}
+	}
 	result := ParseResponse(updateData)
 	c.JSON(http.StatusOK, api.NewSuccessResponse("session completed successfully", api.CodeOK, result, nil))
 }
@@ -151,12 +191,13 @@ func (h *sessionHandler) CompleteSession(c *gin.Context, sessionID uuid.UUID) {
 func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 	var notes api.HandleTrainersNoteJSONBody
 	if err := c.ShouldBindJSON(&notes); err != nil {
-		h.log.Error("error binding request body", "err", err)
-		c.JSON(http.StatusBadRequest, api.NewError(api.CodeBadRequest, "invalid request, please provide a note"))
+		h.log.Warn("error binding request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request, please provide a note", api.CodeBadRequest))
 		return
 	}
 	var fieldErrors []api.FieldError
 	if notes.Note == "" {
+		h.log.Warn("TrainersNote: note is empty")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "note", Message: "Notes cannot be empty"})
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
 		return
@@ -164,15 +205,15 @@ func (h *sessionHandler) TrainersNote(c *gin.Context, sessionID uuid.UUID) {
 	cachedKey := "session:" + sessionID.String()
 	cacheCmd := h.redis.Delete(c.Request.Context(), cachedKey)
 	if cacheCmd.Val() == 0 {
-		h.log.Info("session not found in cache")
+		h.log.Info("TrainersNote: session not found in cache", "session_id", sessionID)
 	}
 	if cacheCmd.Err() != nil {
-		h.log.Error("error occured during cache lookup", "err", cacheCmd.Err())
+		h.log.Warn("TrainersNote: cache delete error", "session_id", sessionID, "err", cacheCmd.Err())
 	}
-	h.log.Info("data deleted from cache", "data", cacheCmd)
+	h.log.Info("TrainersNote: cache entry deleted", "session_id", sessionID)
 	updateData, err := h.service.TrainerSessionNote(c.Request.Context(), sessionID, notes.Note)
 	if err != nil {
-		h.log.Error("service returned err", "err", err)
+		h.log.Warn("TrainersNote: service error", "session_id", sessionID, "err", err)
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusNotFound, api.NewErrorResponse("failed to get session", api.CodeNotFound, nil))
 			return

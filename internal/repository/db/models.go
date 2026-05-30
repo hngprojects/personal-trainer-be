@@ -11,6 +11,25 @@ import (
 	"github.com/google/uuid"
 )
 
+type AccountSetupToken struct {
+	UserID     uuid.UUID
+	TokenHash  string
+	ExpiresAt  time.Time
+	ConsumedAt sql.NullTime
+	CreatedAt  time.Time
+}
+
+type AdminSetting struct {
+	ID                        uuid.UUID
+	SingletonLock             string
+	DefaultSessionDurationMin int32
+	MaxTrainersDisplayed      int32
+	RequireVideoBeforeListing bool
+	AutoAssignTrainer         bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
 type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
@@ -64,6 +83,14 @@ type BookingSlot struct {
 	TrainerID uuid.NullUUID
 }
 
+type Category struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type ContactMessage struct {
 	ID        uuid.UUID
 	Email     string
@@ -109,6 +136,36 @@ type FailedVideoUpload struct {
 	CreatedAt time.Time
 }
 
+type Notification struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Title          string
+	Message        string
+	Type           string
+	Status         string
+	IdempotencyKey string
+	RetryCount     int32
+	SentAt         sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type OrganisationMedium struct {
+	ID          uuid.UUID
+	MediaType   string
+	Title       string
+	Description sql.NullString
+	Category    sql.NullString
+	ObjectKey   string
+	PublicUrl   string
+	MimeType    string
+	SizeBytes   int64
+	UploadedBy  uuid.NullUUID
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type PaidBookingRescheduleHistory struct {
 	ID            uuid.UUID
 	BookingID     uuid.UUID
@@ -152,19 +209,36 @@ type Session struct {
 }
 
 type Subscription struct {
-	ID                    uuid.UUID
-	ClientID              uuid.UUID
-	TrainerID             uuid.UUID
-	PlanType              string
-	SessionsPerMonth      sql.NullInt32
-	SessionsUsedThisMonth int32
-	Amount                sql.NullInt64
-	Currency              string
-	Status                string
-	CurrentPeriodStart    sql.NullTime
-	CurrentPeriodEnd      sql.NullTime
-	CreatedAt             time.Time
-	CancelledAt           sql.NullTime
+	ID                         uuid.UUID
+	ClientID                   uuid.UUID
+	TrainerID                  uuid.UUID
+	PlanType                   string
+	SessionsPerMonth           sql.NullInt32
+	SessionsUsedThisMonth      int32
+	Amount                     sql.NullInt64
+	Currency                   string
+	Status                     string
+	CurrentPeriodStart         sql.NullTime
+	CurrentPeriodEnd           sql.NullTime
+	CreatedAt                  time.Time
+	CancelledAt                sql.NullTime
+	PlanID                     sql.NullString
+	Platform                   sql.NullString
+	TrialEndsAt                sql.NullTime
+	AppleOriginalTransactionID sql.NullString
+	GooglePurchaseToken        sql.NullString
+}
+
+type SubscriptionPlan struct {
+	ID            uuid.UUID
+	PlanType      string
+	DisplayName   string
+	SessionsTotal int32
+	Amount        int64
+	Currency      string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Trainer struct {
@@ -175,7 +249,7 @@ type Trainer struct {
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
 	OnboardingStatus  string
-	AverageRating     sql.NullString
+	AverageRating     sql.NullFloat64
 	TotalReviews      int32
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
@@ -225,12 +299,39 @@ type User struct {
 	FitnessGoals []string
 	FitnessLevel sql.NullString
 	AvatarUrl    sql.NullString
+	PhoneNumber  sql.NullString
+}
+
+type UserDevice struct {
+	ID                        uuid.UUID
+	UserID                    uuid.UUID
+	DeviceToken               string
+	IsPushNotificationEnabled bool
+	Platform                  string
+	IsActive                  bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
 }
 
 type UserRole struct {
 	UserID    uuid.UUID
 	RoleID    uuid.UUID
 	CreatedAt time.Time
+}
+
+type UserZoomCredential struct {
+	UserID               uuid.UUID
+	AccessTokenEnc       string
+	RefreshTokenEnc      string
+	AccessTokenExpiresAt time.Time
+	Scope                string
+	ZoomUserID           string
+	ZoomAccountID        sql.NullString
+	ZoomEmail            sql.NullString
+	ConnectedAt          time.Time
+	LastSuccessAt        sql.NullTime
+	LastFailureAt        sql.NullTime
+	LastFailureReason    sql.NullString
 }
 
 type VerificationCode struct {

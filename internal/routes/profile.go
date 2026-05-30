@@ -62,28 +62,33 @@ func userIDFromContext(c *gin.Context) (uuid.UUID, bool) {
 // PATCH /users/me/profile
 func (s *routerImpl) UpdateUserProfile(c *gin.Context) {
 	if s.users == nil {
+		s.logger.Warn("update user profile: users store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userID, ok := userIDFromContext(c)
 	if !ok {
+		s.logger.Warn("update user profile: missing authenticated user")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
 
 	var body api.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("update user profile: invalid request body", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	if body.Gender != nil && !body.Gender.Valid() {
+		s.logger.Warn("update user profile: invalid gender", "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("gender must be male, female, or other", api.CodeBadRequest))
 		return
 	}
 
 	if body.FitnessLevel != nil && !body.FitnessLevel.Valid() {
+		s.logger.Warn("update user profile: invalid fitness level", "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("fitness_level must be beginner, intermediate, or advanced", api.CodeBadRequest))
 		return
 	}
@@ -91,6 +96,7 @@ func (s *routerImpl) UpdateUserProfile(c *gin.Context) {
 	if body.FitnessGoals != nil {
 		for _, g := range *body.FitnessGoals {
 			if !g.Valid() {
+				s.logger.Warn("update user profile: invalid fitness goal", "userID", userID.String(), "goal", string(g))
 				c.JSON(http.StatusBadRequest, api.NewError("invalid fitness goal: "+string(g), api.CodeBadRequest))
 				return
 			}
@@ -137,9 +143,11 @@ func (s *routerImpl) UpdateUserProfile(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("update user profile: user not found", "userID", userID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("user not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("update user profile: failed to update", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to update profile", api.CodeServerError))
 		return
 	}
@@ -150,12 +158,14 @@ func (s *routerImpl) UpdateUserProfile(c *gin.Context) {
 // GET /users/me/profile
 func (s *routerImpl) GetUserProfile(c *gin.Context) {
 	if s.users == nil {
+		s.logger.Warn("get user profile: users store not available")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
 	userID, ok := userIDFromContext(c)
 	if !ok {
+		s.logger.Warn("get user profile: missing authenticated user")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
@@ -163,9 +173,11 @@ func (s *routerImpl) GetUserProfile(c *gin.Context) {
 	user, err := s.users.q.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn("get user profile: user not found", "userID", userID.String(), "err", err)
 			c.JSON(http.StatusNotFound, api.NewError("user not found", api.CodeNotFound))
 			return
 		}
+		s.logger.Warn("get user profile: failed to fetch", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch profile", api.CodeServerError))
 		return
 	}

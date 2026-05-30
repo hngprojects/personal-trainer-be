@@ -78,12 +78,14 @@ var acceptedMIMEs = map[string]string{
 // oapi-codegen middleware.
 func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 	if s.uploader == nil {
+		s.logger.Warn("upload profile picture: uploader not configured")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("avatar storage is not configured on this server", api.CodeServerError))
 		return
 	}
 
 	userID, ok := userIDFromContext(c)
 	if !ok {
+		s.logger.Warn("upload profile picture: missing authenticated user")
 		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 		return
 	}
@@ -95,14 +97,17 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 	file, header, err := c.Request.FormFile(multipartFieldName)
 	if err != nil {
 		if errors.Is(err, http.ErrMissingFile) || strings.Contains(err.Error(), "missing form body") {
+			s.logger.Warn("upload profile picture: missing picture file", "userID", userID.String(), "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError("missing 'picture' file in multipart form", api.CodeBadRequest))
 			return
 		}
 		// MaxBytesReader surfaces oversize as "http: request body too large".
 		if strings.Contains(err.Error(), "request body too large") {
+			s.logger.Warn("upload profile picture: file too large", "userID", userID.String(), "err", err)
 			c.JSON(http.StatusRequestEntityTooLarge, api.NewError(fmt.Sprintf("file exceeds %d-byte upload limit", maxUploadBytes), api.CodeBadRequest))
 			return
 		}
+		s.logger.Warn("upload profile picture: invalid multipart form", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid multipart form: "+err.Error(), api.CodeBadRequest))
 		return
 	}
@@ -110,6 +115,7 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 
 	raw, err := io.ReadAll(file)
 	if err != nil {
+		s.logger.Warn("upload profile picture: could not read file", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("could not read uploaded file", api.CodeBadRequest))
 		return
 	}
@@ -117,6 +123,7 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 	// MIME-sniff from the bytes (don't trust header.Header.Get("Content-Type")).
 	mimeType, err := detectImage(raw)
 	if err != nil {
+		s.logger.Warn("upload profile picture: unsupported image format", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 		return
 	}
@@ -127,6 +134,7 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 	if len(bodyBytes) > storeAsIsCeiling {
 		compressed, cerr := compressToFit(bodyBytes, mimeType, storeAsIsCeiling)
 		if cerr != nil {
+			s.logger.Warn("upload profile picture: could not compress image", "userID", userID.String(), "err", cerr)
 			c.JSON(http.StatusBadRequest, api.NewError("could not compress image to fit size limit: "+cerr.Error(), api.CodeBadRequest))
 			return
 		}
@@ -153,9 +161,11 @@ func (s *routerImpl) UploadProfilePicture(c *gin.Context) {
 		Bytes:       bodyBytes,
 	}); err != nil {
 		if errors.Is(err, uploads.ErrQueueFull) || errors.Is(err, uploads.ErrUploaderClosed) {
+			s.logger.Warn("upload profile picture: upload service busy", "userID", userID.String(), "err", err)
 			c.JSON(http.StatusServiceUnavailable, api.NewError("upload service is busy, please retry shortly", api.CodeServerError))
 			return
 		}
+		s.logger.Warn("upload profile picture: could not enqueue upload", "userID", userID.String(), "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("could not enqueue upload", api.CodeServerError))
 		return
 	}
