@@ -644,6 +644,8 @@ func (s *Router) Routes() *gin.Engine {
 			impl.DeleteAdminClient(c)
 		})
 
+		v1.POST("/auth/verify-reset-code", impl.HandleVerifyResetCode)
+
 		v1.PUT("/admin/sessions/:id/cancel", authMw, func(c *gin.Context) {
 			if superAdminOnly != nil {
 				superAdminOnly(c)

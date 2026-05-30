@@ -3996,6 +3996,7 @@ paths:
       summary: Request a password reset code
       description: >-
         Sends a 6-digit reset code to the email address if it belongs to a
+        trainer or
         registered local user that holds the `admin` role. The endpoint
         always returns the same generic success response regardless of
         whether the email exists or whether the user is an admin — this
@@ -4054,6 +4055,66 @@ paths:
                 status: error
                 message: Internal server error
                 code: SERVER_ERROR
+  /auth/verify-reset-code:
+    post:
+      operationId: HandleVerifyResetCode
+      security: []
+      tags:
+        - Authentication
+      summary: Verify a password reset OTP code
+      description: |
+        Confirms that the 6-digit OTP code sent to an email address is valid
+        and has not expired, without consuming it. Use this between the
+        forgot-password and reset-password steps so clients can validate the
+        code before asking the user to enter a new password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - code
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: trainer@example.com
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  pattern: '^[0-9]{6}$'
+                  example: "123456"
+            example:
+              email: trainer@example.com
+              code: "123456"
+      responses:
+        "200":
+          description: Code is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: code is valid
+                data: null
+        "400":
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/reset-password:
     post:
       security: []

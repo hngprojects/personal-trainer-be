@@ -123,3 +123,12 @@ func (s *routerImpl) HandleRegister(c *gin.Context) {
 	}
 	s.local.Register(c)
 }
+
+func (s *routerImpl) HandleVerifyResetCode(c *gin.Context) {
+	if s.passwordReset == nil {
+		s.logger.Warn("HandleVerifyResetCode: password reset handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.passwordReset.HandleVerifyResetCode(c)
+}
