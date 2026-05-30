@@ -1439,21 +1439,36 @@ paths:
       tags:
         - Auth — Local
         - Authentication
-      summary: Login with email
+      summary: Login with email + password
       description: |
-        Sends a one-time verification code to the email address.
-        The user must then call POST /auth/verify-email with the code to receive tokens.
+        Verifies the bcrypt password hash on the user row and returns
+        access + refresh tokens on success.
+
+        Newly registered users who haven't yet set a password go via
+        the OTP flow (POST /auth/verify-email). OAuth-only accounts
+        (Google) have no password set; this endpoint returns 401 for
+        them with the same "invalid email or password" message used
+        for every credential failure — no account enumeration.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [email, password]
               properties:
                 email:
                   type: string
                   format: email
+                password:
+                  type: string
+                  minLength: 1
+                  maxLength: 72
+                  description: |
+                    The user's password. Capped at 72 bytes because
+                    bcrypt silently truncates beyond that — accepting
+                    longer inputs would let any password sharing the
+                    first 72 bytes authenticate.
       responses:
         "200":
           description: Login successful
