@@ -456,6 +456,22 @@ func (h *PasswordResetHandler) HandleVerifyResetCode(c *gin.Context) {
 		return
 	}
 
+	if allowed, err := h.resetIPLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
+		h.log.Warn("verify-reset-code IP rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		h.log.Warn("verify reset code: IP rate limit hit", "clientIP", c.ClientIP())
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
+		return
+	}
+
+	if allowed, err := h.resetLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("verify-reset-code email rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		h.log.Warn("verify reset code: email rate limit hit", "email_domain", emailDomain(emailAddr))
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
+		return
+	}
+
 	if err := h.resetRepo.VerifyCode(c.Request.Context(), emailAddr, h.hashCode(code)); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
