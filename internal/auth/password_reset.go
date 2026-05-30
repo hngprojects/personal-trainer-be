@@ -482,5 +482,25 @@ func (h *PasswordResetHandler) HandleVerifyResetCode(c *gin.Context) {
 		return
 	}
 
+	// Mirror the eligibility gate from HandleResetPassword so this endpoint
+	// never returns 200 for an account that the actual reset would reject.
+	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
+	if err != nil || !user.IsActive {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
+		return
+	}
+	isAdmin, _ := h.roles.UserHasRole(c.Request.Context(), user.ID, adminRoleName)
+	isTrainer, _ := h.roles.UserHasRole(c.Request.Context(), user.ID, trainerRoleName)
+	if !isAdmin && !isTrainer {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
+		return
+	}
+
+	// Reset the per-email bucket so a successful preflight doesn't consume
+	// attempts that the caller needs for the actual reset step.
+	if err := h.resetLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("failed to reset verify-reset-code limiter", "err", err)
+	}
+
 	c.JSON(http.StatusOK, api.NewSuccess("code is valid", api.CodeOK, nil))
 }
