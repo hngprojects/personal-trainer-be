@@ -643,7 +643,12 @@ func (s *Router) Routes() *gin.Engine {
 					return
 				}
 			}
-			impl.DeleteAdminClient(c)
+			id, err := uuid.Parse(c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, api.NewError("invalid client id", api.CodeBadRequest))
+				return
+			}
+			impl.DeleteAdminClient(c, openapi_types.UUID(id))
 		})
 
 		// Hand-wired: /auth/verify-reset-code was added to api.yaml after the

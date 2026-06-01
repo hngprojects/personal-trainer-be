@@ -454,18 +454,13 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 	}))
 }
 
-func (s *routerImpl) DeleteAdminClient(c *gin.Context) {
+func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	idStr := c.Param("id")
-	clientID, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid client id", api.CodeBadRequest))
-		return
-	}
+	clientID := uuid.UUID(id)
 
 	ctx := c.Request.Context()
 
