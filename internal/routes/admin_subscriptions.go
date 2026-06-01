@@ -29,7 +29,7 @@ type subscriptionItem struct {
 	CancelledAt        *time.Time `json:"cancelled_at"`
 }
 
-func (s *routerImpl) GetAdminSubscriptions(c *gin.Context) {
+func (s *routerImpl) GetAdminSubscriptions(c *gin.Context, params api.GetAdminSubscriptionsParams) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
