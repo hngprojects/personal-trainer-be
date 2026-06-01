@@ -4125,7 +4125,7 @@ paths:
                   type: string
                   minLength: 6
                   maxLength: 6
-                  pattern: '^[0-9]{6}$'
+                  pattern: "^[0-9]{6}$"
                   example: "123456"
             example:
               email: trainer@example.com
@@ -4906,7 +4906,7 @@ paths:
       parameters:
         - name: id
           in: path
-          required: true
+          required: false
           schema:
             type: string
             format: uuid
@@ -6163,6 +6163,23 @@ paths:
       operationId: HandleCreateDevToken
       tags:
         - Dev
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - admin
+              - trainer
+              - client
+              - super_admin
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Token generated

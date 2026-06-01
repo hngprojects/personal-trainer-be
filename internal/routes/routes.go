@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
-	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -31,6 +30,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
@@ -520,7 +520,7 @@ func (s *Router) Routes() *gin.Engine {
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
-		if s.cfg.Env == "development" {
+		if s.cfg.Env == "development" && s.cfg.Env == "staging" {
 			impl.dev = dev.NewDevHandler()
 		}
 

@@ -564,6 +564,27 @@ func (e GetAdminClientsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAdminSubscriptionsParamsStatus.
+const (
+	GetAdminSubscriptionsParamsStatusActive    GetAdminSubscriptionsParamsStatus = "active"
+	GetAdminSubscriptionsParamsStatusCancelled GetAdminSubscriptionsParamsStatus = "cancelled"
+	GetAdminSubscriptionsParamsStatusExpired   GetAdminSubscriptionsParamsStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminSubscriptionsParamsStatus enum.
+func (e GetAdminSubscriptionsParamsStatus) Valid() bool {
+	switch e {
+	case GetAdminSubscriptionsParamsStatusActive:
+		return true
+	case GetAdminSubscriptionsParamsStatusCancelled:
+		return true
+	case GetAdminSubscriptionsParamsStatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
 	Success HandleRefresh200JSONResponseBodyStatus = "success"
@@ -612,6 +633,30 @@ func (e GetUpcomingBookingsParamsType) Valid() bool {
 	case DiscoveryCall:
 		return true
 	case PaidSession:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HandleCreateDevTokenParamsRole.
+const (
+	HandleCreateDevTokenParamsRoleAdmin      HandleCreateDevTokenParamsRole = "admin"
+	HandleCreateDevTokenParamsRoleClient     HandleCreateDevTokenParamsRole = "client"
+	HandleCreateDevTokenParamsRoleSuperAdmin HandleCreateDevTokenParamsRole = "super_admin"
+	HandleCreateDevTokenParamsRoleTrainer    HandleCreateDevTokenParamsRole = "trainer"
+)
+
+// Valid indicates whether the value is a known member of the HandleCreateDevTokenParamsRole enum.
+func (e HandleCreateDevTokenParamsRole) Valid() bool {
+	switch e {
+	case HandleCreateDevTokenParamsRoleAdmin:
+		return true
+	case HandleCreateDevTokenParamsRoleClient:
+		return true
+	case HandleCreateDevTokenParamsRoleSuperAdmin:
+		return true
+	case HandleCreateDevTokenParamsRoleTrainer:
 		return true
 	default:
 		return false
@@ -704,22 +749,22 @@ func (e GetTrainersParamsOnboardingStatus) Valid() bool {
 
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
-	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
-	Expired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
-	Invalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
-	Valid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
+	HandleValidateSetupToken200JSONResponseBodyDataStatusConsumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
+	HandleValidateSetupToken200JSONResponseBodyDataStatusExpired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
+	HandleValidateSetupToken200JSONResponseBodyDataStatusInvalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
+	HandleValidateSetupToken200JSONResponseBodyDataStatusValid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
 )
 
 // Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyDataStatus enum.
 func (e HandleValidateSetupToken200JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
-	case Consumed:
+	case HandleValidateSetupToken200JSONResponseBodyDataStatusConsumed:
 		return true
-	case Expired:
+	case HandleValidateSetupToken200JSONResponseBodyDataStatusExpired:
 		return true
-	case Invalid:
+	case HandleValidateSetupToken200JSONResponseBodyDataStatusInvalid:
 		return true
-	case Valid:
+	case HandleValidateSetupToken200JSONResponseBodyDataStatusValid:
 		return true
 	default:
 		return false
@@ -1636,6 +1681,42 @@ type AdminListSessionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// AdminCancelSessionJSONBody defines parameters for AdminCancelSession.
+type AdminCancelSessionJSONBody struct {
+	// Reason Reason for cancellation
+	Reason string `json:"reason"`
+}
+
+// AdminRescheduleSessionJSONBody defines parameters for AdminRescheduleSession.
+type AdminRescheduleSessionJSONBody struct {
+	// ScheduledEnd New end time (RFC3339)
+	ScheduledEnd time.Time `json:"scheduled_end"`
+
+	// ScheduledStart New start time (RFC3339)
+	ScheduledStart time.Time `json:"scheduled_start"`
+}
+
+// GetAdminSubscriptionsParams defines parameters for GetAdminSubscriptions.
+type GetAdminSubscriptionsParams struct {
+	// Status Filter by status (omit for all)
+	Status *GetAdminSubscriptionsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Page Page number (default 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Items per page (default 20, max 100)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAdminSubscriptionsParamsStatus defines parameters for GetAdminSubscriptions.
+type GetAdminSubscriptionsParamsStatus string
+
+// GetAdminTransactionsParams defines parameters for GetAdminTransactions.
+type GetAdminTransactionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // HandleAdminLoginJSONBody defines parameters for HandleAdminLogin.
 type HandleAdminLoginJSONBody struct {
 	Email    openapi_types.Email `json:"email"`
@@ -1651,6 +1732,12 @@ type HandleGoogleCallbackParams struct {
 // HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
 type HandleLocalAuthJSONBody struct {
 	Email openapi_types.Email `json:"email"`
+
+	// Password The user's password. Capped at 72 bytes because
+	// bcrypt silently truncates beyond that — accepting
+	// longer inputs would let any password sharing the
+	// first 72 bytes authenticate.
+	Password string `json:"password"`
 }
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
@@ -1660,6 +1747,12 @@ type HandleLogoutJSONBody struct {
 
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
 type HandleRefresh200JSONResponseBodyStatus string
+
+// HandleVerifyResetCodeJSONBody defines parameters for HandleVerifyResetCode.
+type HandleVerifyResetCodeJSONBody struct {
+	Code  string              `json:"code"`
+	Email openapi_types.Email `json:"email"`
+}
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
@@ -1694,6 +1787,15 @@ type HandleContactUsJSONBody struct {
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
 }
+
+// HandleCreateDevTokenParams defines parameters for HandleCreateDevToken.
+type HandleCreateDevTokenParams struct {
+	Role   *HandleCreateDevTokenParamsRole `form:"role,omitempty" json:"role,omitempty"`
+	UserId *openapi_types.UUID             `form:"user_id,omitempty" json:"user_id,omitempty"`
+}
+
+// HandleCreateDevTokenParamsRole defines parameters for HandleCreateDevToken.
+type HandleCreateDevTokenParamsRole string
 
 // GetDiscoverySlotsParams defines parameters for GetDiscoverySlots.
 type GetDiscoverySlotsParams struct {
@@ -1872,6 +1974,12 @@ type HandleGoogleWebhookJSONBody struct {
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
+// AdminCancelSessionJSONRequestBody defines body for AdminCancelSession for application/json ContentType.
+type AdminCancelSessionJSONRequestBody AdminCancelSessionJSONBody
+
+// AdminRescheduleSessionJSONRequestBody defines body for AdminRescheduleSession for application/json ContentType.
+type AdminRescheduleSessionJSONRequestBody AdminRescheduleSessionJSONBody
+
 // HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
 type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 
@@ -1895,6 +2003,9 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
+
+// HandleVerifyResetCodeJSONRequestBody defines body for HandleVerifyResetCode for application/json ContentType.
+type HandleVerifyResetCodeJSONRequestBody HandleVerifyResetCodeJSONBody
 
 // CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
 type CreateBookingJSONRequestBody CreateBookingJSONBody
@@ -1997,6 +2108,9 @@ type ServerInterface interface {
 	// List all clients (super_admin only)
 	// (GET /admin/clients)
 	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
+	// Deactivate a client account (super_admin only)
+	// (DELETE /admin/clients/{id})
+	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
 	// Get a single client by ID (super_admin only)
 	// (GET /admin/clients/{id})
 	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
@@ -2009,6 +2123,15 @@ type ServerInterface interface {
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// Cancel a session (super_admin only)
+	// (PUT /admin/sessions/{id}/cancel)
+	AdminCancelSession(c *gin.Context, id openapi_types.UUID)
+	// Reschedule a session (super_admin only)
+	// (PUT /admin/sessions/{id}/reschedule)
+	AdminRescheduleSession(c *gin.Context, id openapi_types.UUID)
+	// List all subscriptions with optional status filter (super_admin only)
+	// (GET /admin/subscriptions)
+	GetAdminSubscriptions(c *gin.Context, params GetAdminSubscriptionsParams)
 	// Count of active subscriptions (super_admin only)
 	// (GET /admin/subscriptions/count)
 	GetAdminSubscriptionCount(c *gin.Context)
@@ -2018,6 +2141,9 @@ type ServerInterface interface {
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
+	// List all client transactions/subscriptions (super_admin only)
+	// (GET /admin/transactions)
+	GetAdminTransactions(c *gin.Context, params GetAdminTransactionsParams)
 	// Get total count of active clients and approved trainers (super_admin only)
 	// (GET /admin/user/trainer/count)
 	GetUserTrainerCount(c *gin.Context)
@@ -2036,7 +2162,7 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
-	// Login with email
+	// Login with email + password
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
@@ -2054,6 +2180,9 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// Verify a password reset OTP code
+	// (POST /auth/verify-reset-code)
+	HandleVerifyResetCode(c *gin.Context)
 	// List all active booking slots (public)
 	// (GET /booking-slots/{trainerId})
 	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
@@ -2080,7 +2209,7 @@ type ServerInterface interface {
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
-	HandleCreateDevToken(c *gin.Context)
+	HandleCreateDevToken(c *gin.Context, params HandleCreateDevTokenParams)
 	// List all active discovery slots (public)
 	// (GET /discovery-slots)
 	GetDiscoverySlots(c *gin.Context, params GetDiscoverySlotsParams)
@@ -2192,7 +2321,7 @@ type ServerInterface interface {
 	// Check whether a trainer setup token is still valid (no consume)
 	// (GET /trainers/set-password/validate)
 	HandleValidateSetupToken(c *gin.Context, params HandleValidateSetupTokenParams)
-	// Delete trainer (admin only)
+	// Deactivate trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
 	// Get trainer by ID (admin only)
@@ -2336,6 +2465,33 @@ func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
 	siw.Handler.GetAdminClients(c, params)
 }
 
+// DeleteAdminClient operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminClient(c, id)
+}
+
 // GetAdminClientByID operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
 
@@ -2452,6 +2608,105 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	siw.Handler.AdminListSessions(c, params)
 }
 
+// AdminCancelSession operation middleware
+func (siw *ServerInterfaceWrapper) AdminCancelSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminCancelSession(c, id)
+}
+
+// AdminRescheduleSession operation middleware
+func (siw *ServerInterfaceWrapper) AdminRescheduleSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminRescheduleSession(c, id)
+}
+
+// GetAdminSubscriptions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSubscriptions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminSubscriptionsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminSubscriptions(c, params)
+}
+
 // GetAdminSubscriptionCount operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
 
@@ -2507,6 +2762,43 @@ func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.AdminApproveTrainer(c, id)
+}
+
+// GetAdminTransactions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTransactions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminTransactionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminTransactions(c, params)
 }
 
 // GetUserTrainerCount operation middleware
@@ -2691,6 +2983,19 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	}
 
 	siw.Handler.HandleVerifyEmail(c)
+}
+
+// HandleVerifyResetCode operation middleware
+func (siw *ServerInterfaceWrapper) HandleVerifyResetCode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleVerifyResetCode(c)
 }
 
 // GetTrainersBookingSlots operation middleware
@@ -2888,6 +3193,28 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 // HandleCreateDevToken operation middleware
 func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleCreateDevTokenParams
+
+	// ------------- Optional query parameter "role" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "role", c.Request.URL.Query(), &params.Role, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter role: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "user_id", c.Request.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2895,7 +3222,7 @@ func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.HandleCreateDevToken(c)
+	siw.Handler.HandleCreateDevToken(c, params)
 }
 
 // GetDiscoverySlots operation middleware
@@ -4274,13 +4601,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
+	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.PUT(options.BaseURL+"/admin/sessions/:id/cancel", wrapper.AdminCancelSession)
+	router.PUT(options.BaseURL+"/admin/sessions/:id/reschedule", wrapper.AdminRescheduleSession)
+	router.GET(options.BaseURL+"/admin/subscriptions", wrapper.GetAdminSubscriptions)
 	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
 	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.GET(options.BaseURL+"/admin/transactions", wrapper.GetAdminTransactions)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
@@ -4293,6 +4625,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/auth/verify-reset-code", wrapper.HandleVerifyResetCode)
 	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
