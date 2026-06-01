@@ -8,24 +8,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 )
 
 // AdminCancelSession handles PUT /admin/sessions/:id/cancel
-func (s *routerImpl) AdminCancelSession(c *gin.Context) {
+func (s *routerImpl) AdminCancelSession(c *gin.Context, id openapi_types.UUID) {
 	if s.bookings == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
 
-	idStr := c.Param("id")
-	bookingID, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
-		return
-	}
+	bookingID := uuid.UUID(id)
 
 	var req struct {
 		Reason string `json:"reason" binding:"required,min=1"`
@@ -137,12 +133,7 @@ func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
 		return
 	}
 
-	idStr := c.Param("id")
-	bookingID, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
-		return
-	}
+	bookingID := uuid.UUID(id)
 
 	var req struct {
 		ScheduledStart string `json:"scheduled_start" binding:"required"`
