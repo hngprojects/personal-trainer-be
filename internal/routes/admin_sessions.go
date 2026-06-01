@@ -127,7 +127,7 @@ func (s *routerImpl) AdminCancelSession(c *gin.Context, id openapi_types.UUID) {
 }
 
 // AdminRescheduleSession handles PUT /admin/sessions/:id/reschedule
-func (s *routerImpl) AdminRescheduleSession(c *gin.Context) {
+func (s *routerImpl) AdminRescheduleSession(c *gin.Context, id openapi_types.UUID) {
 	if s.bookings == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return

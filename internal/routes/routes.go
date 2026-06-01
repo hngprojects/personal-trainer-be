@@ -3,12 +3,14 @@ package routes
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/settings"
@@ -656,7 +658,12 @@ func (s *Router) Routes() *gin.Engine {
 					return
 				}
 			}
-			impl.AdminCancelSession(c)
+			id, err := uuid.Parse(c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
+				return
+			}
+			impl.AdminCancelSession(c, openapi_types.UUID(id))
 		})
 
 		v1.PUT("/admin/sessions/:id/reschedule", authMw, func(c *gin.Context) {
@@ -666,7 +673,12 @@ func (s *Router) Routes() *gin.Engine {
 					return
 				}
 			}
-			impl.AdminRescheduleSession(c)
+			id, err := uuid.Parse(c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
+				return
+			}
+			impl.AdminRescheduleSession(c, openapi_types.UUID(id))
 		})
 	}
 
