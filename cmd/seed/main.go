@@ -41,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if cfg.Env == "production" {
+	if cfg.Env != "development" && cfg.Env != "staging" {
 		slog.Error("seed script cannot run in production",
 			"got_env", cfg.Env,
 			"hint", "set APP_ENV=development if you really mean to run this against your local DB",
