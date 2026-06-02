@@ -3,14 +3,12 @@ package routes
 import (
 	"context"
 	"database/sql"
-	"net/http"
 	"log/slog"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/settings"
@@ -616,75 +614,6 @@ func (s *Router) Routes() *gin.Engine {
 			},
 		})
 
-		v1.GET("/admin/transactions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminTransactions(c, api.GetAdminTransactionsParams{})
-		})
-
-		v1.GET("/admin/subscriptions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminSubscriptions(c, api.GetAdminSubscriptionsParams{})
-		})
-
-		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			id, err := uuid.Parse(c.Param("id"))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, api.NewError("invalid client id", api.CodeBadRequest))
-				return
-			}
-			impl.DeleteAdminClient(c, openapi_types.UUID(id))
-		})
-
-		// Hand-wired: /auth/verify-reset-code was added to api.yaml after the
-		// initial oapi-codegen run. Regenerating gen.go is tracked separately;
-		// for now this follows the same pattern as the hand-wired /admin/* routes.
-		v1.POST("/auth/verify-reset-code", impl.HandleVerifyResetCode)
-
-		v1.PUT("/admin/sessions/:id/cancel", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			id, err := uuid.Parse(c.Param("id"))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
-				return
-			}
-			impl.AdminCancelSession(c, openapi_types.UUID(id))
-		})
-
-		v1.PUT("/admin/sessions/:id/reschedule", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			id, err := uuid.Parse(c.Param("id"))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, api.NewError("invalid session id", api.CodeBadRequest))
-				return
-			}
-			impl.AdminRescheduleSession(c, openapi_types.UUID(id))
-		})
 	}
 
 	return r
