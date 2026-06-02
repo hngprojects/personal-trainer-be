@@ -23,15 +23,11 @@ func (h *Handler) HandleCreateDevToken(c *gin.Context, params api.HandleCreateDe
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	var userID string
+	var userID uuid.UUID
 	if params.UserId != nil {
 		userID = *params.UserId
-	}
-	if params.UserId == nil {
-		userID = uuid.New().String()
-	} else if _, err := uuid.Parse(userID); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("user_id must be a valid UUID", api.CodeBadRequest))
-		return
+	} else {
+		userID = uuid.New()
 	}
 
 	accessToken, refreshToken, err := auth.GenerateTestTokens(userID)

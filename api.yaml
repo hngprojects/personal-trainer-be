@@ -6197,6 +6197,7 @@ paths:
           required: false
           schema:
             type: string
+            format: uuid
       responses:
         "200":
           description: Token generated

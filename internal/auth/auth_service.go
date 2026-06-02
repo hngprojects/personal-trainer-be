@@ -60,11 +60,11 @@ func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
 	return token.SignedString(resolveSecret())
 }
 
-func GenerateTestTokens(userId string) (string, string, error) {
+func GenerateTestTokens(userId uuid.UUID) (string, string, error) {
 	accessTtl := 15 * time.Minute
 	refreshTtl := 7 * 24 * time.Hour
-	if userId == "" {
-		userId = uuid.NewString()
+	if userId == uuid.Nil {
+		userId = uuid.New()
 	}
 
 	accessClaims := jwt.MapClaims{
