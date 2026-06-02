@@ -3,8 +3,8 @@ package routes
 import (
 	"context"
 	"database/sql"
-	"net/http"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -522,7 +522,7 @@ func (s *Router) Routes() *gin.Engine {
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
-		if s.cfg.Env == "development" && s.cfg.Env == "staging" {
+		if s.cfg.Env == "development" || s.cfg.Env == "staging" {
 			impl.dev = dev.NewDevHandler()
 		}
 

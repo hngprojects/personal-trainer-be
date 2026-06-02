@@ -1764,6 +1764,11 @@ type HandleContactUsJSONBody struct {
 	Subject string              `json:"subject"`
 }
 
+// HandleCreateDevTokenParams defines parameters for HandleCreateDevToken.
+type HandleCreateDevTokenParams struct {
+	UserId *string `form:"user_id,omitempty" json:"user_id,omitempty"`
+}
+
 // GetDiscoverySlotsParams defines parameters for GetDiscoverySlots.
 type GetDiscoverySlotsParams struct {
 	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
@@ -2176,7 +2181,7 @@ type ServerInterface interface {
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
-	HandleCreateDevToken(c *gin.Context)
+	HandleCreateDevToken(c *gin.Context, params HandleCreateDevTokenParams)
 	// List all active discovery slots (public)
 	// (GET /discovery-slots)
 	GetDiscoverySlots(c *gin.Context, params GetDiscoverySlotsParams)
@@ -2584,7 +2589,7 @@ func (siw *ServerInterfaceWrapper) AdminCancelSession(c *gin.Context) {
 	// ------------- Path parameter "id" -------------
 	var id openapi_types.UUID
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: false, Type: "string", Format: "uuid"})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
 		return
@@ -3160,6 +3165,20 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 // HandleCreateDevToken operation middleware
 func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleCreateDevTokenParams
+
+	// ------------- Optional query parameter "user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "user_id", c.Request.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3167,7 +3186,7 @@ func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.HandleCreateDevToken(c)
+	siw.Handler.HandleCreateDevToken(c, params)
 }
 
 // GetDiscoverySlots operation middleware

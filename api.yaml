@@ -6164,22 +6164,11 @@ paths:
       tags:
         - Dev
       parameters:
-        - name: role
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              - admin
-              - trainer
-              - client
-              - super_admin
         - name: user_id
           in: query
           required: false
           schema:
             type: string
-            format: uuid
       responses:
         "200":
           description: Token generated
