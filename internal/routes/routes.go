@@ -44,6 +44,7 @@ import (
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
 	"github.com/hngprojects/personal-trainer-be/pkg/storage"
 	"github.com/hngprojects/personal-trainer-be/pkg/video"
+	"github.com/hngprojects/personal-trainer-be/pkg/googlemeet"
 	appzoom "github.com/hngprojects/personal-trainer-be/pkg/zoom"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -353,11 +354,37 @@ func (s *Router) Routes() *gin.Engine {
 				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
 			}
 
-			meetingSelector := &zoomflow.MeetingSelector{
+			zoomSelector := &zoomflow.MeetingSelector{
 				Store:         credStore,
 				OrgProvider:   orgMeetingProvider,
 				PreferTrainer: s.cfg.ZoomMeetingHost == "trainer",
 				Log:           s.log,
+			}
+
+			// Google Meet — single-org-account flow. We build the
+			// provider only when MEET_ENABLED=true AND all the OAuth
+			// bits are present; partial config logs a warn and the
+			// provider stays nil, so the selector returns NoOp →
+			// handler 503s with "google meet is not configured."
+			var meetProvider meeting.Provider
+			if s.cfg.MeetEnabled {
+				if s.cfg.MeetOAuthClientID != "" && s.cfg.MeetOAuthClientSecret != "" && s.cfg.MeetRefreshToken != "" {
+					meetOAuth := googlemeet.NewOAuthClient(
+						s.cfg.MeetOAuthClientID,
+						s.cfg.MeetOAuthClientSecret,
+						s.cfg.MeetRefreshToken,
+						s.cfg.MeetHostEmail,
+					)
+					meetProvider = googlemeet.NewProvider(meetOAuth)
+					s.log.Info("google meet provider ready", "host_email", s.cfg.MeetHostEmail)
+				} else {
+					s.log.Warn("MEET_ENABLED=true but MEET_OAUTH_CLIENT_* / MEET_REFRESH_TOKEN missing — meet provider disabled")
+				}
+			}
+
+			meetingSelector := meeting.MultiPlatformSelector{
+				Zoom: zoomSelector,
+				Meet: meetProvider,
 			}
 
 			// Meeting SDK signer for in-app joins. Optional — boot without

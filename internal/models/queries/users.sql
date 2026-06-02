@@ -139,3 +139,13 @@ LEFT JOIN bookings b ON b.client_id = u.id
 WHERE u.id = sqlc.arg(id)::uuid
   AND u.role = 'client'
 GROUP BY u.id;
+
+-- name: DeactivateClient :one
+-- Backfilled from internal/repository/db/users.sql.go where it was
+-- hand-added (PR #283). Lifted into the sqlc source so future
+-- `sqlc generate` runs don't wipe it. Disambiguated with table alias
+-- so sqlc's parser is happy (Postgres handles the unaliased form fine
+-- but the parser sqlc embeds is stricter).
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = $1 AND u.role = 'client' AND u.is_active = true
+RETURNING u.id;

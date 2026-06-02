@@ -166,6 +166,29 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 	return i, err
 }
 
+const deactivateTrainer = `-- name: DeactivateTrainer :one
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = (SELECT t.user_id FROM trainers t WHERE t.id = $1)
+  AND u.role = 'trainer'
+  AND u.is_active = true
+RETURNING u.id
+`
+
+// Soft-delete: marks the trainer's user account inactive.
+// Returns the user_id so the caller can confirm who was deactivated.
+// Returns no rows if the trainer_id doesn't exist or the account is
+// already inactive, letting the handler distinguish 404 vs 409.
+// Disambiguate column references: sqlc's parser otherwise can't tell
+// which `id` the inner subquery means (users.id or trainers.id).
+// Postgres handles it fine at runtime via scoping rules; sqlc needs
+// explicit aliases on both sides.
+func (q *Queries) DeactivateTrainer(ctx context.Context, trainerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateTrainer, trainerID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteTrainer = `-- name: DeleteTrainer :one
 DELETE FROM trainers
 WHERE id = $1
@@ -696,19 +719,4 @@ func (q *Queries) UpdateTrainerIntroVideo(ctx context.Context, arg UpdateTrainer
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const deactivateTrainer = `-- name: DeactivateTrainer :one
-UPDATE users SET is_active = false, updated_at = NOW()
-WHERE id = (SELECT user_id FROM trainers WHERE id = $1)
-  AND role = 'trainer'
-  AND is_active = true
-RETURNING id
-`
-
-func (q *Queries) DeactivateTrainer(ctx context.Context, trainerID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, deactivateTrainer, trainerID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
 }
