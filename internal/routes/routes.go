@@ -623,7 +623,7 @@ func (s *Router) Routes() *gin.Engine {
 					return
 				}
 			}
-			impl.GetAdminTransactions(c)
+			impl.GetAdminTransactions(c, api.GetAdminTransactionsParams{})
 		})
 
 		v1.GET("/admin/subscriptions", authMw, func(c *gin.Context) {
@@ -633,7 +633,7 @@ func (s *Router) Routes() *gin.Engine {
 					return
 				}
 			}
-			impl.GetAdminSubscriptions(c)
+			impl.GetAdminSubscriptions(c, api.GetAdminSubscriptionsParams{})
 		})
 
 		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
