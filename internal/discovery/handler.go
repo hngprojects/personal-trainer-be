@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"sort"
@@ -51,13 +52,39 @@ func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.
 
 // orgMeeting returns the Provider for un-attributed meetings (discovery
 // calls before matching). Always uuid.Nil → Selector falls back to org.
-func (h *Handler) orgMeeting(ctx context.Context) meeting.Provider {
-	return h.meetings.For(ctx, uuid.Nil)
+// The platform argument routes between zoom and google_meet — the
+// `phone_callback` and `messenger` contact_modes never reach this
+// path (no server-minted URL for them).
+func (h *Handler) orgMeeting(ctx context.Context, platform string) meeting.Provider {
+	return h.meetings.For(ctx, uuid.Nil, platform)
+}
+
+// contactModeToPlatform maps the discovery_bookings.contact_mode
+// values that DO have a meeting provider to the platform string the
+// Selector expects. Returns "" for modes with no provider
+// (phone_callback, messenger).
+func contactModeToPlatform(mode string) string {
+	switch mode {
+	case "zoom_meeting":
+		return meeting.PlatformZoom
+	case "google_meet":
+		return meeting.PlatformGoogleMeet
+	default:
+		return ""
+	}
 }
 
 // POST /bookings/discovery — authenticated users only
 func (h *Handler) BookDiscoveryCall(c *gin.Context) {
-	var req api.BookDiscoveryCallRequest
+	// Embed the generated request type so all its existing fields
+	// (contact_mode, phone_number, etc.) still bind verbatim, then
+	// extend with messenger_handle which lives in api.yaml but isn't
+	// in the on-disk gen.go yet (codegen catch-up is tracked
+	// separately).
+	var req struct {
+		api.BookDiscoveryCallRequest
+		MessengerHandle *string `json:"messenger_handle,omitempty"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Warn("book discovery call: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
@@ -77,14 +104,43 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
-	if req.ContactMode != api.ZoomMeeting && req.ContactMode != api.PhoneCallback {
-		h.log.Warn("book discovery call: invalid contact mode", "userID", userID.String(), "contactMode", req.ContactMode)
-		c.JSON(http.StatusBadRequest, api.NewError("contact_mode must be zoom_meeting or phone_callback", api.CodeBadRequest))
+	// contact_mode values that the discovery_bookings CHECK accepts
+	// after migration 000058. Kept as raw strings (not the api.*
+	// generated constants) until oapi-codegen catches up to the new
+	// enum entries in api.yaml — the gen.go regen is tracked
+	// separately and forcing it now would surface unrelated
+	// stale-stub issues. Spec still names these correctly; runtime
+	// honours them.
+	mode := string(req.ContactMode)
+	switch mode {
+	case "zoom_meeting", "phone_callback", "google_meet", "messenger":
+		// ok
+	default:
+		h.log.Warn("book discovery call: invalid contact mode", "userID", userID.String(), "contactMode", mode)
+		c.JSON(http.StatusBadRequest, api.NewError("contact_mode must be zoom_meeting, google_meet, phone_callback, or messenger", api.CodeBadRequest))
 		return
 	}
-	if req.ContactMode == api.PhoneCallback && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
+	if mode == "phone_callback" && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
 		h.log.Warn("book discovery call: phone number required for callback", "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for phone_callback", api.CodeBadRequest))
+		return
+	}
+	// Messenger is the same shape as phone_callback — client supplies
+	// a free-form handle, no server-minted URL. Validation is
+	// permissive: handles can be m.me URLs, profile slugs, or numeric
+	// IDs depending on which the user copies in. Cap length so a
+	// malformed paste doesn't bloat the column.
+	var messengerHandle string
+	if req.MessengerHandle != nil {
+		messengerHandle = strings.TrimSpace(*req.MessengerHandle)
+	}
+	if mode == "messenger" && messengerHandle == "" {
+		h.log.Warn("book discovery call: messenger handle required for messenger contact mode", "userID", userID.String())
+		c.JSON(http.StatusBadRequest, api.NewError("messenger_handle is required for messenger contact mode", api.CodeBadRequest))
+		return
+	}
+	if messengerHandle != "" && len(messengerHandle) > 255 {
+		c.JSON(http.StatusBadRequest, api.NewError("messenger_handle must not exceed 255 characters", api.CodeBadRequest))
 		return
 	}
 	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
@@ -150,12 +206,17 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	}
 
 	// Insert booking first; create Zoom meeting after so no orphaned meeting on DB failure.
+	var messengerNS sql.NullString
+	if messengerHandle != "" {
+		messengerNS = sql.NullString{String: messengerHandle, Valid: true}
+	}
 	booking, err := h.repo.CreateBooking(ctx, db.CreateDiscoveryBookingParams{
 		UserID:           uuid.NullUUID{UUID: userID, Valid: true},
 		Name:             req.Name,
 		Email:            string(req.Email),
-		ContactMode:      string(req.ContactMode),
+		ContactMode:      mode,
 		PhoneNumber:      nullString(req.PhoneNumber),
+		MessengerHandle:  messengerNS,
 		SelectedDatetime: selectedTime,
 		ClientTimezone:   req.Timezone,
 	})
@@ -172,8 +233,11 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
-	if req.ContactMode == api.ZoomMeeting {
-		zoomLink, zoomMeetingID = h.createMeetingWithRetry(ctx, selectedTime)
+	// Mint a meeting URL only for contact modes that actually have a
+	// server-side provider. `phone_callback` and `messenger` are
+	// handle-only modes — nothing to create.
+	if platform := contactModeToPlatform(mode); platform != "" {
+		zoomLink, zoomMeetingID = h.createMeetingWithRetry(ctx, platform, selectedTime)
 		if zoomLink != "" {
 			if updated, err := h.repo.UpdateBookingZoom(ctx, db.UpdateDiscoveryBookingZoomParams{
 				ID:              booking.ID,
@@ -625,8 +689,12 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	newZoomLink := booking.ZoomMeetingLink
 	newZoomMeetingID := booking.ZoomMeetingID
 	oldZoomMeetingID := ""
-	if booking.ContactMode == "zoom_meeting" {
-		link, meetID := h.createMeetingWithRetry(ctx, newTime)
+	// Reschedule keeps the same platform the original booking chose.
+	// Only zoom_meeting and google_meet flow through here; phone +
+	// messenger modes have no URL to refresh.
+	reschedulePlatform := contactModeToPlatform(booking.ContactMode)
+	if reschedulePlatform != "" {
+		link, meetID := h.createMeetingWithRetry(ctx, reschedulePlatform, newTime)
 		if link != "" {
 			if booking.ZoomMeetingID.Valid {
 				oldZoomMeetingID = booking.ZoomMeetingID.String
@@ -662,7 +730,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 		if newZoomMeetingID.Valid {
 			cleanCtx, cleanCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cleanCancel()
-			if delErr := h.orgMeeting(cleanCtx).DeleteMeeting(cleanCtx, newZoomMeetingID.String); delErr != nil {
+			if delErr := h.orgMeeting(cleanCtx, reschedulePlatform).DeleteMeeting(cleanCtx, newZoomMeetingID.String); delErr != nil {
 				h.log.Error("orphaned zoom meeting after DB failure — manual cleanup required",
 					"meeting_id", newZoomMeetingID.String, "err", delErr)
 			}
@@ -683,7 +751,7 @@ func (h *Handler) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID)
 	if oldZoomMeetingID != "" {
 		delCtx, delCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer delCancel()
-		if err := h.orgMeeting(delCtx).DeleteMeeting(delCtx, oldZoomMeetingID); err != nil {
+		if err := h.orgMeeting(delCtx, reschedulePlatform).DeleteMeeting(delCtx, oldZoomMeetingID); err != nil {
 			h.log.Warn("failed to delete old zoom meeting — may require manual cleanup",
 				"meeting_id", oldZoomMeetingID, "err", err)
 		}
@@ -771,10 +839,10 @@ func (h *Handler) validateAgainstSlots(ctx context.Context, selectedTime time.Ti
 	return fmt.Errorf("selected time is outside available booking hours")
 }
 
-func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Time) (link, meetingID string) {
-	prov := h.orgMeeting(ctx)
+func (h *Handler) createMeetingWithRetry(ctx context.Context, platform string, startTime time.Time) (link, meetingID string) {
+	prov := h.orgMeeting(ctx, platform)
 	if !prov.IsConfigured() {
-		h.log.Warn("meeting provider not configured — skipping meeting creation")
+		h.log.Warn("meeting provider not configured — skipping meeting creation", "platform", platform)
 		return "", ""
 	}
 	const maxAttempts = 3
@@ -788,7 +856,7 @@ func (h *Handler) createMeetingWithRetry(ctx context.Context, startTime time.Tim
 		if err == nil {
 			return l, id
 		}
-		h.log.Warn("zoom meeting creation failed, retrying", "attempt", attempt, "err", err)
+		h.log.Warn("meeting creation failed, retrying", "platform", platform, "attempt", attempt, "err", err)
 		if attempt < maxAttempts {
 			select {
 			case <-time.After(time.Duration(attempt) * time.Second):

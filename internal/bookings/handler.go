@@ -223,7 +223,16 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	} else {
 		h.log.Warn("failed to resolve trainer user_id for meeting provider — falling back to org", "trainer_id", booking.TrainerID, "err", tErr)
 	}
-	meetingProv := h.meetings.For(ctx, trainerUserID)
+	// Reschedule reuses whatever platform the original booking was on
+	// (a paid booking can't change platform mid-life). Default to zoom
+	// when the column is somehow blank — the existing column has a
+	// `DEFAULT 'zoom'` at the schema level so this is just defence in
+	// depth.
+	platform := booking.SessionPlatform.String
+	if platform == "" {
+		platform = meeting.PlatformZoom
+	}
+	meetingProv := h.meetings.For(ctx, trainerUserID, platform)
 
 	newZoomLink := booking.ZoomMeetingLink
 	newZoomMeetingID := booking.ZoomMeetingID

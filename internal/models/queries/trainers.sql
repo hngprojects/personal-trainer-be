@@ -289,8 +289,12 @@ ORDER BY booking_count DESC;
 -- Returns the user_id so the caller can confirm who was deactivated.
 -- Returns no rows if the trainer_id doesn't exist or the account is
 -- already inactive, letting the handler distinguish 404 vs 409.
-UPDATE users SET is_active = false, updated_at = NOW()
-WHERE id = (SELECT user_id FROM trainers WHERE id = sqlc.arg(trainer_id))
-  AND role = 'trainer'
-  AND is_active = true
-RETURNING id;
+-- Disambiguate column references: sqlc's parser otherwise can't tell
+-- which `id` the inner subquery means (users.id or trainers.id).
+-- Postgres handles it fine at runtime via scoping rules; sqlc needs
+-- explicit aliases on both sides.
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = (SELECT t.user_id FROM trainers t WHERE t.id = sqlc.arg(trainer_id))
+  AND u.role = 'trainer'
+  AND u.is_active = true
+RETURNING u.id;

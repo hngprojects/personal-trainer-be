@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,13 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 }
 
 func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
-	var request api.CreateBookingJSONBody
+	// Embed the generated body so existing fields bind unchanged, then
+	// extend with messenger_handle which lives in api.yaml but isn't
+	// in gen.go yet (codegen catch-up tracked separately).
+	var request struct {
+		api.CreateBookingJSONBody
+		MessengerHandle *string `json:"messenger_handle,omitempty"`
+	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Warn("error binding request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
@@ -129,13 +136,36 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Warn("HandleCreateBookingSession: scheduled_start is in the past")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking start time must be in the future"})
 	}
-	if !common.IsNotEmpty(string(request.SessionPlatform)) {
+	// session_platform validation: accept the values the bookings
+	// CHECK constraint allows after migration 000058. The generated
+	// `request.SessionPlatform.Valid()` enum doesn't know about
+	// `messenger` yet — same staleness reason as the embed above.
+	platformStr := string(request.SessionPlatform)
+	if !common.IsNotEmpty(platformStr) {
 		h.log.Warn("HandleCreateBookingSession: session_platform is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
+	} else {
+		switch platformStr {
+		case "zoom", "google_meet", "messenger":
+			// ok
+		default:
+			h.log.Warn("HandleCreateBookingSession: invalid session_platform", "value", platformStr)
+			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, or messenger"})
+		}
 	}
-	if !request.SessionPlatform.Valid() {
-		h.log.Warn("HandleCreateBookingSession: invalid session_platform")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
+	// messenger_handle is required when platform=messenger; otherwise
+	// optional + ignored. Free-form text up to 255 chars (cap matches
+	// the discovery handler's validation; Facebook handles vary wildly
+	// in format so we don't try to match a pattern).
+	var messengerHandle string
+	if request.MessengerHandle != nil {
+		messengerHandle = strings.TrimSpace(*request.MessengerHandle)
+	}
+	if platformStr == "messenger" && messengerHandle == "" {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle is required when session_platform is messenger"})
+	}
+	if len(messengerHandle) > 255 {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle must not exceed 255 characters"})
 	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
@@ -153,13 +183,18 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
+	var messengerNS sql.NullString
+	if messengerHandle != "" {
+		messengerNS = sql.NullString{Valid: true, String: messengerHandle}
+	}
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
-		SessionPlatform: sql.NullString{Valid: true, String: string(request.SessionPlatform)},
+		SessionPlatform: sql.NullString{Valid: true, String: platformStr},
+		MessengerHandle: messengerNS,
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
