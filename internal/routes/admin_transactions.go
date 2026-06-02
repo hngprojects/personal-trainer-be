@@ -30,7 +30,7 @@ type transactionItem struct {
 	CancelledAt        *time.Time `json:"cancelled_at"`
 }
 
-func (s *routerImpl) GetAdminTransactions(c *gin.Context) {
+func (s *routerImpl) GetAdminTransactions(c *gin.Context, params api.GetAdminTransactionsParams) {
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
