@@ -23,8 +23,10 @@ func (h *Handler) HandleCreateDevToken(c *gin.Context, params api.HandleCreateDe
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-
-	userID := *params.UserId
+	var userID string
+	if params.UserId != nil {
+		userID = *params.UserId
+	}
 	if params.UserId == nil {
 		userID = uuid.New().String()
 	} else if _, err := uuid.Parse(userID); err != nil {
