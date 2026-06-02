@@ -616,25 +616,6 @@ func (s *Router) Routes() *gin.Engine {
 			},
 		})
 
-		v1.GET("/admin/transactions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminTransactions(c, api.GetAdminTransactionsParams{})
-		})
-
-		v1.GET("/admin/subscriptions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminSubscriptions(c, api.GetAdminSubscriptionsParams{})
-		})
 
 		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
 			if superAdminOnly != nil {
