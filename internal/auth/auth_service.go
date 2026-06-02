@@ -60,6 +60,41 @@ func GenerateJWTToken(userId string, tokenType TokenType) (string, error) {
 	return token.SignedString(resolveSecret())
 }
 
+func GenerateTestTokens(userId uuid.UUID) (string, string, error) {
+	accessTtl := 15 * time.Minute
+	refreshTtl := 7 * 24 * time.Hour
+	if userId == uuid.Nil {
+		userId = uuid.New()
+	}
+
+	accessClaims := jwt.MapClaims{
+		"sub":  userId,
+		"exp":  time.Now().Add(accessTtl).Unix(),
+		"iat":  time.Now().Unix(),
+		"iss":  "api.fitcall",
+		"type": "access",
+		"jti":  uuid.NewString(),
+	}
+	refreshClaims := jwt.MapClaims{
+		"sub":  userId,
+		"exp":  time.Now().Add(refreshTtl).Unix(),
+		"iat":  time.Now().Unix(),
+		"iss":  "api.fitcall",
+		"type": "refresh",
+		"jti":  uuid.NewString(),
+	}
+
+	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString(resolveSecret())
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString(resolveSecret())
+	if err != nil {
+		return "", "", err
+	}
+	return accessToken, refreshToken, nil
+}
+
 // ValidateToken parses and verifies a JWT, enforcing the HMAC signing method.
 // To enforce a particular token type (access vs refresh), use
 // ValidateAccessToken / ValidateRefreshToken instead.

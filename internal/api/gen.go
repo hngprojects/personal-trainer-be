@@ -41,16 +41,22 @@ func (e AuthUserUserType) Valid() bool {
 
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
-	PhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
-	ZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
+	BookDiscoveryCallRequestContactModeGoogleMeet    BookDiscoveryCallRequestContactMode = "google_meet"
+	BookDiscoveryCallRequestContactModeMessenger     BookDiscoveryCallRequestContactMode = "messenger"
+	BookDiscoveryCallRequestContactModePhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
+	BookDiscoveryCallRequestContactModeZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
 )
 
 // Valid indicates whether the value is a known member of the BookDiscoveryCallRequestContactMode enum.
 func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	switch e {
-	case PhoneCallback:
+	case BookDiscoveryCallRequestContactModeGoogleMeet:
 		return true
-	case ZoomMeeting:
+	case BookDiscoveryCallRequestContactModeMessenger:
+		return true
+	case BookDiscoveryCallRequestContactModePhoneCallback:
+		return true
+	case BookDiscoveryCallRequestContactModeZoomMeeting:
 		return true
 	default:
 		return false
@@ -602,19 +608,19 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
-	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
-	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
-	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
+	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformMessenger  CreateBookingJSONBodySessionPlatform = "messenger"
+	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
 // Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
 func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
-	case GoogleMeet:
+	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
-	case Whatsapp:
+	case CreateBookingJSONBodySessionPlatformMessenger:
 		return true
-	case Zoom:
+	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
 	default:
 		return false
@@ -851,11 +857,20 @@ type BaseResponse struct {
 
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
+	// ContactMode How the discovery call happens. zoom_meeting + google_meet
+	// mint a server-side meeting URL on creation; phone_callback
+	// and messenger are handle-only modes where the trainer
+	// initiates contact via the channel the client supplies.
 	ContactMode BookDiscoveryCallRequestContactMode `json:"contact_mode"`
 	Email       openapi_types.Email                 `json:"email"`
-	Name        string                              `json:"name"`
 
-	// PhoneNumber Required when contact_mode is phone_callback
+	// MessengerHandle Required when contact_mode is messenger. Free-form — can be
+	// a Facebook profile slug, an m.me URL, or a numeric ID. The
+	// trainer sees this verbatim and follows up via Messenger.
+	MessengerHandle *string `json:"messenger_handle,omitempty"`
+	Name            string  `json:"name"`
+
+	// PhoneNumber Required when contact_mode is phone_callback. E.164 format.
 	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// SelectedDatetime ISO 8601 UTC datetime for the call
@@ -865,7 +880,10 @@ type BookDiscoveryCallRequest struct {
 	Timezone string `json:"timezone"`
 }
 
-// BookDiscoveryCallRequestContactMode defines model for BookDiscoveryCallRequest.ContactMode.
+// BookDiscoveryCallRequestContactMode How the discovery call happens. zoom_meeting + google_meet
+// mint a server-side meeting URL on creation; phone_callback
+// and messenger are handle-only modes where the trainer
+// initiates contact via the channel the client supplies.
 type BookDiscoveryCallRequestContactMode string
 
 // BookingSlotRequest defines model for BookingSlotRequest.
@@ -1732,8 +1750,19 @@ type HandleVerifyResetCodeJSONBody struct {
 
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
-	ScheduledEnd    time.Time                            `json:"scheduled_end"`
-	ScheduledStart  time.Time                            `json:"scheduled_start"`
+	// MessengerHandle Required when session_platform is messenger. Same
+	// semantics as the discovery booking field.
+	MessengerHandle *string   `json:"messenger_handle,omitempty"`
+	ScheduledEnd    time.Time `json:"scheduled_end"`
+	ScheduledStart  time.Time `json:"scheduled_start"`
+
+	// SessionPlatform `zoom` and `google_meet` mint a meeting URL via
+	// their respective APIs; `messenger` stores the
+	// client-supplied handle and lets the trainer follow
+	// up off-platform. The `whatsapp` value declared by
+	// earlier specs was never implemented and was
+	// dropped from the CHECK constraint in migration
+	// 000058.
 	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
 	Timezone        string                               `json:"timezone"`
 	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
@@ -1762,6 +1791,11 @@ type HandleContactUsJSONBody struct {
 	Message string              `json:"message"`
 	Name    string              `json:"name"`
 	Subject string              `json:"subject"`
+}
+
+// HandleCreateDevTokenParams defines parameters for HandleCreateDevToken.
+type HandleCreateDevTokenParams struct {
+	UserId *openapi_types.UUID `form:"user_id,omitempty" json:"user_id,omitempty"`
 }
 
 // GetDiscoverySlotsParams defines parameters for GetDiscoverySlots.
@@ -2176,7 +2210,7 @@ type ServerInterface interface {
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
-	HandleCreateDevToken(c *gin.Context)
+	HandleCreateDevToken(c *gin.Context, params HandleCreateDevTokenParams)
 	// List all active discovery slots (public)
 	// (GET /discovery-slots)
 	GetDiscoverySlots(c *gin.Context, params GetDiscoverySlotsParams)
@@ -3160,6 +3194,20 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 // HandleCreateDevToken operation middleware
 func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleCreateDevTokenParams
+
+	// ------------- Optional query parameter "user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "user_id", c.Request.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3167,7 +3215,7 @@ func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.HandleCreateDevToken(c)
+	siw.Handler.HandleCreateDevToken(c, params)
 }
 
 // GetDiscoverySlots operation middleware
