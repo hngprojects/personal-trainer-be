@@ -1,10 +1,17 @@
 -- name: CreateDiscoveryBooking :one
+-- messenger_handle is nullable — populated only when contact_mode =
+-- 'messenger'. zoom_meeting_link / zoom_meeting_id keep their column
+-- names for backward compat with existing rows but now also hold
+-- google_meet URLs when contact_mode = 'google_meet'. Renaming those
+-- columns to generic `meeting_link`/`meeting_id` is a planned cleanup
+-- migration that we deliberately deferred to keep this PR small.
 INSERT INTO discovery_bookings (
     user_id,
     name,
     email,
     contact_mode,
     phone_number,
+    messenger_handle,
     selected_datetime,
     client_timezone,
     zoom_meeting_link,
@@ -16,6 +23,7 @@ INSERT INTO discovery_bookings (
     sqlc.arg(email),
     sqlc.arg(contact_mode),
     sqlc.arg(phone_number),
+    sqlc.arg(messenger_handle),
     sqlc.arg(selected_datetime),
     sqlc.arg(client_timezone),
     sqlc.arg(zoom_meeting_link),
