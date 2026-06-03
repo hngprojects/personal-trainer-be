@@ -20,12 +20,14 @@ func DeactivatedMiddleware(q *db.Queries, log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		val, ok := c.Get(string(common.ContextKeyUserID))
 		if !ok {
-			c.Next()
+			log.Warn("DeactivatedMiddleware: missing user ID in context — failing closed")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
 			return
 		}
 		userID, ok := val.(uuid.UUID)
 		if !ok {
-			c.Next()
+			log.Warn("DeactivatedMiddleware: user ID in context is not a UUID — failing closed")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.NewError("invalid user id in context", api.CodeUnauthorized))
 			return
 		}
 

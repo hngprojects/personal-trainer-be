@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -112,10 +113,21 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 		return
 	}
 
-	page, limit, ok := parsePagination(c, nil, nil, s.logger)
-	if !ok {
-		return
+	// Parse page/limit from query string manually since this handler has no
+	// oapi-codegen params struct. Defaults: page=1, limit=10, max limit=100.
+	pageVal := 1
+	limitVal := 10
+	if p := c.Query("page"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1 {
+			pageVal = n
+		}
 	}
+	if l := c.Query("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n >= 1 && n <= 100 {
+			limitVal = n
+		}
+	}
+	page, limit := pageVal, limitVal
 
 	ctx := c.Request.Context()
 
@@ -168,9 +180,7 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 		list = append(list, m)
 	}
 
-	c.JSON(http.StatusOK, api.NewSuccessWithMeta("ACTIVE_SESSIONS_FETCHED", api.CodeOK, list, map[string]interface{}{
-		"total": total,
-	}))
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("ACTIVE_SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
 }
 
 // AdminListDiscoveryBookings handles GET /admin/discovery-bookings.
