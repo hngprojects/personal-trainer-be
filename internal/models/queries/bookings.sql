@@ -269,7 +269,7 @@ OFFSET sqlc.arg(page_offset);
 SELECT COUNT(*) FROM bookings;
 
 -- name: ListActiveBookingsForAdmin :many
--- Admin view of sessions currently in progress (started or in-session).
+-- Admin view of sessions currently in progress (started or in-session). Paginated.
 SELECT
   b.id,
   b.trainer_id,
@@ -293,7 +293,9 @@ JOIN trainers t            ON t.id            = b.trainer_id
 JOIN users    trainer_user ON trainer_user.id = t.user_id
 LEFT JOIN booking_session bs ON bs.booking_id = b.id
 WHERE b.booking_status IN ('started', 'in-session')
-ORDER BY b.scheduled_start ASC;
+ORDER BY b.scheduled_start ASC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
 
 -- name: CountActiveBookingsForAdmin :one
 SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session');

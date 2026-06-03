@@ -613,7 +613,14 @@ JOIN users    trainer_user ON trainer_user.id = t.user_id
 LEFT JOIN booking_session bs ON bs.booking_id = b.id
 WHERE b.booking_status IN ('started', 'in-session')
 ORDER BY b.scheduled_start ASC
+LIMIT $2
+OFFSET $1
 `
+
+type ListActiveBookingsForAdminParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
 
 type ListActiveBookingsForAdminRow struct {
 	ID              uuid.UUID
@@ -634,9 +641,9 @@ type ListActiveBookingsForAdminRow struct {
 	SessionID       uuid.NullUUID
 }
 
-// Admin view of sessions currently in progress (started or in-session).
-func (q *Queries) ListActiveBookingsForAdmin(ctx context.Context) ([]ListActiveBookingsForAdminRow, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveBookingsForAdmin)
+// Admin view of sessions currently in progress (started or in-session). Paginated.
+func (q *Queries) ListActiveBookingsForAdmin(ctx context.Context, arg ListActiveBookingsForAdminParams) ([]ListActiveBookingsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveBookingsForAdmin, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

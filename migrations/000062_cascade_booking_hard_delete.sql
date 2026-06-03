@@ -19,7 +19,7 @@ ALTER TABLE payments
 ALTER TABLE payments
     DROP CONSTRAINT payments_subscription_id_fkey,
     ADD CONSTRAINT payments_subscription_id_fkey
-        FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE;
+        FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL;
 
 -- +goose Down
 ALTER TABLE booking_session

@@ -256,6 +256,22 @@ func (s *routerImpl) DeleteMyAccount(c *gin.Context) {
 		return
 	}
 
+	// Verify the account exists and get the role before attempting deletion.
+	user, err := s.users.q.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("account not found", api.CodeNotFound))
+			return
+		}
+		s.logger.Error("delete account: db lookup error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete account", api.CodeServerError))
+		return
+	}
+	if user.Role != "client" {
+		c.JSON(http.StatusForbidden, api.NewError("only client accounts can be self-deleted", api.CodeForbidden))
+		return
+	}
+
 	rows, err := s.users.q.HardDeleteClient(c.Request.Context(), userID)
 	if err != nil {
 		s.logger.Error("delete account: db error", "userID", userID, "err", err)

@@ -112,6 +112,11 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 		return
 	}
 
+	page, limit, ok := parsePagination(c, nil, nil, s.logger)
+	if !ok {
+		return
+	}
+
 	ctx := c.Request.Context()
 
 	total, err := s.bookings.q.CountActiveBookingsForAdmin(ctx)
@@ -121,7 +126,10 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 		return
 	}
 
-	rows, err := s.bookings.q.ListActiveBookingsForAdmin(ctx)
+	rows, err := s.bookings.q.ListActiveBookingsForAdmin(ctx, db.ListActiveBookingsForAdminParams{
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
 	if err != nil {
 		s.logger.Error("list active sessions failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to list active sessions", api.CodeServerError))
