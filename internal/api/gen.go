@@ -2112,9 +2112,9 @@ type ServerInterface interface {
 	// Deactivate a client account (super_admin only)
 	// (DELETE /admin/clients/{id})
 	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
-	// Get a single client by ID (super_admin only)
-	// (GET /admin/clients/{id})
-	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
+	// Permanently delete a client and all their data (super_admin only)
+	// (DELETE /admin/clients/{id}/permanent)
+	HardDeleteAdminClient(c *gin.Context, id openapi_types.UUID)
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
@@ -2124,6 +2124,9 @@ type ServerInterface interface {
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// List sessions currently in progress (super_admin only)
+	// (GET /admin/sessions/active)
+	AdminListActiveSessions(c *gin.Context)
 	// Cancel a session (super_admin only)
 	// (PUT /admin/sessions/{id}/cancel)
 	AdminCancelSession(c *gin.Context, id openapi_types.UUID)
@@ -2361,6 +2364,9 @@ type ServerInterface interface {
 	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
+	// Deactivate own account
+	// (POST /users/me/deactivate)
+	DeactivateMyAccount(c *gin.Context)
 	// Get the authenticated user's profile
 	// (GET /users/me/profile)
 	GetUserProfile(c *gin.Context)
@@ -2370,6 +2376,9 @@ type ServerInterface interface {
 	// Upload an avatar image
 	// (POST /users/me/profile/picture)
 	UploadProfilePicture(c *gin.Context)
+	// Reactivate own account
+	// (POST /users/me/reactivate)
+	ReactivateMyAccount(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -2493,8 +2502,8 @@ func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
 	siw.Handler.DeleteAdminClient(c, id)
 }
 
-// GetAdminClientByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
+// HardDeleteAdminClient operation middleware
+func (siw *ServerInterfaceWrapper) HardDeleteAdminClient(c *gin.Context) {
 
 	var err error
 	_ = err
@@ -2517,7 +2526,7 @@ func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetAdminClientByID(c, id)
+	siw.Handler.HardDeleteAdminClient(c, id)
 }
 
 // AdminListDiscoveryBookings operation middleware
@@ -2607,6 +2616,21 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	}
 
 	siw.Handler.AdminListSessions(c, params)
+}
+
+// AdminListActiveSessions operation middleware
+func (siw *ServerInterfaceWrapper) AdminListActiveSessions(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListActiveSessions(c)
 }
 
 // AdminCancelSession operation middleware
@@ -4451,6 +4475,21 @@ func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
 	siw.Handler.GetTrainerReviews(c, id, params)
 }
 
+// DeactivateMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeactivateMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeactivateMyAccount(c)
+}
+
 // GetUserProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetUserProfile(c *gin.Context) {
 
@@ -4494,6 +4533,21 @@ func (siw *ServerInterfaceWrapper) UploadProfilePicture(c *gin.Context) {
 	}
 
 	siw.Handler.UploadProfilePicture(c)
+}
+
+// ReactivateMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) ReactivateMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReactivateMyAccount(c)
 }
 
 // HandleGetWaitlist operation middleware
@@ -4595,10 +4649,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
 	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
-	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
+	router.DELETE(options.BaseURL+"/admin/clients/:id/permanent", wrapper.HardDeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.GET(options.BaseURL+"/admin/sessions/active", wrapper.AdminListActiveSessions)
 	router.PUT(options.BaseURL+"/admin/sessions/:id/cancel", wrapper.AdminCancelSession)
 	router.PUT(options.BaseURL+"/admin/sessions/:id/reschedule", wrapper.AdminRescheduleSession)
 	router.GET(options.BaseURL+"/admin/subscriptions", wrapper.GetAdminSubscriptions)
@@ -4678,9 +4733,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers/:id/intro-video", wrapper.UploadTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/intro-video/stream", wrapper.StreamTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
+	router.POST(options.BaseURL+"/users/me/deactivate", wrapper.DeactivateMyAccount)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
 	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
+	router.POST(options.BaseURL+"/users/me/reactivate", wrapper.ReactivateMyAccount)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 	router.POST(options.BaseURL+"/webhooks/apple", wrapper.HandleAppleWebhook)

@@ -165,6 +165,17 @@ func (q *Queries) CheckPaidBookingConflict(ctx context.Context, arg CheckPaidBoo
 	return count, err
 }
 
+const countActiveBookingsForAdmin = `-- name: CountActiveBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session')
+`
+
+func (q *Queries) CountActiveBookingsForAdmin(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveBookingsForAdmin)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countBookingsByTrainer = `-- name: CountBookingsByTrainer :one
 SELECT COUNT(*) FROM bookings WHERE trainer_id = $1
 `
@@ -563,6 +574,93 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 			&i.TrainerName,
 			pq.Array(&i.TrainerSpecializations),
 			&i.TrainerPhoto,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveBookingsForAdmin = `-- name: ListActiveBookingsForAdmin :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.booking_status IN ('started', 'in-session')
+ORDER BY b.scheduled_start ASC
+`
+
+type ListActiveBookingsForAdminRow struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	ClientID        uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	Timezone        sql.NullString
+	BookingStatus   sql.NullString
+	SessionPlatform sql.NullString
+	CreatedAt       sql.NullTime
+	CancelledAt     sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ClientName      string
+	ClientEmail     string
+	TrainerName     string
+	TrainerEmail    string
+	SessionID       uuid.NullUUID
+}
+
+// Admin view of sessions currently in progress (started or in-session).
+func (q *Queries) ListActiveBookingsForAdmin(ctx context.Context) ([]ListActiveBookingsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveBookingsForAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveBookingsForAdminRow
+	for rows.Next() {
+		var i ListActiveBookingsForAdminRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}

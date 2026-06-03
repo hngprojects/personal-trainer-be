@@ -104,6 +104,61 @@ func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessi
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
 }
 
+// AdminListActiveSessions handles GET /admin/sessions/active.
+func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
+	if s.bookings == nil {
+		s.logger.Warn("AdminListActiveSessions: bookings store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	total, err := s.bookings.q.CountActiveBookingsForAdmin(ctx)
+	if err != nil {
+		s.logger.Error("count active sessions failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list active sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.bookings.q.ListActiveBookingsForAdmin(ctx)
+	if err != nil {
+		s.logger.Error("list active sessions failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list active sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		m := map[string]interface{}{
+			"id":               r.ID.String(),
+			"trainer_id":       r.TrainerID.String(),
+			"client_id":        r.ClientID.String(),
+			"client_name":      r.ClientName,
+			"client_email":     r.ClientEmail,
+			"trainer_name":     r.TrainerName,
+			"trainer_email":    r.TrainerEmail,
+			"booking_status":   r.BookingStatus,
+			"session_platform": r.SessionPlatform,
+			"created_at":       r.CreatedAt,
+		}
+		if r.ScheduledStart.Valid {
+			m["scheduled_start"] = r.ScheduledStart.Time
+		}
+		if r.ScheduledEnd.Valid {
+			m["scheduled_end"] = r.ScheduledEnd.Time
+		}
+		if r.SessionID.Valid {
+			m["session_id"] = r.SessionID.UUID.String()
+		}
+		list = append(list, m)
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("ACTIVE_SESSIONS_FETCHED", api.CodeOK, list, map[string]interface{}{
+		"total": total,
+	}))
+}
+
 // AdminListDiscoveryBookings handles GET /admin/discovery-bookings.
 // Paginated list of every row in discovery_bookings, newest scheduled
 // time first.
@@ -489,4 +544,34 @@ func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("client deactivated successfully", api.CodeOK, nil))
+}
+
+// DELETE /admin/clients/:id/permanent
+func (s *routerImpl) HardDeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
+	if s.trainers == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	clientID := uuid.UUID(id)
+
+	ctx := c.Request.Context()
+
+	// Confirm the user exists and is a client before deleting.
+	if _, err := s.trainers.q.GetClientByID(ctx, clientID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to get client", api.CodeServerError))
+		return
+	}
+
+	if err := s.trainers.q.HardDeleteClient(ctx, clientID); err != nil {
+		s.logger.Error("hard delete client: db error", "clientID", clientID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete client", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("client permanently deleted", api.CodeOK, nil))
 }

@@ -184,3 +184,59 @@ func (s *routerImpl) GetUserProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("Profile fetched", api.CodeOK, userToProfileMap(user)))
 }
+
+// POST /users/me/deactivate
+func (s *routerImpl) DeactivateMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	_, err := s.users.q.DeactivateSelf(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("account is already deactivated", api.CodeConflict))
+			return
+		}
+		s.logger.Error("deactivate account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate account", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account deactivated successfully", api.CodeOK, nil))
+}
+
+// POST /users/me/reactivate
+// This endpoint is intentionally exempt from DeactivatedMiddleware so
+// deactivated users can reach it after logging in.
+func (s *routerImpl) ReactivateMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	_, err := s.users.q.ReactivateSelf(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("account is already active", api.CodeConflict))
+			return
+		}
+		s.logger.Error("reactivate account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to reactivate account", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account reactivated successfully", api.CodeOK, nil))
+}

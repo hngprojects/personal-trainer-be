@@ -608,6 +608,11 @@ func (s *Router) Routes() *gin.Engine {
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
+		var deactivatedMw gin.HandlerFunc
+		if q != nil {
+			deactivatedMw = middleware.DeactivatedMiddleware(q, s.log)
+		}
+
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
 				func(c *gin.Context) {
@@ -615,6 +620,13 @@ func (s *Router) Routes() *gin.Engine {
 						authMw(c)
 						if c.IsAborted() {
 							return
+						}
+						// Block deactivated users on all auth'd routes except reactivate.
+						if deactivatedMw != nil && c.FullPath() != "/api/v1/users/me/reactivate" {
+							deactivatedMw(c)
+							if c.IsAborted() {
+								return
+							}
 						}
 					}
 					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
