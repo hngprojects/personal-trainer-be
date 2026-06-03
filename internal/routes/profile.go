@@ -184,3 +184,104 @@ func (s *routerImpl) GetUserProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("Profile fetched", api.CodeOK, userToProfileMap(user)))
 }
+
+// POST /users/me/deactivate
+func (s *routerImpl) DeactivateMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	_, err := s.users.q.DeactivateSelf(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("account is already deactivated", api.CodeConflict))
+			return
+		}
+		s.logger.Error("deactivate account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate account", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account deactivated successfully", api.CodeOK, nil))
+}
+
+// POST /users/me/reactivate
+// This endpoint is intentionally exempt from DeactivatedMiddleware so
+// deactivated users can reach it after logging in.
+func (s *routerImpl) ReactivateMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	_, err := s.users.q.ReactivateSelf(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusConflict, api.NewError("account is already active", api.CodeConflict))
+			return
+		}
+		s.logger.Error("reactivate account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to reactivate account", api.CodeServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account reactivated successfully", api.CodeOK, nil))
+}
+
+// DELETE /users/me
+// Permanently deletes the authenticated user's account and all their data.
+// This action is irreversible.
+func (s *routerImpl) DeleteMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	// Verify the account exists and get the role before attempting deletion.
+	user, err := s.users.q.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewError("account not found", api.CodeNotFound))
+			return
+		}
+		s.logger.Error("delete account: db lookup error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete account", api.CodeServerError))
+		return
+	}
+	if user.Role != "client" {
+		c.JSON(http.StatusForbidden, api.NewError("only client accounts can be self-deleted", api.CodeForbidden))
+		return
+	}
+
+	rows, err := s.users.q.HardDeleteClient(c.Request.Context(), userID)
+	if err != nil {
+		s.logger.Error("delete account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete account", api.CodeServerError))
+		return
+	}
+	if rows == 0 {
+		c.JSON(http.StatusNotFound, api.NewError("account not found", api.CodeNotFound))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account permanently deleted", api.CodeOK, nil))
+}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -102,6 +103,84 @@ func (s *routerImpl) AdminListSessions(c *gin.Context, params api.AdminListSessi
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccessWithMeta("SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
+}
+
+// AdminListActiveSessions handles GET /admin/sessions/active.
+func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
+	if s.bookings == nil {
+		s.logger.Warn("AdminListActiveSessions: bookings store is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	// Parse page/limit from query string manually since this handler has no
+	// oapi-codegen params struct. Defaults: page=1, limit=10, max limit=100.
+	pageVal := 1
+	limitVal := 10
+	if p := c.Query("page"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n >= 1 {
+			pageVal = n
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if n, err := strconv.Atoi(l); err == nil && n >= 1 && n <= 100 {
+			limitVal = n
+		}
+	}
+	page, limit := pageVal, limitVal
+
+	ctx := c.Request.Context()
+
+	total, err := s.bookings.q.CountActiveBookingsForAdmin(ctx)
+	if err != nil {
+		s.logger.Error("count active sessions failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list active sessions", api.CodeServerError))
+		return
+	}
+
+	rows, err := s.bookings.q.ListActiveBookingsForAdmin(ctx, db.ListActiveBookingsForAdminParams{
+		PageLimit:  int32(limit),
+		PageOffset: int32((page - 1) * limit),
+	})
+	if err != nil {
+		s.logger.Error("list active sessions failed", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to list active sessions", api.CodeServerError))
+		return
+	}
+
+	list := make([]map[string]interface{}, 0, len(rows))
+	for _, r := range rows {
+		m := map[string]interface{}{
+			"id":           r.ID.String(),
+			"trainer_id":   r.TrainerID.String(),
+			"client_id":    r.ClientID.String(),
+			"client_name":  r.ClientName,
+			"client_email": r.ClientEmail,
+			"trainer_name": r.TrainerName,
+			"trainer_email": r.TrainerEmail,
+		}
+		if r.ScheduledStart.Valid {
+			m["scheduled_start"] = r.ScheduledStart.Time
+		}
+		if r.ScheduledEnd.Valid {
+			m["scheduled_end"] = r.ScheduledEnd.Time
+		}
+		if r.BookingStatus.Valid {
+			m["booking_status"] = r.BookingStatus.String
+		}
+		if r.SessionPlatform.Valid {
+			m["session_platform"] = r.SessionPlatform.String
+		}
+		if r.CreatedAt.Valid {
+			m["created_at"] = r.CreatedAt.Time
+		}
+		if r.SessionID.Valid {
+			m["session_id"] = r.SessionID.UUID.String()
+		}
+		list = append(list, m)
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccessWithMeta("ACTIVE_SESSIONS_FETCHED", api.CodeOK, list, api.NewPaginationMeta(page, limit, int(total))))
 }
 
 // AdminListDiscoveryBookings handles GET /admin/discovery-bookings.
@@ -490,3 +569,4 @@ func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("client deactivated successfully", api.CodeOK, nil))
 }
+

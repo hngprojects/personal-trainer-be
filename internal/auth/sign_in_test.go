@@ -160,7 +160,10 @@ func TestSignIn_UnknownEmailRejected(t *testing.T) {
 	}
 }
 
-func TestSignIn_InactiveUserRejected(t *testing.T) {
+func TestSignIn_InactiveUserAllowed(t *testing.T) {
+	// Deactivated users are allowed to log in — they receive a valid token
+	// but are blocked by DeactivatedMiddleware on every protected route.
+	// This lets them reach POST /users/me/reactivate to restore access.
 	t.Setenv("JWT_SECRET", "test-secret")
 	u := signInUser(t, "deactivated@example.com", "real-password")
 	u.IsActive = false
@@ -170,14 +173,11 @@ func TestSignIn_InactiveUserRejected(t *testing.T) {
 	w := doLocalRequest(t, http.MethodPost, "/auth/login",
 		`{"email":"deactivated@example.com","password":"real-password"}`, h.SignIn)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for inactive user, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for inactive user (blocked at middleware, not login), got %d: %s", w.Code, w.Body.String())
 	}
-	// Inactive must NOT return a distinct message — same generic
-	// 'invalid email or password' so an attacker can't tell that the
-	// account exists but was deactivated.
-	if !strings.Contains(strings.ToLower(w.Body.String()), "invalid email or password") {
-		t.Fatalf("inactive must return same generic message as wrong password (no enumeration), got: %s", w.Body.String())
+	if !strings.Contains(w.Body.String(), "access_token") {
+		t.Fatalf("expected access_token in response for inactive user, got: %s", w.Body.String())
 	}
 }
 

@@ -564,24 +564,58 @@ func (s *Router) Routes() *gin.Engine {
 			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
 		}
 
+		// Build deactivation middleware early so hand-wired routes (Zoom,
+		// WebSocket, Activities) enforce the same deactivation check as the
+		// oapi-codegen routes.
+		//
+		// For routes whose register() signature accepts a single authMw, we use
+		// a sub-group that applies authMw at the group level so it runs FIRST
+		// (before c.Next() is called), then pass deactivatedMw as the
+		// per-route middleware — Gin chains them as [authMw → deactivatedMw →
+		// handler] without the c.Next()-advances-chain-too-early problem.
+		var deactivatedMw gin.HandlerFunc
+		if q != nil {
+			deactivatedMw = middleware.DeactivatedMiddleware(q, s.log)
+		}
+
+		// authedGroup: authMw at group level, deactivatedMw passed per-route.
+		// Chain: [authMw, deactivatedMw, handler] — correct order.
+		authedGroup := v1.Group("")
+		authedGroup.Use(authMw)
+		perRouteMw := func() gin.HandlerFunc {
+			if deactivatedMw != nil {
+				return deactivatedMw
+			}
+			return func(c *gin.Context) { c.Next() }
+		}()
+
 		// Hand-wired Zoom routes (per-trainer OAuth + SDK join-info +
 		// public config). Registered on v1 alongside the oapi-generated
 		// handlers so they share the same auth middleware story but
 		// don't depend on api.yaml + oapi-codegen.
 		if impl.zoomOAuth != nil {
-			impl.zoomOAuth.register(v1, authMw)
+			impl.zoomOAuth.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomJoinInfo != nil {
-			impl.zoomJoinInfo.register(v1, authMw)
+			impl.zoomJoinInfo.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomConfig != nil {
-			impl.zoomConfig.register(v1, authMw)
+			impl.zoomConfig.register(authedGroup, perRouteMw)
 		}
 		if impl.wsHub != nil {
-			v1.GET("/notifications/ws", middleware.WebSocketAuthMiddleware(authRedis, s.log), websocket.UpgradeHandler(
+			// WebSocket uses its own auth middleware (token in query param).
+			// Deactivation check runs after WS auth confirms the user.
+			wsHandlers := []gin.HandlerFunc{
+				middleware.WebSocketAuthMiddleware(authRedis, s.log),
+			}
+			if deactivatedMw != nil {
+				wsHandlers = append(wsHandlers, deactivatedMw)
+			}
+			wsHandlers = append(wsHandlers, websocket.UpgradeHandler(
 				impl.wsHub, s.log,
 				impl.notificationService.DeliverPendingNotifOnConn,
 			))
+			v1.GET("/notifications/ws", wsHandlers...)
 		}
 
 		// Hand-wired recent-activities routes. Same rationale as the
@@ -593,7 +627,9 @@ func (s *Router) Routes() *gin.Engine {
 		if s.db != nil && q != nil {
 			activitiesRepo := activities.NewPostgresRepo(s.db)
 			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
-			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+			// Register on authedGroup (authMw already in chain) so deactivation
+			// check runs before the handler via the group-level middleware.
+			activitiesHandler.Register(authedGroup, perRouteMw, gin.HandlerFunc(superAdminOnly))
 		}
 
 		// Settings + categories — admin settings page, plus the
@@ -615,6 +651,19 @@ func (s *Router) Routes() *gin.Engine {
 						authMw(c)
 						if c.IsAborted() {
 							return
+						}
+						// Block deactivated users on all auth'd routes except:
+						// - reactivate: so they can restore their account
+						// - deactivate: so a second call returns 409, not 403
+						// - DELETE /users/me: so they can permanently delete their account
+						exempt := c.FullPath() == "/api/v1/users/me/reactivate" ||
+							c.FullPath() == "/api/v1/users/me/deactivate" ||
+							(c.FullPath() == "/api/v1/users/me" && c.Request.Method == "DELETE")
+						if deactivatedMw != nil && !exempt {
+							deactivatedMw(c)
+							if c.IsAborted() {
+								return
+							}
 						}
 					}
 					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
