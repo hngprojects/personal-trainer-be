@@ -5387,6 +5387,13 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: status
+          in: query
+          required: false
+          description: Filter by booking status. Omit to return all statuses.
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed]
       responses:
         "200":
           description: Discovery bookings retrieved

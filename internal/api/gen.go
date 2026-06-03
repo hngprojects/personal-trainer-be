@@ -570,6 +570,30 @@ func (e GetAdminClientsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminListDiscoveryBookingsParamsStatus.
+const (
+	AdminListDiscoveryBookingsParamsStatusCancelled AdminListDiscoveryBookingsParamsStatus = "cancelled"
+	AdminListDiscoveryBookingsParamsStatusCompleted AdminListDiscoveryBookingsParamsStatus = "completed"
+	AdminListDiscoveryBookingsParamsStatusConfirmed AdminListDiscoveryBookingsParamsStatus = "confirmed"
+	AdminListDiscoveryBookingsParamsStatusPending   AdminListDiscoveryBookingsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AdminListDiscoveryBookingsParamsStatus enum.
+func (e AdminListDiscoveryBookingsParamsStatus) Valid() bool {
+	switch e {
+	case AdminListDiscoveryBookingsParamsStatusCancelled:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusCompleted:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusConfirmed:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetAdminSubscriptionsParamsStatus.
 const (
 	GetAdminSubscriptionsParamsStatusActive    GetAdminSubscriptionsParamsStatus = "active"
@@ -731,22 +755,22 @@ func (e GetTrainersParamsOnboardingStatus) Valid() bool {
 
 // Defines values for HandleValidateSetupToken200JSONResponseBodyDataStatus.
 const (
-	HandleValidateSetupToken200JSONResponseBodyDataStatusConsumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
-	HandleValidateSetupToken200JSONResponseBodyDataStatusExpired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
-	HandleValidateSetupToken200JSONResponseBodyDataStatusInvalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
-	HandleValidateSetupToken200JSONResponseBodyDataStatusValid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
+	Consumed HandleValidateSetupToken200JSONResponseBodyDataStatus = "consumed"
+	Expired  HandleValidateSetupToken200JSONResponseBodyDataStatus = "expired"
+	Invalid  HandleValidateSetupToken200JSONResponseBodyDataStatus = "invalid"
+	Valid    HandleValidateSetupToken200JSONResponseBodyDataStatus = "valid"
 )
 
 // Valid indicates whether the value is a known member of the HandleValidateSetupToken200JSONResponseBodyDataStatus enum.
 func (e HandleValidateSetupToken200JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
-	case HandleValidateSetupToken200JSONResponseBodyDataStatusConsumed:
+	case Consumed:
 		return true
-	case HandleValidateSetupToken200JSONResponseBodyDataStatusExpired:
+	case Expired:
 		return true
-	case HandleValidateSetupToken200JSONResponseBodyDataStatusInvalid:
+	case Invalid:
 		return true
-	case HandleValidateSetupToken200JSONResponseBodyDataStatusValid:
+	case Valid:
 		return true
 	default:
 		return false
@@ -1667,7 +1691,13 @@ type GetAdminClientsParamsStatus string
 type AdminListDiscoveryBookingsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Filter by booking status. Omit to return all statuses.
+	Status *AdminListDiscoveryBookingsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
+
+// AdminListDiscoveryBookingsParamsStatus defines parameters for AdminListDiscoveryBookings.
+type AdminListDiscoveryBookingsParamsStatus string
 
 // AdminListSessionsParams defines parameters for AdminListSessions.
 type AdminListSessionsParams struct {
@@ -2544,6 +2574,14 @@ func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
 		return
 	}
 

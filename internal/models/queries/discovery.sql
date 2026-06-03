@@ -45,13 +45,17 @@ ORDER BY selected_datetime ASC;
 -- Admin paginated view of every discovery call ever booked. Newest first so
 -- the most-recent activity is the top of page 1; supports
 -- LIMIT/OFFSET pagination matching the admin sessions endpoint.
+-- Pass empty string for status to return all statuses.
 SELECT * FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text)
 ORDER BY selected_datetime DESC, id DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
 
 -- name: CountDiscoveryBookings :one
-SELECT COUNT(*) FROM discovery_bookings;
+-- Pass empty string for status to count all statuses.
+SELECT COUNT(*) FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text);
 
 -- name: GetActiveBookingSlots :many
 SELECT * FROM booking_slots
