@@ -268,6 +268,38 @@ OFFSET sqlc.arg(page_offset);
 -- name: CountBookingsForAdmin :one
 SELECT COUNT(*) FROM bookings;
 
+-- name: ListActiveBookingsForAdmin :many
+-- Admin view of sessions currently in progress (started or in-session). Paginated.
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.booking_status IN ('started', 'in-session')
+ORDER BY b.scheduled_start ASC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountActiveBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session');
+
 -- name: ListBookingsByTrainer :many
 -- Paginated list of bookings where the caller is the trainer. The trainer
 -- is identified by the trainers.id (the trainer profile row) — callers

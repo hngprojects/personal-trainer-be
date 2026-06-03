@@ -93,6 +93,19 @@ func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID
 	return id_2, err
 }
 
+const deactivateSelf = `-- name: DeactivateSelf :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE users.id = $1 AND users.is_active = true
+RETURNING users.id
+`
+
+func (q *Queries) DeactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateSelf, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getClientByID = `-- name: GetClientByID :one
 SELECT
     u.id,
@@ -249,6 +262,21 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
+const hardDeleteClient = `-- name: HardDeleteClient :execrows
+DELETE FROM users WHERE users.id = $1 AND users.role = 'client'
+`
+
+// Permanently deletes a client and all their data via FK cascade.
+// Admin-only. Role-guarded to prevent accidental deletion of admins/trainers.
+// Returns rows affected so caller can detect concurrent deletes or role mismatches.
+func (q *Queries) HardDeleteClient(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, hardDeleteClient, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const listClients = `-- name: ListClients :many
 SELECT
     u.id,
@@ -310,6 +338,19 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const reactivateSelf = `-- name: ReactivateSelf :one
+UPDATE users SET is_active = true, updated_at = NOW()
+WHERE users.id = $1 AND users.is_active = false
+RETURNING users.id
+`
+
+func (q *Queries) ReactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, reactivateSelf, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
