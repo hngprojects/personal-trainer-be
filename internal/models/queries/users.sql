@@ -132,9 +132,10 @@ UPDATE users SET is_active = true, updated_at = NOW()
 WHERE users.id = $1 AND users.is_active = false
 RETURNING users.id;
 
--- name: HardDeleteClient :exec
+-- name: HardDeleteClient :execrows
 -- Permanently deletes a client and all their data via FK cascade.
 -- Admin-only. Role-guarded to prevent accidental deletion of admins/trainers.
+-- Returns rows affected so caller can detect concurrent deletes or role mismatches.
 DELETE FROM users WHERE users.id = $1 AND users.role = 'client';
 
 

@@ -621,8 +621,12 @@ func (s *Router) Routes() *gin.Engine {
 						if c.IsAborted() {
 							return
 						}
-						// Block deactivated users on all auth'd routes except reactivate.
-						if deactivatedMw != nil && c.FullPath() != "/api/v1/users/me/reactivate" {
+						// Block deactivated users on all auth'd routes except reactivate and deactivate.
+						// Exempting deactivate lets a re-deactivation attempt reach the handler (409)
+						// rather than being silently blocked by middleware (403).
+						exempt := c.FullPath() == "/api/v1/users/me/reactivate" ||
+							c.FullPath() == "/api/v1/users/me/deactivate"
+						if deactivatedMw != nil && !exempt {
 							deactivatedMw(c)
 							if c.IsAborted() {
 								return

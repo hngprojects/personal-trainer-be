@@ -262,15 +262,19 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
-const hardDeleteClient = `-- name: HardDeleteClient :exec
+const hardDeleteClient = `-- name: HardDeleteClient :execrows
 DELETE FROM users WHERE users.id = $1 AND users.role = 'client'
 `
 
 // Permanently deletes a client and all their data via FK cascade.
 // Admin-only. Role-guarded to prevent accidental deletion of admins/trainers.
-func (q *Queries) HardDeleteClient(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, hardDeleteClient, id)
-	return err
+// Returns rows affected so caller can detect concurrent deletes or role mismatches.
+func (q *Queries) HardDeleteClient(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, hardDeleteClient, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listClients = `-- name: ListClients :many

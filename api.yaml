@@ -2498,7 +2498,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: Account already deactivated
+          description: Account already deactivated (reached when an active user calls deactivate twice)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Already deactivated and blocked by middleware (deactivated user re-calling deactivate is exempt from middleware and gets 409 instead)
           content:
             application/json:
               schema:

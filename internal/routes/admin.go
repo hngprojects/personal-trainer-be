@@ -131,22 +131,28 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 	list := make([]map[string]interface{}, 0, len(rows))
 	for _, r := range rows {
 		m := map[string]interface{}{
-			"id":               r.ID.String(),
-			"trainer_id":       r.TrainerID.String(),
-			"client_id":        r.ClientID.String(),
-			"client_name":      r.ClientName,
-			"client_email":     r.ClientEmail,
-			"trainer_name":     r.TrainerName,
-			"trainer_email":    r.TrainerEmail,
-			"booking_status":   r.BookingStatus,
-			"session_platform": r.SessionPlatform,
-			"created_at":       r.CreatedAt,
+			"id":           r.ID.String(),
+			"trainer_id":   r.TrainerID.String(),
+			"client_id":    r.ClientID.String(),
+			"client_name":  r.ClientName,
+			"client_email": r.ClientEmail,
+			"trainer_name": r.TrainerName,
+			"trainer_email": r.TrainerEmail,
 		}
 		if r.ScheduledStart.Valid {
 			m["scheduled_start"] = r.ScheduledStart.Time
 		}
 		if r.ScheduledEnd.Valid {
 			m["scheduled_end"] = r.ScheduledEnd.Time
+		}
+		if r.BookingStatus.Valid {
+			m["booking_status"] = r.BookingStatus.String
+		}
+		if r.SessionPlatform.Valid {
+			m["session_platform"] = r.SessionPlatform.String
+		}
+		if r.CreatedAt.Valid {
+			m["created_at"] = r.CreatedAt.Time
 		}
 		if r.SessionID.Valid {
 			m["session_id"] = r.SessionID.UUID.String()
@@ -567,9 +573,14 @@ func (s *routerImpl) HardDeleteAdminClient(c *gin.Context, id openapi_types.UUID
 		return
 	}
 
-	if err := s.trainers.q.HardDeleteClient(ctx, clientID); err != nil {
+	rows, err := s.trainers.q.HardDeleteClient(ctx, clientID)
+	if err != nil {
 		s.logger.Error("hard delete client: db error", "clientID", clientID, "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete client", api.CodeServerError))
+		return
+	}
+	if rows == 0 {
+		c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
 		return
 	}
 
