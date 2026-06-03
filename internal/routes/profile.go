@@ -240,3 +240,32 @@ func (s *routerImpl) ReactivateMyAccount(c *gin.Context) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("account reactivated successfully", api.CodeOK, nil))
 }
+
+// DELETE /users/me
+// Permanently deletes the authenticated user's account and all their data.
+// This action is irreversible.
+func (s *routerImpl) DeleteMyAccount(c *gin.Context) {
+	if s.users == nil {
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	userID, ok := userIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, api.NewError("missing authenticated user", api.CodeUnauthorized))
+		return
+	}
+
+	rows, err := s.users.q.HardDeleteClient(c.Request.Context(), userID)
+	if err != nil {
+		s.logger.Error("delete account: db error", "userID", userID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete account", api.CodeServerError))
+		return
+	}
+	if rows == 0 {
+		c.JSON(http.StatusNotFound, api.NewError("account not found", api.CodeNotFound))
+		return
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("account permanently deleted", api.CodeOK, nil))
+}

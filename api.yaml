@@ -4939,41 +4939,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /admin/clients/{id}/permanent:
+  /users/me:
     delete:
-      operationId: HardDeleteAdminClient
+      operationId: DeleteMyAccount
       tags:
-        - Admin
-      summary: Permanently delete a client and all their data (super_admin only)
+        - User
+      summary: Permanently delete own account
       description: |
-        Irreversible. Deletes the user row and cascades to all linked data
-        (bookings, subscriptions, sessions, notifications, devices).
-        Only works on accounts with role=client.
+        Irreversible. Deletes the authenticated user's account and all their
+        data (bookings, subscriptions, sessions, notifications, devices).
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: Client user ID
       responses:
         "200":
-          description: Client permanently deleted
+          description: Account permanently deleted
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-        "400":
-          description: Invalid client ID
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Client not found
+          description: Account not found
           content:
             application/json:
               schema:

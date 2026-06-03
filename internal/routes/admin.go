@@ -552,37 +552,3 @@ func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
 	c.JSON(http.StatusOK, api.NewSuccess("client deactivated successfully", api.CodeOK, nil))
 }
 
-// DELETE /admin/clients/:id/permanent
-func (s *routerImpl) HardDeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
-	if s.trainers == nil {
-		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
-		return
-	}
-
-	clientID := uuid.UUID(id)
-
-	ctx := c.Request.Context()
-
-	// Confirm the user exists and is a client before deleting.
-	if _, err := s.trainers.q.GetClientByID(ctx, clientID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to get client", api.CodeServerError))
-		return
-	}
-
-	rows, err := s.trainers.q.HardDeleteClient(ctx, clientID)
-	if err != nil {
-		s.logger.Error("hard delete client: db error", "clientID", clientID, "err", err)
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete client", api.CodeServerError))
-		return
-	}
-	if rows == 0 {
-		c.JSON(http.StatusNotFound, api.NewError("client not found", api.CodeNotFound))
-		return
-	}
-
-	c.JSON(http.StatusOK, api.NewSuccess("client permanently deleted", api.CodeOK, nil))
-}

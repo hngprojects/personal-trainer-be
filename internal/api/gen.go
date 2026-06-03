@@ -2112,9 +2112,6 @@ type ServerInterface interface {
 	// Deactivate a client account (super_admin only)
 	// (DELETE /admin/clients/{id})
 	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
-	// Permanently delete a client and all their data (super_admin only)
-	// (DELETE /admin/clients/{id}/permanent)
-	HardDeleteAdminClient(c *gin.Context, id openapi_types.UUID)
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
@@ -2364,6 +2361,9 @@ type ServerInterface interface {
 	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
+	// Permanently delete own account
+	// (DELETE /users/me)
+	DeleteMyAccount(c *gin.Context)
 	// Deactivate own account
 	// (POST /users/me/deactivate)
 	DeactivateMyAccount(c *gin.Context)
@@ -2500,33 +2500,6 @@ func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
 	}
 
 	siw.Handler.DeleteAdminClient(c, id)
-}
-
-// HardDeleteAdminClient operation middleware
-func (siw *ServerInterfaceWrapper) HardDeleteAdminClient(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.HardDeleteAdminClient(c, id)
 }
 
 // AdminListDiscoveryBookings operation middleware
@@ -4475,6 +4448,21 @@ func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
 	siw.Handler.GetTrainerReviews(c, id, params)
 }
 
+// DeleteMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMyAccount(c)
+}
+
 // DeactivateMyAccount operation middleware
 func (siw *ServerInterfaceWrapper) DeactivateMyAccount(c *gin.Context) {
 
@@ -4649,7 +4637,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
 	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
-	router.DELETE(options.BaseURL+"/admin/clients/:id/permanent", wrapper.HardDeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
@@ -4733,6 +4720,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers/:id/intro-video", wrapper.UploadTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/intro-video/stream", wrapper.StreamTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
+	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteMyAccount)
 	router.POST(options.BaseURL+"/users/me/deactivate", wrapper.DeactivateMyAccount)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
