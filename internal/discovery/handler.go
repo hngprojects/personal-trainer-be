@@ -77,20 +77,43 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
-	if req.ContactMode != api.ZoomMeeting && req.ContactMode != api.PhoneCallback {
+	switch req.ContactMode {
+	case api.BookDiscoveryCallRequestContactModeZoomMeeting,
+		api.BookDiscoveryCallRequestContactModePhoneCallback,
+		api.BookDiscoveryCallRequestContactModeWhatsapp,
+		api.BookDiscoveryCallRequestContactModeMessenger:
+		// valid
+	default:
 		h.log.Warn("book discovery call: invalid contact mode", "userID", userID.String(), "contactMode", req.ContactMode)
-		c.JSON(http.StatusBadRequest, api.NewError("contact_mode must be zoom_meeting or phone_callback", api.CodeBadRequest))
+		c.JSON(http.StatusBadRequest, api.NewError("contact_mode must be one of: zoom_meeting, phone_callback, whatsapp, messenger", api.CodeBadRequest))
 		return
 	}
-	if req.ContactMode == api.PhoneCallback && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
-		h.log.Warn("book discovery call: phone number required for callback", "userID", userID.String())
-		c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for phone_callback", api.CodeBadRequest))
-		return
-	}
-	if req.PhoneNumber != nil && *req.PhoneNumber != "" {
+
+	// phone_callback and whatsapp both require a valid phone number
+	if req.ContactMode == api.BookDiscoveryCallRequestContactModePhoneCallback ||
+		req.ContactMode == api.BookDiscoveryCallRequestContactModeWhatsapp {
+		if req.PhoneNumber == nil || *req.PhoneNumber == "" {
+			h.log.Warn("book discovery call: phone number required", "userID", userID.String(), "contactMode", req.ContactMode)
+			c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for "+string(req.ContactMode), api.CodeBadRequest))
+			return
+		}
 		if !phoneE164Regex.MatchString(*req.PhoneNumber) {
 			h.log.Warn("book discovery call: invalid phone number format", "userID", userID.String())
 			c.JSON(http.StatusBadRequest, api.NewError("phone_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+	}
+
+	// messenger requires a username
+	if req.ContactMode == api.BookDiscoveryCallRequestContactModeMessenger {
+		if req.MessengerUsername == nil || *req.MessengerUsername == "" {
+			h.log.Warn("book discovery call: messenger username required", "userID", userID.String())
+			c.JSON(http.StatusBadRequest, api.NewError("messenger_username is required for messenger contact mode", api.CodeBadRequest))
+			return
+		}
+		if len(*req.MessengerUsername) > 50 {
+			h.log.Warn("book discovery call: messenger username too long", "userID", userID.String())
+			c.JSON(http.StatusBadRequest, api.NewError("messenger_username must be 50 characters or fewer", api.CodeBadRequest))
 			return
 		}
 	}
@@ -148,16 +171,16 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	if req.PhoneNumber != nil {
 		phoneNumber = *req.PhoneNumber
 	}
-
 	// Insert booking first; create Zoom meeting after so no orphaned meeting on DB failure.
 	booking, err := h.repo.CreateBooking(ctx, db.CreateDiscoveryBookingParams{
-		UserID:           uuid.NullUUID{UUID: userID, Valid: true},
-		Name:             req.Name,
-		Email:            string(req.Email),
-		ContactMode:      string(req.ContactMode),
-		PhoneNumber:      nullString(req.PhoneNumber),
-		SelectedDatetime: selectedTime,
-		ClientTimezone:   req.Timezone,
+		UserID:            uuid.NullUUID{UUID: userID, Valid: true},
+		Name:              req.Name,
+		Email:             string(req.Email),
+		ContactMode:       string(req.ContactMode),
+		PhoneNumber:       nullString(req.PhoneNumber),
+		MessengerUsername: nullString(req.MessengerUsername),
+		SelectedDatetime:  selectedTime,
+		ClientTimezone:    req.Timezone,
 	})
 	if err != nil {
 		// Unique index violation means a concurrent request won the race for this slot.
@@ -172,7 +195,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 		return
 	}
 
-	if req.ContactMode == api.ZoomMeeting {
+	if req.ContactMode == api.BookDiscoveryCallRequestContactModeZoomMeeting {
 		zoomLink, zoomMeetingID = h.createMeetingWithRetry(ctx, selectedTime)
 		if zoomLink != "" {
 			if updated, err := h.repo.UpdateBookingZoom(ctx, db.UpdateDiscoveryBookingZoomParams{

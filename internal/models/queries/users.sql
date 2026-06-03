@@ -122,6 +122,11 @@ FROM users
 WHERE role = 'client'
   AND (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean);
 
+-- name: DeactivateClient :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE users.id = $1 AND role = 'client' AND is_active = true
+RETURNING users.id;
+
 -- name: GetClientByID :one
 SELECT
     u.id,

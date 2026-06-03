@@ -290,7 +290,7 @@ ORDER BY booking_count DESC;
 -- Returns no rows if the trainer_id doesn't exist or the account is
 -- already inactive, letting the handler distinguish 404 vs 409.
 UPDATE users SET is_active = false, updated_at = NOW()
-WHERE id = (SELECT user_id FROM trainers WHERE id = sqlc.arg(trainer_id))
+WHERE users.id = (SELECT user_id FROM trainers WHERE trainers.id = sqlc.arg(trainer_id))
   AND role = 'trainer'
   AND is_active = true
-RETURNING id;
+RETURNING users.id;

@@ -41,16 +41,22 @@ func (e AuthUserUserType) Valid() bool {
 
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
-	PhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
-	ZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
+	BookDiscoveryCallRequestContactModeMessenger     BookDiscoveryCallRequestContactMode = "messenger"
+	BookDiscoveryCallRequestContactModePhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
+	BookDiscoveryCallRequestContactModeWhatsapp      BookDiscoveryCallRequestContactMode = "whatsapp"
+	BookDiscoveryCallRequestContactModeZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
 )
 
 // Valid indicates whether the value is a known member of the BookDiscoveryCallRequestContactMode enum.
 func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	switch e {
-	case PhoneCallback:
+	case BookDiscoveryCallRequestContactModeMessenger:
 		return true
-	case ZoomMeeting:
+	case BookDiscoveryCallRequestContactModePhoneCallback:
+		return true
+	case BookDiscoveryCallRequestContactModeWhatsapp:
+		return true
+	case BookDiscoveryCallRequestContactModeZoomMeeting:
 		return true
 	default:
 		return false
@@ -602,19 +608,19 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
-	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
-	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
-	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
+	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformWhatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
+	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
 // Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
 func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
-	case GoogleMeet:
+	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
-	case Whatsapp:
+	case CreateBookingJSONBodySessionPlatformWhatsapp:
 		return true
-	case Zoom:
+	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
 	default:
 		return false
@@ -853,9 +859,12 @@ type BaseResponse struct {
 type BookDiscoveryCallRequest struct {
 	ContactMode BookDiscoveryCallRequestContactMode `json:"contact_mode"`
 	Email       openapi_types.Email                 `json:"email"`
-	Name        string                              `json:"name"`
 
-	// PhoneNumber Required when contact_mode is phone_callback
+	// MessengerUsername Required when contact_mode is messenger. Facebook Messenger username (e.g. john.doe → m.me/john.doe)
+	MessengerUsername *string `json:"messenger_username,omitempty"`
+	Name              string  `json:"name"`
+
+	// PhoneNumber Required when contact_mode is phone_callback or whatsapp. E.164 format (e.g. +2348012345678)
 	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// SelectedDatetime ISO 8601 UTC datetime for the call

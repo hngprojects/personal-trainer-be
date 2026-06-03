@@ -1306,11 +1306,15 @@ components:
           example: jane@example.com
         contact_mode:
           type: string
-          enum: [zoom_meeting, phone_callback]
+          enum: [zoom_meeting, phone_callback, whatsapp, messenger]
         phone_number:
           type: string
-          description: Required when contact_mode is phone_callback
+          description: Required when contact_mode is phone_callback or whatsapp. E.164 format (e.g. +2348012345678)
           example: "+2348012345678"
+        messenger_username:
+          type: string
+          description: Required when contact_mode is messenger. Facebook Messenger username (e.g. john.doe → m.me/john.doe)
+          example: "john.doe"
         selected_datetime:
           type: string
           format: date-time

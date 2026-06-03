@@ -75,6 +75,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deactivateClient = `-- name: DeactivateClient :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE users.id = $1 AND role = 'client' AND is_active = true
+RETURNING users.id
+`
+
+func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateClient, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getClientByID = `-- name: GetClientByID :one
 SELECT
     u.id,
@@ -478,15 +491,4 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 		&i.PhoneNumber,
 	)
 	return i, err
-}
-
-const deactivateClient = `UPDATE users SET is_active = false, updated_at = NOW()
-WHERE id = $1 AND role = 'client' AND is_active = true
-RETURNING id`
-
-func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, deactivateClient, id)
-	var returnedID uuid.UUID
-	err := row.Scan(&returnedID)
-	return returnedID, err
 }
