@@ -51,10 +51,12 @@ func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotC
 
 const countDiscoveryBookings = `-- name: CountDiscoveryBookings :one
 SELECT COUNT(*) FROM discovery_bookings
+WHERE ($1::text = '' OR status = $1::text)
 `
 
-func (q *Queries) CountDiscoveryBookings(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countDiscoveryBookings)
+// Pass empty string for status to count all statuses.
+func (q *Queries) CountDiscoveryBookings(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDiscoveryBookings, status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -459,12 +461,14 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 
 const listDiscoveryBookingsPaginated = `-- name: ListDiscoveryBookingsPaginated :many
 SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
+WHERE ($1::text = '' OR status = $1::text)
 ORDER BY selected_datetime DESC, id DESC
-LIMIT $2
-OFFSET $1
+LIMIT $3
+OFFSET $2
 `
 
 type ListDiscoveryBookingsPaginatedParams struct {
+	Status     string
 	PageOffset int32
 	PageLimit  int32
 }
@@ -472,8 +476,9 @@ type ListDiscoveryBookingsPaginatedParams struct {
 // Admin paginated view of every discovery call ever booked. Newest first so
 // the most-recent activity is the top of page 1; supports
 // LIMIT/OFFSET pagination matching the admin sessions endpoint.
+// Pass empty string for status to return all statuses.
 func (q *Queries) ListDiscoveryBookingsPaginated(ctx context.Context, arg ListDiscoveryBookingsPaginatedParams) ([]DiscoveryBooking, error) {
-	rows, err := q.db.QueryContext(ctx, listDiscoveryBookingsPaginated, arg.PageOffset, arg.PageLimit)
+	rows, err := q.db.QueryContext(ctx, listDiscoveryBookingsPaginated, arg.Status, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}

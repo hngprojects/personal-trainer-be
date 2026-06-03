@@ -200,7 +200,12 @@ func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.Admin
 
 	ctx := c.Request.Context()
 
-	total, err := s.bookings.q.CountDiscoveryBookings(ctx)
+	status := ""
+	if params.Status != nil {
+		status = string(*params.Status)
+	}
+
+	total, err := s.bookings.q.CountDiscoveryBookings(ctx, status)
 	if err != nil {
 		s.logger.Error("count discovery bookings failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to list discovery bookings", api.CodeServerError))
@@ -208,6 +213,7 @@ func (s *routerImpl) AdminListDiscoveryBookings(c *gin.Context, params api.Admin
 	}
 
 	rows, err := s.bookings.q.ListDiscoveryBookingsPaginated(ctx, db.ListDiscoveryBookingsPaginatedParams{
+		Status:     status,
 		PageLimit:  int32(limit),
 		PageOffset: int32((page - 1) * limit),
 	})
