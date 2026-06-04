@@ -10,15 +10,15 @@ import (
 )
 
 type mockRepository struct {
-	createNotificationFn           func(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
-	updateNotificationStatusFn     func(ctx context.Context, args db.UpdateNotificationStatusParams) error
-	getUserNotificationFn          func(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
-	getUserDeviceTokenFn           func(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
-	getAllActiveUsersDevicesFn     func(ctx context.Context) (*[]db.UserDevice, error)
-	createNotificationWithTypeFn   func(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error)
-	getUserPendingNotificationFn   func(ctx context.Context, userID uuid.UUID) ([]db.Notification, error)
-	getUserRoleByUserIDFn          func(ctx context.Context, userID uuid.UUID) (string, error)
-	listAdminUserIDsFn             func(ctx context.Context) ([]uuid.UUID, error)
+	createNotificationFn         func(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error)
+	updateNotificationStatusFn   func(ctx context.Context, args db.UpdateNotificationStatusParams) error
+	getUserNotificationFn        func(ctx context.Context, userID uuid.UUID) (*[]db.Notification, error)
+	getUserDeviceTokenFn         func(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error)
+	getAllActiveUsersDevicesFn   func(ctx context.Context) (*[]db.UserDevice, error)
+	createNotificationWithTypeFn func(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error)
+	getUserPendingNotificationFn func(ctx context.Context, userID uuid.UUID) ([]db.Notification, error)
+	getUserRoleByUserIDFn        func(ctx context.Context, userID uuid.UUID) (string, error)
+	listAdminUserIDsFn           func(ctx context.Context) ([]uuid.UUID, error)
 }
 
 func (m *mockRepository) CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error) {
