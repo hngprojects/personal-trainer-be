@@ -77,7 +77,6 @@ func (m *mockRepository) GetAllActiveUsersDevices(ctx context.Context) (*[]db.Us
 	return &[]db.UserDevice{}, nil
 }
 
-<<<<<<< HEAD
 func (m *mockRepository) ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	if m.listAdminUserIDsFn != nil {
 		return m.listAdminUserIDsFn(ctx)
@@ -85,8 +84,6 @@ func (m *mockRepository) ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, err
 	return nil, nil
 }
 
-=======
->>>>>>> d0c89d8 (feat(notifications): integrate push notifications, websocket, and FCM)
 type mockWSHub struct {
 	sendToUserFn         func(userID uuid.UUID, message []byte) bool
 	userHasConnectionsFn func(userID uuid.UUID) bool

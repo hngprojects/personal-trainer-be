@@ -285,7 +285,6 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			fmt.Printf("❌ failed to make request to %v: %v\n", req.URL.String(), err)
 			continue
 		}
-
 		if res.StatusCode != http.StatusCreated {
 			if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusConflict {
 				var response ValidationErrorResponse
