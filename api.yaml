@@ -1306,7 +1306,7 @@ components:
           example: jane@example.com
         contact_mode:
           type: string
-          enum: [zoom_meeting, phone_callback, google_meet, messenger]
+          enum: [zoom_meeting, phone_callback, google_meet, messenger, imessage]
           description: |
             How the discovery call happens. zoom_meeting + google_meet
             mint a server-side meeting URL on creation; phone_callback
@@ -1314,7 +1314,7 @@ components:
             initiates contact via the channel the client supplies.
         phone_number:
           type: string
-          description: Required when contact_mode is phone_callback. E.164 format.
+          description: Required when contact_mode is phone_callback or imessage. E.164 format.
           example: "+2348012345678"
         messenger_handle:
           type: string
