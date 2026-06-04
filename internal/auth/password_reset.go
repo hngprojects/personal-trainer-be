@@ -243,7 +243,6 @@ func (h *PasswordResetHandler) processForgotPassword(emailAddr string) {
 	// which is not populated by the admin-provisioned trainer/admin creation flows.
 	isAllowed := user.Role == adminRoleName || user.Role == superAdminRoleName || user.Role == trainerRoleName
 	if !isAllowed {
-
 		return
 	}
 
@@ -346,7 +345,6 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 	// Check role directly from the users row — UserHasRole queries user_roles
 	// which is not populated by admin-provisioned trainer/admin creation flows.
 	if user.Role != adminRoleName && user.Role != superAdminRoleName && user.Role != trainerRoleName {
-
 		h.log.Warn("reset password: user is not admin or trainer", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
@@ -477,7 +475,6 @@ func (h *PasswordResetHandler) HandleVerifyResetCode(c *gin.Context) {
 	// Check role directly from the users row — UserHasRole queries user_roles
 	// which is not populated by admin-provisioned trainer/admin creation flows.
 	if user.Role != adminRoleName && user.Role != superAdminRoleName && user.Role != trainerRoleName {
-
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
 	}

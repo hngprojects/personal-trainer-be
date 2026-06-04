@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	ws "github.com/gorilla/websocket"
-	"github.com/lib/pq"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
+	"github.com/lib/pq"
 )
 
 const (

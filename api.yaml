@@ -1306,11 +1306,24 @@ components:
           example: jane@example.com
         contact_mode:
           type: string
-          enum: [zoom_meeting, phone_callback]
+          enum: [zoom_meeting, phone_callback, google_meet, messenger]
+          description: |
+            How the discovery call happens. zoom_meeting + google_meet
+            mint a server-side meeting URL on creation; phone_callback
+            and messenger are handle-only modes where the trainer
+            initiates contact via the channel the client supplies.
         phone_number:
           type: string
-          description: Required when contact_mode is phone_callback
+          description: Required when contact_mode is phone_callback. E.164 format.
           example: "+2348012345678"
+        messenger_handle:
+          type: string
+          maxLength: 255
+          description: |
+            Required when contact_mode is messenger. Free-form — can be
+            a Facebook profile slug, an m.me URL, or a numeric ID. The
+            trainer sees this verbatim and follows up via Messenger.
+          example: "jane.doe.42"
         selected_datetime:
           type: string
           format: date-time
@@ -2214,7 +2227,22 @@ paths:
                   format: date-time
                 session_platform:
                   type: string
-                  enum: ["whatsapp", "google_meet", "zoom"]
+                  enum: ["zoom", "google_meet", "messenger"]
+                  description: |
+                    `zoom` and `google_meet` mint a meeting URL via
+                    their respective APIs; `messenger` stores the
+                    client-supplied handle and lets the trainer follow
+                    up off-platform. The `whatsapp` value declared by
+                    earlier specs was never implemented and was
+                    dropped from the CHECK constraint in migration
+                    000058.
+                messenger_handle:
+                  type: string
+                  maxLength: 255
+                  description: |
+                    Required when session_platform is messenger. Same
+                    semantics as the discovery booking field.
+                  example: "jane.doe.42"
                 timezone:
                   type: string
       responses:
@@ -2439,6 +2467,69 @@ paths:
                 code: SERVER_ERROR
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/me/deactivate:
+    post:
+      operationId: DeactivateMyAccount
+      tags:
+        - User
+      summary: Deactivate own account
+      description: |
+        User-initiated soft delete. Sets the account to inactive. The user can
+        still log in but will be blocked on every protected route until they
+        reactivate via POST /users/me/reactivate.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Account already deactivated (reached when an active user calls deactivate twice)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /users/me/reactivate:
+    post:
+      operationId: ReactivateMyAccount
+      tags:
+        - User
+      summary: Reactivate own account
+      description: |
+        Restores a deactivated account. The user must be logged in (token still
+        valid). This endpoint is exempt from the deactivation middleware so
+        deactivated users can reach it after logging in.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Account already active
           content:
             application/json:
               schema:
@@ -4125,7 +4216,8 @@ paths:
                   type: string
                   minLength: 6
                   maxLength: 6
-                  pattern: '^[0-9]{6}$'
+                  pattern: "^[0-9]{6}$"
+
                   example: "123456"
             example:
               email: trainer@example.com
@@ -4841,34 +4933,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    get:
-      operationId: GetAdminClientByID
+  /users/me:
+    delete:
+      operationId: DeleteMyAccount
       tags:
-        - Admin
-      summary: Get a single client by ID (super_admin only)
-      description: Returns full profile details for a specific client account.
+        - User
+      summary: Permanently delete own account
+      description: |
+        Irreversible. Deletes the authenticated user's account and all their
+        data (bookings, subscriptions, sessions, notifications, devices).
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       responses:
         "200":
-          description: Client retrieved successfully
+          description: Account permanently deleted
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-        "400":
-          description: Invalid client ID format
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
           content:
@@ -4876,13 +4958,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden
+          description: Forbidden — only client accounts can be self-deleted
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Client not found
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions/active:
+    get:
+      operationId: AdminListActiveSessions
+      tags:
+        - Admin
+      summary: List sessions currently in progress (super_admin only)
+      description: Returns all bookings with status started or in-session.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active sessions list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -5359,6 +5470,13 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: status
+          in: query
+          required: false
+          description: Filter by booking status. Omit to return all statuses.
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed]
       responses:
         "200":
           description: Discovery bookings retrieved
@@ -6163,6 +6281,13 @@ paths:
       operationId: HandleCreateDevToken
       tags:
         - Dev
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Token generated

@@ -18,29 +18,28 @@ func NewDevHandler() *Handler {
 	return &Handler{}
 }
 
-func (h *Handler) HandleCreateDevToken(c *gin.Context) {
+func (h *Handler) HandleCreateDevToken(c *gin.Context, params api.HandleCreateDevTokenParams) {
 	type response struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-
-	userID := c.Query("user_id")
-	if userID == "" {
-		userID = uuid.New().String()
-	} else if _, err := uuid.Parse(userID); err != nil {
-		c.JSON(http.StatusBadRequest, api.NewError("user_id must be a valid UUID", api.CodeBadRequest))
-		return
+	var userID uuid.UUID
+	if params.UserId != nil {
+		userID = *params.UserId
+	} else {
+		userID = uuid.New()
 	}
 
-	generatedToken, err := auth.GenerateJWTToken(userID, "access")
+	accessToken, refreshToken, err := auth.GenerateTestTokens(userID)
 	if err != nil {
-		h.log.Error("failed to generate token", "err", err)
+		h.log.Error("failed to generate tokens", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("Internal server error", api.CodeServerError))
 		return
 	}
 
 	data := response{
-		AccessToken: generatedToken,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Success", api.CodeOK, data))
 }

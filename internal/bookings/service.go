@@ -15,9 +15,18 @@ import (
 )
 
 var (
-	activeSubscription  = "active"
-	zoomSessionPlatform = "zoom"
+	activeSubscription = "active"
+	// Platforms that go through meeting.Provider — i.e. produce a join
+	// URL the email/UI renders. Messenger is intentionally absent: it
+	// stores a client-supplied handle on the booking row and the
+	// trainer initiates contact via Facebook — no server-minted URL.
+	meetingPlatforms = map[string]bool{
+		"zoom":        true,
+		"google_meet": true,
+	}
 )
+
+func isMeetingPlatform(p string) bool { return meetingPlatforms[p] }
 
 type BookingSlotService interface {
 	GetTrainersBookingSlots(ctx context.Context, trainerId uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
@@ -88,12 +97,15 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 	}
 
 	meetingURL := ""
-	if args.SessionPlatform.String == zoomSessionPlatform {
+	platform := args.SessionPlatform.String
+	if isMeetingPlatform(platform) {
 		// trainer.ID is the trainer's user_id (see GetTrainerUserDetails
-		// SQL) — that's what the Selector keys per-user grants on.
-		prov := s.meetings.For(ctx, trainer.ID)
+		// SQL) — that's what the Selector keys per-user grants on. The
+		// platform argument routes between Zoom (per-trainer-or-org)
+		// and Meet (always org).
+		prov := s.meetings.For(ctx, trainer.ID, platform)
 		if !prov.IsConfigured() {
-			return nil, fmt.Errorf("zoom is not configured")
+			return nil, fmt.Errorf("%s is not configured", platform)
 		}
 
 		durationMins := 60
@@ -107,8 +119,8 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		topic := fmt.Sprintf("Training session with %s", trainer.Name)
 		joinURL, meetingID, zoomErr := prov.CreateMeeting(ctx, topic, args.ScheduledStart.Time, durationMins)
 		if zoomErr != nil {
-			s.log.Error("failed to create zoom meeting", "booking_id", booking.ID, "err", zoomErr)
-			return nil, fmt.Errorf("failed to create zoom meeting: %w", zoomErr)
+			s.log.Error("failed to create meeting", "booking_id", booking.ID, "platform", platform, "err", zoomErr)
+			return nil, fmt.Errorf("failed to create %s meeting: %w", platform, zoomErr)
 		}
 
 		if _, dbErr := s.repo.UpdateBookingZoom(ctx, db.UpdateBookingZoomParams{
