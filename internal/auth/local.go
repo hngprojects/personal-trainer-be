@@ -325,6 +325,14 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 	// valid token but are blocked by DeactivatedMiddleware on every
 	// protected route, showing a "your account has been deactivated" screen.
 	// This lets them reach POST /users/me/reactivate to restore access.
+	if !user.IsActive {
+		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
+		// Same generic message as other credential failures so an
+		// attacker can't distinguish "exists but deactivated" from
+		// "doesn't exist" or "wrong password".
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
 
 	// Reject before bcrypt for accounts that have no password (e.g.
 	// Google OAuth-only signups). user.Password is a sql.NullString;
