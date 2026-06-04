@@ -27,21 +27,35 @@ func NewAdminLoginService(user UserRepository, role RoleRepository, log *slog.Lo
 func (r *adminLoginService) Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error) {
 	user, err := r.user.FindByEmail(ctx, email)
 	if err != nil {
-		r.log.Error("error finding provided email", "err", err)
+		r.log.Warn("AdminLogin: user not found", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
 	isUserAdmin, err := r.role.UserHasRole(ctx, user.ID, adminRoleName)
-	// r.log.Error("admin is => ", "user role", isUserAdmin)
-	if err != nil || !isUserAdmin {
-		r.log.Error("error getting user role", "err", err)
+	if err != nil {
+		r.log.Warn("AdminLogin: role check failed", "err", err)
+		return nil, errors.New("invalid email or password")
+	}
+	isUserSuperAdmin, err := r.role.UserHasRole(ctx, user.ID, superAdminRoleName)
+	if err != nil {
+		r.log.Warn("AdminLogin: role check failed", "err", err)
+		return nil, errors.New("invalid email or password")
+	}
+	// Allow login if the user holds EITHER role. Previously this read
+	// `!isUserAdmin || !isUserSuperAdmin`, which by De Morgan rejects
+	// any user missing even one role — i.e. only a user with BOTH
+	// admin+super_admin could log in. Plain admins and plain
+	// super_admins were locked out. Reject only when neither role is
+	// present.
+	if !isUserAdmin && !isUserSuperAdmin {
+		r.log.Warn("AdminLogin: user is not admin", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}
 	if !user.Password.Valid {
-		r.log.Error("user does not have password set", "err", err)
+		r.log.Warn("AdminLogin: user has no password set", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(password)); err != nil {
-		r.log.Error("password does not match raw password", "err", err)
+		r.log.Warn("AdminLogin: password mismatch", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}
 	accessToken, err := GenerateJWTToken(user.ID.String(), AccessToken)

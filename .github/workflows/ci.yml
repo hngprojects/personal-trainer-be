@@ -11,6 +11,8 @@ on:
   # Allow other workflows (deploy-backend.yml) to call this one as a job
   # dependency. This is what implements "deploy depends on CI passing".
   workflow_call:
+  merge_group:
+    branches: [dev]
 
 # Cancel previous runs of the same workflow on the same ref when a new one starts.
 # Saves Actions minutes when devs push rapidly to a PR.
@@ -45,6 +47,41 @@ jobs:
         with:
           version: v2.12.2
 
+      # Catches the most painful recurring issue in this repo: two PRs both
+      # picking the same migration version number, which makes goose panic on
+      # the next deploy. Has happened repeatedly — failing the PR here costs
+      # the author 30 seconds to rebase + renumber; finding it on a staging
+      # deploy costs an hour of unwinding orphan files.
+      - name: migrations have unique version numbers
+        run: |
+          dupes=$(ls migrations/*.sql | xargs -n1 basename | cut -d_ -f1 | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration version numbers detected:"
+            for v in $dupes; do
+              echo "::error::  v$v ->"
+              ls migrations/${v}_*.sql | sed 's/^/    /'
+            done
+            echo "::error::Renumber the later-merged migration to the next free slot."
+            exit 1
+          fi
+
+      # Sibling guard: same goose-panic cause but for ALTER-style migrations
+      # that get duplicated under different version numbers (e.g. three files
+      # named *_add_trainer_id_to_booking_slots.sql at versions 13, 24, 27).
+      # The first one runs fine; subsequent ones error "column already exists".
+      - name: migrations have unique intent (no duplicate filenames after the version prefix)
+        run: |
+          dupes=$(ls migrations/*.sql | xargs -n1 basename | sed 's/^[0-9]*_//' | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration intent (same name suffix in multiple files):"
+            for name in $dupes; do
+              echo "::error::  $name ->"
+              ls migrations/*_${name} 2>/dev/null | sed 's/^/    /'
+            done
+            echo "::error::Delete the redundant migration(s); a column can only be added once."
+            exit 1
+          fi
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -77,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # required to upload SARIF to GitHub Security tab
+      security-events: write # required to upload SARIF to GitHub Security tab
     steps:
       - uses: actions/checkout@v4
 
@@ -117,13 +154,59 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
 
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Scan full git history, not just the working tree, so secrets that
+          # were committed and later removed still get flagged. Trivy's fs scan
+          # only looks at current files; this is the dedicated complementary
+          # scan for the historical record.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          checksums="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+
+          # Download tarball + the official checksums manifest from the same release.
+          curl -fsSL --retry 3 -o "${archive}" "${base}/${archive}"
+          curl -fsSL --retry 3 -o "${checksums}" "${base}/${checksums}"
+
+          # Verify SHA-256 against the manifest BEFORE extracting. Fails the
+          # step if the bytes don't match (mirror compromise, MITM, corrupt
+          # download, etc.) — never run an unverified binary as root.
+          grep "  ${archive}$" "${checksums}" | sha256sum -c -
+
+          sudo tar -xz -C /usr/local/bin -f "${archive}" gitleaks
+          rm -f "${archive}" "${checksums}"
+          gitleaks version
+
+      # `git` is the modern command for scanning a repo's commit history
+      # (`detect` was deprecated in v8.19.0). The trailing `.` is the positional
+      # repo path. `--redact=100` fully redacts secret values in output (the
+      # bool form was removed when `--redact` became a percentage Uint flag).
+      #
+      # To suppress a known false positive (or an already-rotated secret) add
+      # its fingerprint to `.gitleaksignore` at the repo root, or define an
+      # allowlist rule in `.gitleaks.toml`. Real fix for any unexpected finding
+      # is to ROTATE the secret first — the leak is in git history forever.
+      - name: Scan repo and history for secrets
+        run: gitleaks git . --redact=100 --no-banner --verbose
+
   # Aggregator status check — the branch-protection rule on `dev`/`main` requires
   # a status check named exactly "ci". This job exists solely so that one shows
   # up. It only goes green when every dependency above also went green.
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [lint, test, security]
+    needs: [lint, test, security, secrets]
     if: always()
     steps:
       - name: Aggregate job results
@@ -131,9 +214,11 @@ jobs:
           echo "lint:     ${{ needs.lint.result }}"
           echo "test:     ${{ needs.test.result }}"
           echo "security: ${{ needs.security.result }}"
+          echo "secrets:  ${{ needs.secrets.result }}"
           if [[ "${{ needs.lint.result }}" != "success" \
              || "${{ needs.test.result }}" != "success" \
-             || "${{ needs.security.result }}" != "success" ]]; then
+             || "${{ needs.security.result }}" != "success" \
+             || "${{ needs.secrets.result }}" != "success" ]]; then
             echo "::error::One or more required CI jobs failed"
             exit 1
           fi

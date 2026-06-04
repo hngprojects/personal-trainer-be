@@ -3,6 +3,7 @@
 package admin
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
@@ -36,6 +38,7 @@ func NewHandler(users auth.AdminUserRepository, mailer email.Mailer, log *slog.L
 func (h *Handler) AdminAdd(c *gin.Context) {
 	var req api.AdminAddJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("admin add: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
@@ -44,18 +47,21 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 
 	if len(emailAddr) > 255 {
+		h.log.Warn("admin add: email exceeds 255 characters", "email_len", len(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "email must not exceed 255 characters"},
 		}))
 		return
 	}
 	if !common.IsValidEmail(emailAddr) {
+		h.log.Warn("admin add: invalid email format", "email_len", len(emailAddr))
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "email", Message: "invalid email format"},
 		}))
 		return
 	}
 	if name == "" {
+		h.log.Warn("admin add: name is empty")
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "name", Message: "name is required"},
 		}))
@@ -77,8 +83,18 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 
 	user, err := h.users.UpsertAdminUser(c.Request.Context(), emailAddr, name, hash)
 	if err != nil {
+		if errors.Is(err, errs.ErrConflict) {
+			h.log.Warn("admin add: admin already exists", "email_len", len(emailAddr))
+			c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
+			return
+		}
 		h.log.Error("admin add: upsert admin failed", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	if user == nil {
+		h.log.Warn("admin add: upsert returned nil user (conflict)", "email_len", len(emailAddr))
+		c.JSON(http.StatusConflict, api.NewError("admin with this email already exists", api.CodeConflict))
 		return
 	}
 

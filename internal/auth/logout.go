@@ -28,30 +28,35 @@ func (h *LogoutHandler) HandleLogout(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil || body.RefreshToken == "" {
+		h.log.Warn("HandleLogout: missing refresh token in body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("refresh token is required", api.CodeBadRequest))
 		return
 	}
 
 	token, err := ValidateToken(body.RefreshToken)
 	if err != nil || !token.Valid {
+		h.log.Warn("HandleLogout: invalid refresh token", "err", err)
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid refresh token", api.CodeUnauthorized))
 		return
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		h.log.Warn("HandleLogout: invalid token claims (not MapClaims)")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid token claims", api.CodeUnauthorized))
 		return
 	}
 
 	tokenType, _ := claims["type"].(string)
 	if tokenType != string(RefreshToken) {
+		h.log.Warn("HandleLogout: wrong token type", "expected", RefreshToken, "got", tokenType)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid token type", api.CodeBadRequest))
 		return
 	}
 
 	jti, _ := claims["jti"].(string)
 	if jti == "" {
+		h.log.Warn("HandleLogout: token missing jti claim")
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid token", api.CodeUnauthorized))
 		return
 	}

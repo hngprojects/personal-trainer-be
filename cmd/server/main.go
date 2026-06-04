@@ -17,6 +17,7 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/internal/observability"
 	"github.com/hngprojects/personal-trainer-be/internal/routes"
 	"github.com/hngprojects/personal-trainer-be/pkg/logger"
 	appredis "github.com/hngprojects/personal-trainer-be/pkg/redis"
@@ -33,6 +34,24 @@ func main() {
 	slog.SetDefault(log)
 
 	auth.Configure(cfg.JwtSecret)
+
+	if cfg.OTelEnabled {
+		traceCtx, traceCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		tracerProvider, err := observability.InitTracer(traceCtx, cfg.ServiceName, cfg.Env, cfg.OTelEndpoint)
+		traceCancel()
+		if err != nil {
+			log.Error("failed to initialize tracing", "err", err)
+			os.Exit(1)
+		}
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := tracerProvider.Shutdown(shutdownCtx); err != nil {
+				log.Error("failed to shutdown tracer provider", "err", err)
+			}
+		}()
+		log.Info("tracing initialized", "service", cfg.ServiceName, "endpoint", cfg.OTelEndpoint)
+	}
 
 	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
@@ -59,12 +78,34 @@ func main() {
 
 	srv := routes.New(cfg, log, db, redisClient)
 
+	// Timeouts are sized for the upload endpoints (video uploads cap at
+	// 500 MiB before transcode — see internal/routes/media.go). A 4 Mbps
+	// mobile uplink takes ~17 minutes for that worst case; 10 minutes
+	// covers the realistic range (≈100 MiB on slow mobile, full 500 MiB
+	// on broadband) without leaving the door open to indefinitely-held
+	// connections.
+	//
+	// Slow-loris protection is still real: ReadHeaderTimeout is short,
+	// so a client that opens a connection but never finishes sending
+	// headers is dropped fast. The long ReadTimeout only kicks in after
+	// headers are valid and the request body is being streamed in.
+	//
+	// WriteTimeout intentionally matches ReadTimeout: it starts ticking
+	// when the request headers are read, so a value smaller than
+	// ReadTimeout would race — a 9-minute upload would leave the
+	// handler only 6 minutes for any response work even though the
+	// upload was legitimate. They MUST move together.
+	//
+	// Anything per-route that needs a tighter bound should wrap its
+	// handler in context.WithTimeout — that's the right knob for
+	// per-handler limits; this is just the outer envelope.
+	const uploadAwareTimeout = 10 * time.Minute
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           srv.Routes(),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      15 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       uploadAwareTimeout,
+		WriteTimeout:      uploadAwareTimeout,
 		IdleTimeout:       60 * time.Second,
 	}
 

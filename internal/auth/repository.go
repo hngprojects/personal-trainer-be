@@ -26,11 +26,39 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
+	// LookupRoleIDs returns the role-specific UUIDs associated with this
+	// user — currently just trainer_id when the user has a trainers row.
+	// Silent on missing trainer (most users aren't trainers): returns
+	// RoleIDs{} rather than an error. Used by the login handlers to
+	// aggregate ids into the auth response so the FE doesn't have to do
+	// a follow-up lookup to learn its own trainer.id.
+	LookupRoleIDs(ctx context.Context, userID uuid.UUID) (RoleIDs, error)
+}
+
+// RoleIDs aggregates the role-specific UUIDs for one user. Today only
+// trainer_id exists (the only role with a separate ID table). Other
+// roles (client, admin, super_admin) live entirely in users.role with
+// no companion row, so they have no extra ID to surface.
+//
+// New role tables can extend this struct without breaking callers — the
+// JSON encoder + the openapi schema both treat the new field as
+// optional / omitempty.
+type RoleIDs struct {
+	// TrainerID is set iff the user has a trainers row. nil otherwise.
+	TrainerID *uuid.UUID
 }
 
 // AdminUserRepository defines admin-specific user operations.
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
+}
+
+// TrainerUserRepository covers the user-provisioning side of the admin-creates-trainer
+// flow. Mirrors AdminUserRepository but writes role='trainer'.
+type TrainerUserRepository interface {
+	UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error)
+	FindByEmail(ctx context.Context, email string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -60,7 +88,6 @@ func NewPostgresRoleRepo(q *db.Queries) RoleRepository {
 }
 
 func (r *postgresRoleRepo) UserHasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	// return r.q.UserHasRole(ctx, userID, roleName)
 	return r.q.UserHasRole(ctx, db.UserHasRoleParams{UserID: userID, Name: roleName})
 }
 
@@ -122,6 +149,21 @@ func (r *postgresUserRepo) CreateEmailUser(ctx context.Context, email string) (*
 	return &user, nil
 }
 
+func (r *postgresUserRepo) LookupRoleIDs(ctx context.Context, userID uuid.UUID) (RoleIDs, error) {
+	// Trainer is the only role with a separate ID table today. Look it
+	// up directly; sql.ErrNoRows just means "not a trainer" — that's
+	// the common case, not a failure.
+	trainer, err := r.q.GetTrainerByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return RoleIDs{}, nil
+		}
+		return RoleIDs{}, err
+	}
+	id := trainer.ID
+	return RoleIDs{TrainerID: &id}, nil
+}
+
 func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.User, error) {
 	user, err := r.q.MarkUserVerified(ctx, email)
 	if err != nil {
@@ -146,6 +188,18 @@ func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.
 
 func (r *postgresUserRepo) UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error) {
 	user, err := r.q.UpsertAdminUser(ctx, db.UpsertAdminUserParams{
+		Email:    email,
+		Name:     name,
+		Password: sql.NullString{String: password, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error) {
+	user, err := r.q.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:    email,
 		Name:     name,
 		Password: sql.NullString{String: password, Valid: true},

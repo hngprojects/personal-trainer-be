@@ -56,12 +56,14 @@ func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions S
 func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 	var req api.HandleGoogleMobileSignInJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.log.Warn("mobile google sign-in: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
 	idToken := strings.TrimSpace(req.IdToken)
 	if idToken == "" {
+		h.log.Warn("mobile google sign-in: empty id_token")
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
 			{Field: "id_token", Message: "id_token is required"},
 		}))
@@ -69,14 +71,13 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 	}
 
 	if len(h.allowedAuds) == 0 {
-		// No client IDs configured — refuse rather than silently accept.
+		h.log.Warn("mobile google sign-in: no allowed audiences configured")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("google sign-in is not configured on this server", api.CodeServerError))
 		return
 	}
 
 	payload, err := h.verifyAgainstAnyAudience(c.Request.Context(), idToken)
 	if err != nil {
-		// Don't leak whether the token was malformed, expired, or wrong audience.
 		h.log.Warn("mobile google sign-in: token verification failed", "err", err)
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid google id token", api.CodeUnauthorized))
 		return
@@ -88,6 +89,7 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 
 	emailAddr := strings.ToLower(strings.TrimSpace(emailRaw))
 	if emailAddr == "" || !emailVerified {
+		h.log.Warn("mobile google sign-in: email missing or unverified", "email_verified", emailVerified)
 		c.JSON(http.StatusUnauthorized, api.NewError("google account email is missing or unverified", api.CodeUnauthorized))
 		return
 	}
@@ -133,14 +135,9 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 
 	h.log.Info("mobile google sign-in successful", "user_id", userIDStr, "is_new_user", isNewUser)
 
+	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	data := api.GoogleAuthData{
-		User: api.AuthUser{
-			Id:              user.ID,
-			Email:           user.Email,
-			Name:            user.Name,
-			UserType:        api.AuthUserUserTypeClient,
-			ProfileComplete: user.Name != "",
-		},
+		User:         authUser,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		IsNewUser:    isNewUser,

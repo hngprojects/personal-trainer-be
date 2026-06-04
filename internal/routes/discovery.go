@@ -1,0 +1,87 @@
+package routes
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
+	"github.com/hngprojects/personal-trainer-be/internal/api"
+)
+
+func (s *routerImpl) BookDiscoveryCall(c *gin.Context) {
+	if s.discovery == nil {
+		s.logger.Warn("BookDiscoveryCall: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.BookDiscoveryCall(c)
+}
+
+func (s *routerImpl) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
+	if s.discovery == nil {
+		s.logger.Warn("GetDiscoverySlots: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.GetDiscoverySlots(c, params)
+}
+
+func (s *routerImpl) CreateDiscoverySlot(c *gin.Context) {
+	if s.discovery == nil {
+		s.logger.Warn("CreateDiscoverySlot: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.CreateDiscoverySlot(c)
+}
+
+func (s *routerImpl) CreateDiscoverySlotsBulk(c *gin.Context) {
+	if s.discovery == nil {
+		s.logger.Warn("CreateDiscoverySlotsBulk: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.CreateDiscoverySlotsBulk(c)
+}
+
+func (s *routerImpl) UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
+	if s.discovery == nil {
+		s.logger.Warn("UpdateDiscoverySlot: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.UpdateDiscoverySlot(c, id)
+}
+
+func (s *routerImpl) DeleteDiscoverySlot(c *gin.Context, id openapi_types.UUID) {
+	if s.discovery == nil {
+		s.logger.Warn("DeleteDiscoverySlot: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.DeleteDiscoverySlot(c, id)
+}
+
+// RescheduleDiscoveryCall is the unified handler for PUT /bookings/{id}/reschedule.
+// Paid sessions are handled first; discovery calls are the fallback.
+func (s *routerImpl) RescheduleDiscoveryCall(c *gin.Context, id openapi_types.UUID) {
+	if s.paidReschedule != nil && s.paidReschedule.TryReschedulePaidSession(c, id) {
+		return
+	}
+	if s.discovery == nil {
+		s.logger.Warn("RescheduleDiscoveryCall: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.RescheduleDiscoveryCall(c, id)
+}
+
+func (s *routerImpl) GetUpcomingBookings(c *gin.Context, params api.GetUpcomingBookingsParams) {
+	if s.discovery == nil {
+		s.logger.Warn("GetUpcomingBookings: discovery handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.discovery.GetUpcomingBookings(c, params)
+}

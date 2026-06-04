@@ -2,8 +2,9 @@ package api
 
 const (
 	// Success
-	CodeOK      = "OK"
-	CodeCreated = "CREATED"
+	CodeOK       = "OK"
+	CodeCreated  = "CREATED"
+	CodeAccepted = "ACCEPTED" // long-running work was queued; check back later
 
 	// Client Errors
 	CodeBadRequest      = "BAD_REQUEST"

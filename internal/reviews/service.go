@@ -116,7 +116,7 @@ func (s *Service) CreateReview(ctx context.Context, input CreateReviewInput) (db
 		s.log.Warn("review submission failed", "trainer_id", booking.TrainerID.String(), "booking_id", booking.ID.String(), "error_code", "FORBIDDEN")
 		return db.Review{}, ErrBookingForbidden
 	}
-	if !booking.BookingStatus.Valid || booking.BookingStatus.String != completedStatus {
+	if booking.BookingStatus.String != completedStatus {
 		s.log.Warn("review submission failed", "trainer_id", booking.TrainerID.String(), "booking_id", booking.ID.String(), "error_code", "INVALID_INPUT")
 		return db.Review{}, ErrBookingNotCompleted
 	}

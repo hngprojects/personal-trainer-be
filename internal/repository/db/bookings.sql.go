@@ -8,21 +8,218 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
-const createBooking = `-- name: CreateBooking :one
-INSERT INTO bookings (
+const adminRescheduleBooking = `-- name: AdminRescheduleBooking :one
+UPDATE bookings
+SET scheduled_start    = $1::timestamptz,
+    scheduled_end      = $2::timestamptz,
+    zoom_meeting_link  = NULL,
+    zoom_meeting_id    = NULL,
+    reschedule_count   = reschedule_count + 1
+WHERE id = $3
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
   booking_status,
   session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
+`
+
+type AdminRescheduleBookingParams struct {
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+	ID             uuid.UUID
+}
+
+// Admin reschedule — no reschedule_count cap. Zoom links are cleared
+// because admin cannot provision a new Zoom meeting; clients must
+// re-join via the updated in-app join-info endpoint.
+func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminRescheduleBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, adminRescheduleBooking, arg.ScheduledStart, arg.ScheduledEnd, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
+	)
+	return i, err
+}
+
+const cancelBooking = `-- name: CancelBooking :one
+UPDATE bookings
+SET
+  booking_status = 'cancelled',
+  cancellation_reason = $1,
+  cancelled_at = NOW()
+WHERE id = $2
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at
+`
+
+type CancelBookingParams struct {
+	CancellationReason sql.NullString
+	ID                 uuid.UUID
+}
+
+type CancelBookingRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+}
+
+func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (CancelBookingRow, error) {
+	row := q.db.QueryRowContext(ctx, cancelBooking, arg.CancellationReason, arg.ID)
+	var i CancelBookingRow
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const checkPaidBookingConflict = `-- name: CheckPaidBookingConflict :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = $1
+  AND id != $2
+  AND scheduled_start < $3::timestamptz
+  AND scheduled_end   > $4::timestamptz
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+`
+
+type CheckPaidBookingConflictParams struct {
+	TrainerID uuid.UUID
+	ExcludeID uuid.UUID
+	NewEnd    time.Time
+	NewStart  time.Time
+}
+
+func (q *Queries) CheckPaidBookingConflict(ctx context.Context, arg CheckPaidBookingConflictParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkPaidBookingConflict,
+		arg.TrainerID,
+		arg.ExcludeID,
+		arg.NewEnd,
+		arg.NewStart,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveBookingsForAdmin = `-- name: CountActiveBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session')
+`
+
+func (q *Queries) CountActiveBookingsForAdmin(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveBookingsForAdmin)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBookingsByTrainer = `-- name: CountBookingsByTrainer :one
+SELECT COUNT(*) FROM bookings WHERE trainer_id = $1
+`
+
+func (q *Queries) CountBookingsByTrainer(ctx context.Context, trainerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBookingsByTrainer, trainerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countBookingsForAdmin = `-- name: CountBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings
+`
+
+func (q *Queries) CountBookingsForAdmin(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countBookingsForAdmin)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTrainerClients = `-- name: CountTrainerClients :one
+SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = $1
+`
+
+// Count of distinct clients who have booked with this trainer.
+func (q *Queries) CountTrainerClients(ctx context.Context, trainerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainerClients, trainerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const createBooking = `-- name: CreateBooking :one
+INSERT INTO bookings (
+  trainer_id,
+  client_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  messenger_handle,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -37,15 +234,13 @@ INSERT INTO bookings (
   $8,
   $9,
   $10,
-  $11,
-  $12
+  $11
 )
 RETURNING
   id,
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -53,35 +248,42 @@ RETURNING
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
 `
 
 type CreateBookingParams struct {
 	TrainerID          uuid.UUID
 	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
-	CalendlyEventID    sql.NullString
 	ScheduledStart     sql.NullTime
 	ScheduledEnd       sql.NullTime
 	Timezone           sql.NullString
 	BookingStatus      sql.NullString
 	SessionPlatform    sql.NullString
+	MessengerHandle    sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
 }
 
+// subscription_id is intentionally NOT inserted here — the field was removed
+// from the public POST /bookings contract. The column itself stays on the
+// bookings table (and on RETURNING + the other SELECT queries below) so
+// historical bookings with subscription_id populated remain queryable; new
+// bookings simply leave it NULL.
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, createBooking,
 		arg.TrainerID,
 		arg.ClientID,
-		arg.SubscriptionID,
-		arg.CalendlyEventID,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 		arg.Timezone,
 		arg.BookingStatus,
 		arg.SessionPlatform,
+		arg.MessengerHandle,
 		arg.CancellationReason,
 		arg.CreatedAt,
 		arg.CancelledAt,
@@ -92,7 +294,6 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -101,8 +302,39 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.CancellationReason,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
+}
+
+const createPaidRescheduleHistory = `-- name: CreatePaidRescheduleHistory :exec
+INSERT INTO paid_booking_reschedule_history (booking_id, previous_start, new_start, reason)
+VALUES (
+  $1,
+  $2::timestamptz,
+  $3::timestamptz,
+  $4
+)
+`
+
+type CreatePaidRescheduleHistoryParams struct {
+	BookingID     uuid.UUID
+	PreviousStart time.Time
+	NewStart      time.Time
+	Reason        sql.NullString
+}
+
+func (q *Queries) CreatePaidRescheduleHistory(ctx context.Context, arg CreatePaidRescheduleHistoryParams) error {
+	_, err := q.db.ExecContext(ctx, createPaidRescheduleHistory,
+		arg.BookingID,
+		arg.PreviousStart,
+		arg.NewStart,
+		arg.Reason,
+	)
+	return err
 }
 
 const getBookingByID = `-- name: GetBookingByID :one
@@ -111,7 +343,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -119,7 +350,11 @@ SELECT
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -133,7 +368,6 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -142,6 +376,10 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.CancellationReason,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -152,7 +390,6 @@ SELECT
   trainer_id,
   client_id,
   subscription_id,
-  calendly_event_id,
   scheduled_start,
   scheduled_end,
   timezone,
@@ -160,7 +397,11 @@ SELECT
   session_platform,
   cancellation_reason,
   created_at,
-  cancelled_at
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -175,7 +416,6 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.TrainerID,
 		&i.ClientID,
 		&i.SubscriptionID,
-		&i.CalendlyEventID,
 		&i.ScheduledStart,
 		&i.ScheduledEnd,
 		&i.Timezone,
@@ -184,6 +424,670 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.CancellationReason,
 		&i.CreatedAt,
 		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
+	)
+	return i, err
+}
+
+const getBookingsPastMonth = `-- name: GetBookingsPastMonth :many
+SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle FROM bookings
+WHERE scheduled_start >= date_trunc('month', NOW())
+  AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month'
+`
+
+func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {
+	rows, err := q.db.QueryContext(ctx, getBookingsPastMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Booking
+	for rows.Next() {
+		var i Booking
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.SubscriptionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CancellationReason,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ZoomMeetingID,
+			&i.RescheduleCount,
+			&i.MessengerHandle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTrainerUserDetails = `-- name: GetTrainerUserDetails :one
+SELECT
+    u.id AS id,
+    u.name AS name,
+    u.email AS email,
+    t.id AS trainer_id
+FROM users u
+JOIN trainers t ON u.id = t.user_id
+WHERE t.id = $1
+`
+
+type GetTrainerUserDetailsRow struct {
+	ID        uuid.UUID
+	Name      string
+	Email     string
+	TrainerID uuid.UUID
+}
+
+func (q *Queries) GetTrainerUserDetails(ctx context.Context, id uuid.UUID) (GetTrainerUserDetailsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTrainerUserDetails, id)
+	var i GetTrainerUserDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.TrainerID,
+	)
+	return i, err
+}
+
+const getUpcomingPaidSessions = `-- name: GetUpcomingPaidSessions :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  u.name             AS trainer_name,
+  t.specializations  AS trainer_specializations,
+  t.display_picture  AS trainer_photo
+FROM bookings b
+JOIN trainers t ON t.id = b.trainer_id
+JOIN users u ON u.id = t.user_id
+WHERE b.client_id = $1
+  AND (b.scheduled_end IS NULL OR b.scheduled_end > NOW() - INTERVAL '7 days')
+  AND (b.booking_status IS NULL OR b.booking_status NOT IN ('cancelled', 'completed'))
+ORDER BY b.scheduled_start ASC
+`
+
+type GetUpcomingPaidSessionsRow struct {
+	ID                     uuid.UUID
+	TrainerID              uuid.UUID
+	ClientID               uuid.UUID
+	ScheduledStart         sql.NullTime
+	ScheduledEnd           sql.NullTime
+	Timezone               sql.NullString
+	BookingStatus          sql.NullString
+	SessionPlatform        sql.NullString
+	CreatedAt              sql.NullTime
+	TrainerName            string
+	TrainerSpecializations []string
+	TrainerPhoto           sql.NullString
+}
+
+// "Upcoming" here means any booking the client hasn't explicitly resolved
+// (cancelled or completed). We deliberately don't filter by
+// scheduled_start > NOW(): a session that came and went without being
+// started/completed must stay visible so the client/trainer can still
+// act on it. The 7-day grace past scheduled_end is an upper bound so
+// abandoned bookings eventually fall off this list.
+func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUID) ([]GetUpcomingPaidSessionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUpcomingPaidSessions, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUpcomingPaidSessionsRow
+	for rows.Next() {
+		var i GetUpcomingPaidSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.TrainerName,
+			pq.Array(&i.TrainerSpecializations),
+			&i.TrainerPhoto,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveBookingsForAdmin = `-- name: ListActiveBookingsForAdmin :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.booking_status IN ('started', 'in-session')
+ORDER BY b.scheduled_start ASC
+LIMIT $2
+OFFSET $1
+`
+
+type ListActiveBookingsForAdminParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListActiveBookingsForAdminRow struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	ClientID        uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	Timezone        sql.NullString
+	BookingStatus   sql.NullString
+	SessionPlatform sql.NullString
+	CreatedAt       sql.NullTime
+	CancelledAt     sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ClientName      string
+	ClientEmail     string
+	TrainerName     string
+	TrainerEmail    string
+	SessionID       uuid.NullUUID
+}
+
+// Admin view of sessions currently in progress (started or in-session). Paginated.
+func (q *Queries) ListActiveBookingsForAdmin(ctx context.Context, arg ListActiveBookingsForAdminParams) ([]ListActiveBookingsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveBookingsForAdmin, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveBookingsForAdminRow
+	for rows.Next() {
+		var i ListActiveBookingsForAdminRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBookingsByTrainer = `-- name: ListBookingsByTrainer :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name  AS client_name,
+  client_user.email AS client_email,
+  bs.id             AS session_id
+FROM bookings b
+JOIN users client_user ON client_user.id = b.client_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.trainer_id = $1
+ORDER BY b.scheduled_start DESC NULLS LAST, b.id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListBookingsByTrainerParams struct {
+	TrainerID  uuid.UUID
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListBookingsByTrainerRow struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	ClientID        uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	Timezone        sql.NullString
+	BookingStatus   sql.NullString
+	SessionPlatform sql.NullString
+	CreatedAt       sql.NullTime
+	CancelledAt     sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ClientName      string
+	ClientEmail     string
+	SessionID       uuid.NullUUID
+}
+
+// Paginated list of bookings where the caller is the trainer. The trainer
+// is identified by the trainers.id (the trainer profile row) — callers
+// resolve this from the authenticated user_id via GetTrainerByUserID.
+// Joins client name so the trainer's dashboard can render the client
+// without an extra lookup; LEFT JOINs booking_session for session_id (NULL
+// if the session hasn't been started yet).
+func (q *Queries) ListBookingsByTrainer(ctx context.Context, arg ListBookingsByTrainerParams) ([]ListBookingsByTrainerRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBookingsByTrainer, arg.TrainerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBookingsByTrainerRow
+	for rows.Next() {
+		var i ListBookingsByTrainerRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBookingsForAdmin = `-- name: ListBookingsForAdmin :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+ORDER BY b.created_at DESC NULLS LAST, b.id DESC
+LIMIT $2
+OFFSET $1
+`
+
+type ListBookingsForAdminParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListBookingsForAdminRow struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	ClientID        uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	Timezone        sql.NullString
+	BookingStatus   sql.NullString
+	SessionPlatform sql.NullString
+	CreatedAt       sql.NullTime
+	CancelledAt     sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ClientName      string
+	ClientEmail     string
+	TrainerName     string
+	TrainerEmail    string
+	SessionID       uuid.NullUUID
+}
+
+// Paginated list of every booking in the system for the admin sessions
+// dashboard. Joins client and trainer names so the response can render the
+// "client X with trainer Y" labels without forcing the FE to do N extra
+// user lookups. LEFT JOINs booking_session so the response also includes
+// the session_id (NULL if the session hasn't been started yet — the
+// booking_session row only exists after StartSession).
+// Newest first so the most recent activity surfaces on page 1.
+func (q *Queries) ListBookingsForAdmin(ctx context.Context, arg ListBookingsForAdminParams) ([]ListBookingsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBookingsForAdmin, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBookingsForAdminRow
+	for rows.Next() {
+		var i ListBookingsForAdminRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrainerClients = `-- name: ListTrainerClients :many
+SELECT
+  u.id                                                AS client_id,
+  u.name                                              AS client_name,
+  u.email                                             AS client_email,
+  u.avatar_url                                        AS client_avatar,
+  u.gender                                            AS client_gender,
+  u.fitness_goals                                     AS client_fitness_goals,
+  u.fitness_level                                     AS client_fitness_level,
+  COUNT(b.id)::BIGINT                                 AS total_bookings,
+  MAX(b.scheduled_start)::TIMESTAMPTZ                AS last_booking_date
+FROM users u
+JOIN bookings b ON b.client_id = u.id
+WHERE b.trainer_id = $1
+GROUP BY u.id
+ORDER BY last_booking_date DESC NULLS LAST, u.id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListTrainerClientsParams struct {
+	TrainerID  uuid.UUID
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListTrainerClientsRow struct {
+	ClientID           uuid.UUID
+	ClientName         string
+	ClientEmail        string
+	ClientAvatar       sql.NullString
+	ClientGender       sql.NullString
+	ClientFitnessGoals []string
+	ClientFitnessLevel sql.NullString
+	TotalBookings      int64
+	LastBookingDate    time.Time
+}
+
+// Distinct clients who have at least one booking with this trainer.
+// Returns the client's profile details plus aggregate booking counts and
+// the most recent booking date, so the trainer dashboard can render a
+// client roster without extra per-row lookups.
+// NOTE: all booking statuses (including cancelled) are counted. This is
+// intentional — a cancellation still records a relationship between the
+// trainer and client.
+func (q *Queries) ListTrainerClients(ctx context.Context, arg ListTrainerClientsParams) ([]ListTrainerClientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTrainerClients, arg.TrainerID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrainerClientsRow
+	for rows.Next() {
+		var i ListTrainerClientsRow
+		if err := rows.Scan(
+			&i.ClientID,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.ClientAvatar,
+			&i.ClientGender,
+			pq.Array(&i.ClientFitnessGoals),
+			&i.ClientFitnessLevel,
+			&i.TotalBookings,
+			&i.LastBookingDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const releaseBookingSlot = `-- name: ReleaseBookingSlot :execrows
+UPDATE booking_slots
+SET
+  is_active = true,
+  updated_at = NOW()
+WHERE
+  trainer_id = $1
+  AND day_of_week = EXTRACT(DOW FROM $3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::SMALLINT
+  AND start_time = ($3::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND end_time = ($4::TIMESTAMPTZ AT TIME ZONE $2::TEXT)::TIME
+  AND timezone = $2
+`
+
+type ReleaseBookingSlotParams struct {
+	TrainerID      uuid.NullUUID
+	Timezone       string
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+}
+
+// Release a booking slot by marking it as available again
+// This updates the booking_slots table to set is_active = true for the slot used by this booking
+func (q *Queries) ReleaseBookingSlot(ctx context.Context, arg ReleaseBookingSlotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseBookingSlot,
+		arg.TrainerID,
+		arg.Timezone,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const reschedulePaidBooking = `-- name: ReschedulePaidBooking :one
+UPDATE bookings
+SET scheduled_start   = $1::timestamptz,
+    scheduled_end     = $2::timestamptz,
+    zoom_meeting_link = $3,
+    zoom_meeting_id   = $4,
+    reschedule_count  = reschedule_count + 1
+WHERE id = $5
+  AND reschedule_count < 3
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
+`
+
+type ReschedulePaidBookingParams struct {
+	ScheduledStart  time.Time
+	ScheduledEnd    time.Time
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ID              uuid.UUID
+}
+
+func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, reschedulePaidBooking,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+		arg.ZoomMeetingLink,
+		arg.ZoomMeetingID,
+		arg.ID,
+	)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
+	)
+	return i, err
+}
+
+const updateBookingZoom = `-- name: UpdateBookingZoom :one
+UPDATE bookings
+SET zoom_meeting_link = $1,
+    zoom_meeting_id   = $2
+WHERE id = $3
+  AND zoom_meeting_id IS NULL
+RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle
+`
+
+type UpdateBookingZoomParams struct {
+	ZoomMeetingLink sql.NullString
+	ZoomMeetingID   sql.NullString
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, updateBookingZoom, arg.ZoomMeetingLink, arg.ZoomMeetingID, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }

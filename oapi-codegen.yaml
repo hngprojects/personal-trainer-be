@@ -3,3 +3,31 @@ generate:
   gin-server: true
   models: true
 output: internal/api/gen.go
+
+# The operations listed here are documented in api.yaml so Swagger UI
+# can render them, but they are NOT generated into the ServerInterface
+# — their handlers are hand-wired via direct Gin registration in
+# internal/routes/zoom_*.go and internal/activities/. Adding their
+# operationIds here keeps `make codegen` from growing gen.go and
+# breaking the build when a stub doesn't exist on routerImpl.
+#
+# If you add a new hand-wired route in api.yaml, append its operationId
+# here too.
+output-options:
+  exclude-operation-ids:
+    - GetTrainersMeZoomConnect
+    - GetTrainersMeZoomCallback
+    - GetTrainersMeZoomStatus
+    - DeleteTrainersMeZoom
+    - GetSessionsIdJoinInfo
+    - GetConfigZoom
+    - GetTrainersMeActivities
+    - GetAdminActivities
+    - GetAppleAppSiteAssociation
+    - GetAssetlinksJson
+    - GetAdminSettings
+    - PutAdminSettings
+    - PostAdminCategories
+    - DeleteAdminCategoriesId
+    - GetCategories
+    - NotificationsWebSocketUpgrade

@@ -57,6 +57,22 @@ func (m *ResendMailer) SendAdminCredentials(to, password string) error {
 	return m.send(to, adminCredentialsSubject, body)
 }
 
+func (m *ResendMailer) SendTrainerCredentials(to, password string) error {
+	body, err := trainerCredentialsHTML(to, password)
+	if err != nil {
+		return fmt.Errorf("resend: build trainer credentials email body: %w", err)
+	}
+	return m.send(to, trainerCredentialsSubject, body)
+}
+
+func (m *ResendMailer) SendAccountSetupLink(to, name, link string, expiryHours int) error {
+	body, err := accountSetupHTML(name, link, expiryHours)
+	if err != nil {
+		return fmt.Errorf("resend: build account setup email body: %w", err)
+	}
+	return m.send(to, accountSetupSubject, body)
+}
+
 func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int) error {
 	body, err := passwordResetHTML(code, expiryMinutes)
 	if err != nil {
@@ -109,10 +125,78 @@ func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	return fmt.Errorf("resend: unexpected status %d: %s", resp.StatusCode, string(body))
 }
 
+func (m *ResendMailer) SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryBookingHTML(name, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build discovery booking email: %w", err)
+	}
+	subject := zoomMeetingConfirmationSubject
+	if contactMode == "phone_callback" {
+		subject = phoneCallConfirmationSubject
+	}
+	return m.send(to, subject, html)
+}
+
+func (m *ResendMailer) SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryBookingAdminHTML(clientName, clientEmail, scheduledAt, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build admin notification email: %w", err)
+	}
+	return m.send(to, discoveryBookingAdminNotificationSubject, html)
+}
+
 func (m *ResendMailer) SendContactConfirmation(to, name string) error {
 	body, err := contactConfirmationHTML(name)
 	if err != nil {
 		return fmt.Errorf("resend: build contact confirmation email body: %w", err)
 	}
 	return m.send(to, contactConfirmationSubject, body)
+}
+
+func (m *ResendMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error {
+	html, err := discoveryRescheduleHTML(name, oldTime, newTime, timezone, contactMode, phoneNumber, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build reschedule email: %w", err)
+	}
+	return m.send(to, discoveryRescheduleSubject, html)
+}
+
+func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build paid session reschedule email: %w", err)
+	}
+	return m.send(to, paidRescheduleClientSubject, html)
+}
+
+func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build paid session reschedule trainer notification email: %w", err)
+	}
+	return m.send(to, paidRescheduleTrainerSubject, html)
+}
+
+func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
+	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build booking confirmation email: %w", err)
+	}
+	return m.send(to, bookingConfirmationSubject, html)
+}
+
+func (m *ResendMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderClientHTML(clientName, trainerName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build session reminder email: %w", err)
+	}
+	return m.send(to, sessionReminderClientSubject, html)
+}
+
+func (m *ResendMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderTrainerHTML(trainerName, clientName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("resend: build session reminder trainer email: %w", err)
+	}
+	return m.send(to, sessionReminderTrainerSubject, html)
 }

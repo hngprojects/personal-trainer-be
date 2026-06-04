@@ -10,6 +10,7 @@ ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_session_platform_check;
 UPDATE bookings SET session_platform = 'zoom'
 WHERE session_platform NOT IN ('zoom', 'google_meet', 'messenger');
 
+
 ALTER TABLE bookings
     ADD CONSTRAINT bookings_session_platform_check
     CHECK (session_platform IN ('zoom', 'google_meet', 'messenger'));
