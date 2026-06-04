@@ -299,3 +299,4 @@ WHERE u.id = (SELECT t.user_id FROM trainers t WHERE t.id = sqlc.arg(trainer_id)
   AND u.is_active = true
 RETURNING u.id;
 
+
