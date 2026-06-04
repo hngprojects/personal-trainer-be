@@ -307,7 +307,6 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			}
 			appendIntoFailedTrainer(index, trainer, failedTrainers)
 			fmt.Printf("❌ failed to create trainer %v: receive status code: %v\n", trainer.Email, res.StatusCode)
-
 			continue
 		} else {
 			fmt.Printf("✅ Created trainer with email: %v\n", trainer.Email)
