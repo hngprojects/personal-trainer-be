@@ -67,6 +67,14 @@ func (f *fakeLocalUserRepo) MarkVerified(_ context.Context, email string) (*db.U
 	return &db.User{ID: uuid.New(), Email: email, AuthProvider: "local", IsActive: true}, nil
 }
 
+func (f *fakeLocalUserRepo) FindByAppleSub(_ context.Context, _ string) (*db.User, error) {
+	return nil, auth.ErrNotFound
+}
+
+func (f *fakeLocalUserRepo) CreateAppleUser(_ context.Context, email, name, _ string) (*db.User, error) {
+	return &db.User{ID: uuid.New(), Email: email, Name: name, AuthProvider: "apple", IsActive: true}, nil
+}
+
 // fakeCodeRepo controls verification code behaviour.
 type fakeCodeRepo struct {
 	consumeErr error

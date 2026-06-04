@@ -203,6 +203,42 @@ components:
             claim matches one of the configured client IDs.
           example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ij..."
 
+    AppleSignInRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: >-
+            Apple-signed identity token (JWT) obtained client-side via
+            Sign in with Apple — either the native AuthenticationServices
+            API on iOS, the REST flow on Android, or "Sign in with Apple
+            JS" on the web. The server verifies the signature against
+            Apple's JWKS (https://appleid.apple.com/auth/keys), checks
+            the `iss` claim and that `aud` matches one of the configured
+            bundle IDs (`APPLE_SIGN_IN_BUNDLE_IDS`, falling back to
+            `APPLE_BUNDLE_ID`).
+          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjQ2NmQ4MmYzOG..."
+        user:
+          $ref: "#/components/schemas/AppleSignInUserHint"
+          description: >-
+            Optional client-supplied display name. Apple only exposes
+            the user's name to the CLIENT on the FIRST authorization
+            (and never on the server-bound identity token), so the
+            mobile app must forward it on that one request. Server
+            silently ignores absent/blank values on every other
+            sign-in.
+
+    AppleSignInUserHint:
+      type: object
+      description: >-
+        Echo of the name fields Apple hands the client on the first
+        authorization. Forwarded only on first sign-in.
+      properties:
+        name:
+          type: string
+          example: "Jane Appleseed"
+
     TrainerSpecialization:
       type: string
       enum: [yoga, speed, cardio, endurance, strength]
@@ -1822,6 +1858,74 @@ paths:
               example:
                 status: error
                 message: google sign-in is not configured on this server
+                code: SERVER_ERROR
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/apple:
+    post:
+      security: []
+      operationId: HandleAppleSignIn
+      tags:
+        - Auth — OAuth
+      summary: Sign in via Apple identity token (mobile + web)
+      description: >-
+        Accepts an Apple-signed identity token from a Sign-in-with-Apple
+        client — native iOS (AuthenticationServices), Android (REST
+        flow), or web ("Sign in with Apple JS") — and returns the same
+        JWT pair as the Google flow. The server verifies the token
+        signature against Apple's JWKS, checks `iss` and `aud`, and
+        looks the user up by the stable `sub` claim. On first sign-in
+        a new user row is created with `auth_provider='apple'` and the
+        sub stored in `apple_user_id`. Email and name are only present
+        in the first authorization — subsequent sign-ins identify the
+        user purely by sub.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppleSignInRequest"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAuthResponse"
+        "400":
+          description: Missing or malformed request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid request body
+                code: BAD_REQUEST
+        "401":
+          description: Identity token failed verification (invalid signature, wrong audience, wrong issuer, expired, or missing sub)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: invalid apple id token
+                code: UNAUTHORIZED
+        "503":
+          description: Server has no Apple bundle IDs configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: error
+                message: apple sign-in is not configured on this server
                 code: SERVER_ERROR
         "500":
           description: Internal server error
