@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -11,9 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/hngprojects/personal-trainer-be/internal/config"
-	"github.com/joho/godotenv"
+	"time"
 )
 
 /*
@@ -54,6 +53,8 @@ type ValidationErrors struct {
 
 type TrainersMap map[int]Trainer
 
+var TrainersToBeCreated = make(TrainersMap)
+
 // type Trainer map[string]any
 
 type Trainer struct {
@@ -73,78 +74,62 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// DUMMY DATA - WILL BE REPLACED SOON
-var TrainersToBeCreated = TrainersMap{
-	1: {
-		Name:        "Chidi Okonkwo",
-		Email:       "chidi.okonkwo@example.com",
-		PhoneNumber: strPtr("+2348012345671"),
-	},
-	2: {
-		Name:  "Ngozi Eze",
-		Email: "ngozi.eze@example.com",
-	},
-	3: {
-		Name:  "Emeka Okafor",
-		Email: "emeka.okafor@example.com",
-	},
-	4: {
-		Name:  "Amina Bello",
-		Email: "amina.bello@example.com",
-	},
-	5: {
-		Name:            "Tunde Balogun",
-		Email:           "tunde.balogun@example.com",
-		Gender:          strPtr("male"),
-		Specializations: []*string{strPtr("endurance")},
-	},
-	6: {
-		Name:              "Ifeanyi Obi",
-		Email:             "ifeanyi.obi@example.com",
-		YearsOfExperience: strPtr("7"),
-		Bio:               strPtr("CrossFit Level 2 trainer with competition experience."),
-	},
-	7: {
-		Name:  "Zainab Sulaiman",
-		Email: "zainab.sulaiman@example.com",
-	},
-	8: {
-		Name:        "Femi Adeyemi",
-		Email:       "femi.adeyemi@example.com",
-		PhoneNumber: strPtr("08012345678"),
-		Gender:      strPtr("male"),
-	},
-	9: {
-		Name:              "Kelechi Nwosu",
-		Email:             "kelechi.nwosu@example.com",
-		PhoneNumber:       strPtr("+2348012345679"),
-		Gender:            strPtr("male"),
-		Specializations:   []*string{strPtr("endurance")},
-		YearsOfExperience: strPtr("2"),
-		Bio:               strPtr("Bodyweight training enthusiast."),
-	},
-	10: {
-		Name:        "Adaobi Ugwu",
-		Email:       "adaobi.ugwu@example.com",
-		PhoneNumber: strPtr("+2348012345680"),
-	},
-}
-
-var failedTrainers = make(TrainersMap)
-
 func main() {
-	var BASE_URL string
-	_ = godotenv.Load()
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("failed to load configuration", "error", err)
-		os.Exit(1)
-	}
-	if cfg.Env != "development" {
-		BASE_URL = "https://api.staging.fitcall.me"
-	} else {
+	var fileLocation string
+	BASE_URL := os.Getenv("API_BASE_URL")
+	if BASE_URL == "" {
 		BASE_URL = "http://localhost:8080/api/v1"
 	}
+
+	// Receive file location
+	fmt.Println("Please enter text file location containing email")
+	if _, err := fmt.Scan(&fileLocation); err != nil {
+		fmt.Printf("failed to read text file location: %v", err)
+		os.Exit(1)
+	}
+	fmt.Println("")
+	fmt.Println("Press Enter to continue...")
+	_, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		fmt.Printf("failed to read input: %v", err)
+	}
+	fmt.Println("📍reading file from location...")
+
+	// Read text file
+	file, err := os.Open(fileLocation)
+	if err != nil {
+		fmt.Printf("failed to read file from locaion: %v", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("failed to close file: %v", err)
+		}
+	}()
+
+	scanner := bufio.NewReader(file)
+	for {
+		email, err := scanner.ReadString('\n')
+		if err == io.EOF {
+			if len(email) != 0 {
+				fmt.Println("Last Email:", email)
+			}
+			break
+		}
+		if err != nil {
+			fmt.Printf("failed to read line from file: %v", err)
+			return
+		}
+		spacelessEmail := strings.TrimSpace(email)
+		name := strings.Split(spacelessEmail, "@")[0]
+		trainer := &Trainer{
+			Email: spacelessEmail,
+			Name:  name,
+		}
+		TrainersToBeCreated[len(TrainersToBeCreated)] = *trainer
+	}
+	fmt.Println("✅ read emails from text file complete ")
+	fmt.Println("")
 	if err := createTrainers(BASE_URL); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -173,19 +158,25 @@ func createTrainers(BASE_URL string) error {
 	fmt.Println("✅ Access token generated successfully.")
 
 	// create trainer account
-	if err := createTrainerAcct(BASE_URL, client, *accessToken, TrainersToBeCreated); err != nil {
+	failedTrainers, err := createTrainerAcct(BASE_URL, client, *accessToken, TrainersToBeCreated)
+	if err != nil {
 		return fmt.Errorf("failed to create trainers accounts: %v", err)
 	}
 
 	if len(failedTrainers) > 0 {
 		// retry for failed trainers
+		fmt.Println("")
+		fmt.Println("⚠️  Failed to create accounts for the following trainers: ")
+		for index, failed := range failedTrainers {
+			fmt.Printf("%d. %s\n", index+1, failed.Email)
+		}
 		fmt.Println("Do you wish to retry failed trainers? (Enter Y if 'yes', else enter N): ")
 		if _, err := fmt.Scan(&retryFailedTrainers); err != nil {
 			return fmt.Errorf("failed to read value: %v", err)
 		}
 		input := strings.ToLower(strings.TrimSpace(retryFailedTrainers))
 		if input == "yes" || input == "y" {
-			if err := createTrainerAcct(BASE_URL, client, *accessToken, failedTrainers); err != nil {
+			if _, err := createTrainerAcct(BASE_URL, client, *accessToken, failedTrainers); err != nil {
 				return fmt.Errorf("%v", err)
 			}
 		} else {
@@ -204,8 +195,9 @@ func convertStructToReader(payload map[string]interface{}) (io.Reader, error) {
 	return &buf, nil
 }
 
-func createTrainerAcct(base_url string, client *http.Client, access_token string, trainersMap TrainersMap) error {
+func createTrainerAcct(base_url string, client *http.Client, access_token string, trainersMap TrainersMap) (TrainersMap, error) {
 	endpoint := base_url + "/trainers"
+	var failedTrainers = make(TrainersMap)
 	// var body map[string]interface{}
 	for index, trainer := range trainersMap {
 		randomGenderNo := rand.IntN(len(RandomGender))
@@ -280,7 +272,7 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			continue
 		}
 		if err := multipartWriter.Close(); err != nil {
-			return fmt.Errorf("failed to close multipart writer: %v", err)
+			return failedTrainers, fmt.Errorf("failed to close multipart writer: %v", err)
 		}
 		// send request
 		req, err := http.NewRequest(http.MethodPost, endpoint, &requestBody)
@@ -318,27 +310,20 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			}
 			appendIntoFailedTrainer(index, trainer, failedTrainers)
 			fmt.Printf("❌ failed to create trainer %v: receive status code: %v\n", trainer.Email, res.StatusCode)
-			defer func() {
-				if err := res.Body.Close(); err != nil {
-					slog.Warn("failed to close response body", "error", err)
-				}
-			}()
 			continue
 		} else {
 			fmt.Printf("✅ Created trainer with email: %v\n", trainer.Email)
 		}
-		defer func() {
-			if err := res.Body.Close(); err != nil {
-				slog.Warn("failed to close response body", "error", err)
-			}
-		}()
+		if err := res.Body.Close(); err != nil {
+			return failedTrainers, fmt.Errorf("failed to close response body: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond) // slight delay to avoid overwhelming the server
 	}
-	return nil
+	return failedTrainers, nil
 }
 
-func appendIntoFailedTrainer(index int, trainer Trainer, failedTrainer TrainersMap) TrainersMap {
+func appendIntoFailedTrainer(index int, trainer Trainer, failedTrainer TrainersMap) {
 	failedTrainer[index] = trainer
-	return failedTrainer
 }
 
 func generateAccessToken(base_url string, client *http.Client, email, password string) (*string, error) {
