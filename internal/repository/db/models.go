@@ -302,6 +302,7 @@ type User struct {
 	FitnessLevel sql.NullString
 	AvatarUrl    sql.NullString
 	PhoneNumber  sql.NullString
+	AppleUserID  sql.NullString
 }
 
 type UserDevice struct {

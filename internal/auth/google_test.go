@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -55,6 +56,21 @@ func (f *fakeUserRepo) MarkVerified(_ context.Context, email string) (*db.User, 
 
 func (f *fakeUserRepo) LookupRoleIDs(_ context.Context, _ uuid.UUID) (auth.RoleIDs, error) {
 	return auth.RoleIDs{}, nil
+}
+
+func (f *fakeUserRepo) FindByAppleSub(_ context.Context, _ string) (*db.User, error) {
+	return nil, auth.ErrNotFound
+}
+
+func (f *fakeUserRepo) CreateAppleUser(_ context.Context, email, name, sub string) (*db.User, error) {
+	return &db.User{
+		ID:           uuid.New(),
+		Email:        email,
+		Name:         name,
+		AuthProvider: "apple",
+		AppleUserID:  sql.NullString{String: sub, Valid: sub != ""},
+		IsActive:     true,
+	}, nil
 }
 
 func testHandler(repo auth.UserRepository) *auth.GoogleHandler {
