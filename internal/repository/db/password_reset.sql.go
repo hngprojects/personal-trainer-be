@@ -118,7 +118,6 @@ func (q *Queries) UpsertPasswordResetCode(ctx context.Context, arg UpsertPasswor
 
 const verifyPasswordResetCode = `-- name: VerifyPasswordResetCode :one
 SELECT id, email, code, created_at, expires_at FROM password_reset_codes
-
 WHERE email = $1 AND code = $2 AND expires_at > NOW()
 `
 
@@ -129,7 +128,6 @@ type VerifyPasswordResetCodeParams struct {
 
 // Read-only check: confirms the code is valid and not expired without consuming it.
 // Used by the verify-otp step so mobile can confirm the code before showing the new-password screen.
-
 func (q *Queries) VerifyPasswordResetCode(ctx context.Context, arg VerifyPasswordResetCodeParams) (PasswordResetCode, error) {
 	row := q.db.QueryRowContext(ctx, verifyPasswordResetCode, arg.Email, arg.Code)
 	var i PasswordResetCode
