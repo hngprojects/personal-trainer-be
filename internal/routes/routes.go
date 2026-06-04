@@ -36,6 +36,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
 	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
+	"github.com/hngprojects/personal-trainer-be/pkg/apple"
 	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/googlemeet"
@@ -144,6 +145,7 @@ type routerImpl struct {
 	cfg                           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
 	google                        *auth.GoogleHandler
 	googleMobile                  *auth.MobileGoogleHandler
+	apple                         *auth.AppleHandler
 	local                         *auth.LocalHandler
 	root                          *root.RootHandler
 	adminLogin                    *handlers.AdminLoginHandler
@@ -302,6 +304,24 @@ func (s *Router) Routes() *gin.Engine {
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
+
+			// Apple Sign In. Constructed only when bundle IDs are
+			// configured — the verifier fetches Apple's JWKS at
+			// construct time and would either fail or sit silently
+			// rejecting tokens otherwise. nil leaves the route handler
+			// returning 503 with a clear "not configured" message,
+			// matching the pattern used elsewhere (Zoom OAuth, Meet,
+			// MinIO).
+			if len(s.cfg.AppleSignInBundleIDs) > 0 {
+				appleVerifier, err := apple.NewVerifier(context.Background(), s.cfg.AppleSignInBundleIDs)
+				if err != nil {
+					s.log.Warn("apple sign-in: verifier init failed — endpoint will 503", "err", err)
+				} else {
+					impl.apple = auth.NewAppleHandler(s.cfg, usersRepo, sessionsRepo, appleVerifier, s.log)
+				}
+			} else {
+				s.log.Warn("apple sign-in: APPLE_SIGN_IN_BUNDLE_IDS / APPLE_BUNDLE_ID empty — endpoint will 503")
+			}
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(s.db, q)

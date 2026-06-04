@@ -59,6 +59,14 @@ func (f *fakeAdminUser) LookupRoleIDs(_ context.Context, _ uuid.UUID) (auth.Role
 	return auth.RoleIDs{}, nil
 }
 
+func (f *fakeAdminUser) FindByAppleSub(_ context.Context, _ string) (*db.User, error) {
+	return nil, nil
+}
+
+func (f *fakeAdminUser) CreateAppleUser(_ context.Context, _, _, _ string) (*db.User, error) {
+	return nil, nil
+}
+
 func (f *fakeAdminUserRole) UserHasRole(_ context.Context, _ uuid.UUID, roleName string) (bool, error) {
 	if f.hasRoleErr != nil {
 		return false, f.hasRoleErr

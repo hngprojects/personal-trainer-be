@@ -39,12 +39,53 @@ func (q *Queries) CountClients2(ctx context.Context, isActive sql.NullBool) (int
 	return column_1, err
 }
 
+const createAppleUser = `-- name: CreateAppleUser :one
+INSERT INTO users (email, name, auth_provider, apple_user_id, is_active)
+VALUES ($1, $2, 'apple', $3, true)
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+`
+
+type CreateAppleUserParams struct {
+	Email       string
+	Name        string
+	AppleUserID sql.NullString
+}
+
+// First-time Apple Sign In. Email may be empty or a Hide-My-Email
+// private relay address (privaterelay.appleid.com) — the relay value
+// is fine to store and email; Apple forwards it to the user's real
+// inbox. Name is also only present on the first authorization, so
+// empty strings are valid for both fields and we just don't display
+// placeholder names later.
+func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createAppleUser, arg.Email, arg.Name, arg.AppleUserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+		&i.PhoneNumber,
+		&i.AppleUserID,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
 ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type CreateUserParams struct {
@@ -71,6 +112,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
@@ -156,8 +198,42 @@ func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (GetClientByI
 	return i, err
 }
 
+const getUserByAppleSub = `-- name: GetUserByAppleSub :one
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+FROM users
+WHERE apple_user_id = $1
+LIMIT 1
+`
+
+// Apple Sign In uses the stable `sub` claim as the user identifier
+// because the `email` claim is only emitted on the first authorization.
+// A separate lookup keyed on apple_user_id is required so returning
+// users find their row on every subsequent sign-in.
+func (q *Queries) GetUserByAppleSub(ctx context.Context, appleUserID sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByAppleSub, appleUserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+		&i.PhoneNumber,
+		&i.AppleUserID,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 FROM users
 WHERE email = $1
 LIMIT 1
@@ -181,12 +257,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 FROM users
 WHERE email = $1 AND auth_provider = $2
 LIMIT 1
@@ -215,12 +292,13 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 FROM users
 WHERE id = $1
 LIMIT 1
@@ -244,6 +322,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
@@ -275,6 +354,47 @@ func (q *Queries) HardDeleteClient(ctx context.Context, id uuid.UUID) (int64, er
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const linkAppleSubToUser = `-- name: LinkAppleSubToUser :one
+UPDATE users
+SET apple_user_id = $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND apple_user_id IS NULL
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+`
+
+type LinkAppleSubToUserParams struct {
+	ID          uuid.UUID
+	AppleUserID sql.NullString
+}
+
+// Backfill apple_user_id on an existing row when an account that was
+// previously created without one (e.g. through an earlier flow) signs
+// in for the first time. Only used by the handler when we find the
+// user by email-fallback; the primary lookup uses GetUserByAppleSub.
+func (q *Queries) LinkAppleSubToUser(ctx context.Context, arg LinkAppleSubToUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, linkAppleSubToUser, arg.ID, arg.AppleUserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+		&i.PhoneNumber,
+		&i.AppleUserID,
+	)
+	return i, err
 }
 
 const listClients = `-- name: ListClients :many
@@ -389,7 +509,7 @@ SET
     avatar_url     = COALESCE(NULLIF($5::text, ''), avatar_url),
     updated_at     = NOW()
 WHERE id = $6
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type UpdateUserOnboardingParams struct {
@@ -426,6 +546,7 @@ func (q *Queries) UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboar
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
@@ -439,7 +560,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role       = 'admin',
        is_active  = true,
        updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type UpsertAdminUserParams struct {
@@ -466,6 +587,7 @@ func (q *Queries) UpsertAdminUser(ctx context.Context, arg UpsertAdminUserParams
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
@@ -490,7 +612,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role         = 'trainer',
        is_active    = true,
        updated_at   = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type UpsertTrainerUserParams struct {
@@ -535,6 +657,7 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
