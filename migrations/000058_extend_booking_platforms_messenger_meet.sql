@@ -5,6 +5,12 @@
 -- handler ever implemented it). `google_meet` is already accepted by
 -- the existing CHECK so it stays.
 ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_session_platform_check;
+
+-- Remap legacy 'whatsapp' rows to 'zoom' before the new constraint is applied.
+UPDATE bookings SET session_platform = 'zoom'
+WHERE session_platform NOT IN ('zoom', 'google_meet', 'messenger');
+
+
 ALTER TABLE bookings
     ADD CONSTRAINT bookings_session_platform_check
     CHECK (session_platform IN ('zoom', 'google_meet', 'messenger'));
