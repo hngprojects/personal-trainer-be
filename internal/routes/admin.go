@@ -151,12 +151,12 @@ func (s *routerImpl) AdminListActiveSessions(c *gin.Context) {
 	list := make([]map[string]interface{}, 0, len(rows))
 	for _, r := range rows {
 		m := map[string]interface{}{
-			"id":           r.ID.String(),
-			"trainer_id":   r.TrainerID.String(),
-			"client_id":    r.ClientID.String(),
-			"client_name":  r.ClientName,
-			"client_email": r.ClientEmail,
-			"trainer_name": r.TrainerName,
+			"id":            r.ID.String(),
+			"trainer_id":    r.TrainerID.String(),
+			"client_id":     r.ClientID.String(),
+			"client_name":   r.ClientName,
+			"client_email":  r.ClientEmail,
+			"trainer_name":  r.TrainerName,
 			"trainer_email": r.TrainerEmail,
 		}
 		if r.ScheduledStart.Valid {
@@ -540,6 +540,7 @@ func (s *routerImpl) GetAdminTopTrainers(c *gin.Context) {
 }
 
 func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
+
 	if s.trainers == nil {
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
@@ -575,4 +576,3 @@ func (s *routerImpl) DeleteAdminClient(c *gin.Context, id openapi_types.UUID) {
 
 	c.JSON(http.StatusOK, api.NewSuccess("client deactivated successfully", api.CodeOK, nil))
 }
-

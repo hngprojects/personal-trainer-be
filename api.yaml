@@ -4217,6 +4217,7 @@ paths:
                   minLength: 6
                   maxLength: 6
                   pattern: "^[0-9]{6}$"
+
                   example: "123456"
             example:
               email: trainer@example.com
@@ -4999,6 +5000,198 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions/{id}/cancel:
+    put:
+      operationId: AdminCancelSession
+      tags:
+        - Admin
+      summary: Cancel a session (super_admin only)
+      description: Cancels any booking regardless of who owns it. Cannot cancel already cancelled or completed sessions.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  description: Reason for cancellation
+                  example: admin override
+            example:
+              reason: admin override
+      responses:
+        "200":
+          description: Session cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: session cancelled successfully
+                data:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  booking_status: cancelled
+                  cancellation_reason: admin override
+                  cancelled_at: "2026-05-29T10:00:00Z"
+        "400":
+          description: Invalid session ID or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Session is already cancelled or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/sessions/{id}/reschedule:
+    put:
+      operationId: AdminRescheduleSession
+      tags:
+        - Admin
+      summary: Reschedule a session (super_admin only)
+      description: Reschedules any booking to a new time. Bypasses the 3-reschedule limit that applies to clients. Cannot reschedule cancelled or completed sessions.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - scheduled_start
+                - scheduled_end
+              properties:
+                scheduled_start:
+                  type: string
+                  format: date-time
+                  description: New start time (RFC3339)
+                  example: "2026-06-01T10:00:00Z"
+                scheduled_end:
+                  type: string
+                  format: date-time
+                  description: New end time (RFC3339)
+                  example: "2026-06-01T11:00:00Z"
+            example:
+              scheduled_start: "2026-06-01T10:00:00Z"
+              scheduled_end: "2026-06-01T11:00:00Z"
+      responses:
+        "200":
+          description: Session rescheduled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: session rescheduled successfully
+                data:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  booking_status: confirmed
+                  scheduled_start: "2026-06-01T10:00:00Z"
+                  scheduled_end: "2026-06-01T11:00:00Z"
+                  reschedule_count: 1
+        "400":
+          description: Invalid session ID, missing fields, or scheduled_end not after scheduled_start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - caller is not a super_admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Session cannot be rescheduled (already cancelled or completed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service unavailable
           content:
             application/json:
               schema:
