@@ -318,12 +318,20 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			}
 			appendIntoFailedTrainer(index, trainer, failedTrainers)
 			fmt.Printf("❌ failed to create trainer %v: receive status code: %v\n", trainer.Email, res.StatusCode)
-			res.Body.Close()
+			defer func() {
+				if err := res.Body.Close(); err != nil {
+					slog.Warn("failed to close response body", "error", err)
+				}
+			}()
 			continue
 		} else {
 			fmt.Printf("✅ Created trainer with email: %v\n", trainer.Email)
 		}
-		res.Body.Close()
+		defer func() {
+			if err := res.Body.Close(); err != nil {
+				slog.Warn("failed to close response body", "error", err)
+			}
+		}()
 	}
 	return nil
 }
