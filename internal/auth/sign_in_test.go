@@ -164,6 +164,7 @@ func TestSignIn_InactiveUserAllowed(t *testing.T) {
 	// Deactivated users are allowed to log in — they receive a valid token
 	// but are blocked by DeactivatedMiddleware on every protected route.
 	// This lets them reach POST /users/me/reactivate to restore access.
+
 	t.Setenv("JWT_SECRET", "test-secret")
 	u := signInUser(t, "deactivated@example.com", "real-password")
 	u.IsActive = false
@@ -178,6 +179,7 @@ func TestSignIn_InactiveUserAllowed(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "access_token") {
 		t.Fatalf("expected access_token in response for inactive user, got: %s", w.Body.String())
+
 	}
 }
 
