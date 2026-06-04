@@ -109,7 +109,7 @@ func (f *fakeAppleSessionRepo) Create(_ context.Context, _ uuid.UUID, _ string, 
 
 func newAppleTestHandler(t *testing.T, users *fakeAppleUserRepo, sessions *fakeAppleSessionRepo, ver auth.AppleVerifier) *auth.AppleHandler {
 	t.Helper()
-	t.Setenv("JWT_SECRET", "test-secret-must-be-long-enough-for-hs256")
+	t.Setenv("JWT_SECRET", "test-secret")
 	cfg := &config.Config{
 		AppleSignInBundleIDs: []string{"com.fitcal.app"},
 	}
