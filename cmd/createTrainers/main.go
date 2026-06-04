@@ -106,27 +106,22 @@ func main() {
 			fmt.Printf("failed to close file: %v", err)
 		}
 	}()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		email := strings.TrimSpace(scanner.Text())
+		if email == "" {
+			continue
+		}
 
-	scanner := bufio.NewReader(file)
-	for {
-		email, err := scanner.ReadString('\n')
-		if err == io.EOF {
-			if len(email) != 0 {
-				fmt.Println("Last Email:", email)
-			}
-			break
-		}
-		if err != nil {
-			fmt.Printf("failed to read line from file: %v", err)
-			return
-		}
-		spacelessEmail := strings.TrimSpace(email)
-		name := strings.Split(spacelessEmail, "@")[0]
-		trainer := &Trainer{
-			Email: spacelessEmail,
+		name := strings.SplitN(email, "@", 2)[0]
+		TrainersToBeCreated[len(TrainersToBeCreated)] = Trainer{
+			Email: email,
 			Name:  name,
 		}
-		TrainersToBeCreated[len(TrainersToBeCreated)] = *trainer
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("failed to read line from file: %v", err)
+		return
 	}
 	fmt.Println("✅ read emails from text file complete ")
 	fmt.Println("")
@@ -295,6 +290,9 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusConflict {
 				var response ValidationErrorResponse
 				respBody, err := io.ReadAll(res.Body)
+				if closeErr := res.Body.Close(); closeErr != nil {
+					return failedTrainers, fmt.Errorf("failed to close response body: %v", err)
+				}
 				if err != nil {
 					fmt.Printf("❌ failed to read response body: %v\n", err)
 				} else {
@@ -310,13 +308,15 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			}
 			appendIntoFailedTrainer(index, trainer, failedTrainers)
 			fmt.Printf("❌ failed to create trainer %v: receive status code: %v\n", trainer.Email, res.StatusCode)
+
 			continue
 		} else {
 			fmt.Printf("✅ Created trainer with email: %v\n", trainer.Email)
+			if err := res.Body.Close(); err != nil {
+				return failedTrainers, fmt.Errorf("failed to close response body: %v", err)
+			}
 		}
-		if err := res.Body.Close(); err != nil {
-			return failedTrainers, fmt.Errorf("failed to close response body: %v", err)
-		}
+
 		time.Sleep(200 * time.Millisecond) // slight delay to avoid overwhelming the server
 	}
 	return failedTrainers, nil
