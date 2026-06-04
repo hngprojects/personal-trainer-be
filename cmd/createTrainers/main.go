@@ -78,10 +78,9 @@ func strPtr(s string) *string {
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		fmt.Printf("failed to load environment variables from .env file: %v", err)
+		fmt.Printf("Error loading .env file: %v", err)
 		os.Exit(1)
 	}
-
 	var fileLocation string
 	BASE_URL := os.Getenv("API_BASE_URL")
 	if BASE_URL == "" {
@@ -158,6 +157,7 @@ func createTrainers(BASE_URL string) error {
 		return fmt.Errorf("failed to generate access token: %v", err)
 	}
 	fmt.Println("✅ Access token generated successfully.")
+
 	// create trainer account
 	failedTrainers, err := createTrainerAcct(BASE_URL, client, *accessToken, TrainersToBeCreated)
 	if err != nil {
@@ -291,6 +291,7 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			fmt.Printf("❌ failed to make request to %v: %v\n", req.URL.String(), err)
 			continue
 		}
+
 		if res.StatusCode != http.StatusCreated {
 			if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusConflict {
 				var response ValidationErrorResponse
