@@ -21,6 +21,10 @@ ALTER TABLE subscriptions
     ADD CONSTRAINT subscriptions_client_id_fkey
         FOREIGN KEY (client_id) REFERENCES users(id) ON DELETE CASCADE;
 
+-- Goose splits SQL on `;` by default, which breaks DO blocks because
+-- the inner ALTERs end with `;`. StatementBegin/End tells goose to
+-- send everything between the markers as a single statement.
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF EXISTS (
@@ -33,6 +37,7 @@ BEGIN
                 FOREIGN KEY (payer_id) REFERENCES users(id) ON DELETE CASCADE;
     END IF;
 END $$;
+-- +goose StatementEnd
 
 -- +goose Down
 ALTER TABLE bookings
@@ -45,6 +50,7 @@ ALTER TABLE subscriptions
     ADD CONSTRAINT subscriptions_client_id_fkey
         FOREIGN KEY (client_id) REFERENCES users(id);
 
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF EXISTS (
@@ -57,3 +63,4 @@ BEGIN
                 FOREIGN KEY (payer_id) REFERENCES users(id);
     END IF;
 END $$;
+-- +goose StatementEnd

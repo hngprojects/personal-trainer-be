@@ -17,6 +17,10 @@ ALTER TABLE bookings
     ADD CONSTRAINT bookings_subscription_id_fkey
         FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL;
 
+-- Goose splits SQL on `;` by default, which breaks DO blocks because
+-- the inner ALTERs end with `;`. StatementBegin/End tells goose to
+-- send everything between the markers as a single statement.
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF EXISTS (
@@ -34,6 +38,7 @@ BEGIN
                 FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL;
     END IF;
 END $$;
+-- +goose StatementEnd
 
 -- +goose Down
 ALTER TABLE booking_session
@@ -46,6 +51,7 @@ ALTER TABLE bookings
     ADD CONSTRAINT bookings_subscription_id_fkey
         FOREIGN KEY (subscription_id) REFERENCES subscriptions(id);
 
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF EXISTS (
@@ -63,3 +69,4 @@ BEGIN
                 FOREIGN KEY (subscription_id) REFERENCES subscriptions(id);
     END IF;
 END $$;
+-- +goose StatementEnd
