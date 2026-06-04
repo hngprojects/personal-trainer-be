@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 /*
@@ -75,6 +77,11 @@ func strPtr(s string) *string {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Printf("failed to load environment variables from .env file: %v", err)
+		os.Exit(1)
+	}
+
 	var fileLocation string
 	BASE_URL := os.Getenv("API_BASE_URL")
 	if BASE_URL == "" {
@@ -151,7 +158,6 @@ func createTrainers(BASE_URL string) error {
 		return fmt.Errorf("failed to generate access token: %v", err)
 	}
 	fmt.Println("✅ Access token generated successfully.")
-
 	// create trainer account
 	failedTrainers, err := createTrainerAcct(BASE_URL, client, *accessToken, TrainersToBeCreated)
 	if err != nil {
