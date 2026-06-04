@@ -145,12 +145,10 @@ func main() {
 			"got_env", cfg.Env,
 			"hint", "set APP_ENV=development if you really mean to run this against your local DB",
 		)
+		BASE_URL = "https://api.staging.fitcall.me"
+	} else {
 		BASE_URL = "http://localhost:8080/api/v1"
 	}
-	if cfg.Env != "production" {
-		BASE_URL = "https://api.staging.fitcall.me"
-	}
-
 	if err := createTrainers(BASE_URL); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -222,10 +220,8 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 		}
 		if trainer.PhoneNumber != nil {
 			t.PhoneNumber = trainer.PhoneNumber
-			fmt.Printf("%s", *t.PhoneNumber)
 		} else {
 			t.PhoneNumber = strPtr("+234801234567" + fmt.Sprint(index))
-			fmt.Printf("%s", *t.PhoneNumber)
 		}
 		if trainer.Gender != nil {
 			t.Gender = trainer.Gender
@@ -364,7 +360,6 @@ func generateAccessToken(base_url string, client *http.Client, email, password s
 			slog.Warn("failed to close response body", "error", err)
 		}
 	}()
-	fmt.Printf("status code: %v\n", res.StatusCode)
 	if res.StatusCode != http.StatusOK {
 		var errorRes ErrorResponse
 		respBody, err := io.ReadAll(res.Body)
