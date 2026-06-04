@@ -113,7 +113,7 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	// honours them.
 	mode := string(req.ContactMode)
 	switch mode {
-	case "zoom_meeting", "phone_callback", "google_meet", "messenger":
+	case "zoom_meeting", "phone_callback", "google_meet", "messenger", "imessage":
 		// ok
 	default:
 		h.log.Warn("book discovery call: invalid contact mode", "userID", userID.String(), "contactMode", mode)
@@ -123,6 +123,11 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 	if mode == "phone_callback" && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
 		h.log.Warn("book discovery call: phone number required for callback", "userID", userID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for phone_callback", api.CodeBadRequest))
+		return
+	}
+	if mode == "imessage" && (req.PhoneNumber == nil || *req.PhoneNumber == "") {
+		h.log.Warn("book discovery call: phone number required for imessage", "userID", userID.String())
+		c.JSON(http.StatusBadRequest, api.NewError("phone_number is required for iMessage", api.CodeBadRequest))
 		return
 	}
 	// Messenger is the same shape as phone_callback — client supplies

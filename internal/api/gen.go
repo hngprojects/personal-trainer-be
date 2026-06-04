@@ -42,6 +42,7 @@ func (e AuthUserUserType) Valid() bool {
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
 	BookDiscoveryCallRequestContactModeGoogleMeet    BookDiscoveryCallRequestContactMode = "google_meet"
+	BookDiscoveryCallRequestContactModeImessage      BookDiscoveryCallRequestContactMode = "imessage"
 	BookDiscoveryCallRequestContactModeMessenger     BookDiscoveryCallRequestContactMode = "messenger"
 	BookDiscoveryCallRequestContactModePhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
 	BookDiscoveryCallRequestContactModeZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
@@ -51,6 +52,8 @@ const (
 func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	switch e {
 	case BookDiscoveryCallRequestContactModeGoogleMeet:
+		return true
+	case BookDiscoveryCallRequestContactModeImessage:
 		return true
 	case BookDiscoveryCallRequestContactModeMessenger:
 		return true
@@ -908,7 +911,7 @@ type BookDiscoveryCallRequest struct {
 	MessengerHandle *string `json:"messenger_handle,omitempty"`
 	Name            string  `json:"name"`
 
-	// PhoneNumber Required when contact_mode is phone_callback. E.164 format.
+	// PhoneNumber Required when contact_mode is phone_callback or imessage. E.164 format.
 	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// SelectedDatetime ISO 8601 UTC datetime for the call
