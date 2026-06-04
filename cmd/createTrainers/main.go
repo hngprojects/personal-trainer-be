@@ -141,10 +141,6 @@ func main() {
 		os.Exit(1)
 	}
 	if cfg.Env != "development" {
-		slog.Error("seed script can only run in the development environment",
-			"got_env", cfg.Env,
-			"hint", "set APP_ENV=development if you really mean to run this against your local DB",
-		)
 		BASE_URL = "https://api.staging.fitcall.me"
 	} else {
 		BASE_URL = "http://localhost:8080/api/v1"
@@ -181,12 +177,12 @@ func createTrainers(BASE_URL string) error {
 		return fmt.Errorf("failed to create trainers accounts: %v", err)
 	}
 
-	// retry for failed trainers
-	fmt.Println("Do you wish to retry failed trainers? (Enter Y if 'yes', else enter N): ")
-	if _, err := fmt.Scan(&retryFailedTrainers); err != nil {
-		return fmt.Errorf("failed to read value: %v", err)
-	}
 	if len(failedTrainers) > 0 {
+		// retry for failed trainers
+		fmt.Println("Do you wish to retry failed trainers? (Enter Y if 'yes', else enter N): ")
+		if _, err := fmt.Scan(&retryFailedTrainers); err != nil {
+			return fmt.Errorf("failed to read value: %v", err)
+		}
 		input := strings.ToLower(strings.TrimSpace(retryFailedTrainers))
 		if input == "yes" || input == "y" {
 			if err := createTrainerAcct(BASE_URL, client, *accessToken, failedTrainers); err != nil {
@@ -302,11 +298,7 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			fmt.Printf("❌ failed to make request to %v: %v\n", req.URL.String(), err)
 			continue
 		}
-		defer func() {
-			if err := res.Body.Close(); err != nil {
-				slog.Warn("failed to close response body", "error", err)
-			}
-		}()
+
 		if res.StatusCode != http.StatusCreated {
 			if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusConflict {
 				var response ValidationErrorResponse
@@ -326,10 +318,12 @@ func createTrainerAcct(base_url string, client *http.Client, access_token string
 			}
 			appendIntoFailedTrainer(index, trainer, failedTrainers)
 			fmt.Printf("❌ failed to create trainer %v: receive status code: %v\n", trainer.Email, res.StatusCode)
+			res.Body.Close()
 			continue
 		} else {
 			fmt.Printf("✅ Created trainer with email: %v\n", trainer.Email)
 		}
+		res.Body.Close()
 	}
 	return nil
 }
