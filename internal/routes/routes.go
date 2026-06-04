@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
-	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -31,6 +30,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
@@ -38,6 +38,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
 	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	"github.com/hngprojects/personal-trainer-be/pkg/googlemeet"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
@@ -353,11 +354,37 @@ func (s *Router) Routes() *gin.Engine {
 				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
 			}
 
-			meetingSelector := &zoomflow.MeetingSelector{
+			zoomSelector := &zoomflow.MeetingSelector{
 				Store:         credStore,
 				OrgProvider:   orgMeetingProvider,
 				PreferTrainer: s.cfg.ZoomMeetingHost == "trainer",
 				Log:           s.log,
+			}
+
+			// Google Meet — single-org-account flow. We build the
+			// provider only when MEET_ENABLED=true AND all the OAuth
+			// bits are present; partial config logs a warn and the
+			// provider stays nil, so the selector returns NoOp →
+			// handler 503s with "google meet is not configured."
+			var meetProvider meeting.Provider
+			if s.cfg.MeetEnabled {
+				if s.cfg.MeetOAuthClientID != "" && s.cfg.MeetOAuthClientSecret != "" && s.cfg.MeetRefreshToken != "" {
+					meetOAuth := googlemeet.NewOAuthClient(
+						s.cfg.MeetOAuthClientID,
+						s.cfg.MeetOAuthClientSecret,
+						s.cfg.MeetRefreshToken,
+						s.cfg.MeetHostEmail,
+					)
+					meetProvider = googlemeet.NewProvider(meetOAuth)
+					s.log.Info("google meet provider ready", "host_email", s.cfg.MeetHostEmail)
+				} else {
+					s.log.Warn("MEET_ENABLED=true but MEET_OAUTH_CLIENT_* / MEET_REFRESH_TOKEN missing — meet provider disabled")
+				}
+			}
+
+			meetingSelector := meeting.MultiPlatformSelector{
+				Zoom: zoomSelector,
+				Meet: meetProvider,
 			}
 
 			// Meeting SDK signer for in-app joins. Optional — boot without
@@ -520,7 +547,7 @@ func (s *Router) Routes() *gin.Engine {
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
-		if s.cfg.Env == "development" {
+		if s.cfg.Env == "development" || s.cfg.Env == "staging" {
 			impl.dev = dev.NewDevHandler()
 		}
 
@@ -537,24 +564,58 @@ func (s *Router) Routes() *gin.Engine {
 			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
 		}
 
+		// Build deactivation middleware early so hand-wired routes (Zoom,
+		// WebSocket, Activities) enforce the same deactivation check as the
+		// oapi-codegen routes.
+		//
+		// For routes whose register() signature accepts a single authMw, we use
+		// a sub-group that applies authMw at the group level so it runs FIRST
+		// (before c.Next() is called), then pass deactivatedMw as the
+		// per-route middleware — Gin chains them as [authMw → deactivatedMw →
+		// handler] without the c.Next()-advances-chain-too-early problem.
+		var deactivatedMw gin.HandlerFunc
+		if q != nil {
+			deactivatedMw = middleware.DeactivatedMiddleware(q, s.log)
+		}
+
+		// authedGroup: authMw at group level, deactivatedMw passed per-route.
+		// Chain: [authMw, deactivatedMw, handler] — correct order.
+		authedGroup := v1.Group("")
+		authedGroup.Use(authMw)
+		perRouteMw := func() gin.HandlerFunc {
+			if deactivatedMw != nil {
+				return deactivatedMw
+			}
+			return func(c *gin.Context) { c.Next() }
+		}()
+
 		// Hand-wired Zoom routes (per-trainer OAuth + SDK join-info +
 		// public config). Registered on v1 alongside the oapi-generated
 		// handlers so they share the same auth middleware story but
 		// don't depend on api.yaml + oapi-codegen.
 		if impl.zoomOAuth != nil {
-			impl.zoomOAuth.register(v1, authMw)
+			impl.zoomOAuth.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomJoinInfo != nil {
-			impl.zoomJoinInfo.register(v1, authMw)
+			impl.zoomJoinInfo.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomConfig != nil {
-			impl.zoomConfig.register(v1, authMw)
+			impl.zoomConfig.register(authedGroup, perRouteMw)
 		}
 		if impl.wsHub != nil {
-			v1.GET("/notifications/ws", middleware.WebSocketAuthMiddleware(authRedis, s.log), websocket.UpgradeHandler(
+			// WebSocket uses its own auth middleware (token in query param).
+			// Deactivation check runs after WS auth confirms the user.
+			wsHandlers := []gin.HandlerFunc{
+				middleware.WebSocketAuthMiddleware(authRedis, s.log),
+			}
+			if deactivatedMw != nil {
+				wsHandlers = append(wsHandlers, deactivatedMw)
+			}
+			wsHandlers = append(wsHandlers, websocket.UpgradeHandler(
 				impl.wsHub, s.log,
 				impl.notificationService.DeliverPendingNotifOnConn,
 			))
+			v1.GET("/notifications/ws", wsHandlers...)
 		}
 
 		// Hand-wired recent-activities routes. Same rationale as the
@@ -566,7 +627,9 @@ func (s *Router) Routes() *gin.Engine {
 		if s.db != nil && q != nil {
 			activitiesRepo := activities.NewPostgresRepo(s.db)
 			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
-			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+			// Register on authedGroup (authMw already in chain) so deactivation
+			// check runs before the handler via the group-level middleware.
+			activitiesHandler.Register(authedGroup, perRouteMw, gin.HandlerFunc(superAdminOnly))
 		}
 
 		// Settings + categories — admin settings page, plus the
@@ -588,6 +651,19 @@ func (s *Router) Routes() *gin.Engine {
 						authMw(c)
 						if c.IsAborted() {
 							return
+						}
+						// Block deactivated users on all auth'd routes except:
+						// - reactivate: so they can restore their account
+						// - deactivate: so a second call returns 409, not 403
+						// - DELETE /users/me: so they can permanently delete their account
+						exempt := c.FullPath() == "/api/v1/users/me/reactivate" ||
+							c.FullPath() == "/api/v1/users/me/deactivate" ||
+							(c.FullPath() == "/api/v1/users/me" && c.Request.Method == "DELETE")
+						if deactivatedMw != nil && !exempt {
+							deactivatedMw(c)
+							if c.IsAborted() {
+								return
+							}
 						}
 					}
 					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
@@ -614,60 +690,6 @@ func (s *Router) Routes() *gin.Engine {
 			},
 		})
 
-		v1.GET("/admin/transactions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminTransactions(c)
-		})
-
-		v1.GET("/admin/subscriptions", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.GetAdminSubscriptions(c)
-		})
-
-		v1.DELETE("/admin/clients/:id", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.DeleteAdminClient(c)
-		})
-
-		// Hand-wired: /auth/verify-reset-code was added to api.yaml after the
-		// initial oapi-codegen run. Regenerating gen.go is tracked separately;
-		// for now this follows the same pattern as the hand-wired /admin/* routes.
-		v1.POST("/auth/verify-reset-code", impl.HandleVerifyResetCode)
-
-		v1.PUT("/admin/sessions/:id/cancel", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.AdminCancelSession(c)
-		})
-
-		v1.PUT("/admin/sessions/:id/reschedule", authMw, func(c *gin.Context) {
-			if superAdminOnly != nil {
-				superAdminOnly(c)
-				if c.IsAborted() {
-					return
-				}
-			}
-			impl.AdminRescheduleSession(c)
-		})
 	}
 
 	return r

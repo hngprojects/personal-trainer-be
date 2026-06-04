@@ -1,10 +1,17 @@
 -- name: CreateDiscoveryBooking :one
+-- messenger_handle is nullable — populated only when contact_mode =
+-- 'messenger'. zoom_meeting_link / zoom_meeting_id keep their column
+-- names for backward compat with existing rows but now also hold
+-- google_meet URLs when contact_mode = 'google_meet'. Renaming those
+-- columns to generic `meeting_link`/`meeting_id` is a planned cleanup
+-- migration that we deliberately deferred to keep this PR small.
 INSERT INTO discovery_bookings (
     user_id,
     name,
     email,
     contact_mode,
     phone_number,
+    messenger_handle,
     selected_datetime,
     client_timezone,
     zoom_meeting_link,
@@ -16,6 +23,7 @@ INSERT INTO discovery_bookings (
     sqlc.arg(email),
     sqlc.arg(contact_mode),
     sqlc.arg(phone_number),
+    sqlc.arg(messenger_handle),
     sqlc.arg(selected_datetime),
     sqlc.arg(client_timezone),
     sqlc.arg(zoom_meeting_link),
@@ -37,13 +45,17 @@ ORDER BY selected_datetime ASC;
 -- Admin paginated view of every discovery call ever booked. Newest first so
 -- the most-recent activity is the top of page 1; supports
 -- LIMIT/OFFSET pagination matching the admin sessions endpoint.
+-- Pass empty string for status to return all statuses.
 SELECT * FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text)
 ORDER BY selected_datetime DESC, id DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
 
 -- name: CountDiscoveryBookings :one
-SELECT COUNT(*) FROM discovery_bookings;
+-- Pass empty string for status to count all statuses.
+SELECT COUNT(*) FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text);
 
 -- name: GetActiveBookingSlots :many
 SELECT * FROM booking_slots

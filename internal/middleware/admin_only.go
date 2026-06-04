@@ -22,7 +22,8 @@ import (
 // founders. Mutating /admin routes (AdminAdd, ApproveTrainer, etc.) stay
 // super_admin-only because they grant or remove privileges.
 var adminReadablePaths = map[string]bool{
-	"/api/v1/admin/sessions":            true,
+	"/api/v1/admin/sessions":             true,
+	"/api/v1/admin/sessions/active":      true,
 	"/api/v1/admin/discovery-bookings":  true,
 	"/api/v1/admin/activities":          true,
 	"/api/v1/admin/user/trainer/count":  true,

@@ -93,6 +93,28 @@ type Config struct {
 	// the mobile app's Associated Domains entitlement declares.
 	UniversalLinkDomain string
 
+	// ── Google Meet (org-account only) ─────────────────────────────────
+	// All Meet rooms are minted by a single Workspace user — usually a
+	// dedicated `meet-bot@<domain>` account. Trainers do NOT connect
+	// their own Google account; that path was deliberately dropped in
+	// favour of one org-owned refresh token, which is much simpler to
+	// operate. See docs/MEET_INTEGRATION.md for the one-time bootstrap
+	// flow that produces MeetRefreshToken.
+	//
+	// MeetEnabled is the master switch. When false (default), the Meet
+	// platform option is hidden from clients and any inbound booking
+	// with session_platform=google_meet returns 503 — letting you ship
+	// this code before the Workspace user is provisioned.
+	MeetEnabled         bool
+	MeetOAuthClientID   string
+	MeetOAuthClientSecret string
+	MeetRefreshToken    string
+	// MeetHostEmail is the address of the Workspace user the refresh
+	// token belongs to. The Meet API itself doesn't need it; we only
+	// use it for log lines so an operator chasing "why are Meet rooms
+	// failing" can tell which mailbox to re-auth.
+	MeetHostEmail       string
+
 	// IOSAppBundleID + IOSAppTeamID + IOSAppPath are baked into the
 	// AASA file at /.well-known/apple-app-site-association. Without
 	// these the iOS app won't claim our /sessions/*/join paths.
@@ -185,6 +207,13 @@ func Load() (*Config, error) {
 		ZoomJoinMode:    getenv("ZOOM_JOIN_MODE", "link"),
 
 		UniversalLinkDomain: os.Getenv("UNIVERSAL_LINK_DOMAIN"),
+
+		MeetEnabled:           getenv("MEET_ENABLED", "false") == "true",
+		MeetOAuthClientID:     os.Getenv("MEET_OAUTH_CLIENT_ID"),
+		MeetOAuthClientSecret: os.Getenv("MEET_OAUTH_CLIENT_SECRET"),
+		MeetRefreshToken:      os.Getenv("MEET_REFRESH_TOKEN"),
+		MeetHostEmail:         os.Getenv("MEET_HOST_EMAIL"),
+
 		IOSAppBundleID:      os.Getenv("IOS_APP_BUNDLE_ID"),
 		IOSAppTeamID:        os.Getenv("IOS_APP_TEAM_ID"),
 		AndroidAppPackage:   os.Getenv("ANDROID_APP_PACKAGE"),

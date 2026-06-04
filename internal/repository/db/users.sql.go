@@ -75,6 +75,37 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deactivateClient = `-- name: DeactivateClient :one
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = $1 AND u.role = 'client' AND u.is_active = true
+RETURNING u.id
+`
+
+// Backfilled from internal/repository/db/users.sql.go where it was
+// hand-added (PR #283). Lifted into the sqlc source so future
+// `sqlc generate` runs don't wipe it. Disambiguated with table alias
+// so sqlc's parser is happy (Postgres handles the unaliased form fine
+// but the parser sqlc embeds is stricter).
+func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateClient, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const deactivateSelf = `-- name: DeactivateSelf :one
+UPDATE users SET is_active = false, updated_at = NOW()
+WHERE users.id = $1 AND users.is_active = true
+RETURNING users.id
+`
+
+func (q *Queries) DeactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateSelf, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getClientByID = `-- name: GetClientByID :one
 SELECT
     u.id,
@@ -231,6 +262,21 @@ func (q *Queries) GetUserRoleByID(ctx context.Context, id uuid.UUID) (string, er
 	return role, err
 }
 
+const hardDeleteClient = `-- name: HardDeleteClient :execrows
+DELETE FROM users WHERE users.id = $1 AND users.role = 'client'
+`
+
+// Permanently deletes a client and all their data via FK cascade.
+// Admin-only. Role-guarded to prevent accidental deletion of admins/trainers.
+// Returns rows affected so caller can detect concurrent deletes or role mismatches.
+func (q *Queries) HardDeleteClient(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, hardDeleteClient, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const listClients = `-- name: ListClients :many
 SELECT
     u.id,
@@ -292,6 +338,19 @@ func (q *Queries) ListClients(ctx context.Context, arg ListClientsParams) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const reactivateSelf = `-- name: ReactivateSelf :one
+UPDATE users SET is_active = true, updated_at = NOW()
+WHERE users.id = $1 AND users.is_active = false
+RETURNING users.id
+`
+
+func (q *Queries) ReactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, reactivateSelf, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
@@ -478,15 +537,4 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 		&i.PhoneNumber,
 	)
 	return i, err
-}
-
-const deactivateClient = `UPDATE users SET is_active = false, updated_at = NOW()
-WHERE id = $1 AND role = 'client' AND is_active = true
-RETURNING id`
-
-func (q *Queries) DeactivateClient(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, deactivateClient, id)
-	var returnedID uuid.UUID
-	err := row.Scan(&returnedID)
-	return returnedID, err
 }

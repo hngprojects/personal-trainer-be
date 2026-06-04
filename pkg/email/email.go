@@ -910,7 +910,8 @@ const discoveryRescheduleTemplate = `<!DOCTYPE html>
     </tr>
   </table>
   <p><strong>Timezone:</strong> {{.Timezone}}</p>
-  {{ if eq .ContactMode "zoom_meeting" }}{{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
+  {{/* Treat zoom_meeting + google_meet identically — they both produce a URL in ZoomLink that the client can click straight to. The "Meeting Link" label stays platform-neutral. Messenger mode renders neither a link nor a phone; trainers are notified separately via the in-app notification feed and follow up via Messenger themselves. */}}
+  {{ if or (eq .ContactMode "zoom_meeting") (eq .ContactMode "google_meet") }}{{ if .ZoomLink }}<p><strong>New Meeting Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
   <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
   <p>See you soon!</p>
   <p style="color:#666;font-size:12px;">FitCall Team</p>
