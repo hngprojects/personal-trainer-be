@@ -245,7 +245,7 @@ func main() {
 	fmt.Println()
 	for i, t := range trainers {
 		index := i + 1
-		email := fmt.Sprintf("trainer-%d@example.com", index)
+		email := fmt.Sprintf("trainer-%d@mailinator.com", index)
 		name := fmt.Sprintf("trainer-%d", index)
 
 		trainerUser, err := queries.UpsertTrainerUser(ctx, dbpkg.UpsertTrainerUserParams{
