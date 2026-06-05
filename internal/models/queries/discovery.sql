@@ -62,40 +62,6 @@ SELECT * FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC;
 
--- name: GetActiveBookingSlotsForDate :many
--- Same as GetActiveBookingSlots filtered to a specific date and excluding
--- discovery-booking slots already taken on that date. Discovery calls are
--- always 30 minutes, so the conflict window is fixed.
---
--- Trainer correlation: discovery_bookings.trainer_id can be NULL (slot
--- not assigned yet) or set (assigned to a specific trainer). booking_slots
--- has the same nullable shape: global slots have trainer_id IS NULL,
--- per-trainer slots have it set. A booking conflicts with a slot only
--- when their trainer_ids match — including both being NULL, which is
--- what `IS NOT DISTINCT FROM` expresses. Without this guard, one
--- trainer's discovery booking would falsely hide another trainer's
--- (or a global) discovery slot at the same time.
---
--- Timezone normalisation: bs.start_time / bs.end_time are local TIME in
--- bs.timezone — convert the booking's timestamptz to that same zone
--- before comparing, NOT to the booking's own client_timezone (those can
--- differ and lead to off-by-hours misses).
-SELECT
-    bs.id, bs.trainer_id, bs.day_of_week, bs.start_time, bs.end_time,
-    bs.timezone, bs.is_active, bs.created_at, bs.updated_at
-FROM booking_slots bs
-WHERE bs.is_active = true
-  AND bs.day_of_week = EXTRACT(DOW FROM sqlc.arg(target_date)::DATE)::INT
-  AND NOT EXISTS (
-      SELECT 1 FROM discovery_bookings db
-      WHERE db.status NOT IN ('cancelled', 'completed')
-        AND db.trainer_id IS NOT DISTINCT FROM bs.trainer_id
-        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::DATE = sqlc.arg(target_date)::DATE
-        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME < bs.end_time
-        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME > bs.start_time
-  )
-ORDER BY bs.day_of_week ASC, bs.start_time ASC;
-
 -- name: GetBookingSlotByID :one
 SELECT * FROM booking_slots
 WHERE id = $1
