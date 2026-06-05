@@ -38,7 +38,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: GetTrainerByID :one
 SELECT
@@ -54,7 +55,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE id = $1
 LIMIT 1;
@@ -135,6 +137,15 @@ OFFSET sqlc.arg(page_offset);
 SELECT COUNT(*) FROM trainers t
 WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[]);
 
+-- name: ToggleTrainerAvailability :one
+-- Sets the trainer's global is_available flag (the "open/closed" sign).
+-- Does not touch booking_slots — slots are preserved so toggling back on
+-- restores the schedule instantly.
+UPDATE trainers
+SET is_available = sqlc.arg(is_available), updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING id, is_available;
+
 -- name: UpdateTrainer :one
 -- Partial update. Pass NULL to leave a column unchanged. specializations and
 -- training_styles use COALESCE on the array argument — pass NULL to keep
@@ -163,7 +174,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: DeleteTrainer :one
 DELETE FROM trainers
@@ -181,7 +193,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: ApproveTrainer :one
 UPDATE trainers
@@ -202,7 +215,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: GetTrainerByUserID :one
 SELECT
@@ -218,7 +232,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE user_id = $1
 LIMIT 1;

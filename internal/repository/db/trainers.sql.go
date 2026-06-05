@@ -33,7 +33,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -53,6 +54,7 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -115,7 +117,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 type CreateTrainerParams struct {
@@ -162,6 +165,7 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -205,7 +209,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -225,6 +230,7 @@ func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, err
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -243,7 +249,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE id = $1
 LIMIT 1
@@ -266,6 +273,7 @@ func (q *Queries) GetTrainerByID(ctx context.Context, id uuid.UUID) (Trainer, er
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -284,7 +292,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE user_id = $1
 LIMIT 1
@@ -307,6 +316,7 @@ func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Tra
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -597,6 +607,33 @@ func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]L
 	return items, nil
 }
 
+const toggleTrainerAvailability = `-- name: ToggleTrainerAvailability :one
+UPDATE trainers
+SET is_available = $1, updated_at = NOW()
+WHERE id = $2
+RETURNING id, is_available
+`
+
+type ToggleTrainerAvailabilityParams struct {
+	IsAvailable bool
+	ID          uuid.UUID
+}
+
+type ToggleTrainerAvailabilityRow struct {
+	ID          uuid.UUID
+	IsAvailable bool
+}
+
+// Sets the trainer's global is_available flag (the "open/closed" sign).
+// Does not touch booking_slots — slots are preserved so toggling back on
+// restores the schedule instantly.
+func (q *Queries) ToggleTrainerAvailability(ctx context.Context, arg ToggleTrainerAvailabilityParams) (ToggleTrainerAvailabilityRow, error) {
+	row := q.db.QueryRowContext(ctx, toggleTrainerAvailability, arg.IsAvailable, arg.ID)
+	var i ToggleTrainerAvailabilityRow
+	err := row.Scan(&i.ID, &i.IsAvailable)
+	return i, err
+}
+
 const updateTrainer = `-- name: UpdateTrainer :one
 UPDATE trainers
 SET
@@ -622,7 +659,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 type UpdateTrainerParams struct {
@@ -665,6 +703,7 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
