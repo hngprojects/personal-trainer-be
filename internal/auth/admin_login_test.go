@@ -3,6 +3,8 @@ package auth_test
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,8 +18,9 @@ import (
 )
 
 type fakeAdminUser struct {
-	findUser    *db.User
-	findUserErr error
+	findUser         *db.User
+	findUserErr      error
+	expectedProvider string
 }
 
 type fakeAdminUserRole struct {
@@ -44,10 +47,13 @@ func (f *fakeAdminUser) CreateEmailUser(_ context.Context, email string) (*db.Us
 }
 
 func (f *fakeAdminUser) FindByEmail(_ context.Context, email string) (*db.User, error) {
-	return nil, nil
+	return nil, errors.New("unexpected FindByEmail call")
 }
 
 func (f *fakeAdminUser) FindByEmailAndProvider(_ context.Context, email string, authProvider string) (*db.User, error) {
+	if f.expectedProvider != "" && authProvider != f.expectedProvider {
+		return nil, fmt.Errorf("unexpected provider %q", authProvider)
+	}
 	return f.findUser, f.findUserErr
 }
 
@@ -64,7 +70,7 @@ func (f *fakeAdminUser) FindByAppleSub(_ context.Context, _ string) (*db.User, e
 }
 
 func (f *fakeAdminUser) CreateAppleUser(_ context.Context, _, _, _ string) (*db.User, error) {
-	return nil, nil
+	return f.findUser, f.findUserErr
 }
 
 func (f *fakeAdminUserRole) UserHasRole(_ context.Context, _ uuid.UUID, roleName string) (bool, error) {
