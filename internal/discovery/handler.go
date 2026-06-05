@@ -285,7 +285,19 @@ func (h *Handler) BookDiscoveryCall(c *gin.Context) {
 
 // GET /booking-slots — public
 func (h *Handler) GetDiscoverySlots(c *gin.Context, params api.GetDiscoverySlotsParams) {
-	slots, err := h.repo.GetActiveSlots(c.Request.Context())
+	var (
+		slots []db.BookingSlot
+		err   error
+	)
+	if params.Date != nil {
+		// Date-pinned: only return slots not already booked on this
+		// exact date. Skip caching — per-date results would explode
+		// the keyspace, and the slot picker UX is typically a single
+		// burst of clicks where one extra DB hit is fine.
+		slots, err = h.repo.GetActiveSlotsForDate(c.Request.Context(), params.Date.Time)
+	} else {
+		slots, err = h.repo.GetActiveSlots(c.Request.Context())
+	}
 	if err != nil {
 		h.log.Error("failed to get booking slots", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))

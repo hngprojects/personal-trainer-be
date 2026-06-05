@@ -451,7 +451,7 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
-			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService, s.redis)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
 
 			if s.redis != nil {
@@ -684,13 +684,16 @@ func (s *Router) Routes() *gin.Engine {
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
-		// Hand-wired trainer self-service routes.
-		// These PATCH routes conflict with PATCH /trainers/:id in gin's radix tree
-		// when registered via oapi-codegen, so we wire them directly.
-		if impl.trainers != nil {
-			authedGroup.PATCH("/trainers/me/edit-profile", perRouteMw, impl.PatchTrainersMe)
-			authedGroup.PATCH("/trainers/me/availability/toggle", perRouteMw, impl.ToggleTrainerAvailability)
-		}
+		// PATCH /trainers/me/edit-profile and PATCH /trainers/me/availability/toggle
+		// used to be hand-wired here as a workaround for a gin radix-tree
+		// conflict with PATCH /trainers/:id. That workaround is no longer
+		// needed — oapi-codegen now registers /trainers/me/edit-profile
+		// (line 4902 in gen.go) BEFORE /trainers/:id (line 4910), and
+		// gin's tree handles the more-specific-first order correctly.
+		// Leaving the hand-wiring in place double-registered the route
+		// and panicked at boot (CODE_INVALIDARGUMENT) once the spec
+		// entry was added in #341. The codegen registration is now the
+		// single source of truth.
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
