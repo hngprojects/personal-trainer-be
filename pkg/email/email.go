@@ -1081,8 +1081,8 @@ const trainerBookingConfirmationTemplate = `<!DOCTYPE html>
     <li>Client: {{.ClientName}}</li>
     <li>Date: {{.Date}}</li>
     <li>Time: {{.StartTime}} - {{.EndTime}}</li>
-    <li>Platform: {{.SessionPlatform}}</li>
-    <li>Meeting Link: <a href="{{.MeetingLink}}">Join Session</a></li>
+    <li>Location: Zoom</li>
+    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
   </ul>
 
   <p>
