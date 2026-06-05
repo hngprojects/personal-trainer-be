@@ -106,8 +106,8 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 	// Validate platform and platform-specific proof fields
 	switch body.Platform {
 	case "apple":
-		if body.ReceiptData == nil || *body.ReceiptData == "" {
-			c.JSON(http.StatusBadRequest, api.NewError("receipt_data is required for Apple platform", api.CodeBadRequest))
+		if body.SignedTransaction == nil || *body.SignedTransaction == "" {
+			c.JSON(http.StatusBadRequest, api.NewError("signed_transaction is required for Apple platform", api.CodeBadRequest))
 			return
 		}
 	case "google":
@@ -171,10 +171,10 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 			IsTrialPeriod:         false,
 		}
 	} else if body.Platform == "apple" {
-		verified, verifyErr = iap.VerifyApple(ctx, *body.ReceiptData, s.cfg.AppleSharedSecret, body.ProductId)
+		verified, verifyErr = iap.VerifyApple(ctx, *body.SignedTransaction, s.cfg.AppleBundleID, body.ProductId, s.cfg.AppleIAPEnvironment)
 		if verifyErr != nil {
-			s.logger.Error("apple receipt verification failed", "err", verifyErr)
-			c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed", api.CodeBadRequest))
+			s.logger.Error("apple jws verification failed", "err", verifyErr)
+			c.JSON(http.StatusBadRequest, api.NewError("apple transaction verification failed", api.CodeBadRequest))
 			return
 		}
 	} else {

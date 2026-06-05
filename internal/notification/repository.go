@@ -25,6 +25,11 @@ type RepositoryInterface interface {
 	GetUserRoleByUserID(ctx context.Context, userID uuid.UUID) (string, error)
 	GetAllActiveUsersDevices(ctx context.Context) (*[]db.UserDevice, error)
 	ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)
+	// DeactivateDevice marks a user_device row inactive so future
+	// pushes skip it. Called when FCM returns a permanent failure
+	// for the token (uninstalled, rotated, sender-mismatch) — the
+	// row is kept for audit but won't be hit on the next push.
+	DeactivateDevice(ctx context.Context, deviceID uuid.UUID) error
 }
 
 func (r *Repository) CreateNotificationWithType(ctx context.Context, args db.CreateNotificationWithTypeParams) (db.Notification, error) {
@@ -44,11 +49,19 @@ func (r *Repository) CreateNotification(ctx context.Context, args db.CreateNotif
 }
 
 func (r *Repository) GetUserDeviceToken(ctx context.Context, userID uuid.UUID) (*[]db.UserDevice, error) {
-	device, err := r.q.GetUserDevicesByUserID(ctx, userID)
+	// Active-only filter at the query layer: deactivated rows (token
+	// rotated, user logged out, FCM previously rejected the token)
+	// must not be retried on every push or we waste FCM quota and
+	// the SendToUser aggregate "failed" count climbs forever.
+	device, err := r.q.ListUserActiveDevicesByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	return &device, nil
+}
+
+func (r *Repository) DeactivateDevice(ctx context.Context, deviceID uuid.UUID) error {
+	return r.q.DeactivateUserDevice(ctx, deviceID)
 }
 
 func (r *Repository) UpdateNotificationStatus(ctx context.Context, args db.UpdateNotificationStatusParams) error {

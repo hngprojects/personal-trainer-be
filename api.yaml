@@ -518,9 +518,18 @@ components:
           type: string
           description: App store product ID (must match the plan)
           example: com.fitcal.plan.committed.monthly
-        receipt_data:
+        signed_transaction:
           type: string
-          description: Base64-encoded Apple App Store receipt (required when platform=apple)
+          description: >-
+            StoreKit 2 signed JWS transaction (required when
+            platform=apple). The iOS client obtains this from
+            `Transaction.jsonRepresentation` after a successful
+            purchase; the server verifies the JWS signature against
+            Apple's pinned Root CA, validates `bundleId` matches
+            `APPLE_BUNDLE_ID`, and checks `productId` matches the
+            requested plan. The legacy base64 `receipt_data` field
+            is no longer accepted.
+          example: "eyJhbGciOiJFUzI1NiIsIng1YyI6WyJNSUlFTURDQ0E5..."
         purchase_token:
           type: string
           description: Google Play purchase token (required when platform=google)
