@@ -43,6 +43,59 @@ func NewPushNotification(credentialJSON []byte, projectID string, client *fcm.Cl
 	}
 }
 
+// buildMessage assembles an FCM Message with platform-specific
+// hints. The same body is sent regardless of the recipient platform
+// because the FCM token doesn't tell us what OS the device runs —
+// but iOS and Android both ignore the config block that isn't theirs,
+// so attaching both is safe and saves a per-device branch.
+//
+// For iOS (APNs):
+//   - sound="default" so the device actually rings the notification
+//     instead of delivering it silently to the notification centre,
+//     which is what happens when no `aps.sound` field is set.
+//   - mutableContent=1 lets a Notification Service Extension on the
+//     client modify the body before display (rich notifications,
+//     attachments) without a backend change.
+//
+// For Android, we attach a channel id so high-priority notifications
+// on Android 8+ aren't silently down-ranked. The client app must
+// register a matching channel at install time — the channel id
+// "fitcall_general" is documentation, not magic; if the mobile team
+// uses a different one we just need to keep them in sync.
+func buildMessage(token, title, body string) *messaging.Message {
+	return &messaging.Message{
+		Token: token,
+		Notification: &messaging.Notification{
+			Title: title,
+			Body:  body,
+		},
+		APNS: &messaging.APNSConfig{
+			Payload: &messaging.APNSPayload{
+				Aps: &messaging.Aps{
+					Sound:          "default",
+					MutableContent: true,
+				},
+			},
+		},
+		Android: &messaging.AndroidConfig{
+			Priority: "high",
+			Notification: &messaging.AndroidNotification{
+				ChannelID: "fitcall_general",
+				Sound:     "default",
+			},
+		},
+	}
+}
+
+// IsDisabled reports whether the notifier was constructed without
+// valid credentials. Callers use this to skip the FCM channel cleanly
+// instead of relying on the error returned from SendToUser (which
+// otherwise spams logs in dev environments that intentionally don't
+// configure FCM).
+func (p *PushNotification) IsDisabled() bool {
+	return p == nil || p.disabled
+}
+
 func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string, title, message string) error {
 	if p.disabled {
 		p.log.Warn("Notifier Credential file not set, push notifications will be disabled")
@@ -54,13 +107,7 @@ func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string,
 	}
 	failed := 0
 	for _, token := range deviceToken {
-		response, err := p.client.Send(ctx, &messaging.Message{
-			Token: token,
-			Notification: &messaging.Notification{
-				Title: title,
-				Body:  message,
-			},
-		})
+		response, err := p.client.Send(ctx, buildMessage(token, title, message))
 		if err != nil {
 			failed++
 			p.log.Error("Notification service: failed to send push notification", "err", err)
