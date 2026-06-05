@@ -1,6 +1,6 @@
 -- +goose Up
 ALTER TABLE users
-    DROP CONSTRAINT IF EXISTS users_email_key;
+    ADD CONSTRAINT users_email_key UNIQUE (email);
 
 ALTER TABLE users
     ADD CONSTRAINT users_email_auth_provider_key
@@ -11,4 +11,4 @@ ALTER TABLE users
     DROP CONSTRAINT IF EXISTS users_email_auth_provider_key;
 
 ALTER TABLE users
-    ADD CONSTRAINT users_email_key UNIQUE (email);
+    DROP CONSTRAINT IF EXISTS users_email_key;
