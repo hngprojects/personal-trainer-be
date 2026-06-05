@@ -513,12 +513,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		Email:        emailAddr,
 		AuthProvider: localAuthProvider,
 	})
-	if err != nil {
-		s.logger.Warn("an error occured while checking for email and provider", "email", emailAddr, "provider", localAuthProvider, "err", err)
-		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
-		return
-	}
-	if existingUser.Role != trainerRole {
+	if err == nil && existingUser.Role != trainerRole {
 		s.logger.Warn("create trainer: email already in use by non-trainer account", "email", emailAddr)
 		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
 		return

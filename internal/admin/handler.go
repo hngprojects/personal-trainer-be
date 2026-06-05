@@ -73,12 +73,7 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		return
 	}
 	existingUser, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, localAuthProvider)
-	if err != nil {
-		h.log.Warn("an error occured while checking for email and provider", "email", emailAddr, "provider", localAuthProvider, "err", err)
-		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
-		return
-	}
-	if existingUser.Role != adminRole {
+	if err == nil && existingUser.Role != adminRole {
 		h.log.Warn("create admin: email already in use by non-admin account", "email", emailAddr)
 		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
 		return
