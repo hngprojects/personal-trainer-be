@@ -16,8 +16,16 @@ type Notifier interface {
 	SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error
 }
 
-// Worker polls confirmed bookings every minute and sends a push + email
-// reminder to both client and trainer 1 hour before the session starts.
+// Worker polls confirmed bookings every minute and dispatches reminders
+// at multiple lead times before the session starts:
+//
+//   - 60 minutes: full reminder — push + email to both client and trainer.
+//   - 30 minutes: push-only nudge so the participants get a final
+//     lockscreen ping. No email (would be spam — we already sent one
+//     30 minutes ago).
+//
+// Each tick is keyed independently for idempotency so a flapping worker
+// (restart, lock contention) can't double-fire either pass.
 type Worker struct {
 	db       *sql.DB
 	notifier Notifier
@@ -52,8 +60,30 @@ func (w *Worker) run(ctx context.Context) {
 			w.log.Info("session reminder worker stopped")
 			return
 		case <-ticker.C:
-			w.sendReminders(ctx)
+			w.sendAllReminders(ctx)
 		}
+	}
+}
+
+// reminderTick describes a single lead-time pass: the window we look at
+// (60 → query bookings starting [59,60) min from now), the idempotency
+// prefix used to dedupe the resulting notifications, the wording, and
+// whether to also send email.
+type reminderTick struct {
+	leadMinutes int
+	idemPrefix  string
+	headline    string // shown to client; trainer copy substitutes name
+	sendEmail   bool   // false for the close-in nudges
+}
+
+var reminderTicks = []reminderTick{
+	{leadMinutes: 60, idemPrefix: "reminder-1h-", headline: "Session in 1 hour", sendEmail: true},
+	{leadMinutes: 30, idemPrefix: "reminder-30m-", headline: "Session in 30 minutes", sendEmail: false},
+}
+
+func (w *Worker) sendAllReminders(ctx context.Context) {
+	for _, tick := range reminderTicks {
+		w.sendReminders(ctx, tick)
 	}
 }
 
@@ -70,12 +100,12 @@ type upcomingBooking struct {
 	zoomLink       string
 }
 
-func (w *Worker) sendReminders(ctx context.Context) {
-	// Query confirmed bookings starting in [59, 60) minutes from now.
-	// Using a half-open 1-minute window that matches the tick interval means
-	// each booking appears in at most one tick, preventing duplicate emails.
-	// Push notifications are additionally deduplicated by idempotency key.
-	const q = `
+// sendReminders runs one pass for a given lead-time. The query uses a
+// half-open 1-minute window matching the tick interval so each booking
+// appears in at most one tick per lead-time — push notifications are
+// further deduplicated by idempotency key in case of restart overlap.
+func (w *Worker) sendReminders(ctx context.Context, tick reminderTick) {
+	q := fmt.Sprintf(`
 		SELECT
 			b.id,
 			b.client_id,
@@ -92,13 +122,13 @@ func (w *Worker) sendReminders(ctx context.Context) {
 		JOIN trainers t ON t.id = b.trainer_id
 		JOIN users tu ON tu.id = t.user_id
 		WHERE b.booking_status = 'confirmed'
-		  AND b.scheduled_start >= NOW() + INTERVAL '59 minutes'
-		  AND b.scheduled_start <  NOW() + INTERVAL '60 minutes'
-	`
+		  AND b.scheduled_start >= NOW() + INTERVAL '%d minutes'
+		  AND b.scheduled_start <  NOW() + INTERVAL '%d minutes'
+	`, tick.leadMinutes-1, tick.leadMinutes)
 
 	rows, err := w.db.QueryContext(ctx, q)
 	if err != nil {
-		w.log.Warn("reminder: query failed", "err", err)
+		w.log.Warn("reminder: query failed", "leadMinutes", tick.leadMinutes, "err", err)
 		return
 	}
 	defer func() {
@@ -118,14 +148,14 @@ func (w *Worker) sendReminders(ctx context.Context) {
 			w.log.Warn("reminder: scan failed", "err", err)
 			continue
 		}
-		w.notify(ctx, b)
+		w.notify(ctx, b, tick)
 	}
 	if err := rows.Err(); err != nil {
 		w.log.Warn("reminder: row iteration error", "err", err)
 	}
 }
 
-func (w *Worker) notify(ctx context.Context, b upcomingBooking) {
+func (w *Worker) notify(ctx context.Context, b upcomingBooking, tick reminderTick) {
 	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -134,28 +164,34 @@ func (w *Worker) notify(ctx context.Context, b upcomingBooking) {
 		loc = time.UTC
 	}
 	sessionTime := b.scheduledStart.In(loc).Format("3:04 PM")
-	idBase := "reminder-1h-" + b.bookingID.String()
+	idBase := tick.idemPrefix + b.bookingID.String()
+	leadCopy := leadMinutesToCopy(tick.leadMinutes)
 
 	// --- push to client ---
 	if w.notifier != nil {
 		if err := w.notifier.SendNotificationToUser(tCtx, b.clientID,
-			"Session Reminder",
-			fmt.Sprintf("Your session with Coach %s starts in 1 hour at %s", b.trainerName, sessionTime),
+			tick.headline,
+			fmt.Sprintf("Your session with Coach %s starts in %s at %s", b.trainerName, leadCopy, sessionTime),
 			idBase+"-client",
 		); err != nil {
-			w.log.Warn("reminder: push to client failed", "bookingID", b.bookingID, "err", err)
+			w.log.Warn("reminder: push to client failed", "bookingID", b.bookingID, "leadMinutes", tick.leadMinutes, "err", err)
 		}
 	}
 
 	// --- push to trainer ---
 	if w.notifier != nil {
 		if err := w.notifier.SendNotificationToUser(tCtx, b.trainerUserID,
-			"Session Reminder",
-			fmt.Sprintf("Your session with %s starts in 1 hour at %s", b.clientName, sessionTime),
+			tick.headline,
+			fmt.Sprintf("Your session with %s starts in %s at %s", b.clientName, leadCopy, sessionTime),
 			idBase+"-trainer",
 		); err != nil {
-			w.log.Warn("reminder: push to trainer failed", "bookingID", b.bookingID, "err", err)
+			w.log.Warn("reminder: push to trainer failed", "bookingID", b.bookingID, "leadMinutes", tick.leadMinutes, "err", err)
 		}
+	}
+
+	if !tick.sendEmail {
+		w.log.Info("reminder: push-only sent", "bookingID", b.bookingID, "leadMinutes", tick.leadMinutes, "scheduledStart", b.scheduledStart)
+		return
 	}
 
 	// --- email to client ---
@@ -178,5 +214,20 @@ func (w *Worker) notify(ctx context.Context, b upcomingBooking) {
 		}
 	}
 
-	w.log.Info("reminder: sent", "bookingID", b.bookingID, "scheduledStart", b.scheduledStart)
+	w.log.Info("reminder: sent", "bookingID", b.bookingID, "leadMinutes", tick.leadMinutes, "scheduledStart", b.scheduledStart)
+}
+
+// leadMinutesToCopy turns the worker's integer lead-time into the
+// short string we drop into the user-facing reminder copy. Specific
+// values get hand-crafted phrasing — anything unexpected falls back to
+// "N minutes" which is still grammatical.
+func leadMinutesToCopy(min int) string {
+	switch min {
+	case 60:
+		return "1 hour"
+	case 30:
+		return "30 minutes"
+	default:
+		return fmt.Sprintf("%d minutes", min)
+	}
 }
