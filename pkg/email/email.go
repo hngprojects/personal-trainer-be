@@ -29,7 +29,7 @@ type Mailer interface {
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
-	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error
+	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) error
 	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
 	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
 }
@@ -262,7 +262,7 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	return nil
 }
 
-func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
+func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "zoom_link", zoomLink)
 	return nil
 }
@@ -1065,7 +1065,43 @@ const bookingConfirmationTemplate = `<!DOCTYPE html>
 </body>
 </html>`
 
-func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) (string, error) {
+const trainerBookingConfirmationTemplate = `<!DOCTYPE html>
+
+<html>
+<head><meta charset="UTF-8"><title>New Session Booking</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">
+    Hi Coach {{.TrainerName}},
+  </h2>
+
+  <p>You have received a new session booking on FitCall.</p>
+
+  <p><strong>Session Details:</strong></p>
+  <ul>
+    <li>Client: {{.ClientName}}</li>
+    <li>Date: {{.Date}}</li>
+    <li>Time: {{.StartTime}} - {{.EndTime}}</li>
+    <li>Location: Zoom</li>
+    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
+  </ul>
+
+  <p>
+    Please review the booking and reach out to your client if any preparation or follow-up is required before the session.
+  </p>
+
+  <p>
+    Thank you for helping clients stay consistent with their fitness goals.
+  </p>
+
+  <p>
+    — Team FitCall
+  </p>
+
+</body>
+</html>
+`
+
+func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -1073,10 +1109,20 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	localScheduledStartTime := scheduledStartTime.In(loc)
 	localScheduledEndTime := scheduledEndTime.In(loc)
 
-	t, err := template.New("booking-confirmation").Parse(bookingConfirmationTemplate)
-	if err != nil {
-		return "", err
+	var t *template.Template
+
+	if toTrainer {
+		t, err = template.New("booking-confirmation").Parse(trainerBookingConfirmationTemplate)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		t, err = template.New("booking-confirmation").Parse(bookingConfirmationTemplate)
+		if err != nil {
+			return "", err
+		}
 	}
+
 	var buf bytes.Buffer
 	err = t.Execute(&buf, map[string]interface{}{
 		"ClientName":  name,
@@ -1090,8 +1136,8 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	return buf.String(), err
 }
 
-func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
-	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink)
+func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) error {
+	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink, toTrainer)
 	if err != nil {
 		return fmt.Errorf("smtp: build booking confirmation email: %w", err)
 	}

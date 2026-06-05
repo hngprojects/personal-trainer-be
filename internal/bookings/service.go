@@ -30,13 +30,6 @@ func isMeetingPlatform(p string) bool { return meetingPlatforms[p] }
 
 type BookingSlotService interface {
 	GetTrainersBookingSlots(ctx context.Context, trainerId uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
-	// GetTrainersBookingSlotsForDate returns the trainer's template
-	// slots for the weekday of `targetDate`, with any slot already
-	// booked on that date (paid session OR discovery call for the
-	// same trainer) excluded. Used by the slot picker UI to show only
-	// genuinely-available windows for the calendar day the user is
-	// looking at.
-	GetTrainersBookingSlotsForDate(ctx context.Context, trainerId uuid.UUID, targetDate time.Time) ([]db.GetTrainersBookingSlotsRow, error)
 }
 type BookingService interface {
 	CreateBooking(ctx context.Context, args db.CreateBookingParams, user db.User, trainer db.GetTrainerUserDetailsRow) (*db.Booking, error)
@@ -83,10 +76,6 @@ func (s *bookingService) GetTrainersBookingSlots(ctx context.Context, trainerId 
 		return nil, err
 	}
 	return slots, nil
-}
-
-func (s *bookingService) GetTrainersBookingSlotsForDate(ctx context.Context, trainerId uuid.UUID, targetDate time.Time) ([]db.GetTrainersBookingSlotsRow, error) {
-	return s.repo.FindBookingSlotByTrainerIDForDate(ctx, trainerId, targetDate)
 }
 
 func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookingParams, client db.User, trainer db.GetTrainerUserDetailsRow) (*db.Booking, error) {
@@ -163,8 +152,22 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
 		meetingURL,
+		false,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
+	}
+
+	if err := s.mailer.SendBookingConfirmation(
+		trainer.Email,
+		client.Name,
+		trainer.Name,
+		args.ScheduledStart.Time,
+		args.ScheduledEnd.Time,
+		args.Timezone.String,
+		meetingURL,
+		true,
+	); err != nil {
+		s.log.Error("failed to send booking confirmation to trainer", "error", err)
 	}
 
 	return booking, nil

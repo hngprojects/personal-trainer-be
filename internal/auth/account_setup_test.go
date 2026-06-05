@@ -26,13 +26,13 @@ import (
 // fakeSetupRepo is an in-memory AccountSetupRepository. Single-token model
 // is enough — every test creates a fresh repo so there's no shared state.
 type fakeSetupRepo struct {
-	mu         sync.Mutex
-	userID     uuid.UUID
-	tokenHash  string
-	expiresAt  time.Time
-	consumed   bool
-	user       *db.User
-	updateErr  error // forced error on ConsumeTokenAndSetPassword
+	mu        sync.Mutex
+	userID    uuid.UUID
+	tokenHash string
+	expiresAt time.Time
+	consumed  bool
+	user      *db.User
+	updateErr error // forced error on ConsumeTokenAndSetPassword
 }
 
 func (r *fakeSetupRepo) UpsertToken(_ context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error {
@@ -109,7 +109,7 @@ func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ 
 func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
+func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ bool) error {
 	return nil
 }
 func (m *captureMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
