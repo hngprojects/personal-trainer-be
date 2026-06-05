@@ -1838,6 +1838,12 @@ type HandleVerifyResetCodeJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// GetTrainersBookingSlotsParams defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlotsParams struct {
+	// Date When provided (YYYY-MM-DD), the server filters out any slot that overlaps with an existing non-cancelled booking on this date — both paid sessions (`bookings`) and discovery calls (`discovery_bookings`) for the same trainer. Omit to receive the full template list (every active slot, regardless of which dates are taken).
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+}
+
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
 	// MessengerHandle Required when session_platform is messenger. Same
@@ -1895,6 +1901,9 @@ type HandleCreateDevTokenParams struct {
 type GetDiscoverySlotsParams struct {
 	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Date When provided (YYYY-MM-DD), the server filters out any slot already booked on this specific date — both via `discovery_bookings`. The returned slots are guaranteed to be bookable for that date. Omit to receive the full template list (every active slot, regardless of which dates are taken).
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
 }
 
 // ListOrganisationMediaParams defines parameters for ListOrganisationMedia.
@@ -2220,9 +2229,6 @@ type ServerInterface interface {
 	// List all clients (super_admin only)
 	// (GET /admin/clients)
 	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
-	// Get a client by ID (admin)
-	// (GET /admin/clients/{id})
-	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
 	// Deactivate a client account (super_admin only)
 	// (DELETE /admin/clients/{id})
 	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
@@ -2312,7 +2318,7 @@ type ServerInterface interface {
 	HandleVerifyResetCode(c *gin.Context)
 	// List all active booking slots (public)
 	// (GET /booking-slots/{trainerId})
-	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID, params GetTrainersBookingSlotsParams)
 	// Clients creates a booking session with preferred trainer
 	// (POST /bookings)
 	CreateBooking(c *gin.Context)
@@ -2611,32 +2617,6 @@ func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
 	}
 
 	siw.Handler.GetAdminClients(c, params)
-}
-
-// GetAdminClientByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAdminClientByID(c, id)
 }
 
 // DeleteAdminClient operation middleware
@@ -3267,6 +3247,17 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersBookingSlotsParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3274,7 +3265,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTrainersBookingSlots(c, trainerId)
+	siw.Handler.GetTrainersBookingSlots(c, trainerId, params)
 }
 
 // CreateBooking operation middleware
@@ -3483,6 +3474,14 @@ func (siw *ServerInterfaceWrapper) GetDiscoverySlots(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -4962,7 +4961,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
-	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
