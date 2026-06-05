@@ -62,6 +62,25 @@ SELECT * FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC;
 
+-- name: GetActiveBookingSlotsForDate :many
+-- Same as GetActiveBookingSlots filtered to a specific date and excluding
+-- discovery-booking slots already taken on that date. Discovery calls are
+-- always 30 minutes, so the conflict window is fixed.
+SELECT
+    bs.id, bs.trainer_id, bs.day_of_week, bs.start_time, bs.end_time,
+    bs.timezone, bs.is_active, bs.created_at, bs.updated_at
+FROM booking_slots bs
+WHERE bs.is_active = true
+  AND bs.day_of_week = EXTRACT(DOW FROM sqlc.arg(target_date)::DATE)::INT
+  AND NOT EXISTS (
+      SELECT 1 FROM discovery_bookings db
+      WHERE db.status NOT IN ('cancelled', 'completed')
+        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::DATE = sqlc.arg(target_date)::DATE
+        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME < bs.end_time
+        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME > bs.start_time
+  )
+ORDER BY bs.day_of_week ASC, bs.start_time ASC;
+
 -- name: GetBookingSlotByID :one
 SELECT * FROM booking_slots
 WHERE id = $1

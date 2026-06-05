@@ -279,6 +279,71 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 	return items, nil
 }
 
+const getActiveBookingSlotsForDate = `-- name: GetActiveBookingSlotsForDate :many
+SELECT
+    bs.id, bs.trainer_id, bs.day_of_week, bs.start_time, bs.end_time,
+    bs.timezone, bs.is_active, bs.created_at, bs.updated_at
+FROM booking_slots bs
+WHERE bs.is_active = true
+  AND bs.day_of_week = EXTRACT(DOW FROM $1::DATE)::INT
+  AND NOT EXISTS (
+      SELECT 1 FROM discovery_bookings db
+      WHERE db.status NOT IN ('cancelled', 'completed')
+        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::DATE = $1::DATE
+        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME < bs.end_time
+        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME > bs.start_time
+  )
+ORDER BY bs.day_of_week ASC, bs.start_time ASC
+`
+
+type GetActiveBookingSlotsForDateRow struct {
+	ID        uuid.UUID
+	TrainerID uuid.NullUUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Same as GetActiveBookingSlots filtered to a specific date and excluding
+// discovery-booking slots already taken on that date. Discovery calls are
+// always 30 minutes, so the conflict window is fixed.
+func (q *Queries) GetActiveBookingSlotsForDate(ctx context.Context, targetDate time.Time) ([]GetActiveBookingSlotsForDateRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveBookingSlotsForDate, targetDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveBookingSlotsForDateRow
+	for rows.Next() {
+		var i GetActiveBookingSlotsForDateRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.DayOfWeek,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Timezone,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
 SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE id = $1

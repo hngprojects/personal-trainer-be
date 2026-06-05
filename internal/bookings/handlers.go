@@ -29,7 +29,7 @@ type bookingSlotHandler struct {
 }
 
 type BookingSlotHandler interface {
-	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID)
+	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams)
 }
 
 func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *slog.Logger) *bookingSlotHandler {
@@ -40,20 +40,53 @@ type bookingHandler struct {
 	service BookingService
 	log     *slog.Logger
 	notif   *notification.NotificationService
+	// redis is optional — when set, a successful CreateBooking
+	// invalidates the trainer's cached slot list so the next
+	// /booking-slots/{trainerId} response reflects the new booking.
+	// Nil-safe; cache invalidation is best-effort.
+	redis *redis.Client
 }
 
 type BookingHandler interface {
 	HandleCreateBookingSession(c *gin.Context)
 }
 
-func NewBookingHandler(service BookingService, log *slog.Logger, notif *notification.NotificationService) *bookingHandler {
-	return &bookingHandler{service: service, log: log, notif: notif}
+func NewBookingHandler(service BookingService, log *slog.Logger, notif *notification.NotificationService, r *redis.Client) *bookingHandler {
+	return &bookingHandler{service: service, log: log, notif: notif, redis: r}
 }
 
 const bookingSlotsCacheTTL = 15 * time.Minute
 
-func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
+func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams) {
 	ctx := c.Request.Context()
+
+	// When the caller pins a specific date, skip the cache entirely and
+	// always hit the DB. The cache holds the unfiltered template list;
+	// caching per-date results would explode the keyspace, and bookings
+	// happen frequently enough that cached date-results would go stale
+	// faster than the 15-minute TTL anyway. Worst case is one extra DB
+	// hit per slot picker open.
+	if params.Date != nil {
+		targetDate := params.Date.Time
+		filtered, err := h.service.GetTrainersBookingSlotsForDate(ctx, trainerId, targetDate)
+		if err != nil {
+			h.log.Warn("HandleGetTrainersBookingSlots: filtered fetch failed", "trainer_id", trainerId, "date", targetDate, "err", err)
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
+				c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error"})
+			return
+		}
+		if filtered == nil {
+			filtered = []db.GetTrainersBookingSlotsRow{}
+		}
+		resp := map[string]interface{}{"data": filtered}
+		var data interface{} = resp
+		c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
+		return
+	}
+
 	cacheKey := "booking-slots:trainer:" + trainerId.String()
 
 	// Cache read — skip on Redis error, proceed to DB.
@@ -225,6 +258,19 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return
 	}
+
+	// Invalidate the trainer's slot cache — the next slot lookup
+	// for this trainer must hit the DB so the just-booked window
+	// is excluded. Best-effort: a Redis error here doesn't fail the
+	// booking, but the user might briefly see the booked slot
+	// available until the 15-minute TTL on the stale entry expires.
+	if h.redis != nil {
+		cacheKey := "booking-slots:trainer:" + trainer.ID.String()
+		if err := h.redis.Delete(c.Request.Context(), cacheKey); err != nil {
+			h.log.Warn("HandleCreateBookingSession: failed to invalidate slot cache", "trainerID", trainer.ID, "err", err)
+		}
+	}
+
 	// Notify trainer about new booking
 	if h.notif != nil {
 		if _, notifErr := h.notif.SendNotificationToUser(c.Request.Context(), trainer.ID,
