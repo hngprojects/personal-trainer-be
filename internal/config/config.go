@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -255,7 +256,7 @@ func Load() (*Config, error) {
 		AppleSignInBundleIDs: splitCSV(os.Getenv("APPLE_SIGN_IN_BUNDLE_IDS")),
 
 		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
-		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+		GoogleServiceAccountJSON: loadServiceAccountJSON("GOOGLE_SERVICE_ACCOUNT_JSON"),
 
 		// IAPSkipVerification skips Apple/Google receipt verification in dev/test.
 		IAPSkipVerification: getenv("IAP_SKIP_VERIFICATION", "false") == "true",
@@ -342,6 +343,49 @@ func splitCSV(v string) []string {
 		return nil
 	}
 	return out
+}
+
+// loadServiceAccountJSON reads a Google service-account key from the
+// environment, accepting either format:
+//
+//   - Raw JSON (value starts with `{`) — what you get if you paste the
+//     key file's contents straight into the env var.
+//   - Base64-encoded JSON — convenient when raw JSON is awkward to
+//     embed (Docker Compose YAML, k8s ConfigMaps, .env quoting).
+//
+// Auto-detected by the leading character so existing deployments
+// using raw JSON keep working. We also validate the decoded payload
+// is actually JSON before accepting it — base64 of garbage decodes
+// fine but would only fail much later inside pkg/iap.googleAccessToken
+// during purchase verification. Surfacing it at boot makes misconfigs
+// obvious immediately. An invalid value warns and resolves to empty
+// so subscription handlers reject at request time rather than the
+// server failing to boot.
+func loadServiceAccountJSON(key string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return ""
+	}
+	if strings.HasPrefix(v, "{") {
+		// Best-effort validity check: catches the common "paste
+		// went weird" case where the env var looks JSON-y but
+		// isn't quite. Same warn-and-empty fallthrough as base64.
+		if !json.Valid([]byte(v)) {
+			slog.Warn(key + " starts with '{' but is not valid JSON — google IAP verification will reject every purchase at request time")
+			return ""
+		}
+		return v
+	}
+	decoded, err := base64.StdEncoding.DecodeString(v)
+	if err != nil {
+		slog.Warn(key + " is neither raw JSON nor valid base64 — google IAP verification will reject every purchase at request time")
+		return ""
+	}
+	if !json.Valid(decoded) {
+		slog.Warn(key + " decoded from base64 but the payload is not valid JSON — google IAP verification will reject every purchase at request time")
+		return ""
+	}
+	return string(decoded)
 }
 
 func decodeBase64Env(key string) []byte {

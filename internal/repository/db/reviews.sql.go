@@ -214,9 +214,25 @@ RETURNING
   training_styles
 `
 
-func (q *Queries) RefreshTrainerReviewStats(ctx context.Context, trainerID uuid.UUID) (Trainer, error) {
+type RefreshTrainerReviewStatsRow struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullFloat64
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
+}
+
+func (q *Queries) RefreshTrainerReviewStats(ctx context.Context, trainerID uuid.UUID) (RefreshTrainerReviewStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, refreshTrainerReviewStats, trainerID)
-	var i Trainer
+	var i RefreshTrainerReviewStatsRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
