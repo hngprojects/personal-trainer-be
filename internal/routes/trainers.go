@@ -852,6 +852,112 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	s.renderTrainerProfileByID(c, uuid.UUID(id))
 }
 
+// PatchTrainersMe handles PATCH /trainers/me — lets a trainer update their
+// own bio, years_of_experience, specializations, display_picture, and phone_number.
+func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("patch trainers me: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	var body api.PatchTrainersMeJSONRequestBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("patch trainers me: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	existing, err := s.trainers.q.GetTrainerByID(ctx, trainerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		s.logger.Error("patch trainers me: failed to load trainer", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return
+	}
+
+	// Specializations
+	specializations := existing.Specializations
+	if body.Specializations != nil {
+		strs := make([]string, 0, len(*body.Specializations))
+		for _, sp := range *body.Specializations {
+			strs = append(strs, string(sp))
+		}
+		validated, err := parseTrainerSpecializations(strs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+			return
+		}
+		specializations = validated
+	}
+
+	years := existing.YearsOfExperience
+	if body.YearsOfExperience != nil {
+		if *body.YearsOfExperience < 0 {
+			c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be non-negative", api.CodeBadRequest))
+			return
+		}
+		years = sql.NullInt32{Int32: int32(*body.YearsOfExperience), Valid: true}
+	}
+
+	bio := existing.Bio
+	if body.Bio != nil {
+		bio = sql.NullString{String: *body.Bio, Valid: true}
+	}
+
+	displayPicture := existing.DisplayPicture
+	if body.DisplayPicture != nil {
+		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
+	}
+
+	updated, err := s.trainers.q.UpdateTrainer(ctx, db.UpdateTrainerParams{
+		ID:                trainerID,
+		Specializations:   specializations,
+		TrainingStyles:    existing.TrainingStyles,
+		Bio:               bio,
+		YearsOfExperience: years,
+		IntroVideoUrl:     existing.IntroVideoUrl,
+		DisplayPicture:    displayPicture,
+		OnboardingStatus:  sql.NullString{},
+	})
+	if err != nil {
+		s.logger.Error("patch trainers me: update trainer failed", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to update profile", api.CodeServerError))
+		return
+	}
+
+	// Update phone_number on the users table if supplied.
+	if body.PhoneNumber != nil {
+		phoneVal := strings.TrimSpace(*body.PhoneNumber)
+		if _, err := s.trainers.q.UpdateTrainerUserProfile(ctx, db.UpdateTrainerUserProfileParams{
+			ID:          updated.UserID,
+			PhoneNumber: phoneVal,
+		}); err != nil {
+			s.logger.Error("patch trainers me: update user phone failed", "userID", updated.UserID, "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to update phone number", api.CodeServerError))
+			return
+		}
+	}
+
+	payload, status, errResp := s.buildTrainerProfilePayload(c, updated.ID)
+	if errResp != nil {
+		s.logger.Warn("patch trainers me: post-update reload failed", "trainerID", trainerID, "status", status)
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_PROFILE_UPDATED", api.CodeOK, payload))
+}
+
 // GetTrainersMe handles GET /trainers/me — returns the trainer profile
 // for the authenticated user. The FE uses this to learn its own
 // trainer.id without ever needing it in the URL: login -> JWT ->

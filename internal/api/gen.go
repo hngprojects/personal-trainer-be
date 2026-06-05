@@ -1604,6 +1604,18 @@ type UpdateProfileRequestFitnessLevel string
 // UpdateProfileRequestGender defines model for UpdateProfileRequest.Gender.
 type UpdateProfileRequestGender string
 
+// PatchTrainersMeRequest defines the request body for PATCH /trainers/me.
+type PatchTrainersMeRequest struct {
+	Bio                *string                    `json:"bio,omitempty"`
+	DisplayPicture     *string                    `json:"display_picture,omitempty"`
+	YearsOfExperience  *int                       `json:"years_of_experience,omitempty"`
+	Specializations    *[]TrainerSpecialization   `json:"specializations,omitempty"`
+	PhoneNumber        *string                    `json:"phone_number,omitempty"`
+}
+
+// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
+type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
+
 // UpdateTrainerRequest Partial update. Any field omitted is left unchanged. Pass an empty
 // array to clear specializations/training_styles. Used both by the
 // admin (any field) and by the trainer themselves (subset of fields)

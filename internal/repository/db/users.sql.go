@@ -353,6 +353,44 @@ func (q *Queries) ReactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 	return id_2, err
 }
 
+const updateTrainerUserProfile = `-- name: UpdateTrainerUserProfile :one
+UPDATE users
+SET
+    phone_number = COALESCE(NULLIF($1::text, ''), phone_number),
+    updated_at   = NOW()
+WHERE id = $2
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+`
+
+type UpdateTrainerUserProfileParams struct {
+	PhoneNumber string
+	ID          uuid.UUID
+}
+
+// Updates the users-table fields a trainer can edit on their own profile.
+// Pass empty string for phone_number to leave it unchanged.
+func (q *Queries) UpdateTrainerUserProfile(ctx context.Context, arg UpdateTrainerUserProfileParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateTrainerUserProfile, arg.PhoneNumber, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.AuthProvider,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.Gender,
+		pq.Array(&i.FitnessGoals),
+		&i.FitnessLevel,
+		&i.AvatarUrl,
+		&i.PhoneNumber,
+	)
+	return i, err
+}
+
 const updateUserAvatar = `-- name: UpdateUserAvatar :execrows
 UPDATE users
 SET avatar_url = $1,
