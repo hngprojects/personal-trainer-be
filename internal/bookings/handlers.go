@@ -264,10 +264,16 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	// is excluded. Best-effort: a Redis error here doesn't fail the
 	// booking, but the user might briefly see the booked slot
 	// available until the 15-minute TTL on the stale entry expires.
+	//
+	// Key must be keyed on the TRAINER PROFILE id (trainers.id, the
+	// route param at /booking-slots/{trainerId}) — NOT trainer.ID
+	// from GetTrainerUserDetails which is actually the trainer's
+	// users.id. Using the wrong one silently misses the cache entry
+	// and stale availability sticks around until the TTL.
 	if h.redis != nil {
-		cacheKey := "booking-slots:trainer:" + trainer.ID.String()
+		cacheKey := "booking-slots:trainer:" + request.TrainerId.String()
 		if err := h.redis.Delete(c.Request.Context(), cacheKey); err != nil {
-			h.log.Warn("HandleCreateBookingSession: failed to invalidate slot cache", "trainerID", trainer.ID, "err", err)
+			h.log.Warn("HandleCreateBookingSession: failed to invalidate slot cache", "trainerID", request.TrainerId, "err", err)
 		}
 	}
 

@@ -153,17 +153,17 @@ WHERE bs.trainer_id = $1
       SELECT 1 FROM bookings b
       WHERE b.trainer_id = bs.trainer_id
         AND b.booking_status NOT IN ('cancelled', 'completed')
-        AND (b.scheduled_start AT TIME ZONE COALESCE(NULLIF(b.timezone, ''), bs.timezone, 'UTC'))::DATE = $2::DATE
-        AND (b.scheduled_start AT TIME ZONE COALESCE(NULLIF(b.timezone, ''), bs.timezone, 'UTC'))::TIME < bs.end_time
-        AND (b.scheduled_end   AT TIME ZONE COALESCE(NULLIF(b.timezone, ''), bs.timezone, 'UTC'))::TIME > bs.start_time
+        AND (b.scheduled_start AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::DATE = $2::DATE
+        AND (b.scheduled_start AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME < bs.end_time
+        AND (b.scheduled_end   AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME > bs.start_time
   )
   AND NOT EXISTS (
       SELECT 1 FROM discovery_bookings db
       WHERE db.trainer_id = bs.trainer_id
         AND db.status NOT IN ('cancelled', 'completed')
-        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::DATE = $2::DATE
-        AND (db.selected_datetime AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME < bs.end_time
-        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(db.client_timezone, ''), bs.timezone, 'UTC'))::TIME > bs.start_time
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::DATE = $2::DATE
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME < bs.end_time
+        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME > bs.start_time
   )
 `
 
@@ -191,6 +191,14 @@ type GetTrainersBookingSlotsForDateRow struct {
 //     (discovery calls are fixed 30 minutes).
 //
 // Cancelled and completed rows are ignored so a cancelled slot frees up.
+//
+// Timezone normalisation: bs.start_time / bs.end_time are local TIME values
+// in the slot's own timezone (bs.timezone). To compare them to booking
+// timestamps we MUST convert the booking's timestamptz to that same slot
+// timezone — converting to the booking's own timezone instead would
+// compare apples to oranges and miss/double-flag overlaps when client and
+// slot timezones differ. The COALESCE picks the slot's tz, falling back
+// to UTC if (theoretically) unset.
 func (q *Queries) GetTrainersBookingSlotsForDate(ctx context.Context, arg GetTrainersBookingSlotsForDateParams) ([]GetTrainersBookingSlotsForDateRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTrainersBookingSlotsForDate, arg.TrainerID, arg.TargetDate)
 	if err != nil {
