@@ -479,7 +479,7 @@ SET
     phone_number = COALESCE(NULLIF($1::text, ''), phone_number),
     updated_at   = NOW()
 WHERE id = $2
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type UpdateTrainerUserProfileParams struct {
@@ -507,6 +507,7 @@ func (q *Queries) UpdateTrainerUserProfile(ctx context.Context, arg UpdateTraine
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
