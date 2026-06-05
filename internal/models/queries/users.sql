@@ -29,6 +29,39 @@ FROM users
 WHERE email = $1
 LIMIT 1;
 
+-- name: GetUserByAppleSub :one
+-- Apple Sign In uses the stable `sub` claim as the user identifier
+-- because the `email` claim is only emitted on the first authorization.
+-- A separate lookup keyed on apple_user_id is required so returning
+-- users find their row on every subsequent sign-in.
+SELECT *
+FROM users
+WHERE apple_user_id = $1
+LIMIT 1;
+
+-- name: CreateAppleUser :one
+-- First-time Apple Sign In. Email may be empty or a Hide-My-Email
+-- private relay address (privaterelay.appleid.com) — the relay value
+-- is fine to store and email; Apple forwards it to the user's real
+-- inbox. Name is also only present on the first authorization, so
+-- empty strings are valid for both fields and we just don't display
+-- placeholder names later.
+INSERT INTO users (email, name, auth_provider, apple_user_id, is_active)
+VALUES ($1, $2, 'apple', $3, true)
+RETURNING *;
+
+-- name: LinkAppleSubToUser :one
+-- Backfill apple_user_id on an existing row when an account that was
+-- previously created without one (e.g. through an earlier flow) signs
+-- in for the first time. Only used by the handler when we find the
+-- user by email-fallback; the primary lookup uses GetUserByAppleSub.
+UPDATE users
+SET apple_user_id = $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND apple_user_id IS NULL
+RETURNING *;
+
 -- name: UpsertAdminUser :one
 INSERT INTO users (email, name, password, auth_provider, role, is_active)
 VALUES ($1, $2, $3, 'local', 'admin', true)

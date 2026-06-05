@@ -42,6 +42,7 @@ func (e AuthUserUserType) Valid() bool {
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
 	BookDiscoveryCallRequestContactModeGoogleMeet    BookDiscoveryCallRequestContactMode = "google_meet"
+	BookDiscoveryCallRequestContactModeImessage      BookDiscoveryCallRequestContactMode = "imessage"
 	BookDiscoveryCallRequestContactModeMessenger     BookDiscoveryCallRequestContactMode = "messenger"
 	BookDiscoveryCallRequestContactModePhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
 	BookDiscoveryCallRequestContactModeZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
@@ -51,6 +52,8 @@ const (
 func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	switch e {
 	case BookDiscoveryCallRequestContactModeGoogleMeet:
+		return true
+	case BookDiscoveryCallRequestContactModeImessage:
 		return true
 	case BookDiscoveryCallRequestContactModeMessenger:
 		return true
@@ -833,6 +836,20 @@ type AddAvailabilityRequest struct {
 	Availability []AvailabilitySlot `json:"availability"`
 }
 
+// AppleSignInRequest defines model for AppleSignInRequest.
+type AppleSignInRequest struct {
+	// IdToken Apple-signed identity token (JWT) obtained client-side via Sign in with Apple — either the native AuthenticationServices API on iOS, the REST flow on Android, or "Sign in with Apple JS" on the web. The server verifies the signature against Apple's JWKS (https://appleid.apple.com/auth/keys), checks the `iss` claim and that `aud` matches one of the configured bundle IDs (`APPLE_SIGN_IN_BUNDLE_IDS`, falling back to `APPLE_BUNDLE_ID`).
+	IdToken string `json:"id_token"`
+
+	// User Echo of the name fields Apple hands the client on the first authorization. Forwarded only on first sign-in.
+	User *AppleSignInUserHint `json:"user,omitempty"`
+}
+
+// AppleSignInUserHint Echo of the name fields Apple hands the client on the first authorization. Forwarded only on first sign-in.
+type AppleSignInUserHint struct {
+	Name *string `json:"name,omitempty"`
+}
+
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
 	Email string `json:"email"`
@@ -894,7 +911,7 @@ type BookDiscoveryCallRequest struct {
 	MessengerHandle *string `json:"messenger_handle,omitempty"`
 	Name            string  `json:"name"`
 
-	// PhoneNumber Required when contact_mode is phone_callback. E.164 format.
+	// PhoneNumber Required when contact_mode is phone_callback or imessage. E.164 format.
 	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// SelectedDatetime ISO 8601 UTC datetime for the call
@@ -2026,6 +2043,9 @@ type AdminRescheduleSessionJSONRequestBody AdminRescheduleSessionJSONBody
 // HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
 type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
 
+// HandleAppleSignInJSONRequestBody defines body for HandleAppleSignIn for application/json ContentType.
+type HandleAppleSignInJSONRequestBody = AppleSignInRequest
+
 // HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
 type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
 
@@ -2193,6 +2213,9 @@ type ServerInterface interface {
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
+	// Sign in via Apple identity token (mobile + web)
+	// (POST /auth/apple)
+	HandleAppleSignIn(c *gin.Context)
 	// Request a password reset code
 	// (POST /auth/forgot-password)
 	HandleForgotPassword(c *gin.Context)
@@ -2875,6 +2898,19 @@ func (siw *ServerInterfaceWrapper) HandleAdminLogin(c *gin.Context) {
 	}
 
 	siw.Handler.HandleAdminLogin(c)
+}
+
+// HandleAppleSignIn operation middleware
+func (siw *ServerInterfaceWrapper) HandleAppleSignIn(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAppleSignIn(c)
 }
 
 // HandleForgotPassword operation middleware
@@ -4700,6 +4736,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/admin/transactions", wrapper.GetAdminTransactions)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
+	router.POST(options.BaseURL+"/auth/apple", wrapper.HandleAppleSignIn)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
