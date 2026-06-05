@@ -16,6 +16,19 @@ coverage.txt
 .env.local
 *.env
 
+# Secrets / service-account credential files. Patterns cover the
+# default names Firebase / Google Cloud / Apple emit when downloading
+# keys. If you ever need a credential file in-repo (e.g. a test
+# fixture), explicitly un-ignore it with `!path/to/file.json`.
+google-services.json
+*firebase-adminsdk*.json
+*-service-account*.json
+*serviceaccount*.json
+# Apple App Store Server API keys downloaded from the Apple Developer
+# portal — filenames look like AuthKey_HR6V8D4T9T.p8.
+AuthKey_*.p8
+*.p8
+
 # IDE / editor
 .idea/
 .vscode/

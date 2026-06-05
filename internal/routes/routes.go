@@ -280,6 +280,26 @@ func (s *Router) Routes() *gin.Engine {
 			wsHub := websocket.NewHub(s.log)
 			impl.wsHub = wsHub
 			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
+			// Loud diagnostic for the most common "notifications don't
+			// work" failure mode: the env vars aren't set, the FCM
+			// client silently constructs itself in disabled mode, and
+			// every push fails at delivery time with no visible signal.
+			// In dev that's expected; in staging/prod it's almost
+			// always a deploy misconfiguration. Log at ERROR level
+			// outside dev so operators see it during boot rollup.
+			if fcmClient.IsDisabled() {
+				if s.cfg.Env == "development" {
+					s.log.Warn("FCM push notifications are disabled — set FCM_CREDENTIALS_JSON + FCM_PROJECT_ID to enable (dev mode, this is OK)")
+				} else {
+					s.log.Error("FCM push notifications are DISABLED in a non-development environment — clients will not receive any push. Check FCM_CREDENTIALS_JSON (base64-encoded) and FCM_PROJECT_ID env vars.",
+						"env", s.cfg.Env,
+						"credentials_json_present", len(s.cfg.FCMCredentialsJSON) > 0,
+						"project_id_present", s.cfg.FCMProjectID != "",
+					)
+				}
+			} else {
+				s.log.Info("FCM push notifications enabled", "project_id", s.cfg.FCMProjectID)
+			}
 			notificationRepo := notification.NewRepository(q)
 			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
 			impl.notificationService = notificationService
@@ -662,6 +682,14 @@ func (s *Router) Routes() *gin.Engine {
 		if q != nil {
 			settingsHandler := settings.NewHandler(q, s.log)
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+		}
+
+		// Hand-wired trainer self-service routes.
+		// These PATCH routes conflict with PATCH /trainers/:id in gin's radix tree
+		// when registered via oapi-codegen, so we wire them directly.
+		if impl.trainers != nil {
+			authedGroup.PATCH("/trainers/me/edit-profile", perRouteMw, impl.PatchTrainersMe)
+			authedGroup.PATCH("/trainers/me/availability/toggle", perRouteMw, impl.ToggleTrainerAvailability)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{

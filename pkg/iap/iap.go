@@ -1,9 +1,14 @@
 // Package iap verifies Apple App Store and Google Play in-app purchase receipts.
 // Set IAP_SKIP_VERIFICATION=true in development to bypass real network calls.
+//
+// Apple verification uses StoreKit 2's signed JWS transactions
+// (Transaction.jsonRepresentation on iOS) — see apple_storekit2.go.
+// The legacy verifyReceipt endpoint is no longer wired up; it remained
+// usable but Apple deprecated it in iOS 18 and StoreKit 2 has been
+// the documented path since 2021.
 package iap
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,7 +21,7 @@ var httpClient = &http.Client{Timeout: 15 * time.Second}
 // VerifiedPurchase is the normalised result returned after a successful
 // verification with either Apple or Google.
 type VerifiedPurchase struct {
-	OriginalTransactionID string // Apple: original_transaction_id; Google: orderId
+	OriginalTransactionID string // Apple: originalTransactionId; Google: orderId
 	ProductID             string // e.g. com.fitcal.plan.committed.monthly
 	PurchasedAt           time.Time
 	ExpiresAt             time.Time
@@ -25,97 +30,16 @@ type VerifiedPurchase struct {
 
 // ─── Apple ──────────────────────────────────────────────────────────────────
 
-const (
-	appleProductionURL = "https://buy.itunes.apple.com/verifyReceipt"
-	appleSandboxURL    = "https://sandbox.itunes.apple.com/verifyReceipt"
-)
-
-type appleVerifyRequest struct {
-	ReceiptData            string `json:"receipt-data"`
-	Password               string `json:"password"`
-	ExcludeOldTransactions bool   `json:"exclude-old-transactions"`
-}
-
-type appleReceiptInfo struct {
-	OriginalTransactionID string `json:"original_transaction_id"`
-	ProductID             string `json:"product_id"`
-	PurchaseDateMS        string `json:"purchase_date_ms"`
-	ExpiresDateMS         string `json:"expires_date_ms"`
-	IsTrialPeriod         string `json:"is_trial_period"`
-	CancellationDate      string `json:"cancellation_date"`
-}
-
-type appleVerifyResponse struct {
-	Status            int                `json:"status"`
-	LatestReceiptInfo []appleReceiptInfo `json:"latest_receipt_info"`
-}
-
-// VerifyApple validates a base64-encoded App Store receipt against Apple's
-// servers and returns the most recent transaction for the given productID.
-func VerifyApple(ctx context.Context, receiptData, sharedSecret, productID string) (*VerifiedPurchase, error) {
-	result, err := appleVerify(ctx, appleProductionURL, receiptData, sharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	// status 21007 means receipt is from sandbox — retry against sandbox
-	if result.Status == 21007 {
-		result, err = appleVerify(ctx, appleSandboxURL, receiptData, sharedSecret)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if result.Status != 0 {
-		return nil, fmt.Errorf("apple receipt validation failed: status %d", result.Status)
-	}
-
-	var latest *appleReceiptInfo
-	for i := range result.LatestReceiptInfo {
-		info := &result.LatestReceiptInfo[i]
-		if info.ProductID == productID && info.CancellationDate == "" {
-			if latest == nil || msToTime(info.ExpiresDateMS).After(msToTime(latest.ExpiresDateMS)) {
-				latest = info
-			}
-		}
-	}
-	if latest == nil {
-		return nil, fmt.Errorf("no active receipt found for product %s", productID)
-	}
-
-	purchasedAt := msToTime(latest.PurchaseDateMS)
-	expiresAt := msToTime(latest.ExpiresDateMS)
-
-	return &VerifiedPurchase{
-		OriginalTransactionID: latest.OriginalTransactionID,
-		ProductID:             latest.ProductID,
-		PurchasedAt:           purchasedAt,
-		ExpiresAt:             expiresAt,
-		IsTrialPeriod:         latest.IsTrialPeriod == "true",
-	}, nil
-}
-
-func appleVerify(ctx context.Context, url, receiptData, sharedSecret string) (*appleVerifyResponse, error) {
-	body, _ := json.Marshal(appleVerifyRequest{
-		ReceiptData:            receiptData,
-		Password:               sharedSecret,
-		ExcludeOldTransactions: true,
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("apple verify request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var result appleVerifyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("apple verify decode: %w", err)
-	}
-	return &result, nil
+// VerifyApple validates a StoreKit 2 signed transaction. The mobile
+// client obtains the JWS via `Transaction.jsonRepresentation` after a
+// successful StoreKit 2 purchase and sends it to us verbatim.
+//
+// expectedEnv is "production", "sandbox", or empty (accept either).
+// Passing the empty string is appropriate for staging where TestFlight
+// can produce either; production deploys should pin to "production"
+// so a leaked sandbox transaction can't unlock entitlements.
+func VerifyApple(_ context.Context, signedTransaction, expectedBundleID, expectedProductID, expectedEnv string) (*VerifiedPurchase, error) {
+	return VerifyAppleSignedTransaction(signedTransaction, expectedBundleID, expectedProductID, expectedEnv)
 }
 
 // ─── Google ─────────────────────────────────────────────────────────────────
