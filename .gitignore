@@ -16,6 +16,15 @@ coverage.txt
 .env.local
 *.env
 
+# Secrets / service-account credential files. Patterns cover the
+# default names Firebase / Google Cloud emit when you download keys.
+# If you ever need a credential file in-repo (e.g. a test fixture),
+# explicitly un-ignore it with `!path/to/file.json`.
+google-services.json
+*firebase-adminsdk*.json
+*-service-account*.json
+*serviceaccount*.json
+
 # IDE / editor
 .idea/
 .vscode/
