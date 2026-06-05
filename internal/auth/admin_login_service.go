@@ -10,6 +10,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	localProvider = "local"
+)
+
 type AdminAuthService interface {
 	Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error)
 }
@@ -25,7 +29,7 @@ func NewAdminLoginService(user UserRepository, role RoleRepository, log *slog.Lo
 }
 
 func (r *adminLoginService) Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error) {
-	user, err := r.user.FindByEmail(ctx, email)
+	user, err := r.user.FindByEmailAndProvider(ctx, email, localProvider)
 	if err != nil {
 		r.log.Warn("AdminLogin: user not found", "err", err)
 		return nil, errors.New("invalid email or password")

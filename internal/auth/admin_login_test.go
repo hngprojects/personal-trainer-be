@@ -44,11 +44,11 @@ func (f *fakeAdminUser) CreateEmailUser(_ context.Context, email string) (*db.Us
 }
 
 func (f *fakeAdminUser) FindByEmail(_ context.Context, email string) (*db.User, error) {
-	return f.findUser, f.findUserErr
+	return nil, nil
 }
 
-func (f *fakeAdminUser) FindByEmailAndProvider(_ context.Context, email string, _ string) (*db.User, error) {
-	return nil, nil
+func (f *fakeAdminUser) FindByEmailAndProvider(_ context.Context, email string, authProvider string) (*db.User, error) {
+	return f.findUser, f.findUserErr
 }
 
 func (f *fakeAdminUser) MarkVerified(_ context.Context, email string) (*db.User, error) {
