@@ -8,13 +8,13 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 )
 
-func (s *routerImpl) GetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
+func (s *routerImpl) GetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams) {
 	if s.bookingSlot == nil {
 		s.logger.Warn("GetTrainersBookingSlots: booking slot handler is nil")
 		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
 		return
 	}
-	s.bookingSlot.HandleGetTrainersBookingSlots(c, trainerId)
+	s.bookingSlot.HandleGetTrainersBookingSlots(c, trainerId, params)
 }
 
 func (s *routerImpl) CreateBooking(c *gin.Context) {
