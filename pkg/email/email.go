@@ -669,9 +669,6 @@ var accountSetupTemplate = template.Must(template.New("account-setup-email").Par
         <tr><td align="center" style="padding:24px 0;">
           <a href="{{ .Link }}" style="display:inline-block;background:#111827;color:#ffffff;font-size:15px;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;">Set your password</a>
         </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:12px;color:#6b7280;">Or copy this link into your browser:<br><span style="font-family:monospace;color:#374151;word-break:break-all;">{{ .Link }}</span></p>
-        </td></tr>
         <tr><td align="center" style="padding-top:8px;">
           <p style="margin:0;font-size:12px;color:#9ca3af;">This link expires in {{ .ExpiryHours }} hours and can only be used once. If you weren't expecting this email, you can ignore it.</p>
         </td></tr>
