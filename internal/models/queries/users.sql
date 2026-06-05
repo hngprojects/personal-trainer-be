@@ -117,6 +117,16 @@ SET avatar_url = sqlc.arg(avatar_url),
     updated_at = NOW()
 WHERE id = sqlc.arg(id);
 
+-- name: UpdateTrainerUserProfile :one
+-- Updates the users-table fields a trainer can edit on their own profile.
+-- Pass empty string for phone_number to leave it unchanged.
+UPDATE users
+SET
+    phone_number = COALESCE(NULLIF(sqlc.arg(phone_number)::text, ''), phone_number),
+    updated_at   = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
 -- name: UpdateUserOnboarding :one
 UPDATE users
 SET
