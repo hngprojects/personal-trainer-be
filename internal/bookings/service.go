@@ -152,8 +152,22 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
 		meetingURL,
+		false,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
+	}
+
+	if err := s.mailer.SendBookingConfirmation(
+		trainer.Email,
+		client.Name,
+		trainer.Name,
+		args.ScheduledStart.Time,
+		args.ScheduledEnd.Time,
+		args.Timezone.String,
+		meetingURL,
+		true,
+	); err != nil {
+		s.log.Error("failed to send booking confirmation to trainer", "error", err)
 	}
 
 	return booking, nil
