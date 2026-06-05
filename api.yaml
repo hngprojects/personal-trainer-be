@@ -5113,6 +5113,87 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   /admin/clients/{id}:
+    get:
+      operationId: GetAdminClientByID
+      tags:
+        - Admin
+      summary: Get a client by ID (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client user ID
+      responses:
+        "200":
+          description: Client detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          email:
+                            type: string
+                          is_active:
+                            type: boolean
+                          joined_at:
+                            type: string
+                            format: date-time
+                          gender:
+                            type: string
+                            nullable: true
+                          fitness_goals:
+                            type: array
+                            items:
+                              type: string
+                          fitness_level:
+                            type: string
+                            nullable: true
+                          avatar_url:
+                            type: string
+                            nullable: true
+                          sessions_booked:
+                            type: integer
+                          revenue:
+                            type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: DeleteAdminClient
       tags:
