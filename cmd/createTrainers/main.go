@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 /*
@@ -75,6 +77,10 @@ func strPtr(s string) *string {
 }
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Printf("Error loading .env file: %v", err)
+		os.Exit(1)
+	}
 	var fileLocation string
 	BASE_URL := os.Getenv("API_BASE_URL")
 	if BASE_URL == "" {

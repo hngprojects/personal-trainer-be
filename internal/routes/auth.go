@@ -34,6 +34,15 @@ func (s *routerImpl) HandleGoogleMobileSignIn(c *gin.Context) {
 	s.googleMobile.SignIn(c)
 }
 
+func (s *routerImpl) HandleAppleSignIn(c *gin.Context) {
+	if s.apple == nil {
+		s.logger.Warn("HandleAppleSignIn: apple handler is nil")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+	s.apple.SignIn(c)
+}
+
 func (s *routerImpl) HandleLogout(c *gin.Context) {
 	if s.logout == nil {
 		s.logger.Warn("HandleLogout: logout handler is nil")
