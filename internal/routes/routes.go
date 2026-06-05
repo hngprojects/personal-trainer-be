@@ -648,7 +648,7 @@ func (s *Router) Routes() *gin.Engine {
 		// PATCH /trainers/me/profile conflicts with PATCH /trainers/:id in gin's
 		// radix tree when registered via oapi-codegen, so we wire it directly.
 		if impl.trainers != nil {
-			authedGroup.PATCH("/trainers/me/profile", perRouteMw, impl.PatchTrainersMe)
+			authedGroup.PATCH("/trainers/me/edit-profile", perRouteMw, impl.PatchTrainersMe)
 		}
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{

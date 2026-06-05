@@ -3329,7 +3329,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /trainers/me/profile:
+  /trainers/me/edit-profile:
     patch:
       operationId: PatchTrainersMe
       summary: Update the authenticated trainer's own profile
