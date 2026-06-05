@@ -146,9 +146,32 @@ type Config struct {
 	FCMCredentialsJSON []byte
 	FCMProjectID       string
 
-	// Apple IAP receipt validation.
-	AppleSharedSecret string // APPLE_SHARED_SECRET — App Store Connect shared secret
+	// Apple IAP receipt validation. APPLE_SHARED_SECRET is retained for
+	// any callers still on the legacy verifyReceipt flow, but the
+	// primary path is StoreKit 2 signed JWS transactions which need
+	// only AppleBundleID + the pinned Apple Root CA (in pkg/iap).
+	AppleSharedSecret string // APPLE_SHARED_SECRET — legacy, unused by StoreKit 2 path
 	AppleBundleID     string // APPLE_BUNDLE_ID — e.g. com.fitcal.app
+
+	// AppleIAPEnvironment pins which Apple environment is acceptable
+	// for incoming JWS transactions: "production", "sandbox", or empty
+	// (accept either). Production deployments should set this to
+	// "production" so a leaked sandbox transaction can't unlock
+	// entitlements. Staging / TestFlight typically leave it empty.
+	AppleIAPEnvironment string // APPLE_IAP_ENVIRONMENT=production|sandbox
+
+	// Apple App Store Server API credentials. Not consumed by purchase
+	// verification today (that's local JWS verification) — present so
+	// future server-to-server flows (refund processing, subscription
+	// status checks, App Store Server Notifications V2 ack) can pick
+	// them up without another config migration. All three must be set
+	// together; partial config logs a warn at boot.
+	//
+	// APPLE_API_KEY_P8 accepts either raw PEM (`-----BEGIN PRIVATE KEY-----`)
+	// or base64-encoded PEM for env-quoting convenience.
+	AppleAPIKeyID    string // APPLE_API_KEY_ID — 10-char key id from Apple Developer → Keys
+	AppleAPIKeyP8    string // APPLE_API_KEY_P8 — raw or base64 of the .p8 file
+	AppleAPIIssuerID string // APPLE_API_ISSUER_ID — UUID from App Store Connect → Integrations
 
 	// AppleSignInBundleIDs are the `aud` values we accept on the
 	// identity token returned by Sign in with Apple. Comma-separated so
@@ -250,8 +273,13 @@ func Load() (*Config, error) {
 		FCMCredentialsJSON: decodeBase64Env("FCM_CREDENTIALS_JSON"),
 		FCMProjectID:       os.Getenv("FCM_PROJECT_ID"),
 
-		AppleSharedSecret: os.Getenv("APPLE_SHARED_SECRET"),
-		AppleBundleID:     getenv("APPLE_BUNDLE_ID", "com.fitcal.app"),
+		AppleSharedSecret:   os.Getenv("APPLE_SHARED_SECRET"),
+		AppleBundleID:       getenv("APPLE_BUNDLE_ID", "com.fitcal.app"),
+		AppleIAPEnvironment: strings.ToLower(strings.TrimSpace(os.Getenv("APPLE_IAP_ENVIRONMENT"))),
+
+		AppleAPIKeyID:    os.Getenv("APPLE_API_KEY_ID"),
+		AppleAPIKeyP8:    decodePossibleBase64PEM("APPLE_API_KEY_P8"),
+		AppleAPIIssuerID: os.Getenv("APPLE_API_ISSUER_ID"),
 
 		AppleSignInBundleIDs: splitCSV(os.Getenv("APPLE_SIGN_IN_BUNDLE_IDS")),
 
@@ -284,12 +312,35 @@ func Load() (*Config, error) {
 	// secret is empty. Production deployments are expected to set both
 	// and should treat these warnings as deploy-blocking.
 	if !cfg.IAPSkipVerification {
-		if cfg.AppleSharedSecret == "" {
-			slog.Warn("APPLE_SHARED_SECRET is not set — apple IAP verification will reject every receipt at request time")
+		// AppleBundleID is the new required input — StoreKit 2 JWS
+		// verification needs it to validate the bundleId claim. The
+		// legacy AppleSharedSecret is no longer consulted; warning on
+		// its absence would be noise.
+		if cfg.AppleBundleID == "" {
+			slog.Warn("APPLE_BUNDLE_ID is not set — apple IAP verification will reject every transaction at request time")
 		}
 		if cfg.GoogleServiceAccountJSON == "" {
 			slog.Warn("GOOGLE_SERVICE_ACCOUNT_JSON is not set — google IAP verification will reject every purchase at request time")
 		}
+	}
+
+	// App Store Server API knobs are all-or-nothing — a half-configured
+	// trio (e.g. key id without issuer id) silently degrades to "the
+	// API client refuses every call", which is worse than not having
+	// it at all. Warn loudly so operators catch it at deploy time.
+	apiAll := cfg.AppleAPIKeyID != "" && cfg.AppleAPIKeyP8 != "" && cfg.AppleAPIIssuerID != ""
+	apiAny := cfg.AppleAPIKeyID != "" || cfg.AppleAPIKeyP8 != "" || cfg.AppleAPIIssuerID != ""
+	if apiAny && !apiAll {
+		slog.Warn("partial App Store Server API config — need all of APPLE_API_KEY_ID, APPLE_API_KEY_P8, APPLE_API_ISSUER_ID; server-to-server calls will be disabled")
+	}
+
+	// APPLE_IAP_ENVIRONMENT defends prod against sandbox transactions.
+	// In production, missing or non-"production" config logs a warn
+	// because either is probably wrong — but we don't force-fail so a
+	// transitional period (mixed builds) can be diagnosed.
+	if cfg.Env == "production" && cfg.AppleIAPEnvironment != "production" {
+		slog.Warn("APPLE_IAP_ENVIRONMENT is not set to 'production' in a production build — sandbox transactions will be accepted",
+			"current", cfg.AppleIAPEnvironment)
 	}
 
 	// Single-platform deployments don't need a separate
@@ -383,6 +434,32 @@ func loadServiceAccountJSON(key string) string {
 	}
 	if !json.Valid(decoded) {
 		slog.Warn(key + " decoded from base64 but the payload is not valid JSON — google IAP verification will reject every purchase at request time")
+		return ""
+	}
+	return string(decoded)
+}
+
+// decodePossibleBase64PEM reads a PEM key from the environment that
+// may have been base64-encoded for env-quoting convenience. Detection:
+// if the trimmed value contains a `-----BEGIN` marker we treat it as
+// raw PEM; otherwise we attempt base64 decode and check the decoded
+// bytes are PEM. Invalid input warns and resolves to empty so the
+// caller can degrade rather than the server failing to boot.
+func decodePossibleBase64PEM(key string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return ""
+	}
+	if strings.Contains(v, "-----BEGIN") {
+		return v
+	}
+	decoded, err := base64.StdEncoding.DecodeString(v)
+	if err != nil {
+		slog.Warn(key + " is neither raw PEM nor valid base64 — server-to-server calls will be disabled")
+		return ""
+	}
+	if !strings.Contains(string(decoded), "-----BEGIN") {
+		slog.Warn(key + " decoded from base64 but the payload is not PEM — server-to-server calls will be disabled")
 		return ""
 	}
 	return string(decoded)

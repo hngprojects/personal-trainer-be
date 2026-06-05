@@ -1027,8 +1027,8 @@ type CreateSubscriptionRequest struct {
 	// PurchaseToken Google Play purchase token (required when platform=google)
 	PurchaseToken *string `json:"purchase_token,omitempty"`
 
-	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
-	ReceiptData *string `json:"receipt_data,omitempty"`
+	// SignedTransaction StoreKit 2 signed JWS transaction (required when platform=apple). The iOS client obtains this from `Transaction.jsonRepresentation` after a successful purchase; the server verifies the JWS signature against Apple's pinned Root CA, validates `bundleId` matches `APPLE_BUNDLE_ID`, and checks `productId` matches the requested plan. The legacy base64 `receipt_data` field is no longer accepted.
+	SignedTransaction *string `json:"signed_transaction,omitempty"`
 
 	// TrainerId The trainer this subscription is for
 	TrainerId openapi_types.UUID `json:"trainer_id"`
@@ -1196,6 +1196,20 @@ type OrganisationMediaMediaType string
 
 // OrganisationMediaStatus defines model for OrganisationMedia.Status.
 type OrganisationMediaStatus string
+
+// PatchTrainersMeRequest Partial update for a trainer's own profile. All fields are optional —
+// omit any field to leave it unchanged.
+type PatchTrainersMeRequest struct {
+	Bio *string `json:"bio,omitempty"`
+
+	// DisplayPicture URL of the trainer's profile picture.
+	DisplayPicture *string `json:"display_picture,omitempty"`
+
+	// PhoneNumber E.164 format (e.g. +2348012345678).
+	PhoneNumber       *string                  `json:"phone_number,omitempty"`
+	Specializations   *[]TrainerSpecialization `json:"specializations,omitempty"`
+	YearsOfExperience *int                     `json:"years_of_experience,omitempty"`
+}
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
@@ -1620,18 +1634,6 @@ type UpdateProfileRequestFitnessLevel string
 
 // UpdateProfileRequestGender defines model for UpdateProfileRequest.Gender.
 type UpdateProfileRequestGender string
-
-// PatchTrainersMeRequest defines the request body for PATCH /trainers/me.
-type PatchTrainersMeRequest struct {
-	Bio                *string                    `json:"bio,omitempty"`
-	DisplayPicture     *string                    `json:"display_picture,omitempty"`
-	YearsOfExperience  *int                       `json:"years_of_experience,omitempty"`
-	Specializations    *[]TrainerSpecialization   `json:"specializations,omitempty"`
-	PhoneNumber        *string                    `json:"phone_number,omitempty"`
-}
-
-// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
-type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
 
 // UpdateTrainerRequest Partial update. Any field omitted is left unchanged. Pass an empty
 // array to clear specializations/training_styles. Used both by the
@@ -2124,6 +2126,9 @@ type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
+// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
+type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
+
 // ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
 type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
 
@@ -2357,9 +2362,6 @@ type ServerInterface interface {
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
-	// Get the authenticated trainer's own profile
-	// (GET /trainers/me)
-	GetTrainersMe(c *gin.Context)
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
@@ -2375,6 +2377,12 @@ type ServerInterface interface {
 	// List distinct clients who have booked with the authenticated trainer
 	// (GET /trainers/me/clients)
 	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
+	// Get the authenticated trainer's own profile
+	// (GET /trainers/me/edit-profile)
+	GetTrainersMe(c *gin.Context)
+	// Update the authenticated trainer's own profile
+	// (PATCH /trainers/me/edit-profile)
+	PatchTrainersMe(c *gin.Context)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
@@ -3916,21 +3924,6 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	siw.Handler.CreateTrainer(c)
 }
 
-// GetTrainersMe operation middleware
-func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetTrainersMe(c)
-}
-
 // GetTrainersMeAvailability operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersMeAvailability(c *gin.Context) {
 
@@ -4038,6 +4031,36 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainersMeClients(c, params)
+}
+
+// GetTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMe(c)
+}
+
+// PatchTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) PatchTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PatchTrainersMe(c)
 }
 
 // GetTrainersMeSessions operation middleware
@@ -4813,12 +4836,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
-	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
+	router.GET(options.BaseURL+"/trainers/me/edit-profile", wrapper.GetTrainersMe)
+	router.PATCH(options.BaseURL+"/trainers/me/edit-profile", wrapper.PatchTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
