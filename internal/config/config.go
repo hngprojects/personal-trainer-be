@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -148,6 +149,15 @@ type Config struct {
 	AppleSharedSecret string // APPLE_SHARED_SECRET — App Store Connect shared secret
 	AppleBundleID     string // APPLE_BUNDLE_ID — e.g. com.fitcal.app
 
+	// AppleSignInBundleIDs are the `aud` values we accept on the
+	// identity token returned by Sign in with Apple. Comma-separated so
+	// one server can serve the iOS app bundle id AND the web Services
+	// ID (those have different aud values — the iOS native flow uses
+	// the bundle id, the web flow uses the Services ID configured in
+	// the Apple Developer portal). Empty falls back to AppleBundleID
+	// so single-platform deployments don't need a second env var.
+	AppleSignInBundleIDs []string // APPLE_SIGN_IN_BUNDLE_IDS=com.fitcal.app,com.fitcal.app.web
+
 	// Google Play billing.
 	GooglePackageName        string // GOOGLE_PACKAGE_NAME — e.g. com.fitcal.app
 	GoogleServiceAccountJSON string // GOOGLE_SERVICE_ACCOUNT_JSON — full JSON key file contents
@@ -242,6 +252,8 @@ func Load() (*Config, error) {
 		AppleSharedSecret: os.Getenv("APPLE_SHARED_SECRET"),
 		AppleBundleID:     getenv("APPLE_BUNDLE_ID", "com.fitcal.app"),
 
+		AppleSignInBundleIDs: splitCSV(os.Getenv("APPLE_SIGN_IN_BUNDLE_IDS")),
+
 		GooglePackageName:        getenv("GOOGLE_PACKAGE_NAME", "com.fitcal.app"),
 		GoogleServiceAccountJSON: os.Getenv("GOOGLE_SERVICE_ACCOUNT_JSON"),
 
@@ -279,6 +291,14 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Single-platform deployments don't need a separate
+	// APPLE_SIGN_IN_BUNDLE_IDS knob — fall back to the IAP bundle id
+	// so Sign in with Apple "just works" once the iOS app's
+	// AppleBundleID is configured.
+	if len(cfg.AppleSignInBundleIDs) == 0 && cfg.AppleBundleID != "" {
+		cfg.AppleSignInBundleIDs = []string{cfg.AppleBundleID}
+	}
+
 	return cfg, nil
 }
 
@@ -302,6 +322,26 @@ func parsePositiveIntEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// splitCSV parses a comma-separated env value into a trimmed, non-empty
+// slice. Empty input returns nil so callers can `len() == 0` test for
+// "unset" the same way as a missing variable.
+func splitCSV(v string) []string {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func decodeBase64Env(key string) []byte {
