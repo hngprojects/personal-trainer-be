@@ -99,10 +99,52 @@ func (s *NotificationService) SendNotificationToUser(ctx context.Context, userID
 		return nil, err
 	}
 	resp := parseNotificationResponse(notification)
+
+	// Clients have historically been FCM-only — they're on the mobile
+	// app where push notifications are the primary delivery channel.
 	if role == ClientUsers {
 		return s.sendNotifViaFCM(ctx, userID, notification, resp, title, message)
 	}
-	return s.sendNotifViaWS(ctx, userID, notification, resp, title, message)
+
+	// Trainers and admins: try WebSocket first (instant + cheap when
+	// they're connected to the dashboard / mobile app), then fall back
+	// to FCM if no live connection picked it up. Previously this was
+	// WS-only, which meant a trainer who'd backgrounded the app or
+	// switched tabs silently missed every notification until they
+	// hit GET /notifications. The row remains `type='realtime'` so it
+	// also replays on the next WS connect — the FCM push is the
+	// "you might not be looking right now" nudge on top.
+	wsResp, wsErr := s.sendNotifViaWS(ctx, userID, notification, resp, title, message)
+	if wsErr == nil && wsResp != nil && wsResp.Status == SentNotifStatus {
+		return wsResp, nil
+	}
+	if wsErr != nil {
+		// WS infrastructure failure (marshal, hub error) is logged
+		// inside sendNotifViaWS — we still try FCM so the user isn't
+		// silently dropped.
+		s.log.Warn("ws delivery failed, falling back to FCM", "userID", userID, "error", wsErr)
+	}
+
+	// Skip the FCM fallback entirely when push is disabled (no creds
+	// configured) — the row stays `pending` and will redeliver on
+	// next WS connect via DeliverPendingNotifOnConn. Without this
+	// short-circuit, every dev-environment notification logs a
+	// "FCM fallback failed" warning, which is noise, not signal.
+	if s.fcmClient.IsDisabled() {
+		return wsResp, nil
+	}
+
+	fcmResp, fcmErr := s.sendNotifViaFCM(ctx, userID, notification, resp, title, message)
+	if fcmErr != nil {
+		// Both channels failed — but the DB row is already written,
+		// so the user will still see it on next REST poll. Return
+		// the WS response (which carries the original status) and
+		// log the FCM failure for diagnostics.
+		s.log.Warn("FCM fallback also failed for non-client user",
+			"userID", userID, "role", role, "error", fcmErr)
+		return wsResp, nil
+	}
+	return fcmResp, nil
 }
 
 // SendNotificationToAdmins delivers the same notification to every
