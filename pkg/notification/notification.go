@@ -96,27 +96,88 @@ func (p *PushNotification) IsDisabled() bool {
 	return p == nil || p.disabled
 }
 
+// SendResult is the per-token outcome of a fan-out send. Callers use
+// InvalidTokens to drive cleanup (mark the corresponding user_device
+// row inactive so future pushes skip it). FailedTokens covers
+// transient or unclassified failures — don't deactivate on these or
+// you'll churn legitimate tokens on a flaky network.
+type SendResult struct {
+	Sent           int
+	Failed         int
+	InvalidTokens  []string // tokens FCM said no longer exist — deactivate these
+	FailedTokens   []string // other failures (network, quota) — keep for retry
+}
+
 func (p *PushNotification) SendToUser(ctx context.Context, deviceToken []string, title, message string) error {
+	res, err := p.SendToTokens(ctx, deviceToken, title, message)
+	if err != nil {
+		return err
+	}
+	if res.Failed > 0 {
+		return fmt.Errorf("failed to send push notification to %d device(s)", res.Failed)
+	}
+	return nil
+}
+
+// SendToTokens fans out the same notification to every supplied
+// device token and returns a per-token outcome. Use this in
+// preference to SendToUser when the caller needs to act on which
+// specific tokens were rejected — typically to mark them inactive
+// in the user_device table.
+func (p *PushNotification) SendToTokens(ctx context.Context, deviceToken []string, title, message string) (SendResult, error) {
+	var res SendResult
 	if p.disabled {
 		p.log.Warn("Notifier Credential file not set, push notifications will be disabled")
-		return fmt.Errorf("push notifications are disabled")
+		return res, fmt.Errorf("push notifications are disabled")
 	}
 	if len(deviceToken) == 0 {
 		p.log.Warn("Notifier: no device tokens available to push notification to")
-		return fmt.Errorf("no device tokens available to push notification to")
+		return res, fmt.Errorf("no device tokens available to push notification to")
 	}
-	failed := 0
 	for _, token := range deviceToken {
 		response, err := p.client.Send(ctx, buildMessage(token, title, message))
 		if err != nil {
-			failed++
-			p.log.Error("Notification service: failed to send push notification", "err", err)
+			res.Failed++
+			if IsTokenPermanentlyInvalid(err) {
+				res.InvalidTokens = append(res.InvalidTokens, token)
+				p.log.Warn("Notification service: device token is permanently invalid — will be deactivated",
+					"err", err, "token_prefix", tokenPrefix(token))
+			} else {
+				res.FailedTokens = append(res.FailedTokens, token)
+				p.log.Error("Notification service: failed to send push notification",
+					"err", err, "token_prefix", tokenPrefix(token))
+			}
 			continue
 		}
+		res.Sent++
 		p.log.Info("Notification service: push notification sent successfully", "response", response)
 	}
-	if failed > 0 {
-		return fmt.Errorf("failed to send push notification to %d device(s)", failed)
+	return res, nil
+}
+
+// IsTokenPermanentlyInvalid reports whether an FCM error indicates the
+// device token is no longer routable — the app was uninstalled, the
+// token rotated, or the sender id no longer matches. These are NOT
+// retryable; the row should be marked inactive so we stop pushing to
+// it. Transient errors (network, quota) deliberately don't match
+// here — we want to retry those on the next event.
+func IsTokenPermanentlyInvalid(err error) bool {
+	if err == nil {
+		return false
 	}
-	return nil
+	return messaging.IsRegistrationTokenNotRegistered(err) ||
+		messaging.IsUnregistered(err) ||
+		messaging.IsSenderIDMismatch(err) ||
+		messaging.IsInvalidArgument(err)
+}
+
+// tokenPrefix safely truncates a token for log output — FCM tokens
+// are ~160 chars and confidential, but the first few chars are
+// useful when correlating "which row got deactivated" with the log
+// line, especially when multiple rows fail in the same call.
+func tokenPrefix(token string) string {
+	if len(token) <= 12 {
+		return token
+	}
+	return token[:12] + "…"
 }
