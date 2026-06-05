@@ -664,6 +664,13 @@ func (s *Router) Routes() *gin.Engine {
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
+		// Hand-wired trainer self-service profile update.
+		// PATCH /trainers/me/profile conflicts with PATCH /trainers/:id in gin's
+		// radix tree when registered via oapi-codegen, so we wire it directly.
+		if impl.trainers != nil {
+			authedGroup.PATCH("/trainers/me/edit-profile", perRouteMw, impl.PatchTrainersMe)
+		}
+
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
 				func(c *gin.Context) {
