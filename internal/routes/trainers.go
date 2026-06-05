@@ -852,6 +852,59 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 	s.renderTrainerProfileByID(c, uuid.UUID(id))
 }
 
+// ToggleTrainerAvailability handles PATCH /trainers/me/availability/toggle.
+// Flips the trainer's global is_available flag — the "open/closed" sign.
+// When false, clients see no bookable slots for this trainer; the slots are
+// preserved so toggling back on instantly restores the schedule.
+func (s *routerImpl) ToggleTrainerAvailability(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("toggle trainer availability: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		IsAvailable bool `json:"is_available"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("toggle trainer availability: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	result, err := s.trainers.q.ToggleTrainerAvailability(c.Request.Context(), db.ToggleTrainerAvailabilityParams{
+		ID:          trainerID,
+		IsAvailable: body.IsAvailable,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		s.logger.Error("toggle trainer availability: DB error", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to update availability", api.CodeServerError))
+		return
+	}
+
+	// Invalidate the booking-slots cache so clients immediately see the
+	// updated availability instead of serving stale slots from Redis.
+	if s.availability != nil {
+		if err := s.availability.redis.Delete(c.Request.Context(), bookingSlotsCacheKey(trainerID)); err != nil {
+			s.logger.Warn("toggle trainer availability: failed to invalidate booking slots cache", "trainerID", trainerID, "err", err)
+		}
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_UPDATED", api.CodeOK, map[string]interface{}{
+		"trainer_id":   result.ID.String(),
+		"is_available": result.IsAvailable,
+	}))
+}
+
 // PatchTrainersMe handles PATCH /trainers/me — lets a trainer update their
 // own bio, years_of_experience, specializations, display_picture, and phone_number.
 func (s *routerImpl) PatchTrainersMe(c *gin.Context) {

@@ -257,6 +257,7 @@ type Trainer struct {
 	UpdatedAt         time.Time
 	Specializations   []string
 	TrainingStyles    []string
+	IsAvailable       bool
 }
 
 type TrainerAvailability struct {
