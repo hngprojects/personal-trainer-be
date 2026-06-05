@@ -165,8 +165,13 @@ func IsTokenPermanentlyInvalid(err error) bool {
 	if err == nil {
 		return false
 	}
-	return messaging.IsRegistrationTokenNotRegistered(err) ||
-		messaging.IsUnregistered(err) ||
+	// messaging.IsRegistrationTokenNotRegistered was deprecated in the
+	// firebase-admin SDK in favour of IsUnregistered, which covers
+	// the same condition (the FCM service replied "this token isn't
+	// known anymore"). Keep both senderID + invalid-argument checks
+	// — those catch the rarer "app's senderID doesn't match the
+	// project anymore" and "the token isn't a token at all" cases.
+	return messaging.IsUnregistered(err) ||
 		messaging.IsSenderIDMismatch(err) ||
 		messaging.IsInvalidArgument(err)
 }
