@@ -698,7 +698,7 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 	return buf.String(), err
 }
 
-var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/paidReschedule.html"))
+var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleClient.html"))
 
 var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleTrainer.html"))
 
