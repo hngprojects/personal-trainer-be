@@ -451,7 +451,7 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
-			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService, s.redis)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
 
 			if s.redis != nil {
