@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -23,6 +24,10 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error)
 	GetTrainerByID(ctx context.Context, id uuid.UUID) (db.Trainer, error)
 	FindBookingSlotByTrainerID(ctx context.Context, trainerID uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
+	// FindBookingSlotByTrainerIDForDate filters the trainer's templates
+	// down to the weekday of `target` and removes any whose specific
+	// instance on that date is already booked (paid OR discovery).
+	FindBookingSlotByTrainerIDForDate(ctx context.Context, trainerID uuid.UUID, target time.Time) ([]db.GetTrainersBookingSlotsRow, error)
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
 	GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error)
 	GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error)
@@ -59,6 +64,31 @@ func (r *postgresRepo) FindBookingSlotByTrainerID(ctx context.Context, trainerID
 		return nil, err
 	}
 	return slots, nil
+}
+
+func (r *postgresRepo) FindBookingSlotByTrainerIDForDate(ctx context.Context, trainerID uuid.UUID, target time.Time) ([]db.GetTrainersBookingSlotsRow, error) {
+	if _, err := r.q.GetTrainerByID(ctx, trainerID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrTrainerNotFound
+		}
+		return nil, err
+	}
+	rows, err := r.q.GetTrainersBookingSlotsForDate(ctx, db.GetTrainersBookingSlotsForDateParams{
+		TrainerID:  uuid.NullUUID{UUID: trainerID, Valid: true},
+		TargetDate: target,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// sqlc generated a dedicated row type for the new query; the
+	// projection is identical to GetTrainersBookingSlotsRow so a
+	// straight type-conversion keeps the service surface single-typed
+	// without copying field-by-field.
+	out := make([]db.GetTrainersBookingSlotsRow, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, db.GetTrainersBookingSlotsRow(r))
+	}
+	return out, nil
 }
 
 func (r *postgresRepo) CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error) {

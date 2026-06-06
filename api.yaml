@@ -6349,6 +6349,19 @@ paths:
           schema:
             type: string
           description: IANA timezone to convert slots into (e.g. America/New_York)
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: >-
+            When provided (YYYY-MM-DD), the server filters out any slot
+            already booked on this specific date — both via
+            `discovery_bookings`. The returned slots are guaranteed to
+            be bookable for that date. Omit to receive the full
+            template list (every active slot, regardless of which dates
+            are taken).
       responses:
         "200":
           description: Booking slots retrieved
@@ -6582,6 +6595,19 @@ paths:
             type: string
             format: uuid
           description: ID of the trainer to retrieve booking slots for
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: >-
+            When provided (YYYY-MM-DD), the server filters out any slot
+            that overlaps with an existing non-cancelled booking on
+            this date — both paid sessions (`bookings`) and discovery
+            calls (`discovery_bookings`) for the same trainer. Omit to
+            receive the full template list (every active slot,
+            regardless of which dates are taken).
       responses:
         "200":
           description: Booking slots retrieved
