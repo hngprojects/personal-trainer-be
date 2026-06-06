@@ -283,15 +283,15 @@ func (m *LogMailer) SendSessionReminderTrainer(to, trainerName, clientName strin
 
 const phoneCallConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
 
-var phoneCallConfirmationTemplate, _ = template.ParseFS(templates, "templates/phoneCallConfirmation.html")
+var phoneCallConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/phoneCallConfirmation.html"))
 
 const zoomMeetingConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
 
-var zoomMeetingConfirmationTemplate, _ = template.ParseFS(templates, "templates/zoomMeetingConfirmation.html")
+var zoomMeetingConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/zoomMeetingConfirmation.html"))
 
 const discoveryBookingAdminNotificationSubject = "New Discovery Call Booking"
 
-var discoveryBookingAdminTemplate, _ = template.ParseFS(templates, "templates/discoveryBookingAdmin.html")
+var discoveryBookingAdminTemplate = template.Must(template.ParseFS(templates, "templates/discoveryBookingAdmin.html"))
 
 func discoveryBookingAdminHTML(clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -407,7 +407,7 @@ func sanitizeHeaderValue(value string) (string, error) {
 
 const verificationCodeSubject = "Your verification code"
 
-var verificationCodeTemplate, _ = template.ParseFS(templates, "templates/verificationCode.html")
+var verificationCodeTemplate = template.Must(template.ParseFS(templates, "templates/verificationCode.html"))
 
 func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 	var body bytes.Buffer
@@ -425,7 +425,7 @@ func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 
 const adminCredentialsSubject = "Your admin account is ready"
 
-var adminCredentialsTemplate, _ = template.ParseFS(templates, "templates/adminCredentials.html")
+var adminCredentialsTemplate = template.Must(template.ParseFS(templates, "templates/adminCredentials.html"))
 
 func adminCredentialsHTML(emailAddr, password string) (string, error) {
 	var body bytes.Buffer
@@ -443,7 +443,7 @@ func adminCredentialsHTML(emailAddr, password string) (string, error) {
 
 const trainerCredentialsSubject = "Your FitCall trainer account is ready"
 
-var trainerCredentialsTemplate, _ = template.ParseFS(templates, "templates/trainerCredentials.html")
+var trainerCredentialsTemplate = template.Must(template.ParseFS(templates, "templates/trainerCredentials.html"))
 
 func trainerCredentialsHTML(emailAddr, password string) (string, error) {
 	var body bytes.Buffer
@@ -469,7 +469,7 @@ const accountSetupSubject = "Set up your FitCall account"
 // is the only identifier the consume endpoint uses, and omitting the
 // email reduces the shoulder-surfing surface (recipient already knows
 // their own email; the link doesn't need to advertise it).
-var accountSetupTemplate, _ = template.ParseFS(templates, "templates/accountSetup.html")
+var accountSetupTemplate = template.Must(template.ParseFS(templates, "templates/accountSetup.html"))
 
 func accountSetupHTML(name, link string, expiryHours int) (string, error) {
 	var body bytes.Buffer
@@ -489,7 +489,7 @@ func accountSetupHTML(name, link string, expiryHours int) (string, error) {
 
 const passwordResetSubject = "Your password reset code"
 
-var passwordResetTemplate, _ = template.ParseFS(templates, "templates/passwordReset.html")
+var passwordResetTemplate = template.Must(template.ParseFS(templates, "templates/passwordReset.html"))
 
 func passwordResetHTML(code string, expiryMinutes int) (string, error) {
 	var body bytes.Buffer
@@ -549,7 +549,7 @@ func (m *SMTPMailer) SendContactConfirmation(to, name string) error {
 
 const waitlistConfirmationSubject = "You're on the waitlist!"
 
-var waitlistConfirmationTemplate, _ = template.ParseFS(templates, "templates/waitlistConfirmation.html")
+var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/waitlistConfirmation.html"))
 
 func waitlistConfirmationHTML() (string, error) {
 	var body bytes.Buffer
@@ -561,7 +561,7 @@ func waitlistConfirmationHTML() (string, error) {
 
 const contactConfirmationSubject = "We received your message!"
 
-var contactConfirmationTemplate, _ = template.ParseFS(templates, "templates/contactConfirmation.html")
+var contactConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/contactConfirmation.html"))
 
 func contactConfirmationHTML(name string) (string, error) {
 	var body bytes.Buffer
@@ -616,7 +616,7 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 	return buf.String(), err
 }
 
-var discoveryRescheduleTemplate, _ = template.ParseFS(templates, "templates/discoveryReschedule.html")
+var discoveryRescheduleTemplate = template.Must(template.ParseFS(templates, "templates/discoveryReschedule.html"))
 
 func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
 	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
@@ -698,15 +698,15 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 	return buf.String(), err
 }
 
-var paidRescheduleClientTemplate, _ = template.ParseFS(templates, "templates/paidReschedule.html")
+var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/paidReschedule.html"))
 
-var paidRescheduleTrainerTemplate, _ = template.ParseFS(templates, "templates/paidRescheduleTrainer.html")
+var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleTrainer.html"))
 
 const bookingConfirmationSubject = "You've successfully booked a session with us"
 
-var bookingConfirmationTemplate, _ = template.ParseFS(templates, "templates/bookingConfirmation.html")
+var bookingConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmation.html"))
 
-var trainerBookingConfirmationTemplate, _ = template.ParseFS(templates, "templates/trainerBookingConfirmation.html")
+var trainerBookingConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/trainerBookingConfirmation.html"))
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, location string, sessionData string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -770,8 +770,8 @@ const (
 	sessionReminderTrainerSubject = "Upcoming FitCall Session in 1 Hour"
 )
 
-var sessionReminderClientTemplate, _ = template.ParseFS(templates, "templates/sessionReminder.html")
-var sessionReminderTrainerTemplate, _ = template.ParseFS(templates, "templates/sessionReminderTrainer.html")
+var sessionReminderClientTemplate = template.Must(template.ParseFS(templates, "templates/sessionReminder.html"))
+var sessionReminderTrainerTemplate = template.Must(template.ParseFS(templates, "templates/sessionReminderTrainer.html"))
 
 func sessionReminderClientHTML(clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
 	timezoneLabel := timezone
