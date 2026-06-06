@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Training Session Rescheduled</title>
+  </head>
+  <body
+    style="
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    "
+  >
+    <h2 style="color: #1a1a2e">Your Training Session Has Been Rescheduled</h2>
+    <p>Hi {{.Name}},</p>
+    <p>Your training session has been successfully rescheduled.</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0">
+      <tr>
+        <td
+          style="padding: 10px; background: #f8d7da; border-radius: 4px 0 0 4px"
+        >
+          <strong>Previous Time</strong><br />{{.OldTime}}
+        </td>
+        <td
+          style="padding: 10px; background: #d4edda; border-radius: 0 4px 4px 0"
+        >
+          <strong>New Time</strong><br />{{.NewTime}}
+        </td>
+      </tr>
+    </table>
+    <p><strong>Timezone:</strong> {{.Timezone}}</p>
+    {{ if .ZoomLink }}
+    <p>
+      <strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a>
+    </p>
+    {{ end }}
+    <p>
+      If you need to make any further changes, please do so at least 12 hours
+      before the session.
+    </p>
+    <p>See you soon!</p>
+    <p style="color: #666; font-size: 12px">FitCall Team</p>
+  </body>
+</html>

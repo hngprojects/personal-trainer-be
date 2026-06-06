@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f4f4f5;
+      font-family: Arial, sans-serif;
+    "
+  >
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 0">
+      <tr>
+        <td align="center">
+          <table
+            width="520"
+            cellpadding="0"
+            cellspacing="0"
+            style="background: #ffffff; border-radius: 8px; padding: 40px"
+          >
+            <tr>
+              <td style="padding-bottom: 24px">
+                <h2 style="margin: 0; font-size: 22px; color: #111827">
+                  Discovery Call Confirmed
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 20px">
+                <p style="margin: 0; font-size: 15px; color: #374151">
+                  Hello <strong>{{ .Name }}</strong>,
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 24px">
+                <p style="margin: 0; font-size: 14px; color: #6b7280">
+                  Your Zoom discovery call has been successfully scheduled.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  padding: 20px;
+                  background: #f9fafb;
+                  border-radius: 8px;
+                  padding-bottom: 24px;
+                "
+              >
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  📅 <strong>Date:</strong> {{ .Date }}
+                </p>
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  🕒 <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})
+                </p>
+                <p style="margin: 0; font-size: 14px; color: #374151">
+                  🔗 <strong>Zoom Link:</strong>
+                  <a href="{{ .ZoomLink }}" style="color: #2563eb"
+                    >{{ .ZoomLink }}</a
+                  >
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 24px">
+                <p style="margin: 0; font-size: 14px; color: #6b7280">
+                  If you need to make any changes to your booking, simply reply
+                  to this email.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 24px">
+                <p style="margin: 0; font-size: 14px; color: #374151">
+                  Best regards,<br /><strong>The FitCall Team</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

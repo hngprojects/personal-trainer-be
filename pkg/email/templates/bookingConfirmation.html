@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Session Booked</title>
+  </head>
+  <body
+    style="
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    "
+  >
+    <h2 style="color: #1a1a2e">Hi {{.ClientName}},</h2>
+    <p>Your FitCall session has been successfully booked</p>
+    Session Details:
+    <ul>
+      <li>Trainer: Coach {{.TrainerName}}.</li>
+      <li>Date: {{.Date}}.</li>
+      <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
+      <li>Location: {{.Location}}</li>
+      {{if or (eq .Location "zoom") (eq .Location "google_meet")}}
+      <li><a href="{{.SessionData}}">Click here to join</a>.</li>
+      {{end}}
+    </ul>
+    <p>
+      Your trainer will check in before the session to help keep you accountable
+      and ready.
+    </p>
+    <p>We’re excited to help you stay consistent.</p>
+
+    — Team FitCall
+  </body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>New Session Booking</title>
+  </head>
+  <body
+    style="
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    "
+  >
+    <h2 style="color: #1a1a2e">Hi Coach {{.TrainerName}},</h2>
+
+    <p>You have received a new session booking on FitCall.</p>
+
+    <p><strong>Session Details:</strong></p>
+    <ul>
+      <li>Client: {{.ClientName}}</li>
+      <li>Date: {{.Date}}</li>
+      <li>Time: {{.StartTime}} - {{.EndTime}}</li>
+      <li>Location: {{.Location}}</li>
+      {{if or (eq .Location "zoom") (eq .Location "google_meet")}}
+      <li><a href="{{.SessionData}}">Click here to join</a>.</li>
+      {{else}}
+      <li>Client's Details: {{.SessionData}}</li>
+      {{end}}
+    </ul>
+
+    <p>
+      Please review the booking and reach out to your client if any preparation
+      or follow-up is required before the session.
+    </p>
+
+    <p>
+      Thank you for helping clients stay consistent with their fitness goals.
+    </p>
+
+    <p>— Team FitCall</p>
+  </body>
+</html>
