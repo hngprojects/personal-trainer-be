@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -10,6 +11,9 @@ import (
 	"strings"
 	"time"
 )
+
+//go:embed templates/*.html
+var templates embed.FS
 
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
