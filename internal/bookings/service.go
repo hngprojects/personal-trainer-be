@@ -151,6 +151,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledStart.Time,
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
+		platform,
 		meetingURL,
 		false,
 	); err != nil {
@@ -164,6 +165,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledStart.Time,
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
+		platform,
 		meetingURL,
 		true,
 	); err != nil {

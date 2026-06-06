@@ -19,8 +19,10 @@
       <li>Trainer: Coach {{.TrainerName}}.</li>
       <li>Date: {{.Date}}.</li>
       <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
-      <li>Location: Zoom</li>
-      <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
+      <li>Location: {{.Location}}</li>
+      {{if or (eq .Location "zoom") (eq .Location "google_meet")}}
+      <li><a href="{{.SessionData}}">Click here to join</a>.</li>
+      {{end}}
     </ul>
     <p>
       Your trainer will check in before the session to help keep you accountable

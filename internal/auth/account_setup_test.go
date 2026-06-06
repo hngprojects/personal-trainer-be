@@ -109,7 +109,7 @@ func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ 
 func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ bool) error {
+func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ bool) error {
 	return nil
 }
 func (m *captureMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
