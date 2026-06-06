@@ -684,13 +684,16 @@ func (s *Router) Routes() *gin.Engine {
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
 
-		// Hand-wired trainer self-service routes.
-		// These PATCH routes conflict with PATCH /trainers/:id in gin's radix tree
-		// when registered via oapi-codegen, so we wire them directly.
-		if impl.trainers != nil {
-			authedGroup.PATCH("/trainers/me/edit-profile", perRouteMw, impl.PatchTrainersMe)
-			authedGroup.PATCH("/trainers/me/availability/toggle", perRouteMw, impl.ToggleTrainerAvailability)
-		}
+		// DO NOT re-add hand-wired PATCH /trainers/me/edit-profile or
+		// PATCH /trainers/me/availability/toggle here. The original
+		// hotfix (#354/#355/#356) removed them because both are now
+		// emitted by oapi-codegen from api.yaml (gen.go:4898 and 4902).
+		// Adding either back double-registers it and gin panics at
+		// boot with `handlers are already registered for path …`,
+		// taking down the service in a restart loop (this has now
+		// happened twice — once in #341 and once in #359). If you
+		// genuinely need a gin radix-tree workaround, do it by
+		// renaming the spec entry, not by hand-wiring on top.
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
