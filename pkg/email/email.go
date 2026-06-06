@@ -283,112 +283,15 @@ func (m *LogMailer) SendSessionReminderTrainer(to, trainerName, clientName strin
 
 const phoneCallConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
 
-var phoneCallConfirmationTemplate = template.Must(template.New("phone-call-confirmation").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td style="padding-bottom:24px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Discovery Call Confirmed</h2>
-        </td></tr>
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:15px;color:#374151;">Hello <strong>{{ .Name }}</strong>,</p>
-        </td></tr>
-        <tr><td style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Your phone discovery call has been successfully scheduled.</p>
-        </td></tr>
-        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;">📅 <strong>Date:</strong> {{ .Date }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;">🕒 <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
-          <p style="margin:0;font-size:14px;color:#374151;">📞 <strong>Phone Number:</strong> {{ .PhoneNumber }}</p>
-        </td></tr>
-        <tr><td style="padding-top:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">A member of our team will call you at the scheduled time.</p>
-        </td></tr>
-        <tr><td style="padding-top:16px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">If you need to make any changes to your booking, simply reply to this email.</p>
-        </td></tr>
-        <tr><td style="padding-top:24px;">
-          <p style="margin:0;font-size:14px;color:#374151;">Best regards,<br><strong>The FitCall Team</strong></p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var phoneCallConfirmationTemplate, _ = template.ParseFS(templates, "templates/phoneCallConfirmation.html")
 
 const zoomMeetingConfirmationSubject = "Your FitCall Discovery Call is Confirmed"
 
-var zoomMeetingConfirmationTemplate = template.Must(template.New("zoom-meeting-confirmation").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td style="padding-bottom:24px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Discovery Call Confirmed</h2>
-        </td></tr>
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:15px;color:#374151;">Hello <strong>{{ .Name }}</strong>,</p>
-        </td></tr>
-        <tr><td style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Your Zoom discovery call has been successfully scheduled.</p>
-        </td></tr>
-        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;">📅 <strong>Date:</strong> {{ .Date }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;">🕒 <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
-          <p style="margin:0;font-size:14px;color:#374151;">🔗 <strong>Zoom Link:</strong> <a href="{{ .ZoomLink }}" style="color:#2563eb;">{{ .ZoomLink }}</a></p>
-        </td></tr>
-        <tr><td style="padding-top:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">If you need to make any changes to your booking, simply reply to this email.</p>
-        </td></tr>
-        <tr><td style="padding-top:24px;">
-          <p style="margin:0;font-size:14px;color:#374151;">Best regards,<br><strong>The FitCall Team</strong></p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var zoomMeetingConfirmationTemplate, _ = template.ParseFS(templates, "templates/zoomMeetingConfirmation.html")
 
 const discoveryBookingAdminNotificationSubject = "New Discovery Call Booking"
 
-var discoveryBookingAdminTemplate = template.Must(template.New("discovery-admin-notification").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td style="padding-bottom:24px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">New Discovery Call Booked</h2>
-        </td></tr>
-        <tr><td style="padding:20px;background:#f9fafb;border-radius:8px;padding-bottom:24px;">
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Client:</strong> {{ .ClientName }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Email:</strong> {{ .ClientEmail }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Contact Mode:</strong> {{ .ContactMode }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Date:</strong> {{ .Date }}</p>
-          <p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Time:</strong> {{ .Time }} ({{ .Timezone }})</p>
-          {{ if .PhoneNumber }}<p style="margin:0 0 10px;font-size:14px;color:#374151;"><strong>Phone:</strong> {{ .PhoneNumber }}</p>{{ end }}
-          {{ if .ZoomLink }}<p style="margin:0;font-size:14px;color:#374151;"><strong>Zoom Link:</strong> <a href="{{ .ZoomLink }}" style="color:#2563eb;">{{ .ZoomLink }}</a></p>{{ end }}
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var discoveryBookingAdminTemplate, _ = template.ParseFS(templates, "templates/discoveryBookingAdmin.html")
 
 func discoveryBookingAdminHTML(clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -504,33 +407,7 @@ func sanitizeHeaderValue(value string) (string, error) {
 
 const verificationCodeSubject = "Your verification code"
 
-var verificationCodeTemplate = template.Must(template.New("verification-code-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Your Verification Code</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Use the code below to verify your email address.</p>
-        </td></tr>
-        <tr><td align="center" style="padding:24px 0;">
-          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111827;background:#f4f4f5;padding:16px 32px;border-radius:8px;">{{ .Code }}</span>
-        </td></tr>
-        <tr><td align="center" style="padding-top:16px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">Expires in {{ .ExpiryMinutes }} minutes. Do not share this code with anyone.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var verificationCodeTemplate, _ = template.ParseFS(templates, "templates/verificationCode.html")
 
 func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 	var body bytes.Buffer
@@ -548,38 +425,7 @@ func verificationCodeHTML(code string, expiryMinutes int) (string, error) {
 
 const adminCredentialsSubject = "Your admin account is ready"
 
-var adminCredentialsTemplate = template.Must(template.New("admin-credentials-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Your admin account is ready</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">An admin account was created for you. Use the credentials below to sign in.</p>
-        </td></tr>
-        <tr><td style="padding:8px 0;">
-          <p style="margin:0;font-size:14px;color:#111827;"><strong>Email:</strong> {{ .Email }}</p>
-        </td></tr>
-        <tr><td style="padding:8px 0 24px;">
-          <p style="margin:0;font-size:14px;color:#111827;"><strong>Temporary password:</strong>
-            <span style="font-family:monospace;background:#f4f4f5;padding:4px 8px;border-radius:4px;">{{ .Password }}</span>
-          </p>
-        </td></tr>
-        <tr><td align="center" style="padding-top:16px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">Please change this password after your first sign-in. Do not share this email with anyone.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var adminCredentialsTemplate, _ = template.ParseFS(templates, "templates/adminCredentials.html")
 
 func adminCredentialsHTML(emailAddr, password string) (string, error) {
 	var body bytes.Buffer
@@ -597,38 +443,7 @@ func adminCredentialsHTML(emailAddr, password string) (string, error) {
 
 const trainerCredentialsSubject = "Your FitCall trainer account is ready"
 
-var trainerCredentialsTemplate = template.Must(template.New("trainer-credentials-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Welcome to FitCall</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">A trainer account was created for you. Use the credentials below to sign in and complete your profile (bio, intro video, availability).</p>
-        </td></tr>
-        <tr><td style="padding:8px 0;">
-          <p style="margin:0;font-size:14px;color:#111827;"><strong>Email:</strong> {{ .Email }}</p>
-        </td></tr>
-        <tr><td style="padding:8px 0 24px;">
-          <p style="margin:0;font-size:14px;color:#111827;"><strong>Temporary password:</strong>
-            <span style="font-family:monospace;background:#f4f4f5;padding:4px 8px;border-radius:4px;">{{ .Password }}</span>
-          </p>
-        </td></tr>
-        <tr><td align="center" style="padding-top:16px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">Please change this password after your first sign-in. Do not share this email with anyone.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var trainerCredentialsTemplate, _ = template.ParseFS(templates, "templates/trainerCredentials.html")
 
 func trainerCredentialsHTML(emailAddr, password string) (string, error) {
 	var body bytes.Buffer
@@ -654,33 +469,7 @@ const accountSetupSubject = "Set up your FitCall account"
 // is the only identifier the consume endpoint uses, and omitting the
 // email reduces the shoulder-surfing surface (recipient already knows
 // their own email; the link doesn't need to advertise it).
-var accountSetupTemplate = template.Must(template.New("account-setup-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Welcome to FitCall{{ if .Name }}, {{ .Name }}{{ end }}</h2>
-        </td></tr>
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">An account was created for you. To finish setting it up, choose a password using the secure link below.</p>
-        </td></tr>
-        <tr><td align="center" style="padding:24px 0;">
-          <a href="{{ .Link }}" style="display:inline-block;background:#111827;color:#ffffff;font-size:15px;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;">Set your password</a>
-        </td></tr>
-        <tr><td align="center" style="padding-top:8px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">This link expires in {{ .ExpiryHours }} hours and can only be used once. If you weren't expecting this email, you can ignore it.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var accountSetupTemplate, _ = template.ParseFS(templates, "templates/accountSetup.html")
 
 func accountSetupHTML(name, link string, expiryHours int) (string, error) {
 	var body bytes.Buffer
@@ -700,33 +489,7 @@ func accountSetupHTML(name, link string, expiryHours int) (string, error) {
 
 const passwordResetSubject = "Your password reset code"
 
-var passwordResetTemplate = template.Must(template.New("password-reset-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">Reset your password</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Use the code below to reset your password. If you did not request this, ignore this email.</p>
-        </td></tr>
-        <tr><td align="center" style="padding:24px 0;">
-          <span style="display:inline-block;font-size:36px;font-weight:bold;letter-spacing:8px;color:#111827;background:#f4f4f5;padding:16px 32px;border-radius:8px;">{{ .Code }}</span>
-        </td></tr>
-        <tr><td align="center" style="padding-top:16px;">
-          <p style="margin:0;font-size:12px;color:#9ca3af;">Expires in {{ .ExpiryMinutes }} minutes. Do not share this code with anyone.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var passwordResetTemplate, _ = template.ParseFS(templates, "templates/passwordReset.html")
 
 func passwordResetHTML(code string, expiryMinutes int) (string, error) {
 	var body bytes.Buffer
@@ -786,27 +549,7 @@ func (m *SMTPMailer) SendContactConfirmation(to, name string) error {
 
 const waitlistConfirmationSubject = "You're on the waitlist!"
 
-var waitlistConfirmationTemplate = template.Must(template.New("waitlist-confirmation-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">You're on the waitlist!</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Thanks for joining! We'll notify you as soon as you have access.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var waitlistConfirmationTemplate, _ = template.ParseFS(templates, "templates/waitlistConfirmation.html")
 
 func waitlistConfirmationHTML() (string, error) {
 	var body bytes.Buffer
@@ -818,27 +561,7 @@ func waitlistConfirmationHTML() (string, error) {
 
 const contactConfirmationSubject = "We received your message!"
 
-var contactConfirmationTemplate = template.Must(template.New("contact-confirmation-email").Parse(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
-        <tr><td align="center" style="padding-bottom:16px;">
-          <h2 style="margin:0;font-size:22px;color:#111827;">We received your message!</h2>
-        </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:14px;color:#6b7280;">Hi {{ .Name }}, thanks for reaching out. We'll get back to you as soon as possible.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`))
+var contactConfirmationTemplate, _ = template.ParseFS(templates, "templates/contactConfirmation.html")
 
 func contactConfirmationHTML(name string) (string, error) {
 	var body bytes.Buffer
@@ -880,12 +603,8 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 	oldLocal := oldTime.In(loc)
 	newLocal := newTime.In(loc)
 
-	t, err := template.New("reschedule").Parse(discoveryRescheduleTemplate)
-	if err != nil {
-		return "", err
-	}
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	err = discoveryRescheduleTemplate.Execute(&buf, map[string]interface{}{
 		"Name":        name,
 		"OldTime":     oldLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
 		"NewTime":     newLocal.Format("Monday, January 2, 2006 at 3:04 PM"),
@@ -897,27 +616,7 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 	return buf.String(), err
 }
 
-const discoveryRescheduleTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Discovery Call Rescheduled</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">Your Discovery Call Has Been Rescheduled</h2>
-  <p>Hi {{.Name}},</p>
-  <p>Your discovery call has been successfully rescheduled.</p>
-  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-    <tr>
-      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
-      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
-    </tr>
-  </table>
-  <p><strong>Timezone:</strong> {{.Timezone}}</p>
-  {{/* Treat zoom_meeting + google_meet identically — they both produce a URL in ZoomLink that the client can click straight to. The "Meeting Link" label stays platform-neutral. Messenger mode renders neither a link nor a phone; trainers are notified separately via the in-app notification feed and follow up via Messenger themselves. */}}
-  {{ if or (eq .ContactMode "zoom_meeting") (eq .ContactMode "google_meet") }}{{ if .ZoomLink }}<p><strong>New Meeting Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
-  <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
-  <p>See you soon!</p>
-  <p style="color:#666;font-size:12px;">FitCall Team</p>
-</body>
-</html>`
+var discoveryRescheduleTemplate, _ = template.ParseFS(templates, "templates/discoveryReschedule.html")
 
 func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
 	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
@@ -970,12 +669,9 @@ func paidRescheduleClientHTML(name string, oldTime, newTime time.Time, timezone,
 	if err != nil {
 		loc = time.UTC
 	}
-	t, err := template.New("paid-client-reschedule").Parse(paidRescheduleClientTemplate)
-	if err != nil {
-		return "", err
-	}
+
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	err = paidRescheduleClientTemplate.Execute(&buf, map[string]interface{}{
 		"Name":     name,
 		"OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
 		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
@@ -990,12 +686,9 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 	if err != nil {
 		loc = time.UTC
 	}
-	t, err := template.New("paid-trainer-reschedule").Parse(paidRescheduleTrainerTemplate)
-	if err != nil {
-		return "", err
-	}
+
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	err = paidRescheduleTrainerTemplate.Execute(&buf, map[string]interface{}{
 		"ClientName": clientName,
 		"OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
 		"NewTime":    newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
@@ -1005,105 +698,15 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 	return buf.String(), err
 }
 
-const paidRescheduleClientTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Training Session Rescheduled</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">Your Training Session Has Been Rescheduled</h2>
-  <p>Hi {{.Name}},</p>
-  <p>Your training session has been successfully rescheduled.</p>
-  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-    <tr>
-      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
-      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
-    </tr>
-  </table>
-  <p><strong>Timezone:</strong> {{.Timezone}}</p>
-  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
-  <p>If you need to make any further changes, please do so at least 12 hours before the session.</p>
-  <p>See you soon!</p>
-  <p style="color:#666;font-size:12px;">FitCall Team</p>
-</body>
-</html>`
+var paidRescheduleClientTemplate, _ = template.ParseFS(templates, "templates/paidReschedule.html")
 
-const paidRescheduleTrainerTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Client Rescheduled Training Session</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">Client Rescheduled Training Session</h2>
-  <p>Your client <strong>{{.ClientName}}</strong> has rescheduled their training session.</p>
-  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-    <tr>
-      <td style="padding:10px;background:#f8d7da;border-radius:4px 0 0 4px;"><strong>Previous Time</strong><br>{{.OldTime}}</td>
-      <td style="padding:10px;background:#d4edda;border-radius:0 4px 4px 0;"><strong>New Time</strong><br>{{.NewTime}}</td>
-    </tr>
-  </table>
-  <p><strong>Timezone:</strong> {{.Timezone}}</p>
-  {{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}
-  <p style="color:#666;font-size:12px;">FitCall Team</p>
-</body>
-</html>`
+var paidRescheduleTrainerTemplate, _ = template.ParseFS(templates, "templates/paidRescheduleTrainer.html")
 
 const bookingConfirmationSubject = "You've successfully booked a session with us"
-const bookingConfirmationTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Session Booked</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">
-  Hi {{.ClientName}},
-  </h2>
-  <p>Your FitCall session has been successfully booked</p>
-  Session Details:
-  <ul>
-    <li>Trainer: Coach {{.TrainerName}}.</li>
-    <li>Date: {{.Date}}.</li>
-    <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
-    <li>Location: Zoom</li>
-    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
-  </ul>
-  <p> Your trainer will check in before the session to help keep you accountable and ready. </p>
-  <p>We’re excited to help you stay consistent. </p>
 
-  — Team FitCall
+var bookingConfirmationTemplate, _ = template.ParseFS(templates, "templates/bookingConfirmation.html")
 
-</body>
-</html>`
-
-const trainerBookingConfirmationTemplate = `<!DOCTYPE html>
-
-<html>
-<head><meta charset="UTF-8"><title>New Session Booking</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">
-    Hi Coach {{.TrainerName}},
-  </h2>
-
-  <p>You have received a new session booking on FitCall.</p>
-
-  <p><strong>Session Details:</strong></p>
-  <ul>
-    <li>Client: {{.ClientName}}</li>
-    <li>Date: {{.Date}}</li>
-    <li>Time: {{.StartTime}} - {{.EndTime}}</li>
-    <li>Location: Zoom</li>
-    <li><a href="{{.ZoomLink}}">Click here to join</a>.</li>
-  </ul>
-
-  <p>
-    Please review the booking and reach out to your client if any preparation or follow-up is required before the session.
-  </p>
-
-  <p>
-    Thank you for helping clients stay consistent with their fitness goals.
-  </p>
-
-  <p>
-    — Team FitCall
-  </p>
-
-</body>
-</html>
-`
+var trainerBookingConfirmationTemplate, _ = template.ParseFS(templates, "templates/trainerBookingConfirmation.html")
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -1113,22 +716,20 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	localScheduledStartTime := scheduledStartTime.In(loc)
 	localScheduledEndTime := scheduledEndTime.In(loc)
 
-	var t *template.Template
-
-	if toTrainer {
-		t, err = template.New("booking-confirmation").Parse(trainerBookingConfirmationTemplate)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		t, err = template.New("booking-confirmation").Parse(bookingConfirmationTemplate)
-		if err != nil {
-			return "", err
-		}
-	}
-
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	if toTrainer {
+		err = trainerBookingConfirmationTemplate.Execute(&buf, map[string]interface{}{
+			"ClientName":  name,
+			"TrainerName": trainerName,
+			"Date":        localScheduledStartTime.Format("Monday, January 2, 2006"),
+			"StartTime":   localScheduledStartTime.Format("3:04 PM"),
+			"EndTime":     localScheduledEndTime.Format("3:04 PM"),
+			"Timezone":    timezone,
+			"ZoomLink":    zoomLink,
+		})
+		return buf.String(), err
+	}
+	err = bookingConfirmationTemplate.Execute(&buf, map[string]interface{}{
 		"ClientName":  name,
 		"TrainerName": trainerName,
 		"Date":        localScheduledStartTime.Format("Monday, January 2, 2006"),
@@ -1138,6 +739,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 		"ZoomLink":    zoomLink,
 	})
 	return buf.String(), err
+
 }
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) error {
@@ -1166,35 +768,8 @@ const (
 	sessionReminderTrainerSubject = "Upcoming FitCall Session in 1 Hour"
 )
 
-const sessionReminderClientTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Session Reminder</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">Hi {{.ClientName}},</h2>
-  <p>This is a reminder that your FitCall session with Coach <strong>{{.TrainerName}}</strong> starts in <strong>1 hour</strong>.</p>
-  <ul>
-    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
-    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
-  </ul>
-  <p>Get ready and have a great session!</p>
-  — Team FitCall
-</body>
-</html>`
-
-const sessionReminderTrainerTemplate = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Session Reminder</title></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#1a1a2e;">Hi Coach {{.TrainerName}},</h2>
-  <p>You have a FitCall session with <strong>{{.ClientName}}</strong> starting in <strong>1 hour</strong>.</p>
-  <ul>
-    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
-    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
-  </ul>
-  <p>Prepare your materials and be ready!</p>
-  — Team FitCall
-</body>
-</html>`
+var sessionReminderClientTemplate, _ = template.ParseFS(templates, "templates/sessionReminder.html")
+var sessionReminderTrainerTemplate, _ = template.ParseFS(templates, "templates/sessionReminderTrainer.html")
 
 func sessionReminderClientHTML(clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
 	timezoneLabel := timezone
@@ -1203,12 +778,9 @@ func sessionReminderClientHTML(clientName, trainerName string, scheduledStart ti
 		loc = time.UTC
 		timezoneLabel = "UTC"
 	}
-	t, err := template.New("session-reminder-client").Parse(sessionReminderClientTemplate)
-	if err != nil {
-		return "", err
-	}
+
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	err = sessionReminderClientTemplate.Execute(&buf, map[string]interface{}{
 		"ClientName":  clientName,
 		"TrainerName": trainerName,
 		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
@@ -1225,12 +797,9 @@ func sessionReminderTrainerHTML(trainerName, clientName string, scheduledStart t
 		loc = time.UTC
 		timezoneLabel = "UTC"
 	}
-	t, err := template.New("session-reminder-trainer").Parse(sessionReminderTrainerTemplate)
-	if err != nil {
-		return "", err
-	}
+
 	var buf bytes.Buffer
-	err = t.Execute(&buf, map[string]interface{}{
+	err = sessionReminderTrainerTemplate.Execute(&buf, map[string]interface{}{
 		"TrainerName": trainerName,
 		"ClientName":  clientName,
 		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
