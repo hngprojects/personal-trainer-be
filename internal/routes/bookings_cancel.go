@@ -205,15 +205,6 @@ func (s *routerImpl) CancelBooking(c *gin.Context, id uuid.UUID) {
 		return
 	}
 
-	// Invalidate the trainer's slot cache so the freed window
-	// reappears in the next /booking-slots/{trainerId} response.
-	// Best-effort: a Redis error here doesn't fail the cancel.
-	if s.availability != nil {
-		if err := s.availability.redis.Delete(ctx, bookingSlotsCacheKey(booking.TrainerID)); err != nil {
-			s.logger.Warn("cancel booking: failed to invalidate slot cache", "trainerID", booking.TrainerID, "err", err)
-		}
-	}
-
 	// Build response
 	response := api.CancelBookingResponse{
 		Code:    "OK",

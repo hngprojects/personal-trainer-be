@@ -167,7 +167,7 @@ func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ tim
 func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
 	return m.err
 }
-func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string) error {
+func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ bool) error {
 	return m.err
 }
 func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {

@@ -1809,12 +1809,6 @@ type HandleVerifyResetCodeJSONBody struct {
 	Email openapi_types.Email `json:"email"`
 }
 
-// GetTrainersBookingSlotsParams defines parameters for GetTrainersBookingSlots.
-type GetTrainersBookingSlotsParams struct {
-	// Date When provided (YYYY-MM-DD), the server filters out any slot that overlaps with an existing non-cancelled booking on this date — both paid sessions (`bookings`) and discovery calls (`discovery_bookings`) for the same trainer. Omit to receive the full template list (every active slot, regardless of which dates are taken).
-	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
-}
-
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
 	// MessengerHandle Required when session_platform is messenger. Same
@@ -1869,9 +1863,6 @@ type HandleCreateDevTokenParams struct {
 type GetDiscoverySlotsParams struct {
 	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
-
-	// Date When provided (YYYY-MM-DD), the server filters out any slot already booked on this specific date — both via `discovery_bookings`. The returned slots are guaranteed to be bookable for that date. Omit to receive the full template list (every active slot, regardless of which dates are taken).
-	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
 }
 
 // ListOrganisationMediaParams defines parameters for ListOrganisationMedia.
@@ -2277,7 +2268,7 @@ type ServerInterface interface {
 	HandleVerifyResetCode(c *gin.Context)
 	// List all active booking slots (public)
 	// (GET /booking-slots/{trainerId})
-	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID, params GetTrainersBookingSlotsParams)
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
 	// Clients creates a booking session with preferred trainer
 	// (POST /bookings)
 	CreateBooking(c *gin.Context)
@@ -3158,17 +3149,6 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
 
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetTrainersBookingSlotsParams
-
-	// ------------- Optional query parameter "date" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
-		return
-	}
-
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -3176,7 +3156,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTrainersBookingSlots(c, trainerId, params)
+	siw.Handler.GetTrainersBookingSlots(c, trainerId)
 }
 
 // CreateBooking operation middleware
@@ -3385,14 +3365,6 @@ func (siw *ServerInterfaceWrapper) GetDiscoverySlots(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Optional query parameter "date" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
 		return
 	}
 
