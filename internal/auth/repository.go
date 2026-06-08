@@ -26,6 +26,14 @@ type UserRepository interface {
 	Create(ctx context.Context, email, name, provider string) (*db.User, error)
 	CreateEmailUser(ctx context.Context, email string) (*db.User, error)
 	MarkVerified(ctx context.Context, email string) (*db.User, error)
+	// FindByAppleSub returns the user whose apple_user_id matches.
+	// Apple Sign In uses this as the primary lookup because the email
+	// claim is only present on the first authorization.
+	FindByAppleSub(ctx context.Context, sub string) (*db.User, error)
+	// CreateAppleUser provisions a new row from an Apple Sign In token.
+	// email may be empty (subsequent sign-in) or a Hide-My-Email private
+	// relay address — both are valid and stored verbatim.
+	CreateAppleUser(ctx context.Context, email, name, sub string) (*db.User, error)
 	// LookupRoleIDs returns the role-specific UUIDs associated with this
 	// user — currently just trainer_id when the user has a trainers row.
 	// Silent on missing trainer (most users aren't trainers): returns
@@ -52,6 +60,7 @@ type RoleIDs struct {
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
+	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 }
 
 // TrainerUserRepository covers the user-provisioning side of the admin-creates-trainer
@@ -59,6 +68,7 @@ type AdminUserRepository interface {
 type TrainerUserRepository interface {
 	UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error)
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
+	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
@@ -162,6 +172,29 @@ func (r *postgresUserRepo) LookupRoleIDs(ctx context.Context, userID uuid.UUID) 
 	}
 	id := trainer.ID
 	return RoleIDs{TrainerID: &id}, nil
+}
+
+func (r *postgresUserRepo) FindByAppleSub(ctx context.Context, sub string) (*db.User, error) {
+	user, err := r.q.GetUserByAppleSub(ctx, sql.NullString{String: sub, Valid: sub != ""})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *postgresUserRepo) CreateAppleUser(ctx context.Context, email, name, sub string) (*db.User, error) {
+	user, err := r.q.CreateAppleUser(ctx, db.CreateAppleUserParams{
+		Email:       email,
+		Name:        name,
+		AppleUserID: sql.NullString{String: sub, Valid: sub != ""},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func (r *postgresUserRepo) MarkVerified(ctx context.Context, email string) (*db.User, error) {

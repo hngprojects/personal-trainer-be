@@ -59,7 +59,7 @@ func (q *Queries) DeleteSessionsByUserID(ctx context.Context, userID uuid.UUID) 
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET password = $2, updated_at = NOW()
 WHERE email = $1 AND auth_provider = 'local' AND is_active = true
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
 `
 
 type UpdateUserPasswordParams struct {
@@ -89,6 +89,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.FitnessLevel,
 		&i.AvatarUrl,
 		&i.PhoneNumber,
+		&i.AppleUserID,
 	)
 	return i, err
 }
@@ -114,4 +115,29 @@ type UpsertPasswordResetCodeParams struct {
 func (q *Queries) UpsertPasswordResetCode(ctx context.Context, arg UpsertPasswordResetCodeParams) error {
 	_, err := q.db.ExecContext(ctx, upsertPasswordResetCode, arg.Email, arg.Code, arg.ExpiresAt)
 	return err
+}
+
+const verifyPasswordResetCode = `-- name: VerifyPasswordResetCode :one
+SELECT id, email, code, created_at, expires_at FROM password_reset_codes
+WHERE email = $1 AND code = $2 AND expires_at > NOW()
+`
+
+type VerifyPasswordResetCodeParams struct {
+	Email string
+	Code  string
+}
+
+// Read-only check: confirms the code is valid and not expired without consuming it.
+// Used by the verify-otp step so mobile can confirm the code before showing the new-password screen.
+func (q *Queries) VerifyPasswordResetCode(ctx context.Context, arg VerifyPasswordResetCodeParams) (PasswordResetCode, error) {
+	row := q.db.QueryRowContext(ctx, verifyPasswordResetCode, arg.Email, arg.Code)
+	var i PasswordResetCode
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Code,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }

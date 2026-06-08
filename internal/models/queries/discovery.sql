@@ -1,10 +1,17 @@
 -- name: CreateDiscoveryBooking :one
+-- messenger_handle is nullable — populated only when contact_mode =
+-- 'messenger'. zoom_meeting_link / zoom_meeting_id keep their column
+-- names for backward compat with existing rows but now also hold
+-- google_meet URLs when contact_mode = 'google_meet'. Renaming those
+-- columns to generic `meeting_link`/`meeting_id` is a planned cleanup
+-- migration that we deliberately deferred to keep this PR small.
 INSERT INTO discovery_bookings (
     user_id,
     name,
     email,
     contact_mode,
     phone_number,
+    messenger_handle,
     selected_datetime,
     client_timezone,
     zoom_meeting_link,
@@ -16,6 +23,7 @@ INSERT INTO discovery_bookings (
     sqlc.arg(email),
     sqlc.arg(contact_mode),
     sqlc.arg(phone_number),
+    sqlc.arg(messenger_handle),
     sqlc.arg(selected_datetime),
     sqlc.arg(client_timezone),
     sqlc.arg(zoom_meeting_link),
@@ -37,18 +45,56 @@ ORDER BY selected_datetime ASC;
 -- Admin paginated view of every discovery call ever booked. Newest first so
 -- the most-recent activity is the top of page 1; supports
 -- LIMIT/OFFSET pagination matching the admin sessions endpoint.
+-- Pass empty string for status to return all statuses.
 SELECT * FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text)
 ORDER BY selected_datetime DESC, id DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
 
 -- name: CountDiscoveryBookings :one
-SELECT COUNT(*) FROM discovery_bookings;
+-- Pass empty string for status to count all statuses.
+SELECT COUNT(*) FROM discovery_bookings
+WHERE (sqlc.arg(status)::text = '' OR status = sqlc.arg(status)::text);
 
 -- name: GetActiveBookingSlots :many
 SELECT * FROM booking_slots
 WHERE is_active = true
 ORDER BY day_of_week ASC, start_time ASC;
+
+-- name: GetActiveBookingSlotsForDate :many
+-- Same as GetActiveBookingSlots filtered to a specific date and excluding
+-- discovery-booking slots already taken on that date. Discovery calls are
+-- always 30 minutes, so the conflict window is fixed.
+--
+-- Trainer correlation: discovery_bookings.trainer_id can be NULL (slot
+-- not assigned yet) or set (assigned to a specific trainer). booking_slots
+-- has the same nullable shape: global slots have trainer_id IS NULL,
+-- per-trainer slots have it set. A booking conflicts with a slot only
+-- when their trainer_ids match — including both being NULL, which is
+-- what `IS NOT DISTINCT FROM` expresses. Without this guard, one
+-- trainer's discovery booking would falsely hide another trainer's
+-- (or a global) discovery slot at the same time.
+--
+-- Timezone normalisation: bs.start_time / bs.end_time are local TIME in
+-- bs.timezone — convert the booking's timestamptz to that same zone
+-- before comparing, NOT to the booking's own client_timezone (those can
+-- differ and lead to off-by-hours misses).
+SELECT
+    bs.id, bs.trainer_id, bs.day_of_week, bs.start_time, bs.end_time,
+    bs.timezone, bs.is_active, bs.created_at, bs.updated_at
+FROM booking_slots bs
+WHERE bs.is_active = true
+  AND bs.day_of_week = EXTRACT(DOW FROM sqlc.arg(target_date)::DATE)::INT
+  AND NOT EXISTS (
+      SELECT 1 FROM discovery_bookings db
+      WHERE db.status NOT IN ('cancelled', 'completed')
+        AND db.trainer_id IS NOT DISTINCT FROM bs.trainer_id
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::DATE = sqlc.arg(target_date)::DATE
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME < bs.end_time
+        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME > bs.start_time
+  )
+ORDER BY bs.day_of_week ASC, bs.start_time ASC;
 
 -- name: GetBookingSlotByID :one
 SELECT * FROM booking_slots

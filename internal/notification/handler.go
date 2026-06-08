@@ -25,7 +25,8 @@ func NewNotificationHandler(service *NotificationService, log *slog.Logger) *Not
 }
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound                = errors.New("not found")
+	ErrDuplicateIdempotencyKey = errors.New("duplicate idempotency key")
 )
 
 type NotificationHandlerInterface interface {
@@ -67,9 +68,13 @@ func (h *NotificationHandler) SendNotificationToUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, api.NewError("user not authenticated", api.CodeUnauthorized))
 		return
 	}
-	// Send notification to user
 	notification, err := h.service.SendNotificationToUser(c.Request.Context(), userID, req.Title, req.Message, req.IdempotencyKey)
 	if err != nil {
+		if errors.Is(err, ErrDuplicateIdempotencyKey) {
+			h.log.Warn("Duplicate idempotency key", "key", req.IdempotencyKey)
+			c.JSON(http.StatusBadRequest, api.NewError("duplicate idempotency key", api.CodeBadRequest))
+			return
+		}
 		h.log.Error("Failed to send notification to user", "error", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to send notification", api.CodeServerError))
 		return
@@ -91,9 +96,14 @@ func (h *NotificationHandler) GetUserNotifications(c *gin.Context) {
 		return
 	}
 
-	notifications, _ := h.service.GetUserNotification(c.Request.Context(), userID)
-	if len(*notifications) < 1 {
-		h.log.Error("could not fetch user notifications", "userID", userID)
+	notifications, err := h.service.GetUserNotification(c.Request.Context(), userID)
+	if err != nil {
+		h.log.Error("failed to fetch user notifications", "userID", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch notifications", api.CodeServerError))
+		return
+	}
+	if len(*notifications) == 0 {
+		h.log.Info("no notifications found for user", "userID", userID)
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("notifications retrieved successfully", api.CodeOK, notifications))
 }

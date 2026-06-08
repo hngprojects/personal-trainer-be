@@ -10,7 +10,7 @@ import (
 // StaticSelector should always return its Provider, never nil.
 func TestStaticSelector_AlwaysReturnsProvider(t *testing.T) {
 	s := StaticSelector{Provider: NoOp{}}
-	got := s.For(context.Background(), uuid.New())
+	got := s.For(context.Background(), uuid.New(), PlatformZoom)
 	if got == nil {
 		t.Fatal("expected non-nil provider")
 	}
@@ -24,7 +24,7 @@ func TestStaticSelector_AlwaysReturnsProvider(t *testing.T) {
 // not nil-check the result.
 func TestStaticSelector_NilProviderReturnsNoOp(t *testing.T) {
 	s := StaticSelector{}
-	got := s.For(context.Background(), uuid.New())
+	got := s.For(context.Background(), uuid.New(), PlatformZoom)
 	if got == nil {
 		t.Fatal("expected NoOp fallback, got nil")
 	}

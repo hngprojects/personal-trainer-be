@@ -14,6 +14,67 @@ import (
 	"github.com/lib/pq"
 )
 
+const adminRescheduleBooking = `-- name: AdminRescheduleBooking :one
+UPDATE bookings
+SET scheduled_start    = $1::timestamptz,
+    scheduled_end      = $2::timestamptz,
+    zoom_meeting_link  = NULL,
+    zoom_meeting_id    = NULL,
+    reschedule_count   = reschedule_count + 1
+WHERE id = $3
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle
+`
+
+type AdminRescheduleBookingParams struct {
+	ScheduledStart time.Time
+	ScheduledEnd   time.Time
+	ID             uuid.UUID
+}
+
+// Admin reschedule — no reschedule_count cap. Zoom links are cleared
+// because admin cannot provision a new Zoom meeting; clients must
+// re-join via the updated in-app join-info endpoint.
+func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminRescheduleBookingParams) (Booking, error) {
+	row := q.db.QueryRowContext(ctx, adminRescheduleBooking, arg.ScheduledStart, arg.ScheduledEnd, arg.ID)
+	var i Booking
+	err := row.Scan(
+		&i.ID,
+		&i.TrainerID,
+		&i.ClientID,
+		&i.SubscriptionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.Timezone,
+		&i.BookingStatus,
+		&i.SessionPlatform,
+		&i.CancellationReason,
+		&i.CreatedAt,
+		&i.CancelledAt,
+		&i.ZoomMeetingLink,
+		&i.ZoomMeetingID,
+		&i.RescheduleCount,
+		&i.MessengerHandle,
+	)
+	return i, err
+}
+
 const cancelBooking = `-- name: CancelBooking :one
 UPDATE bookings
 SET
@@ -76,6 +137,34 @@ func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (C
 	return i, err
 }
 
+const checkBookingConflictForClient = `-- name: CheckBookingConflictForClient :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = $1
+    AND client_id = $2
+    AND scheduled_start < $3 -- new_end
+    AND scheduled_end > $4 -- new_start
+    AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+`
+
+type CheckBookingConflictForClientParams struct {
+	TrainerID uuid.UUID
+	ClientID  uuid.UUID
+	NewEnd    sql.NullTime
+	NewStart  sql.NullTime
+}
+
+func (q *Queries) CheckBookingConflictForClient(ctx context.Context, arg CheckBookingConflictForClientParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkBookingConflictForClient,
+		arg.TrainerID,
+		arg.ClientID,
+		arg.NewEnd,
+		arg.NewStart,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const checkPaidBookingConflict = `-- name: CheckPaidBookingConflict :one
 SELECT COUNT(*) FROM bookings
 WHERE trainer_id = $1
@@ -99,6 +188,17 @@ func (q *Queries) CheckPaidBookingConflict(ctx context.Context, arg CheckPaidBoo
 		arg.NewEnd,
 		arg.NewStart,
 	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveBookingsForAdmin = `-- name: CountActiveBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session')
+`
+
+func (q *Queries) CountActiveBookingsForAdmin(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveBookingsForAdmin)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -147,6 +247,7 @@ INSERT INTO bookings (
   timezone,
   booking_status,
   session_platform,
+  messenger_handle,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -160,7 +261,8 @@ INSERT INTO bookings (
   $7,
   $8,
   $9,
-  $10
+  $10,
+  $11
 )
 RETURNING
   id,
@@ -177,7 +279,8 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 `
 
 type CreateBookingParams struct {
@@ -188,6 +291,7 @@ type CreateBookingParams struct {
 	Timezone           sql.NullString
 	BookingStatus      sql.NullString
 	SessionPlatform    sql.NullString
+	MessengerHandle    sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -207,6 +311,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.Timezone,
 		arg.BookingStatus,
 		arg.SessionPlatform,
+		arg.MessengerHandle,
 		arg.CancellationReason,
 		arg.CreatedAt,
 		arg.CancelledAt,
@@ -228,6 +333,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -275,7 +381,8 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -300,6 +407,7 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -320,7 +428,8 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -346,13 +455,15 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
 
 const getBookingsPastMonth = `-- name: GetBookingsPastMonth :many
-SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count FROM bookings
-WHERE scheduled_start >= NOW() - INTERVAL '1 month'
+SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle FROM bookings
+WHERE scheduled_start >= date_trunc('month', NOW())
+  AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month'
 `
 
 func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {
@@ -380,6 +491,7 @@ func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {
 			&i.ZoomMeetingLink,
 			&i.ZoomMeetingID,
 			&i.RescheduleCount,
+			&i.MessengerHandle,
 		); err != nil {
 			return nil, err
 		}
@@ -490,6 +602,100 @@ func (q *Queries) GetUpcomingPaidSessions(ctx context.Context, clientID uuid.UUI
 			&i.TrainerName,
 			pq.Array(&i.TrainerSpecializations),
 			&i.TrainerPhoto,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveBookingsForAdmin = `-- name: ListActiveBookingsForAdmin :many
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.booking_status IN ('started', 'in-session')
+ORDER BY b.scheduled_start ASC
+LIMIT $2
+OFFSET $1
+`
+
+type ListActiveBookingsForAdminParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListActiveBookingsForAdminRow struct {
+	ID              uuid.UUID
+	TrainerID       uuid.UUID
+	ClientID        uuid.UUID
+	ScheduledStart  sql.NullTime
+	ScheduledEnd    sql.NullTime
+	Timezone        sql.NullString
+	BookingStatus   sql.NullString
+	SessionPlatform sql.NullString
+	CreatedAt       sql.NullTime
+	CancelledAt     sql.NullTime
+	ZoomMeetingLink sql.NullString
+	ClientName      string
+	ClientEmail     string
+	TrainerName     string
+	TrainerEmail    string
+	SessionID       uuid.NullUUID
+}
+
+// Admin view of sessions currently in progress (started or in-session). Paginated.
+func (q *Queries) ListActiveBookingsForAdmin(ctx context.Context, arg ListActiveBookingsForAdminParams) ([]ListActiveBookingsForAdminRow, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveBookingsForAdmin, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveBookingsForAdminRow
+	for rows.Next() {
+		var i ListActiveBookingsForAdminRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.ClientID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.Timezone,
+			&i.BookingStatus,
+			&i.SessionPlatform,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ZoomMeetingLink,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -833,7 +1039,8 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 `
 
 type ReschedulePaidBookingParams struct {
@@ -869,6 +1076,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -879,7 +1087,7 @@ SET zoom_meeting_link = $1,
     zoom_meeting_id   = $2
 WHERE id = $3
   AND zoom_meeting_id IS NULL
-RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count
+RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle
 `
 
 type UpdateBookingZoomParams struct {
@@ -907,6 +1115,7 @@ func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomPa
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
+		&i.MessengerHandle,
 	)
 	return i, err
 }

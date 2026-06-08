@@ -33,7 +33,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -53,6 +54,7 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -115,7 +117,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 type CreateTrainerParams struct {
@@ -162,8 +165,32 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
+}
+
+const deactivateTrainer = `-- name: DeactivateTrainer :one
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = (SELECT t.user_id FROM trainers t WHERE t.id = $1)
+  AND u.role = 'trainer'
+  AND u.is_active = true
+RETURNING u.id
+`
+
+// Soft-delete: marks the trainer's user account inactive.
+// Returns the user_id so the caller can confirm who was deactivated.
+// Returns no rows if the trainer_id doesn't exist or the account is
+// already inactive, letting the handler distinguish 404 vs 409.
+// Disambiguate column references: sqlc's parser otherwise can't tell
+// which `id` the inner subquery means (users.id or trainers.id).
+// Postgres handles it fine at runtime via scoping rules; sqlc needs
+// explicit aliases on both sides.
+func (q *Queries) DeactivateTrainer(ctx context.Context, trainerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deactivateTrainer, trainerID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteTrainer = `-- name: DeleteTrainer :one
@@ -182,7 +209,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -202,6 +230,7 @@ func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, err
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -220,7 +249,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE id = $1
 LIMIT 1
@@ -243,6 +273,7 @@ func (q *Queries) GetTrainerByID(ctx context.Context, id uuid.UUID) (Trainer, er
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -261,7 +292,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE user_id = $1
 LIMIT 1
@@ -284,6 +316,7 @@ func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Tra
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }
@@ -387,6 +420,8 @@ FROM trainers t
 JOIN users u ON u.id = t.user_id
 JOIN bookings b ON b.trainer_id = t.id
 WHERE b.scheduled_start >= NOW() - INTERVAL '1 month'
+  AND b.scheduled_start < NOW()
+  AND b.booking_status = 'completed'
 GROUP BY
     t.id,
     u.name,
@@ -480,16 +515,23 @@ SELECT
   u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
-WHERE ($1::text = '' OR t.specializations @> ARRAY[$1::text]::text[])
+WHERE
+  ($1::text = '' 
+    OR t.specializations @> ARRAY[$1::text]::text[]
+  )
+  AND
+  ($2::text = '' 
+    OR t.onboarding_status = $2::text)
 ORDER BY t.created_at DESC
-LIMIT $3
-OFFSET $2
+LIMIT $4
+OFFSET $3
 `
 
 type ListTrainersParams struct {
-	Category   string
-	PageOffset int32
-	PageLimit  int32
+	Category         string
+	OnboardingStatus string
+	PageOffset       int32
+	PageLimit        int32
 }
 
 type ListTrainersRow struct {
@@ -520,7 +562,12 @@ type ListTrainersRow struct {
 // trainers row only stores profile fields). Paginated via LIMIT/OFFSET —
 // callers compute total pages from CountTrainersForList.
 func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]ListTrainersRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainers, arg.Category, arg.PageOffset, arg.PageLimit)
+	rows, err := q.db.QueryContext(ctx, listTrainers,
+		arg.Category,
+		arg.OnboardingStatus,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -560,6 +607,33 @@ func (q *Queries) ListTrainers(ctx context.Context, arg ListTrainersParams) ([]L
 	return items, nil
 }
 
+const toggleTrainerAvailability = `-- name: ToggleTrainerAvailability :one
+UPDATE trainers
+SET is_available = $1, updated_at = NOW()
+WHERE id = $2
+RETURNING id, is_available
+`
+
+type ToggleTrainerAvailabilityParams struct {
+	IsAvailable bool
+	ID          uuid.UUID
+}
+
+type ToggleTrainerAvailabilityRow struct {
+	ID          uuid.UUID
+	IsAvailable bool
+}
+
+// Sets the trainer's global is_available flag (the "open/closed" sign).
+// Does not touch booking_slots — slots are preserved so toggling back on
+// restores the schedule instantly.
+func (q *Queries) ToggleTrainerAvailability(ctx context.Context, arg ToggleTrainerAvailabilityParams) (ToggleTrainerAvailabilityRow, error) {
+	row := q.db.QueryRowContext(ctx, toggleTrainerAvailability, arg.IsAvailable, arg.ID)
+	var i ToggleTrainerAvailabilityRow
+	err := row.Scan(&i.ID, &i.IsAvailable)
+	return i, err
+}
+
 const updateTrainer = `-- name: UpdateTrainer :one
 UPDATE trainers
 SET
@@ -585,7 +659,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 `
 
 type UpdateTrainerParams struct {
@@ -628,6 +703,7 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.IsAvailable,
 	)
 	return i, err
 }

@@ -41,16 +41,25 @@ func (e AuthUserUserType) Valid() bool {
 
 // Defines values for BookDiscoveryCallRequestContactMode.
 const (
-	PhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
-	ZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
+	BookDiscoveryCallRequestContactModeGoogleMeet    BookDiscoveryCallRequestContactMode = "google_meet"
+	BookDiscoveryCallRequestContactModeImessage      BookDiscoveryCallRequestContactMode = "imessage"
+	BookDiscoveryCallRequestContactModeMessenger     BookDiscoveryCallRequestContactMode = "messenger"
+	BookDiscoveryCallRequestContactModePhoneCallback BookDiscoveryCallRequestContactMode = "phone_callback"
+	BookDiscoveryCallRequestContactModeZoomMeeting   BookDiscoveryCallRequestContactMode = "zoom_meeting"
 )
 
 // Valid indicates whether the value is a known member of the BookDiscoveryCallRequestContactMode enum.
 func (e BookDiscoveryCallRequestContactMode) Valid() bool {
 	switch e {
-	case PhoneCallback:
+	case BookDiscoveryCallRequestContactModeGoogleMeet:
 		return true
-	case ZoomMeeting:
+	case BookDiscoveryCallRequestContactModeImessage:
+		return true
+	case BookDiscoveryCallRequestContactModeMessenger:
+		return true
+	case BookDiscoveryCallRequestContactModePhoneCallback:
+		return true
+	case BookDiscoveryCallRequestContactModeZoomMeeting:
 		return true
 	default:
 		return false
@@ -564,6 +573,51 @@ func (e GetAdminClientsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdminListDiscoveryBookingsParamsStatus.
+const (
+	AdminListDiscoveryBookingsParamsStatusCancelled AdminListDiscoveryBookingsParamsStatus = "cancelled"
+	AdminListDiscoveryBookingsParamsStatusCompleted AdminListDiscoveryBookingsParamsStatus = "completed"
+	AdminListDiscoveryBookingsParamsStatusConfirmed AdminListDiscoveryBookingsParamsStatus = "confirmed"
+	AdminListDiscoveryBookingsParamsStatusPending   AdminListDiscoveryBookingsParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AdminListDiscoveryBookingsParamsStatus enum.
+func (e AdminListDiscoveryBookingsParamsStatus) Valid() bool {
+	switch e {
+	case AdminListDiscoveryBookingsParamsStatusCancelled:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusCompleted:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusConfirmed:
+		return true
+	case AdminListDiscoveryBookingsParamsStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminSubscriptionsParamsStatus.
+const (
+	GetAdminSubscriptionsParamsStatusActive    GetAdminSubscriptionsParamsStatus = "active"
+	GetAdminSubscriptionsParamsStatusCancelled GetAdminSubscriptionsParamsStatus = "cancelled"
+	GetAdminSubscriptionsParamsStatusExpired   GetAdminSubscriptionsParamsStatus = "expired"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminSubscriptionsParamsStatus enum.
+func (e GetAdminSubscriptionsParamsStatus) Valid() bool {
+	switch e {
+	case GetAdminSubscriptionsParamsStatusActive:
+		return true
+	case GetAdminSubscriptionsParamsStatusCancelled:
+		return true
+	case GetAdminSubscriptionsParamsStatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleRefresh200JSONResponseBodyStatus.
 const (
 	Success HandleRefresh200JSONResponseBodyStatus = "success"
@@ -581,19 +635,19 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
-	GoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
-	Whatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
-	Zoom       CreateBookingJSONBodySessionPlatform = "zoom"
+	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformMessenger  CreateBookingJSONBodySessionPlatform = "messenger"
+	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
 // Valid indicates whether the value is a known member of the CreateBookingJSONBodySessionPlatform enum.
 func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
-	case GoogleMeet:
+	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
-	case Whatsapp:
+	case CreateBookingJSONBodySessionPlatformMessenger:
 		return true
-	case Zoom:
+	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
 	default:
 		return false
@@ -672,6 +726,30 @@ func (e HandleRegisterDeviceJSONBodyPlatform) Valid() bool {
 	case Ios:
 		return true
 	case Web:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetTrainersParamsOnboardingStatus.
+const (
+	Approved  GetTrainersParamsOnboardingStatus = "approved"
+	Pending   GetTrainersParamsOnboardingStatus = "pending"
+	Rejected  GetTrainersParamsOnboardingStatus = "rejected"
+	Suspended GetTrainersParamsOnboardingStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the GetTrainersParamsOnboardingStatus enum.
+func (e GetTrainersParamsOnboardingStatus) Valid() bool {
+	switch e {
+	case Approved:
+		return true
+	case Pending:
+		return true
+	case Rejected:
+		return true
+	case Suspended:
 		return true
 	default:
 		return false
@@ -758,6 +836,20 @@ type AddAvailabilityRequest struct {
 	Availability []AvailabilitySlot `json:"availability"`
 }
 
+// AppleSignInRequest defines model for AppleSignInRequest.
+type AppleSignInRequest struct {
+	// IdToken Apple-signed identity token (JWT) obtained client-side via Sign in with Apple — either the native AuthenticationServices API on iOS, the REST flow on Android, or "Sign in with Apple JS" on the web. The server verifies the signature against Apple's JWKS (https://appleid.apple.com/auth/keys), checks the `iss` claim and that `aud` matches one of the configured bundle IDs (`APPLE_SIGN_IN_BUNDLE_IDS`, falling back to `APPLE_BUNDLE_ID`).
+	IdToken string `json:"id_token"`
+
+	// User Echo of the name fields Apple hands the client on the first authorization. Forwarded only on first sign-in.
+	User *AppleSignInUserHint `json:"user,omitempty"`
+}
+
+// AppleSignInUserHint Echo of the name fields Apple hands the client on the first authorization. Forwarded only on first sign-in.
+type AppleSignInUserHint struct {
+	Name *string `json:"name,omitempty"`
+}
+
 // AuthUser defines model for AuthUser.
 type AuthUser struct {
 	Email string `json:"email"`
@@ -806,11 +898,20 @@ type BaseResponse struct {
 
 // BookDiscoveryCallRequest defines model for BookDiscoveryCallRequest.
 type BookDiscoveryCallRequest struct {
+	// ContactMode How the discovery call happens. zoom_meeting + google_meet
+	// mint a server-side meeting URL on creation; phone_callback
+	// and messenger are handle-only modes where the trainer
+	// initiates contact via the channel the client supplies.
 	ContactMode BookDiscoveryCallRequestContactMode `json:"contact_mode"`
 	Email       openapi_types.Email                 `json:"email"`
-	Name        string                              `json:"name"`
 
-	// PhoneNumber Required when contact_mode is phone_callback
+	// MessengerHandle Required when contact_mode is messenger. Free-form — can be
+	// a Facebook profile slug, an m.me URL, or a numeric ID. The
+	// trainer sees this verbatim and follows up via Messenger.
+	MessengerHandle *string `json:"messenger_handle,omitempty"`
+	Name            string  `json:"name"`
+
+	// PhoneNumber Required when contact_mode is phone_callback or imessage. E.164 format.
 	PhoneNumber *string `json:"phone_number,omitempty"`
 
 	// SelectedDatetime ISO 8601 UTC datetime for the call
@@ -820,7 +921,10 @@ type BookDiscoveryCallRequest struct {
 	Timezone string `json:"timezone"`
 }
 
-// BookDiscoveryCallRequestContactMode defines model for BookDiscoveryCallRequest.ContactMode.
+// BookDiscoveryCallRequestContactMode How the discovery call happens. zoom_meeting + google_meet
+// mint a server-side meeting URL on creation; phone_callback
+// and messenger are handle-only modes where the trainer
+// initiates contact via the channel the client supplies.
 type BookDiscoveryCallRequestContactMode string
 
 // BookingSlotRequest defines model for BookingSlotRequest.
@@ -923,8 +1027,8 @@ type CreateSubscriptionRequest struct {
 	// PurchaseToken Google Play purchase token (required when platform=google)
 	PurchaseToken *string `json:"purchase_token,omitempty"`
 
-	// ReceiptData Base64-encoded Apple App Store receipt (required when platform=apple)
-	ReceiptData *string `json:"receipt_data,omitempty"`
+	// SignedTransaction StoreKit 2 signed JWS transaction (required when platform=apple). The iOS client obtains this from `Transaction.jsonRepresentation` after a successful purchase; the server verifies the JWS signature against Apple's pinned Root CA, validates `bundleId` matches `APPLE_BUNDLE_ID`, and checks `productId` matches the requested plan. The legacy base64 `receipt_data` field is no longer accepted.
+	SignedTransaction *string `json:"signed_transaction,omitempty"`
 
 	// TrainerId The trainer this subscription is for
 	TrainerId openapi_types.UUID `json:"trainer_id"`
@@ -1092,6 +1196,20 @@ type OrganisationMediaMediaType string
 
 // OrganisationMediaStatus defines model for OrganisationMedia.Status.
 type OrganisationMediaStatus string
+
+// PatchTrainersMeRequest Partial update for a trainer's own profile. All fields are optional —
+// omit any field to leave it unchanged.
+type PatchTrainersMeRequest struct {
+	Bio *string `json:"bio,omitempty"`
+
+	// DisplayPicture URL of the trainer's profile picture.
+	DisplayPicture *string `json:"display_picture,omitempty"`
+
+	// PhoneNumber E.164 format (e.g. +2348012345678).
+	PhoneNumber       *string                  `json:"phone_number,omitempty"`
+	Specializations   *[]TrainerSpecialization `json:"specializations,omitempty"`
+	YearsOfExperience *int                     `json:"years_of_experience,omitempty"`
+}
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
@@ -1604,10 +1722,52 @@ type GetAdminClientsParamsStatus string
 type AdminListDiscoveryBookingsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Status Filter by booking status. Omit to return all statuses.
+	Status *AdminListDiscoveryBookingsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
+
+// AdminListDiscoveryBookingsParamsStatus defines parameters for AdminListDiscoveryBookings.
+type AdminListDiscoveryBookingsParamsStatus string
 
 // AdminListSessionsParams defines parameters for AdminListSessions.
 type AdminListSessionsParams struct {
+	Page  *int `form:"page,omitempty" json:"page,omitempty"`
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// AdminCancelSessionJSONBody defines parameters for AdminCancelSession.
+type AdminCancelSessionJSONBody struct {
+	// Reason Reason for cancellation
+	Reason string `json:"reason"`
+}
+
+// AdminRescheduleSessionJSONBody defines parameters for AdminRescheduleSession.
+type AdminRescheduleSessionJSONBody struct {
+	// ScheduledEnd New end time (RFC3339)
+	ScheduledEnd time.Time `json:"scheduled_end"`
+
+	// ScheduledStart New start time (RFC3339)
+	ScheduledStart time.Time `json:"scheduled_start"`
+}
+
+// GetAdminSubscriptionsParams defines parameters for GetAdminSubscriptions.
+type GetAdminSubscriptionsParams struct {
+	// Status Filter by status (omit for all)
+	Status *GetAdminSubscriptionsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Page Page number (default 1)
+	Page *int `form:"page,omitempty" json:"page,omitempty"`
+
+	// Limit Items per page (default 20, max 100)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAdminSubscriptionsParamsStatus defines parameters for GetAdminSubscriptions.
+type GetAdminSubscriptionsParamsStatus string
+
+// GetAdminTransactionsParams defines parameters for GetAdminTransactions.
+type GetAdminTransactionsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
@@ -1627,6 +1787,12 @@ type HandleGoogleCallbackParams struct {
 // HandleLocalAuthJSONBody defines parameters for HandleLocalAuth.
 type HandleLocalAuthJSONBody struct {
 	Email openapi_types.Email `json:"email"`
+
+	// Password The user's password. Capped at 72 bytes because
+	// bcrypt silently truncates beyond that — accepting
+	// longer inputs would let any password sharing the
+	// first 72 bytes authenticate.
+	Password string `json:"password"`
 }
 
 // HandleLogoutJSONBody defines parameters for HandleLogout.
@@ -1637,10 +1803,33 @@ type HandleLogoutJSONBody struct {
 // HandleRefresh200JSONResponseBodyStatus defines parameters for HandleRefresh.
 type HandleRefresh200JSONResponseBodyStatus string
 
+// HandleVerifyResetCodeJSONBody defines parameters for HandleVerifyResetCode.
+type HandleVerifyResetCodeJSONBody struct {
+	Code  string              `json:"code"`
+	Email openapi_types.Email `json:"email"`
+}
+
+// GetTrainersBookingSlotsParams defines parameters for GetTrainersBookingSlots.
+type GetTrainersBookingSlotsParams struct {
+	// Date When provided (YYYY-MM-DD), the server filters out any slot that overlaps with an existing non-cancelled booking on this date — both paid sessions (`bookings`) and discovery calls (`discovery_bookings`) for the same trainer. Omit to receive the full template list (every active slot, regardless of which dates are taken).
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
+}
+
 // CreateBookingJSONBody defines parameters for CreateBooking.
 type CreateBookingJSONBody struct {
-	ScheduledEnd    time.Time                            `json:"scheduled_end"`
-	ScheduledStart  time.Time                            `json:"scheduled_start"`
+	// MessengerHandle Required when session_platform is messenger. Same
+	// semantics as the discovery booking field.
+	MessengerHandle *string   `json:"messenger_handle,omitempty"`
+	ScheduledEnd    time.Time `json:"scheduled_end"`
+	ScheduledStart  time.Time `json:"scheduled_start"`
+
+	// SessionPlatform `zoom` and `google_meet` mint a meeting URL via
+	// their respective APIs; `messenger` stores the
+	// client-supplied handle and lets the trainer follow
+	// up off-platform. The `whatsapp` value declared by
+	// earlier specs was never implemented and was
+	// dropped from the CHECK constraint in migration
+	// 000058.
 	SessionPlatform CreateBookingJSONBodySessionPlatform `json:"session_platform"`
 	Timezone        string                               `json:"timezone"`
 	TrainerId       openapi_types.UUID                   `json:"trainer_id"`
@@ -1671,10 +1860,18 @@ type HandleContactUsJSONBody struct {
 	Subject string              `json:"subject"`
 }
 
+// HandleCreateDevTokenParams defines parameters for HandleCreateDevToken.
+type HandleCreateDevTokenParams struct {
+	UserId *openapi_types.UUID `form:"user_id,omitempty" json:"user_id,omitempty"`
+}
+
 // GetDiscoverySlotsParams defines parameters for GetDiscoverySlots.
 type GetDiscoverySlotsParams struct {
 	// Timezone IANA timezone to convert slots into (e.g. America/New_York)
 	Timezone *string `form:"timezone,omitempty" json:"timezone,omitempty"`
+
+	// Date When provided (YYYY-MM-DD), the server filters out any slot already booked on this specific date — both via `discovery_bookings`. The returned slots are guaranteed to be bookable for that date. Omit to receive the full template list (every active slot, regardless of which dates are taken).
+	Date *openapi_types.Date `form:"date,omitempty" json:"date,omitempty"`
 }
 
 // ListOrganisationMediaParams defines parameters for ListOrganisationMedia.
@@ -1737,8 +1934,20 @@ type HandleTrainersNoteJSONBody struct {
 type GetTrainersParams struct {
 	// Category Filter by category (maps to trainers.specialization)
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
-	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
-	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// OnboardingStatus Filter by onboarding_status (maps to trainers.onboarding_status)
+	OnboardingStatus *GetTrainersParamsOnboardingStatus `form:"onboarding_status,omitempty" json:"onboarding_status,omitempty"`
+	Page             *int                               `form:"page,omitempty" json:"page,omitempty"`
+	Limit            *int                               `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetTrainersParamsOnboardingStatus defines parameters for GetTrainers.
+type GetTrainersParamsOnboardingStatus string
+
+// ToggleTrainerAvailabilityJSONBody defines parameters for ToggleTrainerAvailability.
+type ToggleTrainerAvailabilityJSONBody struct {
+	// IsAvailable true = open (clients can book), false = closed (slots hidden from clients).
+	IsAvailable bool `json:"is_available"`
 }
 
 // GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
@@ -1842,8 +2051,17 @@ type HandleGoogleWebhookJSONBody struct {
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
+// AdminCancelSessionJSONRequestBody defines body for AdminCancelSession for application/json ContentType.
+type AdminCancelSessionJSONRequestBody AdminCancelSessionJSONBody
+
+// AdminRescheduleSessionJSONRequestBody defines body for AdminRescheduleSession for application/json ContentType.
+type AdminRescheduleSessionJSONRequestBody AdminRescheduleSessionJSONBody
+
 // HandleAdminLoginJSONRequestBody defines body for HandleAdminLogin for application/json ContentType.
 type HandleAdminLoginJSONRequestBody HandleAdminLoginJSONBody
+
+// HandleAppleSignInJSONRequestBody defines body for HandleAppleSignIn for application/json ContentType.
+type HandleAppleSignInJSONRequestBody = AppleSignInRequest
 
 // HandleForgotPasswordJSONRequestBody defines body for HandleForgotPassword for application/json ContentType.
 type HandleForgotPasswordJSONRequestBody = ForgotPasswordRequest
@@ -1865,6 +2083,9 @@ type HandleResetPasswordJSONRequestBody = ResetPasswordRequest
 
 // HandleVerifyEmailJSONRequestBody defines body for HandleVerifyEmail for application/json ContentType.
 type HandleVerifyEmailJSONRequestBody = VerifyEmailRequest
+
+// HandleVerifyResetCodeJSONRequestBody defines body for HandleVerifyResetCode for application/json ContentType.
+type HandleVerifyResetCodeJSONRequestBody HandleVerifyResetCodeJSONBody
 
 // CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
 type CreateBookingJSONRequestBody CreateBookingJSONBody
@@ -1920,6 +2141,12 @@ type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
+// ToggleTrainerAvailabilityJSONRequestBody defines body for ToggleTrainerAvailability for application/json ContentType.
+type ToggleTrainerAvailabilityJSONRequestBody ToggleTrainerAvailabilityJSONBody
+
+// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
+type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
+
 // ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
 type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
 
@@ -1967,7 +2194,10 @@ type ServerInterface interface {
 	// List all clients (super_admin only)
 	// (GET /admin/clients)
 	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
-	// Get a single client by ID (super_admin only)
+	// Deactivate a client account (super_admin only)
+	// (DELETE /admin/clients/{id})
+	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
+	// Get a client by ID (admin)
 	// (GET /admin/clients/{id})
 	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
 	// List every booked discovery call (admin or super_admin) — paginated
@@ -1979,6 +2209,18 @@ type ServerInterface interface {
 	// List every booked training session (admin or super_admin) — paginated
 	// (GET /admin/sessions)
 	AdminListSessions(c *gin.Context, params AdminListSessionsParams)
+	// List sessions currently in progress (super_admin only)
+	// (GET /admin/sessions/active)
+	AdminListActiveSessions(c *gin.Context)
+	// Cancel a session (super_admin only)
+	// (PUT /admin/sessions/{id}/cancel)
+	AdminCancelSession(c *gin.Context, id openapi_types.UUID)
+	// Reschedule a session (super_admin only)
+	// (PUT /admin/sessions/{id}/reschedule)
+	AdminRescheduleSession(c *gin.Context, id openapi_types.UUID)
+	// List all subscriptions with optional status filter (super_admin only)
+	// (GET /admin/subscriptions)
+	GetAdminSubscriptions(c *gin.Context, params GetAdminSubscriptionsParams)
 	// Count of active subscriptions (super_admin only)
 	// (GET /admin/subscriptions/count)
 	GetAdminSubscriptionCount(c *gin.Context)
@@ -1988,12 +2230,18 @@ type ServerInterface interface {
 	// Approve a trainer
 	// (PUT /admin/trainers/{id}/approve)
 	AdminApproveTrainer(c *gin.Context, id openapi_types.UUID)
+	// List all client transactions/subscriptions (super_admin only)
+	// (GET /admin/transactions)
+	GetAdminTransactions(c *gin.Context, params GetAdminTransactionsParams)
 	// Get total count of active clients and approved trainers (super_admin only)
 	// (GET /admin/user/trainer/count)
 	GetUserTrainerCount(c *gin.Context)
 	// Log Administrators into the application with email and password
 	// (POST /auth/admin/log-in)
 	HandleAdminLogin(c *gin.Context)
+	// Sign in via Apple identity token (mobile + web)
+	// (POST /auth/apple)
+	HandleAppleSignIn(c *gin.Context)
 	// Request a password reset code
 	// (POST /auth/forgot-password)
 	HandleForgotPassword(c *gin.Context)
@@ -2006,7 +2254,7 @@ type ServerInterface interface {
 	// Sign in via Google ID token (mobile clients)
 	// (POST /auth/google/mobile)
 	HandleGoogleMobileSignIn(c *gin.Context)
-	// Login with email
+	// Login with email + password
 	// (POST /auth/login)
 	HandleLocalAuth(c *gin.Context)
 	// Logs out the authenticated user
@@ -2024,9 +2272,12 @@ type ServerInterface interface {
 	// Verify email with OTP — completes signup/login and returns JWT tokens
 	// (POST /auth/verify-email)
 	HandleVerifyEmail(c *gin.Context)
+	// Verify a password reset OTP code
+	// (POST /auth/verify-reset-code)
+	HandleVerifyResetCode(c *gin.Context)
 	// List all active booking slots (public)
 	// (GET /booking-slots/{trainerId})
-	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID)
+	GetTrainersBookingSlots(c *gin.Context, trainerId openapi_types.UUID, params GetTrainersBookingSlotsParams)
 	// Clients creates a booking session with preferred trainer
 	// (POST /bookings)
 	CreateBooking(c *gin.Context)
@@ -2050,7 +2301,7 @@ type ServerInterface interface {
 	HandleContactUs(c *gin.Context)
 
 	// (GET /dev/token)
-	HandleCreateDevToken(c *gin.Context)
+	HandleCreateDevToken(c *gin.Context, params HandleCreateDevTokenParams)
 	// List all active discovery slots (public)
 	// (GET /discovery-slots)
 	GetDiscoverySlots(c *gin.Context, params GetDiscoverySlotsParams)
@@ -2129,9 +2380,6 @@ type ServerInterface interface {
 	// Admin creates a trainer (admin or super_admin)
 	// (POST /trainers)
 	CreateTrainer(c *gin.Context)
-	// Get the authenticated trainer's own profile
-	// (GET /trainers/me)
-	GetTrainersMe(c *gin.Context)
 	// Get the authenticated trainer's weekly availability
 	// (GET /trainers/me/availability)
 	GetTrainersMeAvailability(c *gin.Context)
@@ -2141,12 +2389,21 @@ type ServerInterface interface {
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
+	// Toggle trainer's global availability on or off
+	// (PATCH /trainers/me/availability/toggle)
+	ToggleTrainerAvailability(c *gin.Context)
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
 	// List distinct clients who have booked with the authenticated trainer
 	// (GET /trainers/me/clients)
 	GetTrainersMeClients(c *gin.Context, params GetTrainersMeClientsParams)
+	// Get the authenticated trainer's own profile
+	// (GET /trainers/me/edit-profile)
+	GetTrainersMe(c *gin.Context)
+	// Update the authenticated trainer's own profile
+	// (PATCH /trainers/me/edit-profile)
+	PatchTrainersMe(c *gin.Context)
 	// List sessions booked with the authenticated trainer — paginated
 	// (GET /trainers/me/sessions)
 	GetTrainersMeSessions(c *gin.Context, params GetTrainersMeSessionsParams)
@@ -2162,7 +2419,7 @@ type ServerInterface interface {
 	// Check whether a trainer setup token is still valid (no consume)
 	// (GET /trainers/set-password/validate)
 	HandleValidateSetupToken(c *gin.Context, params HandleValidateSetupTokenParams)
-	// Delete trainer (admin only)
+	// Deactivate trainer (admin only)
 	// (DELETE /trainers/{id})
 	DeleteTrainer(c *gin.Context, id openapi_types.UUID)
 	// Get trainer by ID (admin only)
@@ -2201,6 +2458,12 @@ type ServerInterface interface {
 	// Get public paginated reviews for a trainer
 	// (GET /trainers/{id}/reviews)
 	GetTrainerReviews(c *gin.Context, id openapi_types.UUID, params GetTrainerReviewsParams)
+	// Permanently delete own account
+	// (DELETE /users/me)
+	DeleteMyAccount(c *gin.Context)
+	// Deactivate own account
+	// (POST /users/me/deactivate)
+	DeactivateMyAccount(c *gin.Context)
 	// Get the authenticated user's profile
 	// (GET /users/me/profile)
 	GetUserProfile(c *gin.Context)
@@ -2210,6 +2473,9 @@ type ServerInterface interface {
 	// Upload an avatar image
 	// (POST /users/me/profile/picture)
 	UploadProfilePicture(c *gin.Context)
+	// Reactivate own account
+	// (POST /users/me/reactivate)
+	ReactivateMyAccount(c *gin.Context)
 	// Handle getting emails or filtered emails in waitlist
 	// (GET /waitlist)
 	HandleGetWaitlist(c *gin.Context, params HandleGetWaitlistParams)
@@ -2306,6 +2572,33 @@ func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
 	siw.Handler.GetAdminClients(c, params)
 }
 
+// DeleteAdminClient operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminClient(c, id)
+}
+
 // GetAdminClientByID operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
 
@@ -2357,6 +2650,14 @@ func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2422,6 +2723,120 @@ func (siw *ServerInterfaceWrapper) AdminListSessions(c *gin.Context) {
 	siw.Handler.AdminListSessions(c, params)
 }
 
+// AdminListActiveSessions operation middleware
+func (siw *ServerInterfaceWrapper) AdminListActiveSessions(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminListActiveSessions(c)
+}
+
+// AdminCancelSession operation middleware
+func (siw *ServerInterfaceWrapper) AdminCancelSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminCancelSession(c, id)
+}
+
+// AdminRescheduleSession operation middleware
+func (siw *ServerInterfaceWrapper) AdminRescheduleSession(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminRescheduleSession(c, id)
+}
+
+// GetAdminSubscriptions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminSubscriptions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminSubscriptionsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminSubscriptions(c, params)
+}
+
 // GetAdminSubscriptionCount operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminSubscriptionCount(c *gin.Context) {
 
@@ -2479,6 +2894,43 @@ func (siw *ServerInterfaceWrapper) AdminApproveTrainer(c *gin.Context) {
 	siw.Handler.AdminApproveTrainer(c, id)
 }
 
+// GetAdminTransactions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTransactions(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminTransactionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminTransactions(c, params)
+}
+
 // GetUserTrainerCount operation middleware
 func (siw *ServerInterfaceWrapper) GetUserTrainerCount(c *gin.Context) {
 
@@ -2505,6 +2957,19 @@ func (siw *ServerInterfaceWrapper) HandleAdminLogin(c *gin.Context) {
 	}
 
 	siw.Handler.HandleAdminLogin(c)
+}
+
+// HandleAppleSignIn operation middleware
+func (siw *ServerInterfaceWrapper) HandleAppleSignIn(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleAppleSignIn(c)
 }
 
 // HandleForgotPassword operation middleware
@@ -2663,6 +3128,19 @@ func (siw *ServerInterfaceWrapper) HandleVerifyEmail(c *gin.Context) {
 	siw.Handler.HandleVerifyEmail(c)
 }
 
+// HandleVerifyResetCode operation middleware
+func (siw *ServerInterfaceWrapper) HandleVerifyResetCode(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HandleVerifyResetCode(c)
+}
+
 // GetTrainersBookingSlots operation middleware
 func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 
@@ -2680,6 +3158,17 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 
 	c.Set(string(BearerAuthScopes), []string{})
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTrainersBookingSlotsParams
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2687,7 +3176,7 @@ func (siw *ServerInterfaceWrapper) GetTrainersBookingSlots(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTrainersBookingSlots(c, trainerId)
+	siw.Handler.GetTrainersBookingSlots(c, trainerId, params)
 }
 
 // CreateBooking operation middleware
@@ -2858,6 +3347,20 @@ func (siw *ServerInterfaceWrapper) HandleContactUs(c *gin.Context) {
 // HandleCreateDevToken operation middleware
 func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params HandleCreateDevTokenParams
+
+	// ------------- Optional query parameter "user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "user_id", c.Request.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2865,7 +3368,7 @@ func (siw *ServerInterfaceWrapper) HandleCreateDevToken(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.HandleCreateDevToken(c)
+	siw.Handler.HandleCreateDevToken(c, params)
 }
 
 // GetDiscoverySlots operation middleware
@@ -2882,6 +3385,14 @@ func (siw *ServerInterfaceWrapper) GetDiscoverySlots(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "timezone", c.Request.URL.Query(), &params.Timezone, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter timezone: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "date" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "date", c.Request.URL.Query(), &params.Date, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter date: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -3405,6 +3916,14 @@ func (siw *ServerInterfaceWrapper) GetTrainers(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "onboarding_status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "onboarding_status", c.Request.URL.Query(), &params.OnboardingStatus, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter onboarding_status: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	// ------------- Optional query parameter "page" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
@@ -3444,21 +3963,6 @@ func (siw *ServerInterfaceWrapper) CreateTrainer(c *gin.Context) {
 	}
 
 	siw.Handler.CreateTrainer(c)
-}
-
-// GetTrainersMe operation middleware
-func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetTrainersMe(c)
 }
 
 // GetTrainersMeAvailability operation middleware
@@ -3504,6 +4008,21 @@ func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 	}
 
 	siw.Handler.PutTrainersMeAvailability(c)
+}
+
+// ToggleTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) ToggleTrainerAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ToggleTrainerAvailability(c)
 }
 
 // DeleteTrainersMeAvailabilitySlot operation middleware
@@ -3568,6 +4087,36 @@ func (siw *ServerInterfaceWrapper) GetTrainersMeClients(c *gin.Context) {
 	}
 
 	siw.Handler.GetTrainersMeClients(c, params)
+}
+
+// GetTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainersMe(c)
+}
+
+// PatchTrainersMe operation middleware
+func (siw *ServerInterfaceWrapper) PatchTrainersMe(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.PatchTrainersMe(c)
 }
 
 // GetTrainersMeSessions operation middleware
@@ -4093,6 +4642,36 @@ func (siw *ServerInterfaceWrapper) GetTrainerReviews(c *gin.Context) {
 	siw.Handler.GetTrainerReviews(c, id, params)
 }
 
+// DeleteMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMyAccount(c)
+}
+
+// DeactivateMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeactivateMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeactivateMyAccount(c)
+}
+
 // GetUserProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetUserProfile(c *gin.Context) {
 
@@ -4136,6 +4715,21 @@ func (siw *ServerInterfaceWrapper) UploadProfilePicture(c *gin.Context) {
 	}
 
 	siw.Handler.UploadProfilePicture(c)
+}
+
+// ReactivateMyAccount operation middleware
+func (siw *ServerInterfaceWrapper) ReactivateMyAccount(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReactivateMyAccount(c)
 }
 
 // HandleGetWaitlist operation middleware
@@ -4236,15 +4830,22 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
+	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
+	router.GET(options.BaseURL+"/admin/sessions/active", wrapper.AdminListActiveSessions)
+	router.PUT(options.BaseURL+"/admin/sessions/:id/cancel", wrapper.AdminCancelSession)
+	router.PUT(options.BaseURL+"/admin/sessions/:id/reschedule", wrapper.AdminRescheduleSession)
+	router.GET(options.BaseURL+"/admin/subscriptions", wrapper.GetAdminSubscriptions)
 	router.GET(options.BaseURL+"/admin/subscriptions/count", wrapper.GetAdminSubscriptionCount)
 	router.GET(options.BaseURL+"/admin/top-trainers", wrapper.GetAdminTopTrainers)
 	router.PUT(options.BaseURL+"/admin/trainers/:id/approve", wrapper.AdminApproveTrainer)
+	router.GET(options.BaseURL+"/admin/transactions", wrapper.GetAdminTransactions)
 	router.GET(options.BaseURL+"/admin/user/trainer/count", wrapper.GetUserTrainerCount)
 	router.POST(options.BaseURL+"/auth/admin/log-in", wrapper.HandleAdminLogin)
+	router.POST(options.BaseURL+"/auth/apple", wrapper.HandleAppleSignIn)
 	router.POST(options.BaseURL+"/auth/forgot-password", wrapper.HandleForgotPassword)
 	router.GET(options.BaseURL+"/auth/google", wrapper.HandleGoogleLogin)
 	router.GET(options.BaseURL+"/auth/google/callback", wrapper.HandleGoogleCallback)
@@ -4255,6 +4856,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.HandleRegister)
 	router.POST(options.BaseURL+"/auth/reset-password", wrapper.HandleResetPassword)
 	router.POST(options.BaseURL+"/auth/verify-email", wrapper.HandleVerifyEmail)
+	router.POST(options.BaseURL+"/auth/verify-reset-code", wrapper.HandleVerifyResetCode)
 	router.GET(options.BaseURL+"/booking-slots/:trainerId", wrapper.GetTrainersBookingSlots)
 	router.POST(options.BaseURL+"/bookings", wrapper.CreateBooking)
 	router.POST(options.BaseURL+"/bookings/discovery", wrapper.BookDiscoveryCall)
@@ -4290,12 +4892,14 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/subscriptions/plans", wrapper.GetSubscriptionPlans)
 	router.GET(options.BaseURL+"/trainers", wrapper.GetTrainers)
 	router.POST(options.BaseURL+"/trainers", wrapper.CreateTrainer)
-	router.GET(options.BaseURL+"/trainers/me", wrapper.GetTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.PATCH(options.BaseURL+"/trainers/me/availability/toggle", wrapper.ToggleTrainerAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
+	router.GET(options.BaseURL+"/trainers/me/edit-profile", wrapper.GetTrainersMe)
+	router.PATCH(options.BaseURL+"/trainers/me/edit-profile", wrapper.PatchTrainersMe)
 	router.GET(options.BaseURL+"/trainers/me/sessions", wrapper.GetTrainersMeSessions)
 	router.POST(options.BaseURL+"/trainers/resend-setup", wrapper.ResendTrainerSetup)
 	router.GET(options.BaseURL+"/trainers/sessions", wrapper.ListTrainerSessions)
@@ -4314,9 +4918,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/trainers/:id/intro-video", wrapper.UploadTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/intro-video/stream", wrapper.StreamTrainerIntroVideo)
 	router.GET(options.BaseURL+"/trainers/:id/reviews", wrapper.GetTrainerReviews)
+	router.DELETE(options.BaseURL+"/users/me", wrapper.DeleteMyAccount)
+	router.POST(options.BaseURL+"/users/me/deactivate", wrapper.DeactivateMyAccount)
 	router.GET(options.BaseURL+"/users/me/profile", wrapper.GetUserProfile)
 	router.PATCH(options.BaseURL+"/users/me/profile", wrapper.UpdateUserProfile)
 	router.POST(options.BaseURL+"/users/me/profile/picture", wrapper.UploadProfilePicture)
+	router.POST(options.BaseURL+"/users/me/reactivate", wrapper.ReactivateMyAccount)
 	router.GET(options.BaseURL+"/waitlist", wrapper.HandleGetWaitlist)
 	router.POST(options.BaseURL+"/waitlist", wrapper.HandleAddWaitlist)
 	router.POST(options.BaseURL+"/webhooks/apple", wrapper.HandleAppleWebhook)

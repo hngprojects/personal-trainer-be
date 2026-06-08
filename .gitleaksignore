@@ -1,0 +1,15 @@
+# Fingerprints of historical findings that have been reviewed and
+# confirmed non-secret. Format: one fingerprint per line, as emitted
+# by `gitleaks git . --verbose`. Add a comment above each entry
+# explaining WHY the value is safe so a future reader doesn't have to
+# re-investigate.
+#
+# Adding a fingerprint here suppresses the warning permanently —
+# only use this for genuine false positives (test fixtures, OpenAPI
+# example values, etc.). For real leaked secrets, rotate first.
+
+# Test-only JWT secret used to satisfy auth.GenerateJWTToken's
+# JWT_SECRET-must-be-set check inside the Apple Sign In handler unit
+# tests. Never reaches production; the test file shortens it to
+# "test-secret" on later commits, matching other auth tests.
+b32b79c2b3b771512416267fe562665c2f6c1aec:internal/auth/apple_test.go:generic-api-key:112

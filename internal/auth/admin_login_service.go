@@ -10,6 +10,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var (
+	localProvider = "local"
+)
+
 type AdminAuthService interface {
 	Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error)
 }
@@ -25,7 +29,7 @@ func NewAdminLoginService(user UserRepository, role RoleRepository, log *slog.Lo
 }
 
 func (r *adminLoginService) Login(ctx context.Context, email string, password string) (*api.SuccessResponse, error) {
-	user, err := r.user.FindByEmail(ctx, email)
+	user, err := r.user.FindByEmailAndProvider(ctx, email, localProvider)
 	if err != nil {
 		r.log.Warn("AdminLogin: user not found", "err", err)
 		return nil, errors.New("invalid email or password")
@@ -35,7 +39,18 @@ func (r *adminLoginService) Login(ctx context.Context, email string, password st
 		r.log.Warn("AdminLogin: role check failed", "err", err)
 		return nil, errors.New("invalid email or password")
 	}
-	if !isUserAdmin {
+	isUserSuperAdmin, err := r.role.UserHasRole(ctx, user.ID, superAdminRoleName)
+	if err != nil {
+		r.log.Warn("AdminLogin: role check failed", "err", err)
+		return nil, errors.New("invalid email or password")
+	}
+	// Allow login if the user holds EITHER role. Previously this read
+	// `!isUserAdmin || !isUserSuperAdmin`, which by De Morgan rejects
+	// any user missing even one role — i.e. only a user with BOTH
+	// admin+super_admin could log in. Plain admins and plain
+	// super_admins were locked out. Reject only when neither role is
+	// present.
+	if !isUserAdmin && !isUserSuperAdmin {
 		r.log.Warn("AdminLogin: user is not admin", "user_id", user.ID)
 		return nil, errors.New("invalid email or password")
 	}

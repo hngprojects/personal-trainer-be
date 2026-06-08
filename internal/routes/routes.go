@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/hngprojects/personal-trainer-be/internal/activities"
 	"github.com/hngprojects/personal-trainer-be/internal/admin"
@@ -25,15 +26,20 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	"github.com/hngprojects/personal-trainer-be/internal/observability"
+	"github.com/hngprojects/personal-trainer-be/internal/reminder"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	reviewsvc "github.com/hngprojects/personal-trainer-be/internal/reviews"
 	"github.com/hngprojects/personal-trainer-be/internal/root"
+	"github.com/hngprojects/personal-trainer-be/internal/settings"
 	"github.com/hngprojects/personal-trainer-be/internal/uploads"
 	userdevice "github.com/hngprojects/personal-trainer-be/internal/user_device"
 	"github.com/hngprojects/personal-trainer-be/internal/waitlist"
+	"github.com/hngprojects/personal-trainer-be/internal/websocket"
 	"github.com/hngprojects/personal-trainer-be/internal/zoomflow"
+	"github.com/hngprojects/personal-trainer-be/pkg/apple"
 	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	"github.com/hngprojects/personal-trainer-be/pkg/googlemeet"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
 	"github.com/hngprojects/personal-trainer-be/pkg/ratelimit"
@@ -82,6 +88,10 @@ type Router struct {
 	// case. Held on Router so Close() can drain them on shutdown.
 	organisationImageUploader *uploads.OrganisationImageUploader
 	organisationVideoUploader *uploads.OrganisationVideoUploader
+
+	// reminderWorker polls confirmed bookings every minute and fires push +
+	// email reminders 1 hour before each session. nil until Routes() is called.
+	reminderWorker *reminder.Worker
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -126,12 +136,16 @@ func (s *Router) Close() {
 		// minutes per job so shutdown can be slow with deep queues.
 		s.organisationVideoUploader.Stop()
 	}
+	if s.reminderWorker != nil {
+		s.reminderWorker.Stop()
+	}
 }
 
 type routerImpl struct {
 	cfg                           *config.Config // exposed to handlers that need env-sourced values (e.g. MinIO public URL prefix)
 	google                        *auth.GoogleHandler
 	googleMobile                  *auth.MobileGoogleHandler
+	apple                         *auth.AppleHandler
 	local                         *auth.LocalHandler
 	root                          *root.RootHandler
 	adminLogin                    *handlers.AdminLoginHandler
@@ -175,9 +189,10 @@ type routerImpl struct {
 	logger *slog.Logger
 	mailer email.Mailer
 
-	// notificationService *notification.NotificationService
+	notificationService *notification.NotificationService
 	userDeviceHandler   *userdevice.UserDeviceHandler
 	notificationHandler *notification.NotificationHandler
+	wsHub               *websocket.Hub
 
 	// zoomOAuth handles the per-trainer /trainers/me/zoom/{connect,
 	// callback,status} + DELETE /trainers/me/zoom routes. When the
@@ -257,6 +272,39 @@ func (s *Router) Routes() *gin.Engine {
 
 		if s.db != nil {
 			q = db.New(s.db)
+
+			// Notification service is constructed up front so any handler
+			// built below (Zoom OAuth, discovery, bookings…) can receive
+			// it. websocket hub + FCM client are the two delivery
+			// channels; the DB row is always written regardless.
+			wsHub := websocket.NewHub(s.log)
+			impl.wsHub = wsHub
+			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
+			// Loud diagnostic for the most common "notifications don't
+			// work" failure mode: the env vars aren't set, the FCM
+			// client silently constructs itself in disabled mode, and
+			// every push fails at delivery time with no visible signal.
+			// In dev that's expected; in staging/prod it's almost
+			// always a deploy misconfiguration. Log at ERROR level
+			// outside dev so operators see it during boot rollup.
+			if fcmClient.IsDisabled() {
+				if s.cfg.Env == "development" {
+					s.log.Warn("FCM push notifications are disabled — set FCM_CREDENTIALS_JSON + FCM_PROJECT_ID to enable (dev mode, this is OK)")
+				} else {
+					s.log.Error("FCM push notifications are DISABLED in a non-development environment — clients will not receive any push. Check FCM_CREDENTIALS_JSON (base64-encoded) and FCM_PROJECT_ID env vars.",
+						"env", s.cfg.Env,
+						"credentials_json_present", len(s.cfg.FCMCredentialsJSON) > 0,
+						"project_id_present", s.cfg.FCMProjectID != "",
+					)
+				}
+			} else {
+				s.log.Info("FCM push notifications enabled", "project_id", s.cfg.FCMProjectID)
+			}
+			notificationRepo := notification.NewRepository(q)
+			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
+			impl.notificationService = notificationService
+			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
+
 			usersRepo := auth.NewPostgresUserRepo(q)
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
@@ -276,6 +324,24 @@ func (s *Router) Routes() *gin.Engine {
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
 			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
+
+			// Apple Sign In. Constructed only when bundle IDs are
+			// configured — the verifier fetches Apple's JWKS at
+			// construct time and would either fail or sit silently
+			// rejecting tokens otherwise. nil leaves the route handler
+			// returning 503 with a clear "not configured" message,
+			// matching the pattern used elsewhere (Zoom OAuth, Meet,
+			// MinIO).
+			if len(s.cfg.AppleSignInBundleIDs) > 0 {
+				appleVerifier, err := apple.NewVerifier(context.Background(), s.cfg.AppleSignInBundleIDs)
+				if err != nil {
+					s.log.Warn("apple sign-in: verifier init failed — endpoint will 503", "err", err)
+				} else {
+					impl.apple = auth.NewAppleHandler(s.cfg, usersRepo, sessionsRepo, appleVerifier, s.log)
+				}
+			} else {
+				s.log.Warn("apple sign-in: APPLE_SIGN_IN_BUNDLE_IDS / APPLE_BUNDLE_ID empty — endpoint will 503")
+			}
 			impl.waitlist = waitlist.NewWaitlistHandler(waitlistRepo, s.log, mailer)
 			impl.contact = contact.NewHandler(q, s.log, mailer)
 			impl.trainers = newTrainersStore(s.db, q)
@@ -321,18 +387,44 @@ func (s *Router) Routes() *gin.Engine {
 				} else {
 					oauth := appzoom.NewOAuthClient(s.cfg.ZoomOAuthClientID, s.cfg.ZoomOAuthClientSecret, s.cfg.ZoomOAuthRedirectURL)
 					credStore = zoomflow.NewCredentialStore(q, s.db, enc, oauth, s.log)
-					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log)
+					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log, notificationService)
 					s.log.Info("per-trainer Zoom OAuth pipeline ready", "host_mode", s.cfg.ZoomMeetingHost)
 				}
 			} else if s.cfg.ZoomMeetingHost == "trainer" {
 				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
 			}
 
-			meetingSelector := &zoomflow.MeetingSelector{
+			zoomSelector := &zoomflow.MeetingSelector{
 				Store:         credStore,
 				OrgProvider:   orgMeetingProvider,
 				PreferTrainer: s.cfg.ZoomMeetingHost == "trainer",
 				Log:           s.log,
+			}
+
+			// Google Meet — single-org-account flow. We build the
+			// provider only when MEET_ENABLED=true AND all the OAuth
+			// bits are present; partial config logs a warn and the
+			// provider stays nil, so the selector returns NoOp →
+			// handler 503s with "google meet is not configured."
+			var meetProvider meeting.Provider
+			if s.cfg.MeetEnabled {
+				if s.cfg.MeetOAuthClientID != "" && s.cfg.MeetOAuthClientSecret != "" && s.cfg.MeetRefreshToken != "" {
+					meetOAuth := googlemeet.NewOAuthClient(
+						s.cfg.MeetOAuthClientID,
+						s.cfg.MeetOAuthClientSecret,
+						s.cfg.MeetRefreshToken,
+						s.cfg.MeetHostEmail,
+					)
+					meetProvider = googlemeet.NewProvider(meetOAuth)
+					s.log.Info("google meet provider ready", "host_email", s.cfg.MeetHostEmail)
+				} else {
+					s.log.Warn("MEET_ENABLED=true but MEET_OAUTH_CLIENT_* / MEET_REFRESH_TOKEN missing — meet provider disabled")
+				}
+			}
+
+			meetingSelector := meeting.MultiPlatformSelector{
+				Zoom: zoomSelector,
+				Meet: meetProvider,
 			}
 
 			// Meeting SDK signer for in-app joins. Optional — boot without
@@ -348,28 +440,26 @@ func (s *Router) Routes() *gin.Engine {
 			bookingSlotService := bookings.NewBookingSlotService(bookingRepo, s.log)
 			bookingService := bookings.NewBookingService(bookingRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain)
 			discoveryRepo := discovery.NewPostgresRepo(s.db, q)
-			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log)
+			impl.discovery = discovery.NewHandler(discoveryRepo, meetingSelector, mailer, s.cfg.NotificationEmail, s.log, notificationService)
 			bookingsRepo := bookings.NewPostgresRepo(q)
 			impl.bookingSlot = bookings.NewBookingSlotHandler(bookingSlotService, redisVal, s.log)
-			impl.booking = bookings.NewBookingHandler(bookingService, s.log)
-			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider)
 			impl.reviews = reviewsvc.NewService(s.db, q, s.log)
 			impl.bookings = &bookingsStore{db: s.db, q: q}
-			if s.redis != nil {
-				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log)
-			}
 
 			// User devices for push notifications
 			userDeviceRepo := userdevice.NewUserDeviceRepository(q)
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
-			// Notifications
-			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsFile, s.cfg.FCMProjectID, nil, s.log)
-			notificationRepo := notification.NewRepository(q)
-			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, s.log)
-			// impl.notificationService = notificationService
-			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService, s.redis)
+			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
+
+			if s.redis != nil {
+				impl.bookingSession = booking_session.NewSessionHandler(bookingSessionService, *s.redis, s.log, notificationService, q)
+			}
+			// Start the 1-hour session reminder background worker.
+			s.reminderWorker = reminder.New(s.db, &reminderNotifSender{ns: notificationService}, mailer, s.log)
+			s.reminderWorker.Start(context.Background())
 
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
@@ -497,7 +587,7 @@ func (s *Router) Routes() *gin.Engine {
 		} else {
 			s.log.Warn("database not configured — auth, waitlist and trainers endpoints may be unavailable")
 		}
-		if s.cfg.Env == "development" {
+		if s.cfg.Env == "development" || s.cfg.Env == "staging" {
 			impl.dev = dev.NewDevHandler()
 		}
 
@@ -514,18 +604,58 @@ func (s *Router) Routes() *gin.Engine {
 			superAdminOnly = middleware.SuperAdminOnly(q, s.log)
 		}
 
+		// Build deactivation middleware early so hand-wired routes (Zoom,
+		// WebSocket, Activities) enforce the same deactivation check as the
+		// oapi-codegen routes.
+		//
+		// For routes whose register() signature accepts a single authMw, we use
+		// a sub-group that applies authMw at the group level so it runs FIRST
+		// (before c.Next() is called), then pass deactivatedMw as the
+		// per-route middleware — Gin chains them as [authMw → deactivatedMw →
+		// handler] without the c.Next()-advances-chain-too-early problem.
+		var deactivatedMw gin.HandlerFunc
+		if q != nil {
+			deactivatedMw = middleware.DeactivatedMiddleware(q, s.log)
+		}
+
+		// authedGroup: authMw at group level, deactivatedMw passed per-route.
+		// Chain: [authMw, deactivatedMw, handler] — correct order.
+		authedGroup := v1.Group("")
+		authedGroup.Use(authMw)
+		perRouteMw := func() gin.HandlerFunc {
+			if deactivatedMw != nil {
+				return deactivatedMw
+			}
+			return func(c *gin.Context) { c.Next() }
+		}()
+
 		// Hand-wired Zoom routes (per-trainer OAuth + SDK join-info +
 		// public config). Registered on v1 alongside the oapi-generated
 		// handlers so they share the same auth middleware story but
 		// don't depend on api.yaml + oapi-codegen.
 		if impl.zoomOAuth != nil {
-			impl.zoomOAuth.register(v1, authMw)
+			impl.zoomOAuth.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomJoinInfo != nil {
-			impl.zoomJoinInfo.register(v1, authMw)
+			impl.zoomJoinInfo.register(authedGroup, perRouteMw)
 		}
 		if impl.zoomConfig != nil {
-			impl.zoomConfig.register(v1, authMw)
+			impl.zoomConfig.register(authedGroup, perRouteMw)
+		}
+		if impl.wsHub != nil {
+			// WebSocket uses its own auth middleware (token in query param).
+			// Deactivation check runs after WS auth confirms the user.
+			wsHandlers := []gin.HandlerFunc{
+				middleware.WebSocketAuthMiddleware(authRedis, s.log),
+			}
+			if deactivatedMw != nil {
+				wsHandlers = append(wsHandlers, deactivatedMw)
+			}
+			wsHandlers = append(wsHandlers, websocket.UpgradeHandler(
+				impl.wsHub, s.log,
+				impl.notificationService.DeliverPendingNotifOnConn,
+			))
+			v1.GET("/notifications/ws", wsHandlers...)
 		}
 
 		// Hand-wired recent-activities routes. Same rationale as the
@@ -537,8 +667,33 @@ func (s *Router) Routes() *gin.Engine {
 		if s.db != nil && q != nil {
 			activitiesRepo := activities.NewPostgresRepo(s.db)
 			activitiesHandler := activities.NewHandler(activitiesRepo, q, s.log)
-			activitiesHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+			// Register on authedGroup (authMw already in chain) so deactivation
+			// check runs before the handler via the group-level middleware.
+			activitiesHandler.Register(authedGroup, perRouteMw, gin.HandlerFunc(superAdminOnly))
 		}
+
+		// Settings + categories — admin settings page, plus the
+		// client-facing /categories list.
+		//   GET    /admin/settings           — read settings + categories
+		//   PUT    /admin/settings           — update scalar settings
+		//   POST   /admin/categories         — add a category
+		//   DELETE /admin/categories/:id     — remove a category
+		//   GET    /categories               — client-facing list
+		if q != nil {
+			settingsHandler := settings.NewHandler(q, s.log)
+			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
+		}
+
+		// PATCH /trainers/me/edit-profile and PATCH /trainers/me/availability/toggle
+		// used to be hand-wired here as a workaround for a gin radix-tree
+		// conflict with PATCH /trainers/:id. That workaround is no longer
+		// needed — oapi-codegen now registers /trainers/me/edit-profile
+		// (line 4902 in gen.go) BEFORE /trainers/:id (line 4910), and
+		// gin's tree handles the more-specific-first order correctly.
+		// Leaving the hand-wiring in place double-registered the route
+		// and panicked at boot (CODE_INVALIDARGUMENT) once the spec
+		// entry was added in #341. The codegen registration is now the
+		// single source of truth.
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
@@ -547,6 +702,19 @@ func (s *Router) Routes() *gin.Engine {
 						authMw(c)
 						if c.IsAborted() {
 							return
+						}
+						// Block deactivated users on all auth'd routes except:
+						// - reactivate: so they can restore their account
+						// - deactivate: so a second call returns 409, not 403
+						// - DELETE /users/me: so they can permanently delete their account
+						exempt := c.FullPath() == "/api/v1/users/me/reactivate" ||
+							c.FullPath() == "/api/v1/users/me/deactivate" ||
+							(c.FullPath() == "/api/v1/users/me" && c.Request.Method == "DELETE")
+						if deactivatedMw != nil && !exempt {
+							deactivatedMw(c)
+							if c.IsAborted() {
+								return
+							}
 						}
 					}
 					if _, requiresRefreshAuth := c.Get(string(api.RefreshAuthScopes)); requiresRefreshAuth {
@@ -572,9 +740,21 @@ func (s *Router) Routes() *gin.Engine {
 				ctx.JSON(statusCode, api.NewError("invalid uuid for parameter: "+paramName, api.CodeBadRequest))
 			},
 		})
+
 	}
 
 	return r
+}
+
+// reminderNotifSender adapts *notification.NotificationService to the
+// reminder.Notifier interface (which expects error-only return).
+type reminderNotifSender struct {
+	ns *notification.NotificationService
+}
+
+func (r *reminderNotifSender) SendNotificationToUser(ctx context.Context, userID uuid.UUID, title, message, idempotencyKey string) error {
+	_, err := r.ns.SendNotificationToUser(ctx, userID, title, message, idempotencyKey)
+	return err
 }
 
 // buildMailer picks a mailer in this order:

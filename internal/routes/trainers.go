@@ -29,7 +29,11 @@ import (
 // trainerPhoneE164Regex validates the phone_number form field on
 // POST /trainers. Same shape the discovery-call phone_callback path
 // uses so trainers and that flow share one phone format.
-var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+var (
+	trainerRole           = "trainer"
+	localAuthProvider     = "local"
+	trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing
@@ -165,8 +169,16 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 
 	category := ""
+	onboarding_status := ""
 	if params.Category != nil {
 		category = *params.Category
+	}
+	if params.OnboardingStatus != nil {
+		if !params.OnboardingStatus.Valid() {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid onboarding_status; should be approved, pending, rejected or suspended", api.CodeBadRequest))
+			return
+		}
+		onboarding_status = string(*params.OnboardingStatus)
 	}
 
 	page, limit, ok := parsePagination(c, params.Page, params.Limit, s.logger)
@@ -184,9 +196,10 @@ func (s *routerImpl) GetTrainers(c *gin.Context, params api.GetTrainersParams) {
 	}
 
 	trainers, err := s.trainers.q.ListTrainers(ctx, db.ListTrainersParams{
-		Category:   category,
-		PageLimit:  int32(limit),
-		PageOffset: int32((page - 1) * limit),
+		Category:         category,
+		PageLimit:        int32(limit),
+		PageOffset:       int32((page - 1) * limit),
+		OnboardingStatus: onboarding_status,
 	})
 	if err != nil {
 		s.logger.Error("list trainers failed", "err", err)
@@ -496,6 +509,16 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	}()
 	qtx := s.trainers.q.WithTx(tx)
 
+	existingUser, err := qtx.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
+		Email:        emailAddr,
+		AuthProvider: localAuthProvider,
+	})
+	if err == nil && existingUser.Role != trainerRole {
+		s.logger.Warn("create trainer: email already in use by non-trainer account", "email", emailAddr)
+		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
+		return
+	}
+
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:       emailAddr,
 		Name:        name,
@@ -631,6 +654,21 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if pictureURL != "" {
 		payload["display_picture"] = pictureURL
 		payload["display_picture_status"] = "processing"
+	}
+
+	// Admin broadcast — staff dashboard surfaces new trainer onboarding
+	// without anyone having to refresh. Keyed on the trainer record id
+	// (not user id) so a re-invite of the SAME trainer that ran through
+	// UpsertTrainerUser doesn't double-fire — the trainer row's id is
+	// stable across re-invites.
+	if s.notificationService != nil {
+		if _, notifErr := s.notificationService.SendNotificationToAdmins(ctx,
+			"New Trainer Created",
+			name+" was added as a trainer.",
+			"trainer-created-"+trainer.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("admin notification (trainer created) failed", "trainer_id", trainer.ID, "err", notifErr)
+		}
 	}
 
 	if setupLinkSent {
@@ -826,6 +864,165 @@ func (s *routerImpl) GetTrainerByID(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 	s.renderTrainerProfileByID(c, uuid.UUID(id))
+}
+
+// ToggleTrainerAvailability handles PATCH /trainers/me/availability/toggle.
+// Flips the trainer's global is_available flag — the "open/closed" sign.
+// When false, clients see no bookable slots for this trainer; the slots are
+// preserved so toggling back on instantly restores the schedule.
+func (s *routerImpl) ToggleTrainerAvailability(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("toggle trainer availability: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		IsAvailable bool `json:"is_available"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("toggle trainer availability: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	result, err := s.trainers.q.ToggleTrainerAvailability(c.Request.Context(), db.ToggleTrainerAvailabilityParams{
+		ID:          trainerID,
+		IsAvailable: body.IsAvailable,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		s.logger.Error("toggle trainer availability: DB error", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to update availability", api.CodeServerError))
+		return
+	}
+
+	// Invalidate the booking-slots cache so clients immediately see the
+	// updated availability instead of serving stale slots from Redis.
+	if s.availability != nil {
+		if err := s.availability.redis.Delete(c.Request.Context(), bookingSlotsCacheKey(trainerID)); err != nil {
+			s.logger.Warn("toggle trainer availability: failed to invalidate booking slots cache", "trainerID", trainerID, "err", err)
+		}
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("AVAILABILITY_UPDATED", api.CodeOK, map[string]interface{}{
+		"trainer_id":   result.ID.String(),
+		"is_available": result.IsAvailable,
+	}))
+}
+
+// PatchTrainersMe handles PATCH /trainers/me — lets a trainer update their
+// own bio, years_of_experience, specializations, display_picture, and phone_number.
+func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
+	if s.trainers == nil {
+		s.logger.Warn("patch trainers me: trainers store not available")
+		c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+		return
+	}
+
+	trainerID, ok := s.resolveTrainerIDFromJWT(c)
+	if !ok {
+		return
+	}
+
+	var body api.PatchTrainersMeJSONRequestBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		s.logger.Warn("patch trainers me: invalid request body", "err", err)
+		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	existing, err := s.trainers.q.GetTrainerByID(ctx, trainerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		s.logger.Error("patch trainers me: failed to load trainer", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to load trainer", api.CodeServerError))
+		return
+	}
+
+	// Specializations
+	specializations := existing.Specializations
+	if body.Specializations != nil {
+		strs := make([]string, 0, len(*body.Specializations))
+		for _, sp := range *body.Specializations {
+			strs = append(strs, string(sp))
+		}
+		validated, err := parseTrainerSpecializations(strs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
+			return
+		}
+		specializations = validated
+	}
+
+	years := existing.YearsOfExperience
+	if body.YearsOfExperience != nil {
+		if *body.YearsOfExperience < 0 {
+			c.JSON(http.StatusBadRequest, api.NewError("years_of_experience must be non-negative", api.CodeBadRequest))
+			return
+		}
+		years = sql.NullInt32{Int32: int32(*body.YearsOfExperience), Valid: true}
+	}
+
+	bio := existing.Bio
+	if body.Bio != nil {
+		bio = sql.NullString{String: *body.Bio, Valid: true}
+	}
+
+	displayPicture := existing.DisplayPicture
+	if body.DisplayPicture != nil {
+		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
+	}
+
+	updated, err := s.trainers.q.UpdateTrainer(ctx, db.UpdateTrainerParams{
+		ID:                trainerID,
+		Specializations:   specializations,
+		TrainingStyles:    existing.TrainingStyles,
+		Bio:               bio,
+		YearsOfExperience: years,
+		IntroVideoUrl:     existing.IntroVideoUrl,
+		DisplayPicture:    displayPicture,
+		OnboardingStatus:  sql.NullString{},
+	})
+	if err != nil {
+		s.logger.Error("patch trainers me: update trainer failed", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to update profile", api.CodeServerError))
+		return
+	}
+
+	// Update phone_number on the users table if supplied.
+	if body.PhoneNumber != nil {
+		phoneVal := strings.TrimSpace(*body.PhoneNumber)
+		if _, err := s.trainers.q.UpdateTrainerUserProfile(ctx, db.UpdateTrainerUserProfileParams{
+			ID:          updated.UserID,
+			PhoneNumber: phoneVal,
+		}); err != nil {
+			s.logger.Error("patch trainers me: update user phone failed", "userID", updated.UserID, "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("failed to update phone number", api.CodeServerError))
+			return
+		}
+	}
+
+	payload, status, errResp := s.buildTrainerProfilePayload(c, updated.ID)
+	if errResp != nil {
+		s.logger.Warn("patch trainers me: post-update reload failed", "trainerID", trainerID, "status", status)
+		c.JSON(status, errResp)
+		return
+	}
+	c.JSON(http.StatusOK, api.NewSuccess("TRAINER_PROFILE_UPDATED", api.CodeOK, payload))
 }
 
 // GetTrainersMe handles GET /trainers/me — returns the trainer profile
@@ -1095,19 +1292,53 @@ func (s *routerImpl) DeleteTrainer(c *gin.Context, id openapi_types.UUID) {
 	}
 
 	trainerID := uuid.UUID(id)
+	ctx := c.Request.Context()
 
-	_, err := s.trainers.q.DeleteTrainer(c.Request.Context(), trainerID)
+	// Soft-delete: set users.is_active = false for this trainer's user account.
+	// Returns ErrNoRows if the trainer doesn't exist OR is already inactive.
+	_, err := s.trainers.q.DeactivateTrainer(ctx, trainerID)
 	if err != nil {
-		s.logger.Warn("error while deleting trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			// Disambiguate the three possible no-row states:
+			//  1. trainer row missing                → 404
+			//  2. user row missing or role mismatch  → 500 (data integrity)
+			//  3. user already inactive              → 409
+			trainer, lookupErr := s.trainers.q.GetTrainerByID(ctx, trainerID)
+			if errors.Is(lookupErr, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+				return
+			}
+			if lookupErr != nil {
+				s.logger.Warn("delete trainer: lookup failed during disambiguate", "trainerID", trainerID, "err", lookupErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer", api.CodeServerError))
+				return
+			}
+			user, userErr := s.trainers.q.GetUserByID(ctx, trainer.UserID)
+			if errors.Is(userErr, sql.ErrNoRows) {
+				s.logger.Error("delete trainer: trainer has no linked user (data integrity)", "trainerID", trainerID, "userID", trainer.UserID)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			if userErr != nil {
+				s.logger.Warn("delete trainer: failed to fetch linked user", "trainerID", trainerID, "err", userErr)
+				c.JSON(http.StatusInternalServerError, api.NewError("failed to fetch trainer account", api.CodeServerError))
+				return
+			}
+			if user.Role != "trainer" {
+				s.logger.Error("delete trainer: linked user has unexpected role (data integrity)", "trainerID", trainerID, "userID", trainer.UserID, "role", user.Role)
+				c.JSON(http.StatusInternalServerError, api.NewError("trainer data integrity error", api.CodeServerError))
+				return
+			}
+			// Trainer exists, user exists, role is correct — already inactive.
+			c.JSON(http.StatusConflict, api.NewError("trainer is already deactivated", api.CodeConflict))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, api.NewError("failed to delete trainer", api.CodeServerError))
+		s.logger.Warn("delete trainer: failed to deactivate", "trainerID", trainerID, "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to deactivate trainer", api.CodeServerError))
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, api.NewSuccess("trainer deactivated successfully", api.CodeOK, nil))
 }
 
 // GET /trainers/me/sessions?page=&limit=

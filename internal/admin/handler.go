@@ -13,14 +13,19 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
-	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 // generatedPasswordLen is the length of the password we generate for new
 // admins. 16 chars from the friendly password charset is comfortably above
 // any practical brute-force threshold against bcrypt.
 const generatedPasswordLen = 16
+
+var (
+	adminRole         = "admin"
+	localAuthProvider = "local"
+)
 
 type Handler struct {
 	users  auth.AdminUserRepository
@@ -67,7 +72,12 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		}))
 		return
 	}
-
+	existingUser, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, localAuthProvider)
+	if err == nil && existingUser.Role != adminRole {
+		h.log.Warn("create admin: email already in use by non-admin account", "email", emailAddr)
+		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
+		return
+	}
 	password, err := auth.GenerateRandomPassword(generatedPasswordLen)
 	if err != nil {
 		h.log.Error("admin add: generate password failed", "err", err)

@@ -12,6 +12,7 @@ INSERT INTO bookings (
   timezone,
   booking_status,
   session_platform,
+  messenger_handle,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -23,6 +24,7 @@ INSERT INTO bookings (
   sqlc.arg(timezone),
   sqlc.arg(booking_status),
   sqlc.arg(session_platform),
+  sqlc.arg(messenger_handle),
   sqlc.arg(cancellation_reason),
   sqlc.arg(created_at),
   sqlc.arg(cancelled_at)
@@ -42,7 +44,8 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count;
+  reschedule_count,
+  messenger_handle;
 
 -- name: GetBookingByID :one
 SELECT
@@ -60,7 +63,8 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1;
@@ -81,7 +85,8 @@ SELECT
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count
+  reschedule_count,
+  messenger_handle
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -187,7 +192,8 @@ RETURNING
   cancelled_at,
   zoom_meeting_link,
   zoom_meeting_id,
-  reschedule_count;
+  reschedule_count,
+  messenger_handle;
 
 -- name: CheckPaidBookingConflict :one
 SELECT COUNT(*) FROM bookings
@@ -262,6 +268,38 @@ OFFSET sqlc.arg(page_offset);
 -- name: CountBookingsForAdmin :one
 SELECT COUNT(*) FROM bookings;
 
+-- name: ListActiveBookingsForAdmin :many
+-- Admin view of sessions currently in progress (started or in-session). Paginated.
+SELECT
+  b.id,
+  b.trainer_id,
+  b.client_id,
+  b.scheduled_start,
+  b.scheduled_end,
+  b.timezone,
+  b.booking_status,
+  b.session_platform,
+  b.created_at,
+  b.cancelled_at,
+  b.zoom_meeting_link,
+  client_user.name        AS client_name,
+  client_user.email       AS client_email,
+  trainer_user.name       AS trainer_name,
+  trainer_user.email      AS trainer_email,
+  bs.id                   AS session_id
+FROM bookings b
+JOIN users    client_user  ON client_user.id  = b.client_id
+JOIN trainers t            ON t.id            = b.trainer_id
+JOIN users    trainer_user ON trainer_user.id = t.user_id
+LEFT JOIN booking_session bs ON bs.booking_id = b.id
+WHERE b.booking_status IN ('started', 'in-session')
+ORDER BY b.scheduled_start ASC
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
+
+-- name: CountActiveBookingsForAdmin :one
+SELECT COUNT(*) FROM bookings WHERE booking_status IN ('started', 'in-session');
+
 -- name: ListBookingsByTrainer :many
 -- Paginated list of bookings where the caller is the trainer. The trainer
 -- is identified by the trainers.id (the trainer profile row) — callers
@@ -329,3 +367,39 @@ SELECT COUNT(DISTINCT client_id)::BIGINT FROM bookings WHERE trainer_id = sqlc.a
 SELECT * FROM bookings
 WHERE scheduled_start >= date_trunc('month', NOW())
   AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month';
+-- name: AdminRescheduleBooking :one
+-- Admin reschedule — no reschedule_count cap. Zoom links are cleared
+-- because admin cannot provision a new Zoom meeting; clients must
+-- re-join via the updated in-app join-info endpoint.
+UPDATE bookings
+SET scheduled_start    = sqlc.arg(scheduled_start)::timestamptz,
+    scheduled_end      = sqlc.arg(scheduled_end)::timestamptz,
+    zoom_meeting_link  = NULL,
+    zoom_meeting_id    = NULL,
+    reschedule_count   = reschedule_count + 1
+WHERE id = sqlc.arg(id)
+  AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed'))
+RETURNING
+  id,
+  trainer_id,
+  client_id,
+  subscription_id,
+  scheduled_start,
+  scheduled_end,
+  timezone,
+  booking_status,
+  session_platform,
+  cancellation_reason,
+  created_at,
+  cancelled_at,
+  zoom_meeting_link,
+  zoom_meeting_id,
+  reschedule_count,
+  messenger_handle;
+
+-- name: CheckBookingConflictForClient :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = sqlc.arg(trainer_id)
+    AND scheduled_start < sqlc.arg(new_end) -- new_end
+    AND scheduled_end > sqlc.arg(new_start) -- new_start
+    AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed', 'no_show'));

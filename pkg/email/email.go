@@ -30,6 +30,8 @@ type Mailer interface {
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error
+	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
+	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
 }
 
 type SMTPMailer struct {
@@ -262,6 +264,16 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 
 func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "zoom_link", zoomLink)
+	return nil
+}
+
+func (m *LogMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	slog.Info("email (session reminder client)", "to", to, "client", clientName, "trainer", trainerName, "start", scheduledStart, "timezone", timezone)
+	return nil
+}
+
+func (m *LogMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	slog.Info("email (session reminder trainer)", "to", to, "trainer", trainerName, "client", clientName, "start", scheduledStart, "timezone", timezone)
 	return nil
 }
 
@@ -657,9 +669,6 @@ var accountSetupTemplate = template.Must(template.New("account-setup-email").Par
         <tr><td align="center" style="padding:24px 0;">
           <a href="{{ .Link }}" style="display:inline-block;background:#111827;color:#ffffff;font-size:15px;font-weight:bold;padding:14px 28px;border-radius:8px;text-decoration:none;">Set your password</a>
         </td></tr>
-        <tr><td align="center" style="padding-bottom:24px;">
-          <p style="margin:0;font-size:12px;color:#6b7280;">Or copy this link into your browser:<br><span style="font-family:monospace;color:#374151;word-break:break-all;">{{ .Link }}</span></p>
-        </td></tr>
         <tr><td align="center" style="padding-top:8px;">
           <p style="margin:0;font-size:12px;color:#9ca3af;">This link expires in {{ .ExpiryHours }} hours and can only be used once. If you weren't expecting this email, you can ignore it.</p>
         </td></tr>
@@ -898,7 +907,8 @@ const discoveryRescheduleTemplate = `<!DOCTYPE html>
     </tr>
   </table>
   <p><strong>Timezone:</strong> {{.Timezone}}</p>
-  {{ if eq .ContactMode "zoom_meeting" }}{{ if .ZoomLink }}<p><strong>New Zoom Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
+  {{/* Treat zoom_meeting + google_meet identically — they both produce a URL in ZoomLink that the client can click straight to. The "Meeting Link" label stays platform-neutral. Messenger mode renders neither a link nor a phone; trainers are notified separately via the in-app notification feed and follow up via Messenger themselves. */}}
+  {{ if or (eq .ContactMode "zoom_meeting") (eq .ContactMode "google_meet") }}{{ if .ZoomLink }}<p><strong>New Meeting Link:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></p>{{ end }}{{ else if eq .ContactMode "phone_callback" }}{{ if .PhoneNumber }}<p><strong>Phone Number:</strong> {{.PhoneNumber}}</p>{{ end }}{{ end }}
   <p>If you need to make any further changes, please do so at least 12 hours before the scheduled time.</p>
   <p>See you soon!</p>
   <p style="color:#666;font-size:12px;">FitCall Team</p>
@@ -1097,6 +1107,127 @@ func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string,
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		fromAddr, toAddr, bookingConfirmationSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const (
+	sessionReminderClientSubject  = "Your FitCall Session Starts in 1 Hour"
+	sessionReminderTrainerSubject = "Upcoming FitCall Session in 1 Hour"
+)
+
+const sessionReminderClientTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Reminder</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi {{.ClientName}},</h2>
+  <p>This is a reminder that your FitCall session with Coach <strong>{{.TrainerName}}</strong> starts in <strong>1 hour</strong>.</p>
+  <ul>
+    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
+    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
+  </ul>
+  <p>Get ready and have a great session!</p>
+  — Team FitCall
+</body>
+</html>`
+
+const sessionReminderTrainerTemplate = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Session Reminder</title></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2 style="color:#1a1a2e;">Hi Coach {{.TrainerName}},</h2>
+  <p>You have a FitCall session with <strong>{{.ClientName}}</strong> starting in <strong>1 hour</strong>.</p>
+  <ul>
+    <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
+    {{ if .ZoomLink }}<li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>{{ end }}
+  </ul>
+  <p>Prepare your materials and be ready!</p>
+  — Team FitCall
+</body>
+</html>`
+
+func sessionReminderClientHTML(clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+		timezoneLabel = "UTC"
+	}
+	t, err := template.New("session-reminder-client").Parse(sessionReminderClientTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"ClientName":  clientName,
+		"TrainerName": trainerName,
+		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
+		"Timezone":    timezoneLabel,
+		"ZoomLink":    zoomLink,
+	})
+	return buf.String(), err
+}
+
+func sessionReminderTrainerHTML(trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) (string, error) {
+	timezoneLabel := timezone
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.UTC
+		timezoneLabel = "UTC"
+	}
+	t, err := template.New("session-reminder-trainer").Parse(sessionReminderTrainerTemplate)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = t.Execute(&buf, map[string]interface{}{
+		"TrainerName": trainerName,
+		"ClientName":  clientName,
+		"Time":        scheduledStart.In(loc).Format("3:04 PM"),
+		"Timezone":    timezoneLabel,
+		"ZoomLink":    zoomLink,
+	})
+	return buf.String(), err
+}
+
+func (m *SMTPMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderClientHTML(clientName, trainerName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build session reminder email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, sessionReminderClientSubject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+func (m *SMTPMailer) SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error {
+	html, err := sessionReminderTrainerHTML(trainerName, clientName, scheduledStart, timezone, zoomLink)
+	if err != nil {
+		return fmt.Errorf("smtp: build session reminder trainer email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, sessionReminderTrainerSubject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }

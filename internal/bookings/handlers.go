@@ -6,14 +6,18 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
-	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
+	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 )
 
 var (
@@ -27,7 +31,7 @@ type bookingSlotHandler struct {
 }
 
 type BookingSlotHandler interface {
-	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID)
+	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams)
 }
 
 func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *slog.Logger) *bookingSlotHandler {
@@ -36,22 +40,55 @@ func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *
 
 type bookingHandler struct {
 	service BookingService
-	// redis   redis.Client
-	log *slog.Logger
+	log     *slog.Logger
+	notif   *notification.NotificationService
+	// redis is optional — when set, a successful CreateBooking
+	// invalidates the trainer's cached slot list so the next
+	// /booking-slots/{trainerId} response reflects the new booking.
+	// Nil-safe; cache invalidation is best-effort.
+	redis *redis.Client
 }
 
 type BookingHandler interface {
 	HandleCreateBookingSession(c *gin.Context)
 }
 
-func NewBookingHandler(service BookingService, log *slog.Logger) *bookingHandler {
-	return &bookingHandler{service: service, log: log}
+func NewBookingHandler(service BookingService, log *slog.Logger, notif *notification.NotificationService, r *redis.Client) *bookingHandler {
+	return &bookingHandler{service: service, log: log, notif: notif, redis: r}
 }
 
 const bookingSlotsCacheTTL = 15 * time.Minute
 
-func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
+func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams) {
 	ctx := c.Request.Context()
+
+	// When the caller pins a specific date, skip the cache entirely and
+	// always hit the DB. The cache holds the unfiltered template list;
+	// caching per-date results would explode the keyspace, and bookings
+	// happen frequently enough that cached date-results would go stale
+	// faster than the 15-minute TTL anyway. Worst case is one extra DB
+	// hit per slot picker open.
+	if params.Date != nil {
+		targetDate := params.Date.Time
+		filtered, err := h.service.GetTrainersBookingSlotsForDate(ctx, trainerId, targetDate)
+		if err != nil {
+			h.log.Warn("HandleGetTrainersBookingSlots: filtered fetch failed", "trainer_id", trainerId, "date", targetDate, "err", err)
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
+				c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error"})
+			return
+		}
+		if filtered == nil {
+			filtered = []db.GetTrainersBookingSlotsRow{}
+		}
+		resp := map[string]interface{}{"data": filtered}
+		var data interface{} = resp
+		c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
+		return
+	}
+
 	cacheKey := "booking-slots:trainer:" + trainerId.String()
 
 	// Cache read — skip on Redis error, proceed to DB.
@@ -95,7 +132,13 @@ func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, train
 }
 
 func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
-	var request api.CreateBookingJSONBody
+	// Embed the generated body so existing fields bind unchanged, then
+	// extend with messenger_handle which lives in api.yaml but isn't
+	// in gen.go yet (codegen catch-up tracked separately).
+	var request struct {
+		api.CreateBookingJSONBody
+		MessengerHandle *string `json:"messenger_handle,omitempty"`
+	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.log.Warn("error binding request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request", api.CodeBadRequest))
@@ -128,13 +171,36 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		h.log.Warn("HandleCreateBookingSession: scheduled_start is in the past")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "bookingSlot", Message: "booking start time must be in the future"})
 	}
-	if !common.IsNotEmpty(string(request.SessionPlatform)) {
+	// session_platform validation: accept the values the bookings
+	// CHECK constraint allows after migration 000058. The generated
+	// `request.SessionPlatform.Valid()` enum doesn't know about
+	// `messenger` yet — same staleness reason as the embed above.
+	platformStr := string(request.SessionPlatform)
+	if !common.IsNotEmpty(platformStr) {
 		h.log.Warn("HandleCreateBookingSession: session_platform is required")
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
+	} else {
+		switch platformStr {
+		case "zoom", "google_meet", "messenger":
+			// ok
+		default:
+			h.log.Warn("HandleCreateBookingSession: invalid session_platform", "value", platformStr)
+			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, or messenger"})
+		}
 	}
-	if !request.SessionPlatform.Valid() {
-		h.log.Warn("HandleCreateBookingSession: invalid session_platform")
-		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform, ['google meet', 'zoom', 'whatsapp']"})
+	// messenger_handle is required when platform=messenger; otherwise
+	// optional + ignored. Free-form text up to 255 chars (cap matches
+	// the discovery handler's validation; Facebook handles vary wildly
+	// in format so we don't try to match a pattern).
+	var messengerHandle string
+	if request.MessengerHandle != nil {
+		messengerHandle = strings.TrimSpace(*request.MessengerHandle)
+	}
+	if platformStr == "messenger" && messengerHandle == "" {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle is required when session_platform is messenger"})
+	}
+	if len(messengerHandle) > 255 {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle must not exceed 255 characters"})
 	}
 	if len(fieldErrors) > 0 {
 		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
@@ -152,13 +218,18 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, api.NewError("invalid user id", api.CodeUnauthorized))
 		return
 	}
+	var messengerNS sql.NullString
+	if messengerHandle != "" {
+		messengerNS = sql.NullString{Valid: true, String: messengerHandle}
+	}
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
 		ClientID:        userID,
 		ScheduledStart:  sql.NullTime{Valid: true, Time: request.ScheduledStart},
 		ScheduledEnd:    sql.NullTime{Valid: true, Time: request.ScheduledEnd},
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
-		SessionPlatform: sql.NullString{Valid: true, String: string(request.SessionPlatform)},
+		SessionPlatform: sql.NullString{Valid: true, String: platformStr},
+		MessengerHandle: messengerNS,
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
@@ -183,11 +254,63 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
+	bookingConflict, err := h.service.CheckBookingConflictForClient(c.Request.Context(), db.CheckBookingConflictForClientParams{
+		TrainerID: data.TrainerID,
+		ClientID:  data.ClientID,
+		NewStart:  sql.NullTime{Valid: true, Time: data.ScheduledStart.Time},
+		NewEnd:    sql.NullTime{Valid: true, Time: data.ScheduledEnd.Time},
+	})
+	if err != nil {
+		h.log.Error("failed to check db for conflict", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
+		return
+	}
+	if bookingConflict > 0 {
+		h.log.Error("failed to create booking: booking with trainer within time slot exists", "err", err)
+		c.JSON(http.StatusConflict, api.NewError("booking with trainer within timeslot exists", api.CodeConflict))
+		return
+	}
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqerror.ExclusionViolation {
+			h.log.Warn("booking conflict caught by exclusion constraint", "trainerID", data.TrainerID, "err", err)
+			c.JSON(http.StatusConflict, api.NewError("this time slot conflicts with an existing booking", api.CodeConflict))
+			return
+
+		}
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return
+	}
+
+	// Invalidate the trainer's slot cache — the next slot lookup
+	// for this trainer must hit the DB so the just-booked window
+	// is excluded. Best-effort: a Redis error here doesn't fail the
+	// booking, but the user might briefly see the booked slot
+	// available until the 15-minute TTL on the stale entry expires.
+	//
+	// Key must be keyed on the TRAINER PROFILE id (trainers.id, the
+	// route param at /booking-slots/{trainerId}) — NOT trainer.ID
+	// from GetTrainerUserDetails which is actually the trainer's
+	// users.id. Using the wrong one silently misses the cache entry
+	// and stale availability sticks around until the TTL.
+	if h.redis != nil {
+		cacheKey := "booking-slots:trainer:" + request.TrainerId.String()
+		if err := h.redis.Delete(c.Request.Context(), cacheKey); err != nil {
+			h.log.Warn("HandleCreateBookingSession: failed to invalidate slot cache", "trainerID", request.TrainerId, "err", err)
+		}
+	}
+
+	// Notify trainer about new booking
+	if h.notif != nil {
+		if _, notifErr := h.notif.SendNotificationToUser(c.Request.Context(), trainer.ID,
+			"New Booking",
+			"You have a new session booking from "+userData.Name+".",
+			"booking-"+created.ID.String(),
+		); notifErr != nil {
+			h.log.Warn("booking notification to trainer failed", "trainerID", trainer.TrainerID, "err", notifErr)
+		}
 	}
 	var dataInterface interface{} = parseResponse(*created, userID)
 	c.JSON(200, dataInterface)

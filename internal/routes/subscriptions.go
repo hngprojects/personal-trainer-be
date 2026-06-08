@@ -106,8 +106,8 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 	// Validate platform and platform-specific proof fields
 	switch body.Platform {
 	case "apple":
-		if body.ReceiptData == nil || *body.ReceiptData == "" {
-			c.JSON(http.StatusBadRequest, api.NewError("receipt_data is required for Apple platform", api.CodeBadRequest))
+		if body.SignedTransaction == nil || *body.SignedTransaction == "" {
+			c.JSON(http.StatusBadRequest, api.NewError("signed_transaction is required for Apple platform", api.CodeBadRequest))
 			return
 		}
 	case "google":
@@ -171,10 +171,10 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 			IsTrialPeriod:         false,
 		}
 	} else if body.Platform == "apple" {
-		verified, verifyErr = iap.VerifyApple(ctx, *body.ReceiptData, s.cfg.AppleSharedSecret, body.ProductId)
+		verified, verifyErr = iap.VerifyApple(ctx, *body.SignedTransaction, s.cfg.AppleBundleID, body.ProductId, s.cfg.AppleIAPEnvironment)
 		if verifyErr != nil {
-			s.logger.Error("apple receipt verification failed", "err", verifyErr)
-			c.JSON(http.StatusBadRequest, api.NewError("apple receipt verification failed", api.CodeBadRequest))
+			s.logger.Error("apple jws verification failed", "err", verifyErr)
+			c.JSON(http.StatusBadRequest, api.NewError("apple transaction verification failed", api.CodeBadRequest))
 			return
 		}
 	} else {
@@ -226,6 +226,40 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create subscription", api.CodeServerError))
 		return
+	}
+
+	// Notify trainer about new subscription
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), sub.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"New Subscription",
+			"A client has subscribed to your training plan.",
+			"subscription-"+sub.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("subscription notification to trainer failed", "trainerID", sub.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("create subscription: could not resolve trainer user", "trainerID", sub.TrainerID, "err", tdErr)
+	}
+
+	// Notify the client themselves — they just paid, so we want an
+	// in-app confirmation that the subscription is active, distinct
+	// from the IAP receipt the platform shows.
+	if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), sub.ClientID,
+		"Subscription Active",
+		"Your subscription is now active.",
+		"subscription-client-"+sub.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("subscription notification to client failed", "clientID", sub.ClientID, "err", notifErr)
+	}
+
+	// Notify all admins — revenue event the staff dashboard tracks.
+	if _, notifErr := s.notificationService.SendNotificationToAdmins(c.Request.Context(),
+		"New Subscription",
+		"A new subscription was created.",
+		"subscription-admin-"+sub.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("admin notification (subscription created) failed", "subID", sub.ID, "err", notifErr)
 	}
 
 	c.JSON(http.StatusCreated, api.NewSuccess("SUBSCRIPTION_CREATED", api.CodeCreated, subscriptionToMap(sub)))
@@ -353,6 +387,40 @@ func (s *routerImpl) CancelMySubscription(c *gin.Context) {
 		s.logger.Error("cancel subscription: db error", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to cancel subscription", api.CodeServerError))
 		return
+	}
+
+	// Notify trainer about subscription cancellation
+	trainerDetails, tdErr := s.trainers.q.GetTrainerUserDetails(c.Request.Context(), cancelled.TrainerID)
+	if tdErr == nil {
+		if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), trainerDetails.ID,
+			"Subscription Cancelled",
+			"A client has cancelled their subscription.",
+			"cancel-subscription-"+cancelled.ID.String(),
+		); notifErr != nil {
+			s.logger.Warn("cancel subscription notification to trainer failed", "trainerID", cancelled.TrainerID, "err", notifErr)
+		}
+	} else {
+		s.logger.Warn("cancel subscription: could not resolve trainer user", "trainerID", cancelled.TrainerID, "err", tdErr)
+	}
+
+	// Notify the client themselves so they have an in-app record of
+	// the cancellation distinct from the platform's IAP cancellation
+	// confirmation.
+	if _, notifErr := s.notificationService.SendNotificationToUser(c.Request.Context(), cancelled.ClientID,
+		"Subscription Cancelled",
+		"Your subscription has been cancelled.",
+		"cancel-subscription-client-"+cancelled.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("cancel subscription notification to client failed", "clientID", cancelled.ClientID, "err", notifErr)
+	}
+
+	// Notify all admins — churn event the staff dashboard tracks.
+	if _, notifErr := s.notificationService.SendNotificationToAdmins(c.Request.Context(),
+		"Subscription Cancelled",
+		"A subscription was cancelled.",
+		"cancel-subscription-admin-"+cancelled.ID.String(),
+	); notifErr != nil {
+		s.logger.Warn("admin notification (subscription cancelled) failed", "subID", cancelled.ID, "err", notifErr)
 	}
 
 	c.JSON(http.StatusOK, api.NewSuccess("SUBSCRIPTION_CANCELLED", api.CodeOK, subscriptionToMap(cancelled)))

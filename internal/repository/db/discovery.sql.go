@@ -51,10 +51,12 @@ func (q *Queries) CheckSlotConflictExcluding(ctx context.Context, arg CheckSlotC
 
 const countDiscoveryBookings = `-- name: CountDiscoveryBookings :one
 SELECT COUNT(*) FROM discovery_bookings
+WHERE ($1::text = '' OR status = $1::text)
 `
 
-func (q *Queries) CountDiscoveryBookings(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countDiscoveryBookings)
+// Pass empty string for status to count all statuses.
+func (q *Queries) CountDiscoveryBookings(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDiscoveryBookings, status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -113,6 +115,7 @@ INSERT INTO discovery_bookings (
     email,
     contact_mode,
     phone_number,
+    messenger_handle,
     selected_datetime,
     client_timezone,
     zoom_meeting_link,
@@ -128,9 +131,10 @@ INSERT INTO discovery_bookings (
     $7,
     $8,
     $9,
+    $10,
     'confirmed'
 )
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle
 `
 
 type CreateDiscoveryBookingParams struct {
@@ -139,12 +143,19 @@ type CreateDiscoveryBookingParams struct {
 	Email            string
 	ContactMode      string
 	PhoneNumber      sql.NullString
+	MessengerHandle  sql.NullString
 	SelectedDatetime time.Time
 	ClientTimezone   string
 	ZoomMeetingLink  sql.NullString
 	ZoomMeetingID    sql.NullString
 }
 
+// messenger_handle is nullable — populated only when contact_mode =
+// 'messenger'. zoom_meeting_link / zoom_meeting_id keep their column
+// names for backward compat with existing rows but now also hold
+// google_meet URLs when contact_mode = 'google_meet'. Renaming those
+// columns to generic `meeting_link`/`meeting_id` is a planned cleanup
+// migration that we deliberately deferred to keep this PR small.
 func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscoveryBookingParams) (DiscoveryBooking, error) {
 	row := q.db.QueryRowContext(ctx, createDiscoveryBooking,
 		arg.UserID,
@@ -152,6 +163,7 @@ func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscover
 		arg.Email,
 		arg.ContactMode,
 		arg.PhoneNumber,
+		arg.MessengerHandle,
 		arg.SelectedDatetime,
 		arg.ClientTimezone,
 		arg.ZoomMeetingLink,
@@ -174,6 +186,7 @@ func (q *Queries) CreateDiscoveryBooking(ctx context.Context, arg CreateDiscover
 		&i.UserID,
 		&i.RescheduleCount,
 		&i.TrainerID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -266,6 +279,86 @@ func (q *Queries) GetActiveBookingSlots(ctx context.Context) ([]BookingSlot, err
 	return items, nil
 }
 
+const getActiveBookingSlotsForDate = `-- name: GetActiveBookingSlotsForDate :many
+SELECT
+    bs.id, bs.trainer_id, bs.day_of_week, bs.start_time, bs.end_time,
+    bs.timezone, bs.is_active, bs.created_at, bs.updated_at
+FROM booking_slots bs
+WHERE bs.is_active = true
+  AND bs.day_of_week = EXTRACT(DOW FROM $1::DATE)::INT
+  AND NOT EXISTS (
+      SELECT 1 FROM discovery_bookings db
+      WHERE db.status NOT IN ('cancelled', 'completed')
+        AND db.trainer_id IS NOT DISTINCT FROM bs.trainer_id
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::DATE = $1::DATE
+        AND (db.selected_datetime                       AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME < bs.end_time
+        AND ((db.selected_datetime + INTERVAL '30 minutes') AT TIME ZONE COALESCE(NULLIF(bs.timezone, ''), 'UTC'))::TIME > bs.start_time
+  )
+ORDER BY bs.day_of_week ASC, bs.start_time ASC
+`
+
+type GetActiveBookingSlotsForDateRow struct {
+	ID        uuid.UUID
+	TrainerID uuid.NullUUID
+	DayOfWeek int16
+	StartTime time.Time
+	EndTime   time.Time
+	Timezone  string
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Same as GetActiveBookingSlots filtered to a specific date and excluding
+// discovery-booking slots already taken on that date. Discovery calls are
+// always 30 minutes, so the conflict window is fixed.
+//
+// Trainer correlation: discovery_bookings.trainer_id can be NULL (slot
+// not assigned yet) or set (assigned to a specific trainer). booking_slots
+// has the same nullable shape: global slots have trainer_id IS NULL,
+// per-trainer slots have it set. A booking conflicts with a slot only
+// when their trainer_ids match — including both being NULL, which is
+// what `IS NOT DISTINCT FROM` expresses. Without this guard, one
+// trainer's discovery booking would falsely hide another trainer's
+// (or a global) discovery slot at the same time.
+//
+// Timezone normalisation: bs.start_time / bs.end_time are local TIME in
+// bs.timezone — convert the booking's timestamptz to that same zone
+// before comparing, NOT to the booking's own client_timezone (those can
+// differ and lead to off-by-hours misses).
+func (q *Queries) GetActiveBookingSlotsForDate(ctx context.Context, targetDate time.Time) ([]GetActiveBookingSlotsForDateRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveBookingSlotsForDate, targetDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveBookingSlotsForDateRow
+	for rows.Next() {
+		var i GetActiveBookingSlotsForDateRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TrainerID,
+			&i.DayOfWeek,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Timezone,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBookingSlotByID = `-- name: GetBookingSlotByID :one
 SELECT id, day_of_week, start_time, end_time, timezone, is_active, created_at, updated_at, trainer_id FROM booking_slots
 WHERE id = $1
@@ -290,7 +383,7 @@ func (q *Queries) GetBookingSlotByID(ctx context.Context, id uuid.UUID) (Booking
 }
 
 const getDiscoveryBookingByID = `-- name: GetDiscoveryBookingByID :one
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
 WHERE id = $1
 LIMIT 1
 `
@@ -314,12 +407,13 @@ func (q *Queries) GetDiscoveryBookingByID(ctx context.Context, id uuid.UUID) (Di
 		&i.UserID,
 		&i.RescheduleCount,
 		&i.TrainerID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
 
 const getDiscoveryBookingByUserID = `-- name: GetDiscoveryBookingByUserID :one
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
 WHERE user_id = $1
   AND status NOT IN ('cancelled')
 LIMIT 1
@@ -344,12 +438,13 @@ func (q *Queries) GetDiscoveryBookingByUserID(ctx context.Context, userID uuid.N
 		&i.UserID,
 		&i.RescheduleCount,
 		&i.TrainerID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
 
 const getUpcomingDiscoveryBookings = `-- name: GetUpcomingDiscoveryBookings :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
 WHERE user_id = $1
   AND selected_datetime > NOW() - INTERVAL '7 days'
   AND status NOT IN ('cancelled', 'completed')
@@ -384,6 +479,7 @@ func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.
 			&i.UserID,
 			&i.RescheduleCount,
 			&i.TrainerID,
+			&i.MessengerHandle,
 		); err != nil {
 			return nil, err
 		}
@@ -399,7 +495,7 @@ func (q *Queries) GetUpcomingDiscoveryBookings(ctx context.Context, userID uuid.
 }
 
 const listDiscoveryBookings = `-- name: ListDiscoveryBookings :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
 ORDER BY selected_datetime ASC
 `
 
@@ -428,6 +524,7 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 			&i.UserID,
 			&i.RescheduleCount,
 			&i.TrainerID,
+			&i.MessengerHandle,
 		); err != nil {
 			return nil, err
 		}
@@ -443,13 +540,15 @@ func (q *Queries) ListDiscoveryBookings(ctx context.Context) ([]DiscoveryBooking
 }
 
 const listDiscoveryBookingsPaginated = `-- name: ListDiscoveryBookingsPaginated :many
-SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id FROM discovery_bookings
+SELECT id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle FROM discovery_bookings
+WHERE ($1::text = '' OR status = $1::text)
 ORDER BY selected_datetime DESC, id DESC
-LIMIT $2
-OFFSET $1
+LIMIT $3
+OFFSET $2
 `
 
 type ListDiscoveryBookingsPaginatedParams struct {
+	Status     string
 	PageOffset int32
 	PageLimit  int32
 }
@@ -457,8 +556,9 @@ type ListDiscoveryBookingsPaginatedParams struct {
 // Admin paginated view of every discovery call ever booked. Newest first so
 // the most-recent activity is the top of page 1; supports
 // LIMIT/OFFSET pagination matching the admin sessions endpoint.
+// Pass empty string for status to return all statuses.
 func (q *Queries) ListDiscoveryBookingsPaginated(ctx context.Context, arg ListDiscoveryBookingsPaginatedParams) ([]DiscoveryBooking, error) {
-	rows, err := q.db.QueryContext(ctx, listDiscoveryBookingsPaginated, arg.PageOffset, arg.PageLimit)
+	rows, err := q.db.QueryContext(ctx, listDiscoveryBookingsPaginated, arg.Status, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -482,6 +582,7 @@ func (q *Queries) ListDiscoveryBookingsPaginated(ctx context.Context, arg ListDi
 			&i.UserID,
 			&i.RescheduleCount,
 			&i.TrainerID,
+			&i.MessengerHandle,
 		); err != nil {
 			return nil, err
 		}
@@ -506,7 +607,7 @@ SET
     reschedule_count  = reschedule_count + 1,
     updated_at        = NOW()
 WHERE id = $5
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle
 `
 
 type RescheduleDiscoveryBookingParams struct {
@@ -542,6 +643,7 @@ func (q *Queries) RescheduleDiscoveryBooking(ctx context.Context, arg Reschedule
 		&i.UserID,
 		&i.RescheduleCount,
 		&i.TrainerID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -599,7 +701,7 @@ SET
     zoom_meeting_id   = $2,
     updated_at        = NOW()
 WHERE id = $3
-RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id
+RETURNING id, name, email, contact_mode, phone_number, selected_datetime, client_timezone, zoom_meeting_link, zoom_meeting_id, status, created_at, updated_at, user_id, reschedule_count, trainer_id, messenger_handle
 `
 
 type UpdateDiscoveryBookingZoomParams struct {
@@ -627,6 +729,7 @@ func (q *Queries) UpdateDiscoveryBookingZoom(ctx context.Context, arg UpdateDisc
 		&i.UserID,
 		&i.RescheduleCount,
 		&i.TrainerID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }

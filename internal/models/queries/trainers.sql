@@ -38,7 +38,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: GetTrainerByID :one
 SELECT
@@ -54,7 +55,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE id = $1
 LIMIT 1;
@@ -116,7 +118,13 @@ SELECT
   u.phone_number AS trainer_phone_number
 FROM trainers t
 JOIN users u ON u.id = t.user_id
-WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[])
+WHERE
+  (sqlc.arg(category)::text = '' 
+    OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[]
+  )
+  AND
+  (sqlc.arg(onboarding_status)::text = '' 
+    OR t.onboarding_status = sqlc.arg(onboarding_status)::text)
 ORDER BY t.created_at DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
@@ -128,6 +136,15 @@ OFFSET sqlc.arg(page_offset);
 -- the admin stats dashboard — here we count what the list returns.
 SELECT COUNT(*) FROM trainers t
 WHERE (sqlc.arg(category)::text = '' OR t.specializations @> ARRAY[sqlc.arg(category)::text]::text[]);
+
+-- name: ToggleTrainerAvailability :one
+-- Sets the trainer's global is_available flag (the "open/closed" sign).
+-- Does not touch booking_slots — slots are preserved so toggling back on
+-- restores the schedule instantly.
+UPDATE trainers
+SET is_available = sqlc.arg(is_available), updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING id, is_available;
 
 -- name: UpdateTrainer :one
 -- Partial update. Pass NULL to leave a column unchanged. specializations and
@@ -157,7 +174,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: DeleteTrainer :one
 DELETE FROM trainers
@@ -175,7 +193,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: ApproveTrainer :one
 UPDATE trainers
@@ -196,7 +215,8 @@ RETURNING
   created_at,
   updated_at,
   specializations,
-  training_styles;
+  training_styles,
+  is_available;
 
 -- name: GetTrainerByUserID :one
 SELECT
@@ -212,7 +232,8 @@ SELECT
   created_at,
   updated_at,
   specializations,
-  training_styles
+  training_styles,
+  is_available
 FROM trainers
 WHERE user_id = $1
 LIMIT 1;
@@ -278,3 +299,19 @@ GROUP BY
     u.gender,
     u.phone_number
 ORDER BY booking_count DESC;
+-- name: DeactivateTrainer :one
+-- Soft-delete: marks the trainer's user account inactive.
+-- Returns the user_id so the caller can confirm who was deactivated.
+-- Returns no rows if the trainer_id doesn't exist or the account is
+-- already inactive, letting the handler distinguish 404 vs 409.
+-- Disambiguate column references: sqlc's parser otherwise can't tell
+-- which `id` the inner subquery means (users.id or trainers.id).
+-- Postgres handles it fine at runtime via scoping rules; sqlc needs
+-- explicit aliases on both sides.
+UPDATE users u SET is_active = false, updated_at = NOW()
+WHERE u.id = (SELECT t.user_id FROM trainers t WHERE t.id = sqlc.arg(trainer_id))
+  AND u.role = 'trainer'
+  AND u.is_active = true
+RETURNING u.id;
+
+

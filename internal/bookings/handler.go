@@ -15,6 +15,7 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
+	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	"github.com/hngprojects/personal-trainer-be/pkg/meeting"
@@ -41,6 +42,7 @@ type Handler struct {
 	// nil is fine on local dev, but in production it's the safety net
 	// for trainers who flipped their hosting state mid-booking.
 	orgFallback meeting.Provider
+	notif       *notification.NotificationService
 }
 
 // deleteWithOrgFallback attempts to delete a Zoom meeting via the
@@ -65,7 +67,7 @@ func (h *Handler) deleteWithOrgFallback(ctx context.Context, prov meeting.Provid
 		"meeting_id", meetingID, "err", delErr)
 }
 
-func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string, orgFallback meeting.Provider) *Handler {
+func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.Mailer, log *slog.Logger, joinMode, universalLinkDomain string, orgFallback meeting.Provider, notif *notification.NotificationService) *Handler {
 	return &Handler{
 		repo:        repo,
 		meetings:    meetingSelector,
@@ -73,6 +75,7 @@ func NewHandler(repo Repository, meetingSelector meeting.Selector, mailer email.
 		log:         log,
 		joinLinks:   JoinLinkBuilder{JoinMode: joinMode, UniversalLinkDomain: universalLinkDomain},
 		orgFallback: orgFallback,
+		notif:       notif,
 	}
 }
 
@@ -220,7 +223,16 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	} else {
 		h.log.Warn("failed to resolve trainer user_id for meeting provider — falling back to org", "trainer_id", booking.TrainerID, "err", tErr)
 	}
-	meetingProv := h.meetings.For(ctx, trainerUserID)
+	// Reschedule reuses whatever platform the original booking was on
+	// (a paid booking can't change platform mid-life). Default to zoom
+	// when the column is somehow blank — the existing column has a
+	// `DEFAULT 'zoom'` at the schema level so this is just defence in
+	// depth.
+	platform := booking.SessionPlatform.String
+	if platform == "" {
+		platform = meeting.PlatformZoom
+	}
+	meetingProv := h.meetings.For(ctx, trainerUserID, platform)
 
 	newZoomLink := booking.ZoomMeetingLink
 	newZoomMeetingID := booking.ZoomMeetingID
@@ -316,6 +328,16 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 				trainerUser.Email, clientName, oldStart, newStart, req.Timezone, finalJoinLink,
 			); err != nil {
 				h.log.Error("failed to send reschedule notification email to trainer", "err", err)
+			}
+			// Notify trainer about reschedule
+			if h.notif != nil {
+				if _, notifErr := h.notif.SendNotificationToUser(ctx, trainerUser.ID,
+					"Session Rescheduled",
+					clientName+" has rescheduled their session.",
+					"reschedule-"+bookingID.String(),
+				); notifErr != nil {
+					h.log.Warn("reschedule notification to trainer failed", "trainerID", booking.TrainerID, "err", notifErr)
+				}
 			}
 		}
 	}

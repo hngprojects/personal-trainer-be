@@ -1,15 +1,12 @@
 // Command seed populates a local development database with a baseline
-// admin account and a handful of client users. It is intentionally NOT
-// part of any deploy artifact and refuses to run anywhere except the
-// development environment — see the env check below.
+// admin account, a handful of client users, and trainer accounts covering
+// every onboarding status and every specialization.
 //
-// Trainer accounts are deliberately NOT seeded by this script. Trainers
-// are provisioned end-to-end by an admin via POST /trainers (which
-// generates a password, sends the credentials email, and writes the
-// specializations / training styles / benefits with full schema-level
-// validation). Duplicating that flow here would mean keeping the seed
-// script in lockstep with every future change to the trainer schema —
-// it's safer to have one source of truth.
+// Unlike production, where trainers are provisioned end-to-end via
+// POST /trainers (password generation + credentials email), the seed
+// script creates them directly so you have a ready-to-use fixture set
+// without standing up a mail server. All seeded trainer passwords are
+// set to the same admin password you enter at the prompt.
 //
 // Usage (local dev only):
 //
@@ -44,14 +41,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Strict: development only. Staging and production must never run this
-	// script — any seeded data on those environments has to go through the
-	// real admin endpoints so it's auditable. Without this guard, a
-	// misconfigured systemd unit (or a copy-pasted scp from a dev box) can
-	// leave the seed binary in a restart loop trying to insert fixtures
-	// against the wrong database.
-	if cfg.Env != "development" {
-		slog.Error("seed script can only run in the development environment",
+	if cfg.Env != "development" && cfg.Env != "staging" {
+		slog.Error("seed script cannot run in production",
 			"got_env", cfg.Env,
 			"hint", "set APP_ENV=development if you really mean to run this against your local DB",
 		)
@@ -99,57 +90,212 @@ func main() {
 
 	queries := dbpkg.New(database)
 
-	seedData := struct {
-		adminEmail string
-		adminName  string
-		users      []seedUser
-	}{
-		adminEmail: "admin@trainer.com",
-		adminName:  "Admin User",
-		users: []seedUser{
-			{email: "client1@example.com", name: "John Doe", provider: "local"},
-			{email: "client2@example.com", name: "Jane Smith", provider: "local"},
-			{email: "client3@example.com", name: "Bob Johnson", provider: "google"},
-			{email: "client4@example.com", name: "Alice Brown", provider: "google"},
-			{email: "client5@example.com", name: "Charlie Wilson", provider: "local"},
+	clients := []seedUser{
+		{email: "client1@example.com", name: "John Doe", provider: "local"},
+		{email: "client2@example.com", name: "Jane Smith", provider: "local"},
+		{email: "client3@example.com", name: "Bob Johnson", provider: "google"},
+		{email: "client4@example.com", name: "Alice Brown", provider: "google"},
+		{email: "client5@example.com", name: "Charlie Wilson", provider: "local"},
+	}
+
+	trainers := []seedTrainer{
+		{
+			specializations:  []string{"yoga"},
+			trainingStyles:   []string{"hatha", "vinyasa"},
+			bio:              "Certified yoga instructor with a focus on mindful movement and breath control.",
+			yearsOfExp:       3,
+			gender:           "female",
+			phoneNumber:      "+2348011110001",
+			onboardingStatus: "pending",
+		},
+		{
+			specializations:  []string{"cardio"},
+			trainingStyles:   []string{"HIIT", "circuit training"},
+			bio:              "High-energy cardio coach passionate about helping clients beat personal records.",
+			yearsOfExp:       5,
+			gender:           "male",
+			phoneNumber:      "+2348011110002",
+			onboardingStatus: "pending",
+		},
+		{
+			specializations:  []string{"strength"},
+			trainingStyles:   []string{"powerlifting", "functional strength"},
+			bio:              "Strength coach specializing in progressive overload and injury-free lifting.",
+			yearsOfExp:       4,
+			gender:           "female",
+			phoneNumber:      "+2348011110003",
+			onboardingStatus: "pending",
+		},
+
+		{
+			specializations:  []string{"speed"},
+			trainingStyles:   []string{"sprint drills", "plyometrics"},
+			bio:              "Former sprinter turned coach. Helps athletes shave seconds off their splits.",
+			yearsOfExp:       7,
+			gender:           "male",
+			phoneNumber:      "+2348011110004",
+			onboardingStatus: "approved",
+		},
+		{
+			specializations:  []string{"yoga", "strength"},
+			trainingStyles:   []string{"power yoga", "body-weight strength"},
+			bio:              "Blends yoga mobility work with functional strength training for balanced athletes.",
+			yearsOfExp:       6,
+			gender:           "female",
+			phoneNumber:      "+2348011110005",
+			onboardingStatus: "approved",
+		},
+		{
+			specializations:  []string{"cardio", "speed"},
+			trainingStyles:   []string{"interval running", "agility ladders"},
+			bio:              "Endurance and speed specialist. Coaches everyone from 5K beginners to competitive runners.",
+			yearsOfExp:       9,
+			gender:           "male",
+			phoneNumber:      "+2348011110006",
+			onboardingStatus: "approved",
+		},
+
+		{
+			specializations:  []string{"strength"},
+			trainingStyles:   []string{"bodybuilding"},
+			bio:              "Bodybuilding enthusiast looking to transition into coaching.",
+			yearsOfExp:       1,
+			gender:           "male",
+			phoneNumber:      "+2348011110007",
+			onboardingStatus: "rejected",
+		},
+		{
+			specializations:  []string{"cardio"},
+			trainingStyles:   []string{"aerobics"},
+			bio:              "Group aerobics instructor applying for one-on-one coaching certification.",
+			yearsOfExp:       2,
+			gender:           "female",
+			phoneNumber:      "+2348011110008",
+			onboardingStatus: "rejected",
+		},
+		{
+			specializations:  []string{"yoga"},
+			trainingStyles:   []string{"restorative yoga"},
+			bio:              "Yoga practitioner with weekend certification seeking full trainer status.",
+			yearsOfExp:       1,
+			gender:           "male",
+			phoneNumber:      "+2348011110009",
+			onboardingStatus: "rejected",
+		},
+
+		{
+			specializations:  []string{"speed"},
+			trainingStyles:   []string{"track and field", "speed endurance"},
+			bio:              "Track athlete and coach — account under review.",
+			yearsOfExp:       5,
+			gender:           "female",
+			phoneNumber:      "+2348011110010",
+			onboardingStatus: "suspended",
+		},
+		{
+			specializations:  []string{"strength", "cardio"},
+			trainingStyles:   []string{"CrossFit", "metabolic conditioning"},
+			bio:              "CrossFit coach and competitive lifter — account under review.",
+			yearsOfExp:       8,
+			gender:           "male",
+			phoneNumber:      "+2348011110011",
+			onboardingStatus: "suspended",
+		},
+		{
+			specializations:  []string{"yoga", "cardio"},
+			trainingStyles:   []string{"yoga flow", "dance cardio"},
+			bio:              "Movement-based fitness coach — account under review.",
+			yearsOfExp:       4,
+			gender:           "female",
+			phoneNumber:      "+2348011110012",
+			onboardingStatus: "suspended",
 		},
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Admin
 	adminUser, err := queries.UpsertAdminUser(ctx, dbpkg.UpsertAdminUserParams{
-		Email:    seedData.adminEmail,
-		Name:     seedData.adminName,
+		Email:    "admin@trainer.com",
+		Name:     "Admin User",
 		Password: sql.NullString{String: hashedPassword, Valid: true},
 	})
 	if err != nil {
 		slog.Error("failed to create admin user", "error", err)
 		os.Exit(1)
 	}
+	fmt.Printf("✓ Admin:   %s (%s)\n", adminUser.Name, adminUser.Email)
 
-	fmt.Printf("✓ Created admin user: %s (%s)\n", adminUser.Name, adminUser.Email)
-
-	for _, u := range seedData.users {
+	// Clients
+	fmt.Println()
+	for _, u := range clients {
 		user, err := queries.CreateUser(ctx, dbpkg.CreateUserParams{
 			Email:        u.email,
 			Name:         u.name,
 			AuthProvider: u.provider,
 		})
 		if err != nil {
-			slog.Error("failed to create user", "email", u.email, "error", err)
+			slog.Error("failed to create client", "email", u.email, "error", err)
+			continue
+		}
+		fmt.Printf("✓ Client:  %s (%s)\n", user.Name, user.Email)
+	}
+
+	fmt.Println()
+	for i, t := range trainers {
+		index := i + 1
+		email := fmt.Sprintf("trainer-%d@example.com", index)
+		name := fmt.Sprintf("trainer-%d", index)
+
+		trainerUser, err := queries.UpsertTrainerUser(ctx, dbpkg.UpsertTrainerUserParams{
+			Email:       email,
+			Name:        name,
+			Password:    sql.NullString{String: hashedPassword, Valid: true},
+			Gender:      t.gender,
+			PhoneNumber: t.phoneNumber,
+		})
+		if err != nil {
+			slog.Error("failed to upsert trainer user", "email", email, "error", err)
 			continue
 		}
 
-		fmt.Printf("✓ Created user: %s (%s)\n", user.Name, user.Email)
+		trainer, err := queries.CreateTrainer(ctx, dbpkg.CreateTrainerParams{
+			UserID:            trainerUser.ID,
+			Specializations:   t.specializations,
+			TrainingStyles:    t.trainingStyles,
+			Bio:               sql.NullString{String: t.bio, Valid: t.bio != ""},
+			YearsOfExperience: sql.NullInt32{Int32: int32(t.yearsOfExp), Valid: true},
+			DisplayPicture:    sql.NullString{},
+			OnboardingStatus:  t.onboardingStatus,
+		})
+		if err != nil {
+			slog.Error("failed to create trainer profile", "email", email, "error", err)
+			continue
+		}
+
+		fmt.Printf("✓ Trainer: %-12s (%-9s)  specs: %s\n",
+			trainerUser.Name,
+			trainer.OnboardingStatus,
+			strings.Join(trainer.Specializations, ", "),
+		)
 	}
 
 	fmt.Println("\n✓ Database seeding completed successfully!")
-	fmt.Println("  Trainer accounts are NOT seeded here — provision them via POST /trainers as an admin.")
 }
 
 type seedUser struct {
 	email    string
 	name     string
 	provider string
+}
+
+type seedTrainer struct {
+	specializations  []string
+	trainingStyles   []string
+	bio              string
+	yearsOfExp       int
+	gender           string
+	phoneNumber      string
+	onboardingStatus string
 }

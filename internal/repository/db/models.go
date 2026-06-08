@@ -19,6 +19,17 @@ type AccountSetupToken struct {
 	CreatedAt  time.Time
 }
 
+type AdminSetting struct {
+	ID                        uuid.UUID
+	SingletonLock             string
+	DefaultSessionDurationMin int32
+	MaxTrainersDisplayed      int32
+	RequireVideoBeforeListing bool
+	AutoAssignTrainer         bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
 type Booking struct {
 	ID                 uuid.UUID
 	TrainerID          uuid.UUID
@@ -35,6 +46,7 @@ type Booking struct {
 	ZoomMeetingLink    sql.NullString
 	ZoomMeetingID      sql.NullString
 	RescheduleCount    int32
+	MessengerHandle    sql.NullString
 }
 
 type BookingRescheduleHistory struct {
@@ -72,6 +84,14 @@ type BookingSlot struct {
 	TrainerID uuid.NullUUID
 }
 
+type Category struct {
+	ID        uuid.UUID
+	Name      string
+	Slug      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type ContactMessage struct {
 	ID        uuid.UUID
 	Email     string
@@ -97,6 +117,7 @@ type DiscoveryBooking struct {
 	UserID           uuid.NullUUID
 	RescheduleCount  int32
 	TrainerID        uuid.NullUUID
+	MessengerHandle  sql.NullString
 }
 
 type FailedAvatarUpload struct {
@@ -210,6 +231,18 @@ type Subscription struct {
 	GooglePurchaseToken        sql.NullString
 }
 
+type SubscriptionPlan struct {
+	ID            uuid.UUID
+	PlanType      string
+	DisplayName   string
+	SessionsTotal int32
+	Amount        int64
+	Currency      string
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Trainer struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
@@ -224,6 +257,7 @@ type Trainer struct {
 	UpdatedAt         time.Time
 	Specializations   []string
 	TrainingStyles    []string
+	IsAvailable       bool
 }
 
 type TrainerAvailability struct {
@@ -269,6 +303,7 @@ type User struct {
 	FitnessLevel sql.NullString
 	AvatarUrl    sql.NullString
 	PhoneNumber  sql.NullString
+	AppleUserID  sql.NullString
 }
 
 type UserDevice struct {

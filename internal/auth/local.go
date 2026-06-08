@@ -249,16 +249,39 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 }
 
 // SignIn handles POST /auth/login.
-// Accepts email only and returns access + refresh tokens immediately.
+//
+// Verifies the bcrypt password hash on the user row. All credential
+// failures — wrong password, unknown email, OAuth-only account with
+// no password set, inactive user — collapse to the same 401 with the
+// generic "invalid email or password" message. Distinct messages
+// would let an attacker enumerate valid email addresses by diffing
+// responses.
+//
+// History note: PR #239 deliberately deleted the bcrypt check and
+// minted tokens after just the email lookup. That shipped an auth
+// bypass affecting every account on the platform — anyone who knew
+// a registered email could sign in as that user. This handler
+// restores the check.
 func (h *LocalHandler) SignIn(c *gin.Context) {
-	var req api.HandleLocalAuthJSONRequestBody
+	// Locally-defined request struct: api.HandleLocalAuthJSONRequestBody
+	// is generated from api.yaml, but the generated version in this tree
+	// is out-of-sync with the current spec (codegen hasn't been re-run
+	// since PR #286 added /admin/sessions/{id}/cancel — running it now
+	// surfaces unrelated breakage we shouldn't fix in this PR). Binding
+	// a small local struct lets the spec stay correct AND the runtime
+	// stay correct without rippling that issue. Drop this once codegen
+	// is back in sync with api.yaml.
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.log.Warn("sign-in: invalid request body", "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError("invalid request body", api.CodeBadRequest))
 		return
 	}
 
-	emailAddr := strings.ToLower(strings.TrimSpace(string(req.Email)))
+	emailAddr := strings.ToLower(strings.TrimSpace(req.Email))
 
 	if len(emailAddr) > 255 {
 		h.log.Warn("sign-in: email exceeds max length", "email_domain", emailDomain(emailAddr))
@@ -274,12 +297,23 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		}))
 		return
 	}
+	if req.Password == "" {
+		// Empty password is a client mistake, not a credential
+		// failure — return 400 so the FE can distinguish "you forgot
+		// to fill in the field" from "your password is wrong" and
+		// render a useful message.
+		h.log.Warn("sign-in: empty password", "email_domain", emailDomain(emailAddr))
+		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
+			{Field: "password", Message: "password is required"},
+		}))
+		return
+	}
 
 	user, err := h.users.FindByEmail(c.Request.Context(), emailAddr)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.log.Warn("sign-in: user not found", "email_domain", emailDomain(emailAddr))
-			c.JSON(http.StatusUnauthorized, api.NewError("no account found with this email", api.CodeUnauthorized))
+			c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 			return
 		}
 		h.log.Error("sign-in: failed to find user", "email_domain", emailDomain(emailAddr), "err", err)
@@ -287,9 +321,27 @@ func (h *LocalHandler) SignIn(c *gin.Context) {
 		return
 	}
 
-	if !user.IsActive {
-		h.log.Warn("sign-in: inactive user", "email_domain", emailDomain(emailAddr))
-		c.JSON(http.StatusUnauthorized, api.NewError("account is inactive", api.CodeUnauthorized))
+	// Inactive (deactivated) users are allowed to log in — they receive a
+	// valid token but are blocked by DeactivatedMiddleware on every
+	// protected route, showing a "your account has been deactivated" screen.
+	// This lets them reach POST /users/me/reactivate to restore access.
+
+	// Reject before bcrypt for accounts that have no password (e.g.
+	// Google OAuth-only signups). user.Password is a sql.NullString;
+	// empty + !Valid mean "never set" rather than "bcrypt'd empty
+	// string". Same generic 401 — no enumeration.
+	if !user.Password.Valid || user.Password.String == "" {
+		h.log.Warn("sign-in: no password set for user", "email_domain", emailDomain(emailAddr), "user_id", user.ID)
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
+		return
+	}
+
+	if err := CheckPassword(user.Password.String, req.Password); err != nil {
+		// CheckPassword returns ErrPasswordTooLong for >72-byte inputs
+		// AND bcrypt.ErrMismatchedHashAndPassword for wrong passwords.
+		// Either way the credential is invalid — collapse to one 401.
+		h.log.Warn("sign-in: password check failed", "email_domain", emailDomain(emailAddr), "user_id", user.ID, "err", err)
+		c.JSON(http.StatusUnauthorized, api.NewError("invalid email or password", api.CodeUnauthorized))
 		return
 	}
 

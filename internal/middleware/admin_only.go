@@ -22,7 +22,8 @@ import (
 // founders. Mutating /admin routes (AdminAdd, ApproveTrainer, etc.) stay
 // super_admin-only because they grant or remove privileges.
 var adminReadablePaths = map[string]bool{
-	"/api/v1/admin/sessions":            true,
+	"/api/v1/admin/sessions":             true,
+	"/api/v1/admin/sessions/active":      true,
 	"/api/v1/admin/discovery-bookings":  true,
 	"/api/v1/admin/activities":          true,
 	"/api/v1/admin/user/trainer/count":  true,
@@ -30,6 +31,12 @@ var adminReadablePaths = map[string]bool{
 	"/api/v1/admin/revenue":             true,
 	"/api/v1/admin/clients":             true,
 	"/api/v1/admin/top-trainers":        true,
+	// Read-only settings dashboard; admins (not just super_admin) need
+	// to see current values so customer-care can answer "why is the
+	// default session 60 min" without paging the founders. Mutating
+	// settings (PUT /admin/settings, POST/DELETE /admin/categories)
+	// is NOT in the allowlist — those still require super_admin.
+	"/api/v1/admin/settings": true,
 }
 
 // SuperAdminOnly protects /api/v1/admin/* routes. Mirrors the path-prefix

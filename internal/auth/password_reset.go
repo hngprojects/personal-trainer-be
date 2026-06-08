@@ -37,6 +37,8 @@ const (
 	// a 500 at hash time.
 	maxPasswordLen     = 72
 	adminRoleName      = "admin"
+	superAdminRoleName = "super_admin"
+	trainerRoleName    = "trainer"
 	forgotAsyncTimeout = 30 * time.Second
 )
 
@@ -47,6 +49,7 @@ const (
 // leaving multiple valid codes in the table.
 type PasswordResetRepository interface {
 	UpsertCode(ctx context.Context, email, hashedCode string, expiresAt time.Time) error
+	VerifyCode(ctx context.Context, email, hashedCode string) error
 	ConsumeCodeAndUpdatePassword(ctx context.Context, email, hashedCode, hashedPassword string) (*db.User, error)
 }
 
@@ -68,6 +71,14 @@ func (r *postgresPasswordResetRepo) UpsertCode(ctx context.Context, email, hashe
 		Code:      hashedCode,
 		ExpiresAt: expiresAt,
 	})
+}
+
+func (r *postgresPasswordResetRepo) VerifyCode(ctx context.Context, email, hashedCode string) error {
+	_, err := db.New(r.rawDB).VerifyPasswordResetCode(ctx, db.VerifyPasswordResetCodeParams{Email: email, Code: hashedCode})
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (r *postgresPasswordResetRepo) ConsumeCodeAndUpdatePassword(ctx context.Context, email, hashedCode, hashedPassword string) (*db.User, error) {
@@ -228,12 +239,10 @@ func (h *PasswordResetHandler) processForgotPassword(emailAddr string) {
 		return
 	}
 
-	isAdmin, err := h.roles.UserHasRole(ctx, user.ID, adminRoleName)
-	if err != nil {
-		h.log.Error("failed to check admin role", "err", err, "user_id", user.ID.String())
-		return
-	}
-	if !isAdmin {
+	// Check role directly from the users row — UserHasRole queries user_roles
+	// which is not populated by the admin-provisioned trainer/admin creation flows.
+	isAllowed := user.Role == adminRoleName || user.Role == superAdminRoleName || user.Role == trainerRoleName
+	if !isAllowed {
 		return
 	}
 
@@ -333,14 +342,10 @@ func (h *PasswordResetHandler) HandleResetPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
 	}
-	isAdmin, err := h.roles.UserHasRole(c.Request.Context(), user.ID, adminRoleName)
-	if err != nil {
-		h.log.Error("failed to check admin role", "err", err, "user_id", user.ID.String())
-		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
-		return
-	}
-	if !isAdmin {
-		h.log.Warn("reset password: user is not admin", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
+	// Check role directly from the users row — UserHasRole queries user_roles
+	// which is not populated by admin-provisioned trainer/admin creation flows.
+	if user.Role != adminRoleName && user.Role != superAdminRoleName && user.Role != trainerRoleName {
+		h.log.Warn("reset password: user is not admin or trainer", "email_domain", emailDomain(emailAddr), "user_id", user.ID.String())
 		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
 		return
 	}
@@ -404,4 +409,81 @@ func validatePassword(p string) (string, bool) {
 		return "password must contain upper case, lower case, and a digit", false
 	}
 	return "", true
+}
+
+// HandleVerifyResetCode checks that an OTP code is valid and not expired
+// without consuming it. Intended as a mid-flow step so mobile clients can
+// confirm the code before navigating to the new-password screen.
+func (h *PasswordResetHandler) HandleVerifyResetCode(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required"`
+		Code  string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.NewError("email and code are required", api.CodeBadRequest))
+		return
+	}
+
+	emailAddr := strings.ToLower(strings.TrimSpace(req.Email))
+	code := strings.TrimSpace(req.Code)
+
+	var fieldErrors []api.FieldError
+	if len(emailAddr) > 255 || !common.IsValidEmail(emailAddr) {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "email", Message: "invalid email format"})
+	}
+	if len(code) != 6 || !isDigits(code) {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "code", Message: "code must be a 6-digit number"})
+	}
+	if len(fieldErrors) > 0 {
+		c.JSON(http.StatusBadRequest, api.NewValidationError(fieldErrors))
+		return
+	}
+
+	if allowed, err := h.resetIPLimiter.Allow(c.Request.Context(), c.ClientIP()); err != nil {
+		h.log.Warn("verify-reset-code IP rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		h.log.Warn("verify reset code: IP rate limit hit", "clientIP", c.ClientIP())
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please try again later", api.CodeTooManyRequests))
+		return
+	}
+
+	if allowed, err := h.resetLimiter.Allow(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("verify-reset-code email rate limiter error — failing open", "err", err)
+	} else if !allowed {
+		h.log.Warn("verify reset code: email rate limit hit", "email_domain", emailDomain(emailAddr))
+		c.JSON(http.StatusTooManyRequests, api.NewError("too many attempts, please request a new code", api.CodeTooManyRequests))
+		return
+	}
+
+	if err := h.resetRepo.VerifyCode(c.Request.Context(), emailAddr, h.hashCode(code)); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
+			return
+		}
+		h.log.Error("verify reset code: db error", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+
+	// Mirror the eligibility gate from HandleResetPassword so this endpoint
+	// never returns 200 for an account that the actual reset would reject.
+	user, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, providerLocal)
+	if err != nil || !user.IsActive {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
+		return
+	}
+	// Check role directly from the users row — UserHasRole queries user_roles
+	// which is not populated by admin-provisioned trainer/admin creation flows.
+	if user.Role != adminRoleName && user.Role != superAdminRoleName && user.Role != trainerRoleName {
+		c.JSON(http.StatusBadRequest, api.NewError("invalid or expired reset code", api.CodeBadRequest))
+		return
+	}
+
+	// Reset the per-email bucket so a successful preflight doesn't consume
+	// attempts that the caller needs for the actual reset step.
+	if err := h.resetLimiter.Reset(c.Request.Context(), emailAddr); err != nil {
+		h.log.Warn("failed to reset verify-reset-code limiter", "err", err)
+	}
+
+	c.JSON(http.StatusOK, api.NewSuccess("code is valid", api.CodeOK, nil))
 }

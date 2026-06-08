@@ -46,8 +46,12 @@ type MeetingSelector struct {
 	Log *slog.Logger
 }
 
-// For implements meeting.Selector.
-func (s *MeetingSelector) For(ctx context.Context, trainerUserID uuid.UUID) meeting.Provider {
+// For implements meeting.Selector. The platform argument is part of
+// the multi-platform selector interface but ignored here — this
+// selector only ever returns Zoom providers (the org Zoom or a per-
+// trainer Zoom). MultiPlatformSelector is responsible for never
+// invoking us with a non-Zoom platform.
+func (s *MeetingSelector) For(ctx context.Context, trainerUserID uuid.UUID, _ string) meeting.Provider {
 	if !s.PreferTrainer || s.Store == nil || trainerUserID == uuid.Nil {
 		return s.OrgProvider
 	}

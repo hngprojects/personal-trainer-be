@@ -61,6 +61,32 @@ func (q *Queries) CountActiveSubscriptions(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countAdminSubscriptions = `-- name: CountAdminSubscriptions :one
+SELECT COUNT(*) FROM subscriptions s WHERE ($1::text = '' OR s.status = $1)
+`
+
+// Backfilled from PR #279. Empty string in $1 means "no status filter".
+func (q *Queries) CountAdminSubscriptions(ctx context.Context, dollar_1 string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminSubscriptions, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAdminTransactions = `-- name: CountAdminTransactions :one
+SELECT COUNT(*) FROM subscriptions
+`
+
+// Backfilled from internal/repository/db/subscriptions.sql.go where it
+// was hand-added (PR #274). Lifted into the sqlc source so future
+// `sqlc generate` runs don't wipe it. Plain unfiltered count.
+func (q *Queries) CountAdminTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAdminTransactions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSubscription = `-- name: CreateSubscription :one
 INSERT INTO subscriptions (
     client_id,
@@ -290,6 +316,8 @@ type GetRevenueSnapshotRow struct {
 	OneTimeRevenue      int64
 }
 
+// All-time gross revenue across all statuses (active + expired + cancelled).
+// Cancelled subs are included — refund tracking is out of scope for v1.
 func (q *Queries) GetRevenueSnapshot(ctx context.Context) (GetRevenueSnapshotRow, error) {
 	row := q.db.QueryRowContext(ctx, getRevenueSnapshot)
 	var i GetRevenueSnapshotRow
@@ -391,6 +419,193 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, id uuid.UUID) (Subscr
 		&i.GooglePurchaseToken,
 	)
 	return i, err
+}
+
+const listAdminSubscriptions = `-- name: ListAdminSubscriptions :many
+SELECT
+    s.id,
+    s.client_id,
+    s.trainer_id,
+    s.plan_type,
+    s.amount,
+    s.currency,
+    s.status,
+    s.platform,
+    s.current_period_start,
+    s.current_period_end,
+    s.created_at,
+    s.cancelled_at,
+    cu.name  AS client_name,
+    cu.email AS client_email,
+    tu.name  AS trainer_name,
+    tu.email AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t  ON t.id  = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+WHERE ($1::text = '' OR s.status = $1)
+ORDER BY s.created_at DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListAdminSubscriptionsParams struct {
+	Status     string
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAdminSubscriptionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+// Backfilled from PR #279. Listing for /admin/subscriptions dashboard
+// with optional status filter — empty string in $1 returns all rows.
+func (q *Queries) ListAdminSubscriptions(ctx context.Context, arg ListAdminSubscriptionsParams) ([]ListAdminSubscriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminSubscriptions, arg.Status, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminSubscriptionsRow
+	for rows.Next() {
+		var i ListAdminSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAdminTransactions = `-- name: ListAdminTransactions :many
+SELECT
+  s.id,
+  s.client_id,
+  s.trainer_id,
+  s.plan_type,
+  s.amount,
+  s.currency,
+  s.status,
+  s.platform,
+  s.current_period_start,
+  s.current_period_end,
+  s.created_at,
+  s.cancelled_at,
+  cu.name   AS client_name,
+  cu.email  AS client_email,
+  tu.name   AS trainer_name,
+  tu.email  AS trainer_email
+FROM subscriptions s
+JOIN users cu ON cu.id = s.client_id
+JOIN trainers t ON t.id = s.trainer_id
+JOIN users tu ON tu.id = t.user_id
+ORDER BY s.created_at DESC
+LIMIT $2 OFFSET $1
+`
+
+type ListAdminTransactionsParams struct {
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListAdminTransactionsRow struct {
+	ID                 uuid.UUID
+	ClientID           uuid.UUID
+	TrainerID          uuid.UUID
+	PlanType           string
+	Amount             sql.NullInt64
+	Currency           string
+	Status             string
+	Platform           sql.NullString
+	CurrentPeriodStart sql.NullTime
+	CurrentPeriodEnd   sql.NullTime
+	CreatedAt          time.Time
+	CancelledAt        sql.NullTime
+	ClientName         string
+	ClientEmail        string
+	TrainerName        string
+	TrainerEmail       string
+}
+
+// Backfilled from PR #274 (was hand-added to the generated file).
+// Listing for the /admin/transactions dashboard — joins client +
+// trainer profiles so the table can render names without N+1 lookups.
+func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransactionsParams) ([]ListAdminTransactionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminTransactions, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAdminTransactionsRow
+	for rows.Next() {
+		var i ListAdminTransactionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.TrainerID,
+			&i.PlanType,
+			&i.Amount,
+			&i.Currency,
+			&i.Status,
+			&i.Platform,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CreatedAt,
+			&i.CancelledAt,
+			&i.ClientName,
+			&i.ClientEmail,
+			&i.TrainerName,
+			&i.TrainerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const refundSessionCredit = `-- name: RefundSessionCredit :one
