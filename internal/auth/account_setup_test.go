@@ -118,12 +118,6 @@ func (m *captureMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ st
 func (m *captureMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
-	return nil
-}
-func (m *captureMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
-	return nil
-}
 
 func (m *captureMailer) SendAccountSetupLink(to, _, link string, _ int) error {
 	m.mu.Lock()

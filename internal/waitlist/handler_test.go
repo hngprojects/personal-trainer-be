@@ -91,12 +91,6 @@ func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ strin
 func (m *fakeMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
 	return nil
 }
-func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
-	return nil
-}
-func (m *fakeMailer) SendSessionReminderTrainer(_, _, _ string, _ time.Time, _, _ string) error {
-	return nil
-}
 
 var _ email.Mailer = (*fakeMailer)(nil)
 
