@@ -168,7 +168,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	if platformStr == "messenger" && messengerHandle == "" {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle is required when session_platform is messenger"})
 	}
-	if platformStr == "whatsapp" || platformStr == "imessage" && phoneNumber == "" {
+	if (platformStr == "whatsapp" || platformStr == "imessage") && phoneNumber == "" {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "phone_number", Message: "phone_number is required when session_platform is whatsapp or imessage"})
 	}
 	if len(messengerHandle) > 255 {
@@ -196,7 +196,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		messengerNS = sql.NullString{Valid: true, String: messengerHandle}
 	}
 	if phoneNumber != "" {
-		messengerNS = sql.NullString{Valid: true, String: phoneNumber}
+		phoneNumberNS = sql.NullString{Valid: true, String: phoneNumber}
 	}
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,

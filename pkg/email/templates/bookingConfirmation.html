@@ -20,8 +20,8 @@
       <li>Date: {{.Date}}.</li>
       <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
       <li>Platform: {{.Platform}}</li>
-      {{if or (eq .Location "zoom") (eq .Location "google_meet")}}
-      <li><a href="{{.SessionData}}">Click here to join</a>.</li>
+      {{if or (eq .Platform "zoom") (eq .Platform "google_meet")}}
+      <li><a href="{{.MeetingLink}}">Click here to join</a>.</li>
       {{end}}
     </ul>
     <p>
@@ -31,7 +31,7 @@
     {{if .MessengerHandle}}
     <p>They will reach out to @{{.MessengerHandle}} on Messenger.</p>
     {{end}} {{if .PhoneNumber}}
-    <p>They will reach out to {{.PhoneNumber}} on {{.Location}}.</p>
+    <p>They will reach out to {{.PhoneNumber}} on {{.Platform}}.</p>
     {{end}}
 
     <p>We’re excited to help you stay consistent.</p>
