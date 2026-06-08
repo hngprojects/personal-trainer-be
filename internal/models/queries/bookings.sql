@@ -13,6 +13,7 @@ INSERT INTO bookings (
   booking_status,
   session_platform,
   messenger_handle,
+  phone_number,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -25,6 +26,7 @@ INSERT INTO bookings (
   sqlc.arg(booking_status),
   sqlc.arg(session_platform),
   sqlc.arg(messenger_handle),
+  sqlc.arg(phone_number),
   sqlc.arg(cancellation_reason),
   sqlc.arg(created_at),
   sqlc.arg(cancelled_at)
@@ -45,7 +47,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle,
+  phone_number;
 
 -- name: GetBookingByID :one
 SELECT
@@ -64,7 +67,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1;
@@ -86,7 +90,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -193,7 +198,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle,
+  phone_number;
 
 -- name: CheckPaidBookingConflict :one
 SELECT COUNT(*) FROM bookings
@@ -316,6 +322,8 @@ SELECT
   b.timezone,
   b.booking_status,
   b.session_platform,
+  b.phone_number,
+  b.messenger_handle,
   b.created_at,
   b.cancelled_at,
   b.zoom_meeting_link,
@@ -395,7 +403,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle
+  phone_number;
 
 -- name: CheckBookingConflictForClient :one
 SELECT COUNT(*) FROM bookings

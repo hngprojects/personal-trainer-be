@@ -19,15 +19,21 @@
       <li>Trainer: Coach {{.TrainerName}}.</li>
       <li>Date: {{.Date}}.</li>
       <li>Time: {{.StartTime}} - {{.EndTime}}.</li>
-      <li>Location: {{.Location}}</li>
-      {{if or (eq .Location "zoom") (eq .Location "google_meet")}}
-      <li><a href="{{.SessionData}}">Click here to join</a>.</li>
+      <li>Platform: {{.Platform}}</li>
+      {{if or (eq .Platform "zoom") (eq .Platform "google_meet")}}
+      <li><a href="{{.MeetingLink}}">Click here to join</a>.</li>
       {{end}}
     </ul>
     <p>
       Your trainer will check in before the session to help keep you accountable
       and ready.
     </p>
+    {{if .MessengerHandle}}
+    <p>They will reach out to @{{.MessengerHandle}} on Messenger.</p>
+    {{end}} {{if .PhoneNumber}}
+    <p>They will reach out to {{.PhoneNumber}} on {{.Platform}}.</p>
+    {{end}}
+
     <p>We’re excited to help you stay consistent.</p>
 
     — Team FitCall

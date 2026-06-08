@@ -40,6 +40,7 @@ RETURNING
   zoom_meeting_id,
   reschedule_count,
   messenger_handle
+  phone_number
 `
 
 type AdminRescheduleBookingParams struct {
@@ -48,12 +49,31 @@ type AdminRescheduleBookingParams struct {
 	ID             uuid.UUID
 }
 
+type AdminRescheduleBookingRow struct {
+	ID                 uuid.UUID
+	TrainerID          uuid.UUID
+	ClientID           uuid.UUID
+	SubscriptionID     uuid.NullUUID
+	ScheduledStart     sql.NullTime
+	ScheduledEnd       sql.NullTime
+	Timezone           sql.NullString
+	BookingStatus      sql.NullString
+	SessionPlatform    sql.NullString
+	CancellationReason sql.NullString
+	CreatedAt          sql.NullTime
+	CancelledAt        sql.NullTime
+	ZoomMeetingLink    sql.NullString
+	ZoomMeetingID      sql.NullString
+	RescheduleCount    int32
+	PhoneNumber        sql.NullString
+}
+
 // Admin reschedule — no reschedule_count cap. Zoom links are cleared
 // because admin cannot provision a new Zoom meeting; clients must
 // re-join via the updated in-app join-info endpoint.
-func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminRescheduleBookingParams) (Booking, error) {
+func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminRescheduleBookingParams) (AdminRescheduleBookingRow, error) {
 	row := q.db.QueryRowContext(ctx, adminRescheduleBooking, arg.ScheduledStart, arg.ScheduledEnd, arg.ID)
-	var i Booking
+	var i AdminRescheduleBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -70,7 +90,7 @@ func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminReschedul
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
-		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -241,6 +261,7 @@ INSERT INTO bookings (
   booking_status,
   session_platform,
   messenger_handle,
+  phone_number,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -255,7 +276,8 @@ INSERT INTO bookings (
   $8,
   $9,
   $10,
-  $11
+  $11,
+  $12
 )
 RETURNING
   id,
@@ -273,7 +295,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 `
 
 type CreateBookingParams struct {
@@ -285,6 +308,7 @@ type CreateBookingParams struct {
 	BookingStatus      sql.NullString
 	SessionPlatform    sql.NullString
 	MessengerHandle    sql.NullString
+	PhoneNumber        sql.NullString
 	CancellationReason sql.NullString
 	CreatedAt          sql.NullTime
 	CancelledAt        sql.NullTime
@@ -305,6 +329,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.BookingStatus,
 		arg.SessionPlatform,
 		arg.MessengerHandle,
+		arg.PhoneNumber,
 		arg.CancellationReason,
 		arg.CreatedAt,
 		arg.CancelledAt,
@@ -327,6 +352,7 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -375,7 +401,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -401,6 +428,7 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, er
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -422,7 +450,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -449,12 +478,13 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Bo
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
 
 const getBookingsPastMonth = `-- name: GetBookingsPastMonth :many
-SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle FROM bookings
+SELECT id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle, phone_number FROM bookings
 WHERE scheduled_start >= date_trunc('month', NOW())
   AND scheduled_start < date_trunc('month', NOW()) + INTERVAL '1 month'
 `
@@ -485,6 +515,7 @@ func (q *Queries) GetBookingsPastMonth(ctx context.Context) ([]Booking, error) {
 			&i.ZoomMeetingID,
 			&i.RescheduleCount,
 			&i.MessengerHandle,
+			&i.PhoneNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -713,6 +744,8 @@ SELECT
   b.timezone,
   b.booking_status,
   b.session_platform,
+  b.phone_number,
+  b.messenger_handle,
   b.created_at,
   b.cancelled_at,
   b.zoom_meeting_link,
@@ -743,6 +776,8 @@ type ListBookingsByTrainerRow struct {
 	Timezone        sql.NullString
 	BookingStatus   sql.NullString
 	SessionPlatform sql.NullString
+	PhoneNumber     sql.NullString
+	MessengerHandle sql.NullString
 	CreatedAt       sql.NullTime
 	CancelledAt     sql.NullTime
 	ZoomMeetingLink sql.NullString
@@ -775,6 +810,8 @@ func (q *Queries) ListBookingsByTrainer(ctx context.Context, arg ListBookingsByT
 			&i.Timezone,
 			&i.BookingStatus,
 			&i.SessionPlatform,
+			&i.PhoneNumber,
+			&i.MessengerHandle,
 			&i.CreatedAt,
 			&i.CancelledAt,
 			&i.ZoomMeetingLink,
@@ -1033,7 +1070,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 `
 
 type ReschedulePaidBookingParams struct {
@@ -1070,6 +1108,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -1080,7 +1119,7 @@ SET zoom_meeting_link = $1,
     zoom_meeting_id   = $2
 WHERE id = $3
   AND zoom_meeting_id IS NULL
-RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle
+RETURNING id, trainer_id, client_id, subscription_id, scheduled_start, scheduled_end, timezone, booking_status, session_platform, cancellation_reason, created_at, cancelled_at, zoom_meeting_link, zoom_meeting_id, reschedule_count, messenger_handle, phone_number
 `
 
 type UpdateBookingZoomParams struct {
@@ -1109,6 +1148,7 @@ func (q *Queries) UpdateBookingZoom(ctx context.Context, arg UpdateBookingZoomPa
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }

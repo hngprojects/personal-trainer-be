@@ -636,7 +636,9 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformImessage   CreateBookingJSONBodySessionPlatform = "imessage"
 	CreateBookingJSONBodySessionPlatformMessenger  CreateBookingJSONBodySessionPlatform = "messenger"
+	CreateBookingJSONBodySessionPlatformWhatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
 	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
@@ -645,7 +647,11 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
 	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
+	case CreateBookingJSONBodySessionPlatformImessage:
+		return true
 	case CreateBookingJSONBodySessionPlatformMessenger:
+		return true
+	case CreateBookingJSONBodySessionPlatformWhatsapp:
 		return true
 	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
@@ -1813,9 +1819,12 @@ type HandleVerifyResetCodeJSONBody struct {
 type CreateBookingJSONBody struct {
 	// MessengerHandle Required when session_platform is messenger. Same
 	// semantics as the discovery booking field.
-	MessengerHandle *string   `json:"messenger_handle,omitempty"`
-	ScheduledEnd    time.Time `json:"scheduled_end"`
-	ScheduledStart  time.Time `json:"scheduled_start"`
+	MessengerHandle *string `json:"messenger_handle,omitempty"`
+
+	// PhoneNumber Whatsapp or iMessage phone number. Required when session_platform is whatsapp or imessage
+	PhoneNumber    *string   `json:"phone_number,omitempty"`
+	ScheduledEnd   time.Time `json:"scheduled_end"`
+	ScheduledStart time.Time `json:"scheduled_start"`
 
 	// SessionPlatform `zoom` and `google_meet` mint a meeting URL via
 	// their respective APIs; `messenger` stores the
