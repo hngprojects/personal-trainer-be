@@ -30,8 +30,6 @@ import (
 // POST /trainers. Same shape the discovery-call phone_callback path
 // uses so trainers and that flow share one phone format.
 var (
-	trainerRole           = "trainer"
-	localAuthProvider     = "local"
 	trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
 )
 
@@ -508,16 +506,6 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}()
 	qtx := s.trainers.q.WithTx(tx)
-
-	existingUser, err := qtx.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
-		Email:        emailAddr,
-		AuthProvider: localAuthProvider,
-	})
-	if err == nil && existingUser.Role != trainerRole {
-		s.logger.Warn("create trainer: email already in use by non-trainer account", "email", emailAddr)
-		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
-		return
-	}
 
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:       emailAddr,

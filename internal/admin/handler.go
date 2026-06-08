@@ -22,11 +22,6 @@ import (
 // any practical brute-force threshold against bcrypt.
 const generatedPasswordLen = 16
 
-var (
-	adminRole         = "admin"
-	localAuthProvider = "local"
-)
-
 type Handler struct {
 	users  auth.AdminUserRepository
 	mailer email.Mailer
@@ -72,12 +67,7 @@ func (h *Handler) AdminAdd(c *gin.Context) {
 		}))
 		return
 	}
-	existingUser, err := h.users.FindByEmailAndProvider(c.Request.Context(), emailAddr, localAuthProvider)
-	if err == nil && existingUser.Role != adminRole {
-		h.log.Warn("create admin: email already in use by non-admin account", "email", emailAddr)
-		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
-		return
-	}
+
 	password, err := auth.GenerateRandomPassword(generatedPasswordLen)
 	if err != nil {
 		h.log.Error("admin add: generate password failed", "err", err)

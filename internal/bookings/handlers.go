@@ -233,7 +233,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		return
 	}
 	if bookingConflict > 0 {
-		h.log.Error("failed to create booking: booking with trainer within time slot exists", "err", err)
+		h.log.Warn("booking conflict detected", "trainer_id", data.TrainerID, "start", data.ScheduledStart.Time, "end", data.ScheduledEnd.Time)
 		c.JSON(http.StatusConflict, api.NewError("booking with trainer within timeslot exists", api.CodeConflict))
 		return
 	}
