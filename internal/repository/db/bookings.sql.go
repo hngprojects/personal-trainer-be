@@ -40,6 +40,7 @@ RETURNING
   zoom_meeting_id,
   reschedule_count,
   messenger_handle
+  phone_number
 `
 
 type AdminRescheduleBookingParams struct {
@@ -64,7 +65,7 @@ type AdminRescheduleBookingRow struct {
 	ZoomMeetingLink    sql.NullString
 	ZoomMeetingID      sql.NullString
 	RescheduleCount    int32
-	MessengerHandle    sql.NullString
+	PhoneNumber        sql.NullString
 }
 
 // Admin reschedule — no reschedule_count cap. Zoom links are cleared
@@ -89,7 +90,7 @@ func (q *Queries) AdminRescheduleBooking(ctx context.Context, arg AdminReschedul
 		&i.ZoomMeetingLink,
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
-		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }

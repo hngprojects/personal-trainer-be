@@ -15,10 +15,6 @@ ALTER TABLE bookings
     );
 
 -- +goose Down
-UPDATE bookings
-SET session_platform = 'zoom'
-WHERE session_platform IN ('imessage', 'whatsapp');
-
 ALTER TABLE bookings
     DROP CONSTRAINT IF EXISTS bookings_session_platform_check;
 

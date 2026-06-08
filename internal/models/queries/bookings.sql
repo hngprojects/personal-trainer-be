@@ -403,7 +403,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle
+  phone_number;
 
 -- name: CheckBookingConflictForClient :one
 SELECT COUNT(*) FROM bookings

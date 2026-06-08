@@ -717,7 +717,6 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	localScheduledEndTime := scheduledEndTime.In(loc)
 
 	var buf bytes.Buffer
-	fmt.Println("messenger handle: ", messengerHandle, "\nPhone number: ", phoneNumber)
 	if toTrainer {
 		err = trainerBookingConfirmationTemplate.Execute(&buf, map[string]interface{}{
 			"ClientName":      name,
