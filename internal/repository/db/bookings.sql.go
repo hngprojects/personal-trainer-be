@@ -137,6 +137,27 @@ func (q *Queries) CancelBooking(ctx context.Context, arg CancelBookingParams) (C
 	return i, err
 }
 
+const checkBookingConflictForClient = `-- name: CheckBookingConflictForClient :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = $1
+    AND scheduled_start < $2 -- new_end
+    AND scheduled_end > $3 -- new_start
+    AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed', 'no_show'))
+`
+
+type CheckBookingConflictForClientParams struct {
+	TrainerID uuid.UUID
+	NewEnd    sql.NullTime
+	NewStart  sql.NullTime
+}
+
+func (q *Queries) CheckBookingConflictForClient(ctx context.Context, arg CheckBookingConflictForClientParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkBookingConflictForClient, arg.TrainerID, arg.NewEnd, arg.NewStart)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const checkPaidBookingConflict = `-- name: CheckPaidBookingConflict :one
 SELECT COUNT(*) FROM bookings
 WHERE trainer_id = $1

@@ -397,3 +397,9 @@ RETURNING
   reschedule_count,
   messenger_handle;
 
+-- name: CheckBookingConflictForClient :one
+SELECT COUNT(*) FROM bookings
+WHERE trainer_id = sqlc.arg(trainer_id)
+    AND scheduled_start < sqlc.arg(new_end) -- new_end
+    AND scheduled_end > sqlc.arg(new_start) -- new_start
+    AND (booking_status IS NULL OR booking_status NOT IN ('cancelled', 'completed', 'no_show'));

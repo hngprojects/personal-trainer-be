@@ -29,7 +29,9 @@ import (
 // trainerPhoneE164Regex validates the phone_number form field on
 // POST /trainers. Same shape the discovery-call phone_callback path
 // uses so trainers and that flow share one phone format.
-var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+var (
+	trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing

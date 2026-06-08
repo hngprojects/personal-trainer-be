@@ -16,6 +16,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 )
 
 var (
@@ -219,8 +221,32 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
+
+	bookingConflict, err := h.service.CheckBookingConflictForClient(c.Request.Context(), db.CheckBookingConflictForClientParams{
+		TrainerID: data.TrainerID,
+		NewStart:  sql.NullTime{Valid: true, Time: data.ScheduledStart.Time},
+		NewEnd:    sql.NullTime{Valid: true, Time: data.ScheduledEnd.Time},
+	})
+	if err != nil {
+		h.log.Error("failed to check db for conflict", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
+		return
+	}
+	if bookingConflict > 0 {
+		h.log.Warn("booking conflict detected", "trainer_id", data.TrainerID, "start", data.ScheduledStart.Time, "end", data.ScheduledEnd.Time)
+		c.JSON(http.StatusConflict, api.NewError("booking with trainer within timeslot exists", api.CodeConflict))
+		return
+	}
+
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqerror.ExclusionViolation {
+			h.log.Warn("booking conflict caught by exclusion constraint", "trainerID", data.TrainerID, "err", err)
+			c.JSON(http.StatusConflict, api.NewError("this time slot conflicts with an existing booking", api.CodeConflict))
+			return
+
+		}
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return

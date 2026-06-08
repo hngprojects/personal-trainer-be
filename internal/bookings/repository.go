@@ -32,6 +32,7 @@ type Repository interface {
 	// can build the same universal-link "Join" URL the initial
 	// confirmation used.
 	GetBookingSessionByBookingID(ctx context.Context, bookingID uuid.UUID) (db.BookingSession, error)
+	CheckBookingConflictForClient(ctx context.Context, arg db.CheckBookingConflictForClientParams) (int64, error)
 }
 
 type postgresRepo struct {
@@ -111,4 +112,8 @@ func (r *postgresRepo) CreateBookingSession(ctx context.Context, arg db.CreateBo
 
 func (r *postgresRepo) GetBookingSessionByBookingID(ctx context.Context, bookingID uuid.UUID) (db.BookingSession, error) {
 	return r.q.GetBookingSessionByBookingID(ctx, bookingID)
+}
+
+func (r *postgresRepo) CheckBookingConflictForClient(ctx context.Context, arg db.CheckBookingConflictForClientParams) (int64, error) {
+	return r.q.CheckBookingConflictForClient(ctx, arg)
 }
