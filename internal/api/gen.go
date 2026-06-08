@@ -636,7 +636,9 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformImessage   CreateBookingJSONBodySessionPlatform = "imessage"
 	CreateBookingJSONBodySessionPlatformMessenger  CreateBookingJSONBodySessionPlatform = "messenger"
+	CreateBookingJSONBodySessionPlatformWhatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
 	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
@@ -645,7 +647,11 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
 	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
+	case CreateBookingJSONBodySessionPlatformImessage:
+		return true
 	case CreateBookingJSONBodySessionPlatformMessenger:
+		return true
+	case CreateBookingJSONBodySessionPlatformWhatsapp:
 		return true
 	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
@@ -1813,9 +1819,12 @@ type HandleVerifyResetCodeJSONBody struct {
 type CreateBookingJSONBody struct {
 	// MessengerHandle Required when session_platform is messenger. Same
 	// semantics as the discovery booking field.
-	MessengerHandle *string   `json:"messenger_handle,omitempty"`
-	ScheduledEnd    time.Time `json:"scheduled_end"`
-	ScheduledStart  time.Time `json:"scheduled_start"`
+	MessengerHandle *string `json:"messenger_handle,omitempty"`
+
+	// PhoneNumber Whatsapp or iMessage phone number. Required when session_platform is whatsapp or imessage
+	PhoneNumber    *string   `json:"phone_number,omitempty"`
+	ScheduledEnd   time.Time `json:"scheduled_end"`
+	ScheduledStart time.Time `json:"scheduled_start"`
 
 	// SessionPlatform `zoom` and `google_meet` mint a meeting URL via
 	// their respective APIs; `messenger` stores the
@@ -1934,6 +1943,12 @@ type GetTrainersParams struct {
 
 // GetTrainersParamsOnboardingStatus defines parameters for GetTrainers.
 type GetTrainersParamsOnboardingStatus string
+
+// ToggleTrainerAvailabilityJSONBody defines parameters for ToggleTrainerAvailability.
+type ToggleTrainerAvailabilityJSONBody struct {
+	// IsAvailable true = open (clients can book), false = closed (slots hidden from clients).
+	IsAvailable bool `json:"is_available"`
+}
 
 // GetTrainersMeClientsParams defines parameters for GetTrainersMeClients.
 type GetTrainersMeClientsParams struct {
@@ -2126,6 +2141,9 @@ type AddTrainersMeAvailabilityJSONRequestBody = AddAvailabilityRequest
 // PutTrainersMeAvailabilityJSONRequestBody defines body for PutTrainersMeAvailability for application/json ContentType.
 type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 
+// ToggleTrainerAvailabilityJSONRequestBody defines body for ToggleTrainerAvailability for application/json ContentType.
+type ToggleTrainerAvailabilityJSONRequestBody ToggleTrainerAvailabilityJSONBody
+
 // PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
 type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
 
@@ -2176,12 +2194,12 @@ type ServerInterface interface {
 	// List all clients (super_admin only)
 	// (GET /admin/clients)
 	GetAdminClients(c *gin.Context, params GetAdminClientsParams)
-	// Get a client by ID (admin)
-	// (GET /admin/clients/{id})
-	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
 	// Deactivate a client account (super_admin only)
 	// (DELETE /admin/clients/{id})
 	DeleteAdminClient(c *gin.Context, id openapi_types.UUID)
+	// Get a client by ID (admin)
+	// (GET /admin/clients/{id})
+	GetAdminClientByID(c *gin.Context, id openapi_types.UUID)
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
@@ -2371,6 +2389,9 @@ type ServerInterface interface {
 	// Set trainer weekly availability
 	// (PUT /trainers/me/availability)
 	PutTrainersMeAvailability(c *gin.Context)
+	// Toggle trainer's global availability on or off
+	// (PATCH /trainers/me/availability/toggle)
+	ToggleTrainerAvailability(c *gin.Context)
 	// Delete a single availability slot owned by the authenticated trainer
 	// (DELETE /trainers/me/availability/{slot_id})
 	DeleteTrainersMeAvailabilitySlot(c *gin.Context, slotId openapi_types.UUID)
@@ -2551,32 +2572,6 @@ func (siw *ServerInterfaceWrapper) GetAdminClients(c *gin.Context) {
 	siw.Handler.GetAdminClients(c, params)
 }
 
-// GetAdminClientByID operation middleware
-func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
-
-	var err error
-	_ = err
-
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(string(BearerAuthScopes), []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetAdminClientByID(c, id)
-}
-
 // DeleteAdminClient operation middleware
 func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
 
@@ -2602,6 +2597,33 @@ func (siw *ServerInterfaceWrapper) DeleteAdminClient(c *gin.Context) {
 	}
 
 	siw.Handler.DeleteAdminClient(c, id)
+}
+
+// GetAdminClientByID operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminClientByID(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminClientByID(c, id)
 }
 
 // AdminListDiscoveryBookings operation middleware
@@ -3969,6 +3991,21 @@ func (siw *ServerInterfaceWrapper) PutTrainersMeAvailability(c *gin.Context) {
 	siw.Handler.PutTrainersMeAvailability(c)
 }
 
+// ToggleTrainerAvailability operation middleware
+func (siw *ServerInterfaceWrapper) ToggleTrainerAvailability(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ToggleTrainerAvailability(c)
+}
+
 // DeleteTrainersMeAvailabilitySlot operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainersMeAvailabilitySlot(c *gin.Context) {
 
@@ -4774,8 +4811,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/", wrapper.Root)
 	router.POST(options.BaseURL+"/admin/add", wrapper.AdminAdd)
 	router.GET(options.BaseURL+"/admin/clients", wrapper.GetAdminClients)
-	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
+	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
@@ -4839,6 +4876,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/me/availability", wrapper.GetTrainersMeAvailability)
 	router.POST(options.BaseURL+"/trainers/me/availability", wrapper.AddTrainersMeAvailability)
 	router.PUT(options.BaseURL+"/trainers/me/availability", wrapper.PutTrainersMeAvailability)
+	router.PATCH(options.BaseURL+"/trainers/me/availability/toggle", wrapper.ToggleTrainerAvailability)
 	router.DELETE(options.BaseURL+"/trainers/me/availability/:slot_id", wrapper.DeleteTrainersMeAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/me/clients", wrapper.GetTrainersMeClients)
 	router.GET(options.BaseURL+"/trainers/me/edit-profile", wrapper.GetTrainersMe)

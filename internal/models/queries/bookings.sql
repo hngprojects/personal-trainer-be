@@ -13,6 +13,7 @@ INSERT INTO bookings (
   booking_status,
   session_platform,
   messenger_handle,
+  phone_number,
   cancellation_reason,
   created_at,
   cancelled_at
@@ -25,6 +26,7 @@ INSERT INTO bookings (
   sqlc.arg(booking_status),
   sqlc.arg(session_platform),
   sqlc.arg(messenger_handle),
+  sqlc.arg(phone_number),
   sqlc.arg(cancellation_reason),
   sqlc.arg(created_at),
   sqlc.arg(cancelled_at)
@@ -45,7 +47,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle,
+  phone_number;
 
 -- name: GetBookingByID :one
 SELECT
