@@ -16,6 +16,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 )
 
 var (
@@ -29,7 +31,7 @@ type bookingSlotHandler struct {
 }
 
 type BookingSlotHandler interface {
-	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID)
+	HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams)
 }
 
 func NewBookingSlotHandler(service BookingSlotService, redis redis.Client, log *slog.Logger) *bookingSlotHandler {
@@ -52,8 +54,36 @@ func NewBookingHandler(service BookingService, log *slog.Logger, notif *notifica
 
 const bookingSlotsCacheTTL = 15 * time.Minute
 
-func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID) {
+func (h *bookingSlotHandler) HandleGetTrainersBookingSlots(c *gin.Context, trainerId uuid.UUID, params api.GetTrainersBookingSlotsParams) {
 	ctx := c.Request.Context()
+
+	// When the caller pins a specific date, skip the cache entirely and
+	// always hit the DB. The cache holds the unfiltered template list;
+	// caching per-date results would explode the keyspace, and bookings
+	// happen frequently enough that cached date-results would go stale
+	// faster than the 15-minute TTL anyway. Worst case is one extra DB
+	// hit per slot picker open.
+	if params.Date != nil {
+		targetDate := params.Date.Time
+		filtered, err := h.service.GetTrainersBookingSlotsForDate(ctx, trainerId, targetDate)
+		if err != nil {
+			h.log.Warn("HandleGetTrainersBookingSlots: filtered fetch failed", "trainer_id", trainerId, "date", targetDate, "err", err)
+			if errors.Is(err, ErrNotFound) || errors.Is(err, ErrTrainerNotFound) {
+				c.JSON(http.StatusNotFound, api.ErrorResponse{Code: api.CodeNotFound, Message: err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, api.ErrorResponse{Code: api.CodeServerError, Message: "internal server error"})
+			return
+		}
+		if filtered == nil {
+			filtered = []db.GetTrainersBookingSlotsRow{}
+		}
+		resp := map[string]interface{}{"data": filtered}
+		var data interface{} = resp
+		c.JSON(http.StatusOK, api.SuccessResponse{Code: api.CodeOK, Message: "trainer booking slots retrieved successfully", Data: &data, Meta: nil})
+		return
+	}
+
 	cacheKey := "booking-slots:trainer:" + trainerId.String()
 
 	// Cache read — skip on Redis error, proceed to DB.
@@ -219,8 +249,31 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
+	bookingConflict, err := h.service.CheckBookingConflictForClient(c.Request.Context(), db.CheckBookingConflictForClientParams{
+		TrainerID: data.TrainerID,
+		ClientID:  data.ClientID,
+		NewStart:  sql.NullTime{Valid: true, Time: data.ScheduledStart.Time},
+		NewEnd:    sql.NullTime{Valid: true, Time: data.ScheduledEnd.Time},
+	})
+	if err != nil {
+		h.log.Error("failed to check db for conflict", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
+		return
+	}
+	if bookingConflict > 0 {
+		h.log.Error("failed to create booking: booking with trainer within time slot exists", "err", err)
+		c.JSON(http.StatusConflict, api.NewError("booking with trainer within timeslot exists", api.CodeConflict))
+		return
+	}
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqerror.ExclusionViolation {
+			h.log.Warn("booking conflict caught by exclusion constraint", "trainerID", data.TrainerID, "err", err)
+			c.JSON(http.StatusConflict, api.NewError("this time slot conflicts with an existing booking", api.CodeConflict))
+			return
+
+		}
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return

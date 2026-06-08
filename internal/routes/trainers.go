@@ -29,7 +29,11 @@ import (
 // trainerPhoneE164Regex validates the phone_number form field on
 // POST /trainers. Same shape the discovery-call phone_callback path
 // uses so trainers and that flow share one phone format.
-var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+var (
+	trainerRole           = "trainer"
+	localAuthProvider     = "local"
+	trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing
@@ -504,6 +508,16 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		}
 	}()
 	qtx := s.trainers.q.WithTx(tx)
+
+	existingUser, err := qtx.GetUserByEmailAndProvider(ctx, db.GetUserByEmailAndProviderParams{
+		Email:        emailAddr,
+		AuthProvider: localAuthProvider,
+	})
+	if err == nil && existingUser.Role != trainerRole {
+		s.logger.Warn("create trainer: email already in use by non-trainer account", "email", emailAddr)
+		c.JSON(http.StatusConflict, api.NewError("email is already in use by another account", api.CodeConflict))
+		return
+	}
 
 	user, err := qtx.UpsertTrainerUser(ctx, db.UpsertTrainerUserParams{
 		Email:       emailAddr,
