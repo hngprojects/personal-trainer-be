@@ -1609,6 +1609,15 @@ func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{
 	if r.ZoomMeetingLink.Valid {
 		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
 	}
+	if r.SessionPlatform.Valid {
+		m["session_platform"] = r.SessionPlatform.String
+	}
+	if r.PhoneNumber.Valid {
+		m["client_phone_number"] = r.PhoneNumber.String
+	}
+	if r.MessengerHandle.Valid {
+		m["client_messenger_handle"] = r.MessengerHandle.String
+	}
 	return m
 }
 

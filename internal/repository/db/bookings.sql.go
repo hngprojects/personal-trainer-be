@@ -722,6 +722,8 @@ SELECT
   b.timezone,
   b.booking_status,
   b.session_platform,
+  b.phone_number,
+  b.messenger_handle,
   b.created_at,
   b.cancelled_at,
   b.zoom_meeting_link,
@@ -752,6 +754,8 @@ type ListBookingsByTrainerRow struct {
 	Timezone        sql.NullString
 	BookingStatus   sql.NullString
 	SessionPlatform sql.NullString
+	PhoneNumber     sql.NullString
+	MessengerHandle sql.NullString
 	CreatedAt       sql.NullTime
 	CancelledAt     sql.NullTime
 	ZoomMeetingLink sql.NullString
@@ -784,6 +788,8 @@ func (q *Queries) ListBookingsByTrainer(ctx context.Context, arg ListBookingsByT
 			&i.Timezone,
 			&i.BookingStatus,
 			&i.SessionPlatform,
+			&i.PhoneNumber,
+			&i.MessengerHandle,
 			&i.CreatedAt,
 			&i.CancelledAt,
 			&i.ZoomMeetingLink,

@@ -322,6 +322,8 @@ SELECT
   b.timezone,
   b.booking_status,
   b.session_platform,
+  b.phone_number,
+  b.messenger_handle,
   b.created_at,
   b.cancelled_at,
   b.zoom_meeting_link,
