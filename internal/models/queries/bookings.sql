@@ -67,7 +67,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1;
@@ -89,7 +90,8 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
@@ -196,7 +198,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle;
+  messenger_handle,
+  phone_number;
 
 -- name: CheckPaidBookingConflict :one
 SELECT COUNT(*) FROM bookings

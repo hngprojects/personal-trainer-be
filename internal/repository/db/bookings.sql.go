@@ -379,34 +379,16 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
 `
 
-type GetBookingByIDRow struct {
-	ID                 uuid.UUID
-	TrainerID          uuid.UUID
-	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
-	ScheduledStart     sql.NullTime
-	ScheduledEnd       sql.NullTime
-	Timezone           sql.NullString
-	BookingStatus      sql.NullString
-	SessionPlatform    sql.NullString
-	CancellationReason sql.NullString
-	CreatedAt          sql.NullTime
-	CancelledAt        sql.NullTime
-	ZoomMeetingLink    sql.NullString
-	ZoomMeetingID      sql.NullString
-	RescheduleCount    int32
-	MessengerHandle    sql.NullString
-}
-
-func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (GetBookingByIDRow, error) {
+func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByID, id)
-	var i GetBookingByIDRow
+	var i Booking
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -424,6 +406,7 @@ func (q *Queries) GetBookingByID(ctx context.Context, id uuid.UUID) (GetBookingB
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -445,35 +428,17 @@ SELECT
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 FROM bookings
 WHERE id = $1
 LIMIT 1
 FOR UPDATE
 `
 
-type GetBookingByIDForUpdateRow struct {
-	ID                 uuid.UUID
-	TrainerID          uuid.UUID
-	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
-	ScheduledStart     sql.NullTime
-	ScheduledEnd       sql.NullTime
-	Timezone           sql.NullString
-	BookingStatus      sql.NullString
-	SessionPlatform    sql.NullString
-	CancellationReason sql.NullString
-	CreatedAt          sql.NullTime
-	CancelledAt        sql.NullTime
-	ZoomMeetingLink    sql.NullString
-	ZoomMeetingID      sql.NullString
-	RescheduleCount    int32
-	MessengerHandle    sql.NullString
-}
-
-func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (GetBookingByIDForUpdateRow, error) {
+func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, getBookingByIDForUpdate, id)
-	var i GetBookingByIDForUpdateRow
+	var i Booking
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -491,6 +456,7 @@ func (q *Queries) GetBookingByIDForUpdate(ctx context.Context, id uuid.UUID) (Ge
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }
@@ -1076,7 +1042,8 @@ RETURNING
   zoom_meeting_link,
   zoom_meeting_id,
   reschedule_count,
-  messenger_handle
+  messenger_handle,
+  phone_number
 `
 
 type ReschedulePaidBookingParams struct {
@@ -1087,26 +1054,7 @@ type ReschedulePaidBookingParams struct {
 	ID              uuid.UUID
 }
 
-type ReschedulePaidBookingRow struct {
-	ID                 uuid.UUID
-	TrainerID          uuid.UUID
-	ClientID           uuid.UUID
-	SubscriptionID     uuid.NullUUID
-	ScheduledStart     sql.NullTime
-	ScheduledEnd       sql.NullTime
-	Timezone           sql.NullString
-	BookingStatus      sql.NullString
-	SessionPlatform    sql.NullString
-	CancellationReason sql.NullString
-	CreatedAt          sql.NullTime
-	CancelledAt        sql.NullTime
-	ZoomMeetingLink    sql.NullString
-	ZoomMeetingID      sql.NullString
-	RescheduleCount    int32
-	MessengerHandle    sql.NullString
-}
-
-func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidBookingParams) (ReschedulePaidBookingRow, error) {
+func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidBookingParams) (Booking, error) {
 	row := q.db.QueryRowContext(ctx, reschedulePaidBooking,
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
@@ -1114,7 +1062,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		arg.ZoomMeetingID,
 		arg.ID,
 	)
-	var i ReschedulePaidBookingRow
+	var i Booking
 	err := row.Scan(
 		&i.ID,
 		&i.TrainerID,
@@ -1132,6 +1080,7 @@ func (q *Queries) ReschedulePaidBooking(ctx context.Context, arg ReschedulePaidB
 		&i.ZoomMeetingID,
 		&i.RescheduleCount,
 		&i.MessengerHandle,
+		&i.PhoneNumber,
 	)
 	return i, err
 }

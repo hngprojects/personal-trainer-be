@@ -146,11 +146,11 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
 	} else {
 		switch platformStr {
-		case "zoom", "google_meet", "messenger":
+		case "zoom", "google_meet", "messenger", "whatsapp", "imessage":
 			// ok
 		default:
 			h.log.Warn("HandleCreateBookingSession: invalid session_platform", "value", platformStr)
-			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, or messenger"})
+			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, imessage, whatsapp or messenger"})
 		}
 	}
 	// messenger_handle is required when platform=messenger; otherwise
@@ -158,11 +158,18 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	// the discovery handler's validation; Facebook handles vary wildly
 	// in format so we don't try to match a pattern).
 	var messengerHandle string
+	var phoneNumber string
 	if request.MessengerHandle != nil {
 		messengerHandle = strings.TrimSpace(*request.MessengerHandle)
 	}
+	if request.PhoneNumber != nil {
+		phoneNumber = strings.TrimSpace(*request.PhoneNumber)
+	}
 	if platformStr == "messenger" && messengerHandle == "" {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle is required when session_platform is messenger"})
+	}
+	if platformStr == "whatsapp" || platformStr == "imessage" && phoneNumber == "" {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "phone_number", Message: "phone_number is required when session_platform is whatsapp or imessage"})
 	}
 	if len(messengerHandle) > 255 {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle must not exceed 255 characters"})
@@ -184,8 +191,12 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		return
 	}
 	var messengerNS sql.NullString
+	var phoneNumberNS sql.NullString
 	if messengerHandle != "" {
 		messengerNS = sql.NullString{Valid: true, String: messengerHandle}
+	}
+	if phoneNumber != "" {
+		messengerNS = sql.NullString{Valid: true, String: phoneNumber}
 	}
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
@@ -195,6 +206,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
 		SessionPlatform: sql.NullString{Valid: true, String: platformStr},
 		MessengerHandle: messengerNS,
+		PhoneNumber:     phoneNumberNS,
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
