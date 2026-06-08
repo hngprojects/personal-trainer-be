@@ -13,8 +13,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/common"
-	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
+	errs "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
 // generatedPasswordLen is the length of the password we generate for new
