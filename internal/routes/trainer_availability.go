@@ -685,7 +685,7 @@ func (s *routerImpl) GetTrainerAvailabilityEvents(c *gin.Context, trainerID uuid
 	ch := s.broker.Subscribe(trainerID)
 	defer s.broker.Unsubscribe(trainerID, ch)
 
-	ticker := time.NewTicker(30 * time.Second) // SSE keepalive
+	ticker := time.NewTicker(20 * time.Second) // SSE keepalive
 	defer ticker.Stop()
 
 	w.WriteHeader(http.StatusOK)
@@ -696,12 +696,18 @@ func (s *routerImpl) GetTrainerAvailabilityEvents(c *gin.Context, trainerID uuid
 			if !ok {
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", payload)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+				s.logger.Warn("failed to write SSE event", "err", err)
+				return
+			}
 			w.(http.Flusher).Flush()
 
 		case <-ticker.C:
 			// Keep connection alive through proxies
-			fmt.Fprintf(w, ": keepalive\n\n")
+			if _, err := fmt.Fprintf(w, ": keepalive\n\n"); err != nil {
+				s.logger.Warn("failed to write SSE keepalive", "err", err)
+				return
+			}
 			w.(http.Flusher).Flush()
 
 		case <-c.Request.Context().Done():
