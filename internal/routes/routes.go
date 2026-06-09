@@ -482,15 +482,6 @@ func (s *Router) Routes() *gin.Engine {
 			s.reminderWorker = reminder.New(s.db, &reminderNotifSender{ns: notificationService}, mailer, s.log)
 			s.reminderWorker.Start(context.Background())
 
-			// Start PG LISTEN for availability SSE
-			stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
-			if err != nil {
-				s.log.Warn("availability SSE listener failed to start", "err", err)
-			} else {
-				s.stopAvailabilityListener = stop
-				s.log.Info("availability SSE listener started")
-			}
-
 			// Avatar upload pipeline. Storage is built lazily — missing env
 			// vars just leave impl.uploader nil and the handler returns 503,
 			// rather than failing the whole server boot.
