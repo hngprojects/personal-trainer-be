@@ -28,6 +28,7 @@ func StartPGListener(connStr string, broker *AvailabilityBroker, logger *slog.Lo
 			}
 			var row struct {
 				TrainerID uuid.UUID `json:"trainer_id"`
+				StartTime time.Time `json:"scheduled_start"`
 			}
 			if err := json.Unmarshal([]byte(n.Extra), &row); err != nil {
 				logger.Error("bad notify payload", "err", err)
