@@ -536,6 +536,7 @@ func (s *routerImpl) deleteOneAvailabilitySlot(c *gin.Context, trainerID, slotID
 // Sentinels appendAvailabilitySlots returns for caller-mapped responses.
 //   - duplicate → 409 (exact same (day, start, end) as an existing row)
 //   - overlap   → 400 (partial collision, ranges intersect but not equal)
+//
 // Any other error bubbles up untyped and surfaces as 500.
 var (
 	errAvailabilitySlotDuplicate = errors.New("availability slot duplicates an existing row")
@@ -661,4 +662,60 @@ func checkInRequestDuplicate(slots []*parsedSlot) error {
 		seen[k] = struct{}{}
 	}
 	return nil
+}
+
+func (s *routerImpl) GetTrainerAvailabilityEvents(c *gin.Context, trainerID uuid.UUID) {
+	w := c.Writer
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	// Verify trainer exists first (return 404 before streaming starts)
+	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if s.availability == nil || s.broker == nil {
+			c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+			return
+		}
+		s.logger.Warn("failed to fetch trainer", "trainerID", trainerID, "err", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to look up trainer", api.CodeServerError))
+		return
+	}
+
+	ch := s.broker.Subscribe(trainerID)
+	defer s.broker.Unsubscribe(trainerID, ch)
+
+	ticker := time.NewTicker(20 * time.Second) // SSE keepalive
+	defer ticker.Stop()
+
+	w.WriteHeader(http.StatusOK)
+
+	for {
+		select {
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", payload); err != nil {
+				s.logger.Warn("failed to write SSE event", "err", err)
+				return
+			}
+			w.(http.Flusher).Flush()
+
+		case <-ticker.C:
+			// Keep connection alive through proxies
+			if _, err := fmt.Fprintf(w, ": keepalive\n\n"); err != nil {
+				s.logger.Warn("failed to write SSE keepalive", "err", err)
+				return
+			}
+			w.(http.Flusher).Flush()
+
+		case <-c.Request.Context().Done():
+			return // client disconnected
+		}
+	}
 }

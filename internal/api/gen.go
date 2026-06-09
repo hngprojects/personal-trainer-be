@@ -2437,6 +2437,9 @@ type ServerInterface interface {
 	// Admin sets a trainer's weekly availability
 	// (PUT /trainers/{id}/availability)
 	PutTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Get events for a trainer's weekly availability
+	// (GET /trainers/{id}/availability/events)
+	GetTrainerAvailabilityEvents(c *gin.Context, id openapi_types.UUID)
 	// Admin deletes one availability slot for a specific trainer
 	// (DELETE /trainers/{id}/availability/{slot_id})
 	DeleteTrainerAvailabilitySlot(c *gin.Context, id openapi_types.UUID, slotId openapi_types.UUID)
@@ -4399,6 +4402,33 @@ func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 	siw.Handler.PutTrainerAvailability(c, id)
 }
 
+// GetTrainerAvailabilityEvents operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerAvailabilityEvents(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainerAvailabilityEvents(c, id)
+}
+
 // DeleteTrainerAvailabilitySlot operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainerAvailabilitySlot(c *gin.Context) {
 
@@ -4892,6 +4922,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id/availability", wrapper.GetTrainerAvailability)
 	router.POST(options.BaseURL+"/trainers/:id/availability", wrapper.AddTrainerAvailability)
 	router.PUT(options.BaseURL+"/trainers/:id/availability", wrapper.PutTrainerAvailability)
+	router.GET(options.BaseURL+"/trainers/:id/availability/events", wrapper.GetTrainerAvailabilityEvents)
 	router.DELETE(options.BaseURL+"/trainers/:id/availability/:slot_id", wrapper.DeleteTrainerAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
 	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)

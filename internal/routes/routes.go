@@ -21,6 +21,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
+	"github.com/hngprojects/personal-trainer-be/internal/events"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -91,15 +92,18 @@ type Router struct {
 
 	// reminderWorker polls confirmed bookings every minute and fires push +
 	// email reminders 1 hour before each session. nil until Routes() is called.
-	reminderWorker *reminder.Worker
+	reminderWorker           *reminder.Worker
+	availabilityBroker       *events.AvailabilityBroker
+	stopAvailabilityListener func()
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
 	r := &Router{
-		cfg:   cfg,
-		log:   log,
-		db:    db,
-		redis: redisClient,
+		cfg:                cfg,
+		log:                log,
+		db:                 db,
+		redis:              redisClient,
+		availabilityBroker: events.NewAvailabilityBroker(),
 	}
 	if redisClient != nil {
 		r.globalLimiter = ratelimit.New(redisClient.Raw(), "rl:global", 100, time.Minute)
@@ -138,6 +142,12 @@ func (s *Router) Close() {
 	}
 	if s.reminderWorker != nil {
 		s.reminderWorker.Stop()
+	}
+	if s.availabilityBroker != nil {
+		s.availabilityBroker.Stop() // add a Stop() method if you want graceful drain
+	}
+	if s.stopAvailabilityListener != nil {
+		s.stopAvailabilityListener()
 	}
 }
 
@@ -208,6 +218,8 @@ type routerImpl struct {
 	// mobile/web client needs to know which join flow to use (raw link
 	// vs in-app SDK) and which SDK key to initialise with.
 	zoomConfig zoomConfigRoutes
+
+	broker *events.AvailabilityBroker
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -254,6 +266,14 @@ func (s *Router) Routes() *gin.Engine {
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
 
+	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
+	if err != nil {
+		s.log.Warn("availability SSE listener failed to start", "err", err)
+	} else {
+		s.stopAvailabilityListener = stop
+		s.log.Info("availability SSE listener started")
+	}
+
 	v1 := r.Group("/api/v1")
 	{
 
@@ -262,6 +282,7 @@ func (s *Router) Routes() *gin.Engine {
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 			logger: s.log,
+			broker: s.availabilityBroker,
 		}
 
 		var q *db.Queries
