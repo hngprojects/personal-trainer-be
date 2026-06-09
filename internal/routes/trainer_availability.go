@@ -673,6 +673,10 @@ func (s *routerImpl) GetTrainerAvailabilityEvents(c *gin.Context, trainerID uuid
 
 	// Verify trainer exists first (return 404 before streaming starts)
 	if _, err := s.availability.q.GetTrainerByID(c.Request.Context(), trainerID); err != nil {
+		if s.availability == nil || s.broker == nil {
+			c.JSON(http.StatusServiceUnavailable, api.NewError("service unavailable", api.CodeServerError))
+			return
+		}
 		s.logger.Warn("failed to fetch trainer", "trainerID", trainerID, "err", err)
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, api.NewNotFoundError("trainer"))

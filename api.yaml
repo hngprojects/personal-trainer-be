@@ -4152,10 +4152,12 @@ paths:
   /trainers/{id}/availability/events:
     get:
       operationId: GetTrainerAvailabilityEvents
-      summary: Get events for a trainer's weekly availability
+      summary: Stream booking-created availability events for a trainer
       tags: [Trainer]
       description: |
-        Returns an event if there's a change to a trainer's availability. The event is triggered when a trainer gets a new booking
+        Streams Server-Sent Events (SSE) when a new booking is created for this trainer.
+        This stream currently covers booking-created changes only.
+        It does not emit trainer/admin availability edits or other schedule mutationns
       parameters:
         - name: id
           in: path

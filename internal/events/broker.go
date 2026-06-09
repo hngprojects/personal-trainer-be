@@ -10,6 +10,7 @@ import (
 type AvailabilityBroker struct {
 	mu      sync.RWMutex
 	clients map[uuid.UUID]map[chan string]struct{}
+	stopped bool
 }
 
 func NewAvailabilityBroker() *AvailabilityBroker {
@@ -31,12 +32,14 @@ func (b *AvailabilityBroker) Subscribe(trainerID uuid.UUID) chan string {
 
 func (b *AvailabilityBroker) Unsubscribe(trainerID uuid.UUID, ch chan string) {
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	delete(b.clients[trainerID], ch)
 	if len(b.clients[trainerID]) == 0 {
 		delete(b.clients, trainerID)
 	}
-	b.mu.Unlock()
-	close(ch)
+	if !b.stopped {
+		close(ch) // only close if Stop() hasn't already closed it
+	}
 }
 
 func (b *AvailabilityBroker) Publish(trainerID uuid.UUID, payload string) {
@@ -53,6 +56,7 @@ func (b *AvailabilityBroker) Publish(trainerID uuid.UUID, payload string) {
 func (b *AvailabilityBroker) Stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.stopped = true // mark first so concurrent Unsubscribe calls skip close
 	for trainerID, clients := range b.clients {
 		for ch := range clients {
 			close(ch)

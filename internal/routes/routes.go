@@ -92,8 +92,9 @@ type Router struct {
 
 	// reminderWorker polls confirmed bookings every minute and fires push +
 	// email reminders 1 hour before each session. nil until Routes() is called.
-	reminderWorker     *reminder.Worker
-	availabilityBroker *events.AvailabilityBroker
+	reminderWorker           *reminder.Worker
+	availabilityBroker       *events.AvailabilityBroker
+	stopAvailabilityListener func()
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
@@ -144,6 +145,9 @@ func (s *Router) Close() {
 	}
 	if s.availabilityBroker != nil {
 		s.availabilityBroker.Stop() // add a Stop() method if you want graceful drain
+	}
+	if s.stopAvailabilityListener != nil {
+		s.stopAvailabilityListener()
 	}
 }
 
@@ -261,6 +265,14 @@ func (s *Router) Routes() *gin.Engine {
 	// so flipping team ID / fingerprint at runtime works without a
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
+
+	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
+	if err != nil {
+		s.log.Warn("availability SSE listener failed to start", "err", err)
+	} else {
+		s.stopAvailabilityListener = stop
+		s.log.Info("availability SSE listener started")
+	}
 
 	v1 := r.Group("/api/v1")
 	{
@@ -471,9 +483,11 @@ func (s *Router) Routes() *gin.Engine {
 			s.reminderWorker.Start(context.Background())
 
 			// Start PG LISTEN for availability SSE
-			if err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log); err != nil {
+			stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
+			if err != nil {
 				s.log.Warn("availability SSE listener failed to start", "err", err)
 			} else {
+				s.stopAvailabilityListener = stop
 				s.log.Info("availability SSE listener started")
 			}
 
