@@ -57,7 +57,9 @@ func StartPGListener(connStr string, broker *AvailabilityBroker, logger *slog.Lo
 				broker.Publish(row.TrainerID, string(safePayload))
 
 			case <-ctx.Done():
-				l.Close()
+				if err := l.Close(); err != nil {
+					logger.Error("failed to close pg listener", "err", err)
+				}
 				return
 			}
 		}
