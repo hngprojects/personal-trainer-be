@@ -42,7 +42,7 @@ func (q *Queries) CountClients2(ctx context.Context, isActive sql.NullBool) (int
 const createAppleUser = `-- name: CreateAppleUser :one
 INSERT INTO users (email, name, auth_provider, apple_user_id, is_active)
 VALUES ($1, $2, 'apple', $3, true)
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type CreateAppleUserParams struct {
@@ -76,6 +76,7 @@ func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -85,7 +86,7 @@ INSERT INTO users (email, name, auth_provider)
 VALUES ($1, $2, $3)
 ON CONFLICT (email, auth_provider) DO UPDATE
     SET updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type CreateUserParams struct {
@@ -113,6 +114,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -199,7 +201,7 @@ func (q *Queries) GetClientByID(ctx context.Context, id uuid.UUID) (GetClientByI
 }
 
 const getUserByAppleSub = `-- name: GetUserByAppleSub :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 FROM users
 WHERE apple_user_id = $1
 LIMIT 1
@@ -228,12 +230,13 @@ func (q *Queries) GetUserByAppleSub(ctx context.Context, appleUserID sql.NullStr
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 FROM users
 WHERE email = $1
 LIMIT 1
@@ -258,12 +261,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
 
 const getUserByEmailAndProvider = `-- name: GetUserByEmailAndProvider :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 FROM users
 WHERE email = $1 AND auth_provider = $2
 LIMIT 1
@@ -293,12 +297,13 @@ func (q *Queries) GetUserByEmailAndProvider(ctx context.Context, arg GetUserByEm
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+SELECT id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 FROM users
 WHERE id = $1
 LIMIT 1
@@ -323,6 +328,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -362,7 +368,7 @@ SET apple_user_id = $2,
     updated_at = NOW()
 WHERE id = $1
   AND apple_user_id IS NULL
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type LinkAppleSubToUserParams struct {
@@ -393,6 +399,7 @@ func (q *Queries) LinkAppleSubToUser(ctx context.Context, arg LinkAppleSubToUser
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -473,13 +480,34 @@ func (q *Queries) ReactivateSelf(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 	return id_2, err
 }
 
+const setUserAppleRefreshToken = `-- name: SetUserAppleRefreshToken :exec
+UPDATE users
+SET apple_refresh_token_enc = $1,
+    updated_at = NOW()
+WHERE id = $2
+`
+
+type SetUserAppleRefreshTokenParams struct {
+	RefreshTokenEnc sql.NullString
+	ID              uuid.UUID
+}
+
+// Persists the AES-GCM-encrypted Apple refresh token captured from the
+// authorization_code exchange. Called after a successful Apple sign-in
+// when the client supplied an authorization_code. Stored opaquely —
+// only the account-deletion handler reads + decrypts this column.
+func (q *Queries) SetUserAppleRefreshToken(ctx context.Context, arg SetUserAppleRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, setUserAppleRefreshToken, arg.RefreshTokenEnc, arg.ID)
+	return err
+}
+
 const updateTrainerUserProfile = `-- name: UpdateTrainerUserProfile :one
 UPDATE users
 SET
     phone_number = COALESCE(NULLIF($1::text, ''), phone_number),
     updated_at   = NOW()
 WHERE id = $2
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type UpdateTrainerUserProfileParams struct {
@@ -508,6 +536,7 @@ func (q *Queries) UpdateTrainerUserProfile(ctx context.Context, arg UpdateTraine
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -548,7 +577,7 @@ SET
     avatar_url     = COALESCE(NULLIF($5::text, ''), avatar_url),
     updated_at     = NOW()
 WHERE id = $6
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type UpdateUserOnboardingParams struct {
@@ -586,6 +615,7 @@ func (q *Queries) UpdateUserOnboarding(ctx context.Context, arg UpdateUserOnboar
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -599,7 +629,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role       = 'admin',
        is_active  = true,
        updated_at = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type UpsertAdminUserParams struct {
@@ -627,6 +657,7 @@ func (q *Queries) UpsertAdminUser(ctx context.Context, arg UpsertAdminUserParams
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }
@@ -651,7 +682,7 @@ ON CONFLICT (email, auth_provider) DO UPDATE
        role         = 'trainer',
        is_active    = true,
        updated_at   = NOW()
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type UpsertTrainerUserParams struct {
@@ -697,6 +728,7 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }

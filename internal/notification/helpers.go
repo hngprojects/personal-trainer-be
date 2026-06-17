@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/pkg/apple"
 )
 
 func (s *NotificationService) sendNotifViaFCM(ctx context.Context, userID uuid.UUID, notification db.Notification, resp NotificationResponse, title, message string) (*NotificationResponse, error) {
@@ -20,59 +22,86 @@ func (s *NotificationService) sendNotifViaFCM(ctx context.Context, userID uuid.U
 		return &resp, nil
 	}
 
-	// Build the token list and a parallel index from token → device id
-	// so we can deactivate by id when FCM tells us a specific token
-	// is dead. Repository.GetUserDeviceToken now returns only active
-	// rows so the IsPushNotificationEnabled per-device opt-out is the
-	// last remaining filter here.
-	var tokens []string
-	tokenToDeviceID := make(map[string]uuid.UUID, len(*userDevice))
+	// Partition devices by platform. iOS goes through APNs (when wired);
+	// android/web stays on FCM. Both buckets share the same dead-token
+	// cleanup pipeline downstream so the routing decision is invisible
+	// to the rest of the codebase.
+	var iosDevices []db.UserDevice
+	var fcmTokens []string
+	fcmTokenToDeviceID := make(map[string]uuid.UUID, len(*userDevice))
+
 	for _, device := range *userDevice {
 		if !device.IsPushNotificationEnabled {
 			s.log.Info("User has disabled push notifications", "userID", userID, "deviceID", device.ID)
 			continue
 		}
-		tokens = append(tokens, device.DeviceToken)
-		tokenToDeviceID[device.DeviceToken] = device.ID
+		if device.Platform == "ios" && s.apnsClient != nil {
+			iosDevices = append(iosDevices, device)
+			continue
+		}
+		fcmTokens = append(fcmTokens, device.DeviceToken)
+		fcmTokenToDeviceID[device.DeviceToken] = device.ID
 	}
-	if len(tokens) == 0 {
+
+	if len(iosDevices) == 0 && len(fcmTokens) == 0 {
 		s.log.Info("No device tokens with push enabled for user", "userID", userID)
 		return &resp, nil
 	}
 
-	result, sendErr := s.fcmClient.SendToTokens(ctx, tokens, title, message)
+	totalSent, totalFailed := 0, 0
 
-	// Deactivate device rows whose tokens FCM said no longer exist
-	// (uninstalled, rotated, sender-id mismatch). We do this BEFORE
-	// returning so a future push to this same user skips the dead
-	// rows even if the current call ultimately returns an error.
-	for _, dead := range result.InvalidTokens {
-		id, ok := tokenToDeviceID[dead]
-		if !ok {
+	// ── APNs path (iOS, direct) ──────────────────────────────────────
+	for _, device := range iosDevices {
+		res, sendErr := s.apnsClient.Send(ctx, device.DeviceToken, title, message)
+		if sendErr != nil {
+			totalFailed++
+			s.log.Warn("APNs send failed", "userID", userID, "deviceID", device.ID, "reason", apnsReason(res), "err", sendErr)
+			if res != nil && res.InvalidToken {
+				if dErr := s.repo.DeactivateDevice(ctx, device.ID); dErr != nil {
+					s.log.Warn("failed to deactivate dead APNs device row", "deviceID", device.ID, "error", dErr)
+				} else {
+					s.log.Info("deactivated dead APNs device row", "deviceID", device.ID, "userID", userID)
+				}
+			}
 			continue
 		}
-		if err := s.repo.DeactivateDevice(ctx, id); err != nil {
-			s.log.Warn("failed to deactivate dead device row", "deviceID", id, "error", err)
-		} else {
-			s.log.Info("deactivated dead device row", "deviceID", id, "userID", userID)
+		totalSent++
+	}
+
+	// ── FCM path (Android/web, plus iOS fallback when APNs unwired) ──
+	if len(fcmTokens) > 0 {
+		result, sendErr := s.fcmClient.SendToTokens(ctx, fcmTokens, title, message)
+
+		for _, dead := range result.InvalidTokens {
+			id, ok := fcmTokenToDeviceID[dead]
+			if !ok {
+				continue
+			}
+			if err := s.repo.DeactivateDevice(ctx, id); err != nil {
+				s.log.Warn("failed to deactivate dead device row", "deviceID", id, "error", err)
+			} else {
+				s.log.Info("deactivated dead device row", "deviceID", id, "userID", userID)
+			}
+		}
+
+		totalSent += result.Sent
+		totalFailed += result.Failed
+
+		if sendErr != nil && totalSent == 0 {
+			s.log.Error("Failed to send notification to user via FCM", "userID", userID, "error", sendErr)
+			if uerr := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
+				Status: "failed",
+				ID:     notification.ID,
+			}); uerr != nil {
+				s.log.Error("Failed to update notification status", "error", uerr)
+			}
+			return nil, sendErr
 		}
 	}
 
-	if sendErr != nil {
-		s.log.Error("Failed to send notification to user", "userID", userID, "error", sendErr)
-		if uerr := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
-			Status: "failed",
-			ID:     notification.ID,
-		}); uerr != nil {
-			s.log.Error("Failed to update notification status", "error", uerr)
-		}
-		return nil, sendErr
-	}
-
-	// Partial success counts as success — at least one device got
-	// the message, which is what the user cares about. Per-device
-	// failures are already logged inside SendToTokens.
-	if result.Sent == 0 && result.Failed > 0 {
+	// Partial success counts as success — at least one device got the
+	// message. All-failed is only "failed" if NO channel delivered.
+	if totalSent == 0 && totalFailed > 0 {
 		if uerr := s.repo.UpdateNotificationStatus(ctx, db.UpdateNotificationStatusParams{
 			Status: "failed",
 			ID:     notification.ID,
@@ -91,6 +120,16 @@ func (s *NotificationService) sendNotifViaFCM(ctx context.Context, userID uuid.U
 	}
 	resp.Status = "sent"
 	return &resp, nil
+}
+
+// apnsReason extracts the APNs error reason for log lines without
+// blowing up when the result is nil (network errors before we got a
+// response from Apple).
+func apnsReason(r *apple.SendResult) string {
+	if r == nil {
+		return ""
+	}
+	return r.Reason
 }
 
 func (s *NotificationService) sendNotifViaWS(ctx context.Context, userID uuid.UUID, notification db.Notification, resp NotificationResponse, title, message string) (*NotificationResponse, error) {
