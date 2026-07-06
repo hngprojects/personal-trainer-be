@@ -21,6 +21,10 @@ type Repository interface {
 	CreateRescheduleHistory(ctx context.Context, arg db.CreateRescheduleHistoryParams) error
 
 	GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error)
+	// GetActiveSlotsForDate returns active templates for the weekday of
+	// `target` and removes any taken by a non-cancelled discovery
+	// booking on that exact date.
+	GetActiveSlotsForDate(ctx context.Context, target time.Time) ([]db.BookingSlot, error)
 	GetSlotByID(ctx context.Context, id uuid.UUID) (db.BookingSlot, error)
 	CreateSlot(ctx context.Context, arg db.CreateBookingSlotParams) (db.BookingSlot, error)
 	// CreateSlotsBulk inserts every slot inside one transaction so a
@@ -92,6 +96,31 @@ func (r *postgresRepo) CreateRescheduleHistory(ctx context.Context, arg db.Creat
 
 func (r *postgresRepo) GetActiveSlots(ctx context.Context) ([]db.BookingSlot, error) {
 	return r.q.GetActiveBookingSlots(ctx)
+}
+
+func (r *postgresRepo) GetActiveSlotsForDate(ctx context.Context, target time.Time) ([]db.BookingSlot, error) {
+	rows, err := r.q.GetActiveBookingSlotsForDate(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	// Generated row type has the same fields as db.BookingSlot
+	// (we selected every column); convert so callers keep the single
+	// public type.
+	out := make([]db.BookingSlot, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, db.BookingSlot{
+			ID:        row.ID,
+			TrainerID: row.TrainerID,
+			DayOfWeek: row.DayOfWeek,
+			StartTime: row.StartTime,
+			EndTime:   row.EndTime,
+			Timezone:  row.Timezone,
+			IsActive:  row.IsActive,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		})
+	}
+	return out, nil
 }
 
 func (r *postgresRepo) GetSlotByID(ctx context.Context, id uuid.UUID) (db.BookingSlot, error) {

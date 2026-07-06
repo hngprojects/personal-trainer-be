@@ -19,6 +19,7 @@ type mockRepository struct {
 	getUserPendingNotificationFn func(ctx context.Context, userID uuid.UUID) ([]db.Notification, error)
 	getUserRoleByUserIDFn        func(ctx context.Context, userID uuid.UUID) (string, error)
 	listAdminUserIDsFn           func(ctx context.Context) ([]uuid.UUID, error)
+	deactivateDeviceFn           func(ctx context.Context, deviceID uuid.UUID) error
 }
 
 func (m *mockRepository) CreateNotification(ctx context.Context, args db.CreateNotificationParams) (db.Notification, error) {
@@ -82,6 +83,13 @@ func (m *mockRepository) ListAdminUserIDs(ctx context.Context) ([]uuid.UUID, err
 		return m.listAdminUserIDsFn(ctx)
 	}
 	return nil, nil
+}
+
+func (m *mockRepository) DeactivateDevice(ctx context.Context, deviceID uuid.UUID) error {
+	if m.deactivateDeviceFn != nil {
+		return m.deactivateDeviceFn(ctx, deviceID)
+	}
+	return nil
 }
 
 type mockWSHub struct {

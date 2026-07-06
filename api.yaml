@@ -2366,7 +2366,8 @@ paths:
                   format: date-time
                 session_platform:
                   type: string
-                  enum: ["zoom", "google_meet", "messenger"]
+                  enum:
+                    ["zoom", "google_meet", "messenger", "imessage", "whatsapp"]
                   description: |
                     `zoom` and `google_meet` mint a meeting URL via
                     their respective APIs; `messenger` stores the
@@ -2382,6 +2383,11 @@ paths:
                     Required when session_platform is messenger. Same
                     semantics as the discovery booking field.
                   example: "jane.doe.42"
+                phone_number:
+                  type: string
+                  nullable: true
+                  description: |
+                    Whatsapp or iMessage phone number. Required when session_platform is whatsapp or imessage
                 timezone:
                   type: string
       responses:
@@ -4126,6 +4132,48 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/availability/events:
+    get:
+      operationId: GetTrainerAvailabilityEvents
+      summary: Stream booking-created availability events for a trainer
+      tags: [Trainer]
+      description: |
+        Streams Server-Sent Events (SSE) when a new booking is created for this trainer.
+        This stream currently covers booking-created changes only.
+        It does not emit trainer/admin availability edits or other schedule mutationns
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:

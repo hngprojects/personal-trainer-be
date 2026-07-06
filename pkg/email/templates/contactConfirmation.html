@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f4f4f5;
+      font-family: Arial, sans-serif;
+    "
+  >
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 0">
+      <tr>
+        <td align="center">
+          <table
+            width="480"
+            cellpadding="0"
+            cellspacing="0"
+            style="background: #ffffff; border-radius: 8px; padding: 40px"
+          >
+            <tr>
+              <td align="center" style="padding-bottom: 16px">
+                <h2 style="margin: 0; font-size: 22px; color: #111827">
+                  We received your message!
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-bottom: 24px">
+                <p style="margin: 0; font-size: 14px; color: #6b7280">
+                  Hi {{ .Name }}, thanks for reaching out. We'll get back to you
+                  as soon as possible.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -47,6 +47,7 @@ type Booking struct {
 	ZoomMeetingID      sql.NullString
 	RescheduleCount    int32
 	MessengerHandle    sql.NullString
+	PhoneNumber        sql.NullString
 }
 
 type BookingRescheduleHistory struct {

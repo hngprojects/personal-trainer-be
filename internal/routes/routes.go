@@ -21,6 +21,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/contact"
 	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
+	"github.com/hngprojects/personal-trainer-be/internal/events"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -91,15 +92,18 @@ type Router struct {
 
 	// reminderWorker polls confirmed bookings every minute and fires push +
 	// email reminders 1 hour before each session. nil until Routes() is called.
-	reminderWorker *reminder.Worker
+	reminderWorker           *reminder.Worker
+	availabilityBroker       *events.AvailabilityBroker
+	stopAvailabilityListener func()
 }
 
 func New(cfg *config.Config, log *slog.Logger, db *sql.DB, redisClient *appredis.Client) *Router {
 	r := &Router{
-		cfg:   cfg,
-		log:   log,
-		db:    db,
-		redis: redisClient,
+		cfg:                cfg,
+		log:                log,
+		db:                 db,
+		redis:              redisClient,
+		availabilityBroker: events.NewAvailabilityBroker(),
 	}
 	if redisClient != nil {
 		r.globalLimiter = ratelimit.New(redisClient.Raw(), "rl:global", 100, time.Minute)
@@ -138,6 +142,12 @@ func (s *Router) Close() {
 	}
 	if s.reminderWorker != nil {
 		s.reminderWorker.Stop()
+	}
+	if s.availabilityBroker != nil {
+		s.availabilityBroker.Stop() // add a Stop() method if you want graceful drain
+	}
+	if s.stopAvailabilityListener != nil {
+		s.stopAvailabilityListener()
 	}
 }
 
@@ -208,6 +218,8 @@ type routerImpl struct {
 	// mobile/web client needs to know which join flow to use (raw link
 	// vs in-app SDK) and which SDK key to initialise with.
 	zoomConfig zoomConfigRoutes
+
+	broker *events.AvailabilityBroker
 }
 
 func (s *Router) Routes() *gin.Engine {
@@ -254,6 +266,14 @@ func (s *Router) Routes() *gin.Engine {
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
 
+	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
+	if err != nil {
+		s.log.Warn("availability SSE listener failed to start", "err", err)
+	} else {
+		s.stopAvailabilityListener = stop
+		s.log.Info("availability SSE listener started")
+	}
+
 	v1 := r.Group("/api/v1")
 	{
 
@@ -262,6 +282,7 @@ func (s *Router) Routes() *gin.Engine {
 			root:   root.NewRootHandler(s.log),
 			health: health.NewHealthHandler(s.log),
 			logger: s.log,
+			broker: s.availabilityBroker,
 		}
 
 		var q *db.Queries
@@ -280,6 +301,26 @@ func (s *Router) Routes() *gin.Engine {
 			wsHub := websocket.NewHub(s.log)
 			impl.wsHub = wsHub
 			fcmClient := fcmnotif.NewPushNotification(s.cfg.FCMCredentialsJSON, s.cfg.FCMProjectID, nil, s.log)
+			// Loud diagnostic for the most common "notifications don't
+			// work" failure mode: the env vars aren't set, the FCM
+			// client silently constructs itself in disabled mode, and
+			// every push fails at delivery time with no visible signal.
+			// In dev that's expected; in staging/prod it's almost
+			// always a deploy misconfiguration. Log at ERROR level
+			// outside dev so operators see it during boot rollup.
+			if fcmClient.IsDisabled() {
+				if s.cfg.Env == "development" {
+					s.log.Warn("FCM push notifications are disabled — set FCM_CREDENTIALS_JSON + FCM_PROJECT_ID to enable (dev mode, this is OK)")
+				} else {
+					s.log.Error("FCM push notifications are DISABLED in a non-development environment — clients will not receive any push. Check FCM_CREDENTIALS_JSON (base64-encoded) and FCM_PROJECT_ID env vars.",
+						"env", s.cfg.Env,
+						"credentials_json_present", len(s.cfg.FCMCredentialsJSON) > 0,
+						"project_id_present", s.cfg.FCMProjectID != "",
+					)
+				}
+			} else {
+				s.log.Info("FCM push notifications enabled", "project_id", s.cfg.FCMProjectID)
+			}
 			notificationRepo := notification.NewRepository(q)
 			notificationService := notification.NewNotificationService(notificationRepo, fcmClient, wsHub, s.log)
 			impl.notificationService = notificationService
@@ -663,6 +704,17 @@ func (s *Router) Routes() *gin.Engine {
 			settingsHandler := settings.NewHandler(q, s.log)
 			settingsHandler.Register(v1, authMw, gin.HandlerFunc(superAdminOnly))
 		}
+
+		// DO NOT re-add hand-wired PATCH /trainers/me/edit-profile or
+		// PATCH /trainers/me/availability/toggle here. The original
+		// hotfix (#354/#355/#356) removed them because both are now
+		// emitted by oapi-codegen from api.yaml (gen.go:4898 and 4902).
+		// Adding either back double-registers it and gin panics at
+		// boot with `handlers are already registered for path …`,
+		// taking down the service in a restart loop (this has now
+		// happened twice — once in #341 and once in #359). If you
+		// genuinely need a gin radix-tree workaround, do it by
+		// renaming the spec entry, not by hand-wiring on top.
 
 		api.RegisterHandlersWithOptions(v1, impl, api.GinServerOptions{
 			Middlewares: []api.MiddlewareFunc{
