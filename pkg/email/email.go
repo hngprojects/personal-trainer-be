@@ -27,6 +27,7 @@ type Mailer interface {
 	SendAccountSetupLink(to, name, link string, expiryHours int) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to string) error
+	SendWaitlistNotification(to, name, joinerEmail, phone, location string) error
 	SendContactConfirmation(to, name string) error
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
@@ -229,6 +230,11 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 
 func (m *LogMailer) SendWaitlistConfirmation(to string) error {
 	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
+	return nil
+}
+
+func (m *LogMailer) SendWaitlistNotification(to, _, joinerEmail, _, _ string) error {
+	slog.Info("email", "to", to, "subject", waitlistNotificationSubject, "joiner_email", joinerEmail)
 	return nil
 }
 
@@ -554,6 +560,100 @@ var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "te
 func waitlistConfirmationHTML() (string, error) {
 	var body bytes.Buffer
 	if err := waitlistConfirmationTemplate.Execute(&body, nil); err != nil {
+		return "", err
+	}
+	return body.String(), nil
+}
+
+func (m *SMTPMailer) SendWaitlistNotification(to, name, joinerEmail, phone, location string) error {
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+	body, err := waitlistNotificationHTML(name, joinerEmail, phone, location)
+	if err != nil {
+		return fmt.Errorf("build waitlist notification email body: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, waitlistNotificationSubject, body,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
+const waitlistNotificationSubject = "New FitCall Waitlist Signup"
+
+var waitlistNotificationTemplate = template.Must(template.New("waitlist-notification-email").Parse(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td style="padding-bottom:16px;">
+          <h2 style="margin:0;font-size:22px;color:#063660;">New Waitlist Signup</h2>
+        </td></tr>
+        <tr><td style="padding-bottom:24px;">
+          <p style="margin:0 0 8px;font-size:14px;color:#374151;">Someone just joined the FitCall waitlist.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e7eb;margin-top:16px;">
+            {{if .Name}}
+            <tr>
+              <td style="padding:10px 0;font-size:13px;color:#6b7280;width:120px;">Name</td>
+              <td style="padding:10px 0;font-size:13px;color:#111827;">{{.Name}}</td>
+            </tr>
+            {{end}}
+            <tr>
+              <td style="padding:10px 0;font-size:13px;color:#6b7280;width:120px;">Email</td>
+              <td style="padding:10px 0;font-size:13px;color:#111827;">{{.Email}}</td>
+            </tr>
+            {{if .Phone}}
+            <tr>
+              <td style="padding:10px 0;font-size:13px;color:#6b7280;">Phone</td>
+              <td style="padding:10px 0;font-size:13px;color:#111827;">{{.Phone}}</td>
+            </tr>
+            {{end}}
+            {{if .Location}}
+            <tr>
+              <td style="padding:10px 0;font-size:13px;color:#6b7280;">Location</td>
+              <td style="padding:10px 0;font-size:13px;color:#111827;">{{.Location}}</td>
+            </tr>
+            {{end}}
+            <tr>
+              <td style="padding:10px 0;font-size:13px;color:#6b7280;">Signed up</td>
+              <td style="padding:10px 0;font-size:13px;color:#111827;">{{.Date}}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`))
+
+func waitlistNotificationHTML(name, joinerEmail, phone, location string) (string, error) {
+	data := struct {
+		Name     string
+		Email    string
+		Phone    string
+		Location string
+		Date     string
+	}{
+		Name:     name,
+		Email:    joinerEmail,
+		Phone:    phone,
+		Location: location,
+		Date:     time.Now().UTC().Format("January 2, 2006 at 3:04 PM UTC"),
+	}
+	var body bytes.Buffer
+	if err := waitlistNotificationTemplate.Execute(&body, data); err != nil {
 		return "", err
 	}
 	return body.String(), nil
