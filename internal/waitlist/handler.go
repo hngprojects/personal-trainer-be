@@ -12,6 +12,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
+const waitlistNotifyEmail = "notifications@fitcall.me"
+
 type WaitlistHandler struct {
 	repo   WaitlistRepository
 	log    *slog.Logger
@@ -84,6 +86,9 @@ func (h *WaitlistHandler) HandleAddWaitlist(c *gin.Context) {
 
 	if err := h.mailer.SendWaitlistConfirmation(email); err != nil {
 		h.log.Error("failed to send waitlist confirmation email", "email", email, "err", err)
+	}
+	if err := h.mailer.SendWaitlistNotification(waitlistNotifyEmail, name, email, phoneNumber, location); err != nil {
+		h.log.Error("failed to send waitlist notification email", "err", err)
 	}
 	c.JSON(http.StatusCreated, api.NewSuccessResponse("Successfully added to the waitlist", api.CodeCreated, nil, nil))
 }

@@ -60,7 +60,8 @@ type fakeMailer struct{}
 
 func (m *fakeMailer) SendVerificationCode(_, _ string, _ int) error  { return nil }
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
-func (m *fakeMailer) SendWaitlistConfirmation(_ string) error        { return nil }
+func (m *fakeMailer) SendWaitlistConfirmation(_ string) error                      { return nil }
+func (m *fakeMailer) SendWaitlistNotification(_, _, _, _, _ string) error          { return nil }
 func (m *fakeMailer) SendAdminCredentials(_, _ string) error         { return nil }
 func (m *fakeMailer) SendTrainerCredentials(_, _ string) error       { return nil }
 func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
