@@ -89,6 +89,14 @@ func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
 	return m.send(to, waitlistConfirmationSubject, body)
 }
 
+func (m *ResendMailer) SendWaitlistNotification(to, name, joinerEmail, phone, location string) error {
+	body, err := waitlistNotificationHTML(name, joinerEmail, phone, location)
+	if err != nil {
+		return fmt.Errorf("resend: build waitlist notification email body: %w", err)
+	}
+	return m.send(to, waitlistNotificationSubject, body)
+}
+
 func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	payload, err := json.Marshal(resendRequest{
 		From:    m.from,
