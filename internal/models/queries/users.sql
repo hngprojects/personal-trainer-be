@@ -62,6 +62,16 @@ WHERE id = $1
   AND apple_user_id IS NULL
 RETURNING *;
 
+-- name: SetUserAppleRefreshToken :exec
+-- Persists the AES-GCM-encrypted Apple refresh token captured from the
+-- authorization_code exchange. Called after a successful Apple sign-in
+-- when the client supplied an authorization_code. Stored opaquely —
+-- only the account-deletion handler reads + decrypts this column.
+UPDATE users
+SET apple_refresh_token_enc = sqlc.arg(refresh_token_enc),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id);
+
 -- name: UpsertAdminUser :one
 INSERT INTO users (email, name, password, auth_provider, role, is_active)
 VALUES ($1, $2, $3, 'local', 'admin', true)

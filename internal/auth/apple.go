@@ -10,12 +10,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/google/uuid"
+
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/apple"
+	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
 	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
+
+// SIWARefreshTokenWriter persists an encrypted Apple refresh token on
+// the user row. Provided as an interface so the handler doesn't have
+// to know which sqlc query is doing the work (the wiring in routes.go
+// supplies an adapter that calls SetUserAppleRefreshToken).
+type SIWARefreshTokenWriter interface {
+	SetUserAppleRefreshToken(ctx context.Context, userID uuid.UUID, encryptedToken string) error
+}
 
 // AppleVerifier is the slice of pkg/apple.Verifier the handler depends
 // on. Defined as an interface so tests can supply a stub without
@@ -42,6 +53,17 @@ type AppleHandler struct {
 	sessions SessionRepository
 	verifier AppleVerifier
 	log      *slog.Logger
+
+	// oauth / cryptoBox / refreshStore are all optional. When all
+	// three are non-nil AND the client supplied an authorization_code,
+	// the handler exchanges it for a refresh token at sign-in and
+	// persists the AES-GCM-encrypted result on the user row. Required
+	// for the revoke-on-delete flow (App Store Review Guideline
+	// 5.1.1 (v)). When any is nil, sign-in still works — the
+	// exchange is silently skipped.
+	oauth        *apple.SIWAOAuth
+	cryptoBox    *cryptoutil.AESGCM
+	refreshStore SIWARefreshTokenWriter
 }
 
 func NewAppleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, verifier AppleVerifier, log *slog.Logger) *AppleHandler {
@@ -54,6 +76,17 @@ func NewAppleHandler(cfg *config.Config, users UserRepository, sessions SessionR
 		verifier: verifier,
 		log:      log,
 	}
+}
+
+// WithOAuth wires the server-to-server pieces needed for
+// revoke-on-delete. Optional — handler ignores it if any argument is
+// nil, which means the legacy identity-token-only flow keeps working
+// without these dependencies.
+func (h *AppleHandler) WithOAuth(oauth *apple.SIWAOAuth, cryptoBox *cryptoutil.AESGCM, refreshStore SIWARefreshTokenWriter) *AppleHandler {
+	h.oauth = oauth
+	h.cryptoBox = cryptoBox
+	h.refreshStore = refreshStore
+	return h
 }
 
 // SignIn handles POST /auth/apple.
@@ -103,6 +136,20 @@ func (h *AppleHandler) SignIn(c *gin.Context) {
 		return
 	}
 
+	// If the mobile client included the authorization_code AND we have
+	// the server-to-server OAuth pieces wired up, exchange the code for
+	// a refresh token and persist it (encrypted). Apple issues the
+	// authorization_code ONCE on the first authorization per device —
+	// subsequent sign-ins won't carry it and we silently skip.
+	//
+	// Best-effort by design: any failure here (Apple unreachable,
+	// already-consumed code, crypto error) logs a warning but doesn't
+	// block sign-in. The user just won't have revoke-on-delete wired
+	// up until they sign in again with a fresh authorization_code.
+	if req.AuthorizationCode != nil {
+		h.captureRefreshToken(c.Request.Context(), user.ID, strings.TrimSpace(*req.AuthorizationCode))
+	}
+
 	userIDStr := user.ID.String()
 	accessToken, err := GenerateJWTToken(userIDStr, AccessToken)
 	if err != nil {
@@ -140,6 +187,43 @@ func (h *AppleHandler) SignIn(c *gin.Context) {
 		ExpiresIn:    int(accessTokenTTL / time.Second),
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Apple authentication successful", api.CodeOK, data))
+}
+
+// captureRefreshToken exchanges Apple's authorization_code for a
+// refresh token via /auth/token, encrypts the result with AES-GCM,
+// and persists it on the user row. Any failure is logged and
+// swallowed — refresh-token capture is purely additive (the absence
+// just means revoke-on-delete won't fire for that user), so it must
+// never break sign-in.
+func (h *AppleHandler) captureRefreshToken(ctx context.Context, userID uuid.UUID, authCode string) {
+	if authCode == "" {
+		return
+	}
+	if h.oauth == nil || h.cryptoBox == nil || h.refreshStore == nil {
+		// Config incomplete — the boot log already explained why; no
+		// per-request noise is needed.
+		return
+	}
+	tok, err := h.oauth.ExchangeAuthCode(ctx, authCode)
+	if err != nil {
+		h.log.Warn("apple sign-in: authorization_code exchange failed (revoke-on-delete will be unavailable for this user)",
+			"user_id", userID.String(), "err", err)
+		return
+	}
+	if tok == nil || tok.RefreshToken == "" {
+		h.log.Warn("apple sign-in: token endpoint returned empty refresh_token", "user_id", userID.String())
+		return
+	}
+	enc, err := h.cryptoBox.Encrypt([]byte(tok.RefreshToken))
+	if err != nil {
+		h.log.Warn("apple sign-in: refresh-token encryption failed", "user_id", userID.String(), "err", err)
+		return
+	}
+	if err := h.refreshStore.SetUserAppleRefreshToken(ctx, userID, enc); err != nil {
+		h.log.Warn("apple sign-in: failed to persist refresh token", "user_id", userID.String(), "err", err)
+		return
+	}
+	h.log.Info("apple sign-in: refresh token captured", "user_id", userID.String())
 }
 
 // findOrCreate resolves the Apple sub to a user row, creating one on
