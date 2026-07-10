@@ -105,8 +105,18 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 	// (see featureflags.Service.IsEnabled contract), which means a
 	// flag-system outage refuses purchases rather than letting them
 	// through unverified.
-	if s.featureFlagsSvc != nil && !s.featureFlagsSvc.IsEnabled(c.Request.Context(), featureflags.PaymentEnabled) {
-		s.logger.Info("create subscription: payment_enabled flag is OFF, rejecting", "userID", userID)
+	//
+	// Nil-service is treated as "flag system unavailable" and rejects
+	// too — never silently bypass. This can happen in a routes.go
+	// wiring bug or an intentionally-stripped test binary; either way
+	// we prefer to refuse purchases over accepting them without the
+	// gate.
+	if s.featureFlagsSvc == nil || !s.featureFlagsSvc.IsEnabled(c.Request.Context(), featureflags.PaymentEnabled) {
+		if s.featureFlagsSvc == nil {
+			s.logger.Warn("create subscription: featureFlagsSvc is nil — refusing per default-OFF contract", "userID", userID)
+		} else {
+			s.logger.Info("create subscription: payment_enabled flag is OFF, rejecting", "userID", userID)
+		}
 		c.JSON(http.StatusServiceUnavailable, api.NewError("payments are temporarily disabled", api.CodeServerError))
 		return
 	}

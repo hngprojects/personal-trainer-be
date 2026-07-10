@@ -227,12 +227,22 @@ type errorResponse struct {
 // isPermanentlyInvalid mirrors the FCM classifier: "this token is
 // dead, deactivate the row" vs. "transient, retry later". Apple's
 // reason codes are stable strings documented in their developer docs.
+//
+// We DELIBERATELY exclude `DeviceTokenNotForTopic` from the
+// "permanently invalid" set. It looks device-shaped but is almost
+// always a server-side config mismatch — wrong APPLE_BUNDLE_ID vs
+// what the mobile client is registered for, or a
+// sandbox-token-against-production-endpoint (or vice versa) mixup.
+// If we treat it as dead we'd mass-deactivate every iOS device row
+// on the first send after a bad deploy, forcing every user to
+// re-register push before it worked again. Better to log noisily,
+// leave the rows active, and let the operator fix the config.
 func isPermanentlyInvalid(reason string, status int) bool {
 	if status == http.StatusGone { // 410: token has been removed
 		return true
 	}
 	switch reason {
-	case "BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic":
+	case "BadDeviceToken", "Unregistered":
 		return true
 	}
 	return false

@@ -67,6 +67,20 @@ func NewService(q *db.Queries, redis *appredis.Client, log *slog.Logger) *Servic
 // Errors are intentionally swallowed and logged: a flag check should
 // NEVER fail the caller, only return the safe default (off). If you
 // need the error, call GetFlag directly.
+//
+// Consistency contract:
+//   - After a successful SetFlag, IsEnabled reflects the new value
+//     within a Redis round-trip (the write-through in SetFlag lands
+//     before this function's next Redis GET).
+//   - If Redis is unavailable both here AND at write time, this
+//     function still returns the correct value because the DB fallback
+//     is authoritative.
+//   - Under concurrent load, a reader that started its DB fetch
+//     BEFORE a writer's DB commit MAY land its setCache after the
+//     writer's write-through, leaving the pre-flip value cached for
+//     up to the 5-minute TTL. The residual window is narrow. Admins
+//     needing strict consistency during an incident should re-flip
+//     the flag or use PublicSnapshot (which reads DB directly).
 func (s *Service) IsEnabled(ctx context.Context, key string) bool {
 	if s.redis != nil {
 		cmd := s.redis.Get(ctx, redisPrefix+key)
@@ -112,11 +126,35 @@ func (s *Service) ListFlags(ctx context.Context) ([]Flag, error) {
 	return out, nil
 }
 
-// SetFlag upserts the row and invalidates the cache. The cache invalidate
-// runs AFTER the DB commit succeeds — that ordering means a concurrent
-// IsEnabled either sees the OLD cached value (and re-fetches once the
-// invalidate lands) or hits the DB fresh, never sees a value the DB
-// doesn't yet reflect.
+// SetFlag upserts the row and updates the cache. The cache write runs
+// AFTER the DB commit succeeds — that ordering means a concurrent
+// IsEnabled either sees the OLD cached value (until the write-through
+// lands) or hits the DB fresh, never sees a value the DB doesn't yet
+// reflect.
+//
+// Two subtleties worth documenting:
+//
+//  1. Cache-population uses a DETACHED context (not the request ctx).
+//     A caller cancellation between the DB commit and the cache write
+//     would otherwise leave the cache holding the pre-flip value for
+//     the full 5-minute TTL — for a kill-switch, that's exactly the
+//     failure mode we don't want.
+//
+//  2. Write-through, not invalidate-then-refill. A pure DEL followed
+//     by "reader repopulates from DB" is TOCTOU-racy: a reader that
+//     started reading the DB BEFORE the writer's commit can land its
+//     setCache AFTER the writer's DEL, leaving the pre-flip value
+//     cached until TTL. Writing the new value directly ensures the
+//     common case is immediately consistent — the residual race window
+//     (concurrent reader wins the setCache) still exists but is
+//     narrow and self-heals at the next SetFlag or TTL expiry.
+//
+// Callers that need STRICT consistency (payment_enabled flipped OFF
+// during an incident) should either:
+//   - use the admin PublicSnapshot / ListFlags endpoints, which read
+//     Postgres directly and see the committed value immediately, or
+//   - bump the flag twice in a row — the second SET wins any race
+//     from readers that started before the first.
 func (s *Service) SetFlag(ctx context.Context, key string, enabled bool, updatedBy *uuid.UUID, notes string) (*Flag, error) {
 	row, err := s.q.UpsertFeatureFlag(ctx, db.UpsertFeatureFlagParams{
 		Key:     key,
@@ -130,7 +168,13 @@ func (s *Service) SetFlag(ctx context.Context, key string, enabled bool, updated
 	if err != nil {
 		return nil, err
 	}
-	s.invalidate(ctx, key)
+	// Detached context: cache write must not be skipped if the
+	// admin's HTTP client cancels between DB commit and cache write.
+	// Short timeout so a stalled Redis doesn't hold this handler
+	// open past the point where the DB commit is already durable.
+	cacheCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	s.setCache(cacheCtx, key, enabled)
 	s.log.Info("feature_flags: flag updated", "key", key, "enabled", enabled, "updated_by", updatedBy)
 	return rowToFlag(row), nil
 }
@@ -138,6 +182,14 @@ func (s *Service) SetFlag(ctx context.Context, key string, enabled bool, updated
 // PublicSnapshot returns just the {key: enabled} map the mobile client
 // needs on startup. Lighter than ListFlags — strips audit metadata and
 // is what the no-auth GET /feature-flags returns.
+//
+// This deliberately bypasses the Redis cache and reads Postgres
+// directly. The trade-off is intentional: the read path here is
+// admin-startup-ish (mobile calls on cold app launch, not per-tap),
+// so an extra DB round trip is fine — and it gives us a way for
+// clients to get the AUTHORITATIVE post-flip value without waiting
+// for the write-through in SetFlag to propagate. IsEnabled is the
+// per-request hot path that leans on the cache.
 func (s *Service) PublicSnapshot(ctx context.Context) (map[string]bool, error) {
 	rows, err := s.q.ListFeatureFlags(ctx)
 	if err != nil {
@@ -160,18 +212,6 @@ func (s *Service) setCache(ctx context.Context, key string, enabled bool) {
 	}
 	if err := s.redis.Set(ctx, redisPrefix+key, val, cacheTTL); err != nil {
 		s.log.Warn("feature_flags: cache write failed", "key", key, "err", err)
-	}
-}
-
-func (s *Service) invalidate(ctx context.Context, key string) {
-	if s.redis == nil {
-		return
-	}
-	if err := s.redis.Delete(ctx, redisPrefix+key); err != nil {
-		// Best-effort: a stale cache here means the change is delayed
-		// by up to cacheTTL. The DB is authoritative so correctness is
-		// preserved, only freshness is impacted.
-		s.log.Warn("feature_flags: cache invalidate failed", "key", key, "err", err)
 	}
 }
 
