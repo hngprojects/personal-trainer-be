@@ -11,6 +11,7 @@ import (
 	ws "github.com/gorilla/websocket"
 	"github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/internal/websocket"
+	"github.com/hngprojects/personal-trainer-be/pkg/apple"
 	fcmnotif "github.com/hngprojects/personal-trainer-be/pkg/notification"
 	"github.com/lib/pq"
 )
@@ -28,7 +29,13 @@ type NotificationService struct {
 	repo      RepositoryInterface
 	log       *slog.Logger
 	fcmClient *fcmnotif.PushNotification
-	wsHub     websocket.HubInterface
+	// apnsClient is the direct-to-Apple HTTP/2 push path. When non-nil,
+	// device rows with platform="ios" route through APNs instead of
+	// FCM. When nil, iOS devices fall back to the FCM path (legacy
+	// behaviour, still works because Firebase forwards to APNs under
+	// the hood). Android/web rows always route through FCM regardless.
+	apnsClient *apple.APNSClient
+	wsHub      websocket.HubInterface
 	// redis *redis.Client
 }
 
@@ -51,6 +58,17 @@ func NewNotificationService(repo RepositoryInterface, fcmClient *fcmnotif.PushNo
 		wsHub:     ws,
 		// redis: redis
 	}
+}
+
+// WithAPNS attaches the direct-to-Apple HTTP/2 push client. Optional —
+// when called, device rows with platform="ios" route through APNs and
+// FCM is used only for android/web. When NOT called, every device
+// still goes through FCM (Firebase forwards to APNs under the hood),
+// which is the legacy behaviour and still correct as long as the
+// Firebase Console has the APNs key uploaded.
+func (s *NotificationService) WithAPNS(c *apple.APNSClient) *NotificationService {
+	s.apnsClient = c
+	return s
 }
 
 type NotificationServiceInterface interface {

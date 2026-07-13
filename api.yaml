@@ -228,6 +228,22 @@ components:
             mobile app must forward it on that one request. Server
             silently ignores absent/blank values on every other
             sign-in.
+        authorization_code:
+          type: string
+          description: >-
+            Optional. Apple delivers a single-use `authorizationCode`
+            alongside the identity token on the FIRST authorization
+            (via `ASAuthorizationAppleIDCredential.authorizationCode`
+            on iOS, the `code` query parameter on the web flow).
+            When the mobile client forwards it here, the server
+            exchanges it with Apple's `/auth/token` endpoint for a
+            refresh token, encrypts it, and stores it on the user
+            row. The refresh token is consumed by `DELETE /users/me`
+            to call Apple's `/auth/revoke` — required for App Store
+            Review Guideline 5.1.1 (v) compliance. Subsequent
+            sign-ins for the same user do not carry a fresh code;
+            absent means "skip the exchange step".
+          example: "c5b2f9e0eafe43d9b5b6e6a4c6a35aabb.0.muvvz.Cz0..."
 
     AppleSignInUserHint:
       type: object
@@ -2366,7 +2382,8 @@ paths:
                   format: date-time
                 session_platform:
                   type: string
-                  enum: ["zoom", "google_meet", "messenger"]
+                  enum:
+                    ["zoom", "google_meet", "messenger", "imessage", "whatsapp"]
                   description: |
                     `zoom` and `google_meet` mint a meeting URL via
                     their respective APIs; `messenger` stores the
@@ -2382,6 +2399,11 @@ paths:
                     Required when session_platform is messenger. Same
                     semantics as the discovery booking field.
                   example: "jane.doe.42"
+                phone_number:
+                  type: string
+                  nullable: true
+                  description: |
+                    Whatsapp or iMessage phone number. Required when session_platform is whatsapp or imessage
                 timezone:
                   type: string
       responses:
@@ -4126,6 +4148,48 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Forbidden (caller is authenticated but not admin or super_admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trainers/{id}/availability/events:
+    get:
+      operationId: GetTrainerAvailabilityEvents
+      summary: Stream booking-created availability events for a trainer
+      tags: [Trainer]
+      description: |
+        Streams Server-Sent Events (SSE) when a new booking is created for this trainer.
+        This stream currently covers booking-created changes only.
+        It does not emit trainer/admin availability edits or other schedule mutationns
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -8476,3 +8540,106 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /feature-flags:
+    get:
+      operationId: GetPublicFeatureFlags
+      tags:
+        - FeatureFlags
+      summary: List public feature flag values (no auth)
+      description: |
+        Returns the current value of every feature flag the server
+        exposes. Mobile clients call this on startup and use the values
+        to gate UI affordances (show or hide the upgrade screen,
+        enable/disable beta features, etc.). The response is a flat
+        `{key: bool}` map so new flags are non-breaking.
+
+        Server-side enforcement is independent of this read — clients
+        cannot bypass a disabled feature by ignoring this response;
+        the relevant handlers also check the flag.
+      responses:
+        "200":
+          description: Feature flag snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: feature flags retrieved
+                data:
+                  payment_enabled: true
+
+  /admin/feature-flags:
+    get:
+      security:
+        - bearerAuth: []
+      operationId: ListAdminFeatureFlags
+      tags:
+        - FeatureFlags
+      summary: List feature flags with audit metadata (admin or super_admin)
+      description: |
+        Returns every flag including who set it last, when, and any
+        free-text notes. Used by the admin dashboard's kill-switch
+        page.
+      responses:
+        "200":
+          description: Feature flag list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Caller is not admin
+
+  /admin/feature-flags/{key}:
+    put:
+      security:
+        - bearerAuth: []
+      operationId: SetAdminFeatureFlag
+      tags:
+        - FeatureFlags
+      summary: Set the value of a feature flag (admin or super_admin)
+      description: |
+        Flips a flag and records the caller as `updated_by`. The key
+        must be one of the server's known flags — typos return 400
+        rather than silently creating an orphan row.
+
+        Cache invalidation: the next public GET sees the new value
+        within seconds of this PUT returning 200.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Flag key (e.g. `payment_enabled`)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+                notes:
+                  type: string
+                  description: Free-text rationale stored on the row for audit
+      responses:
+        "200":
+          description: Flag updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Unknown key or invalid body
+        "401":
+          description: Missing or invalid bearer token
+        "403":
+          description: Caller is not admin

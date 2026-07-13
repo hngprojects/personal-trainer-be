@@ -173,6 +173,42 @@ type Config struct {
 	AppleAPIKeyP8    string // APPLE_API_KEY_P8 — raw or base64 of the .p8 file
 	AppleAPIIssuerID string // APPLE_API_ISSUER_ID — UUID from App Store Connect → Integrations
 
+	// Sign in with Apple server-side OAuth. Used to exchange the
+	// authorization_code at sign-in for a refresh_token (stored
+	// encrypted) and to call /auth/revoke when a SIWA user deletes
+	// their account — App Store Review Guideline 5.1.1 (v) compliance.
+	// All four must be set together for the revoke path to wire up;
+	// missing config is non-fatal (identity-token sign-in works
+	// regardless), only the revoke step is skipped.
+	//
+	// AppleSIWAKeyP8 accepts either raw PEM or base64-encoded PEM,
+	// same loader as APPLE_API_KEY_P8. The same .p8 file can satisfy
+	// SIWA + APNs if it was created with both services ticked in
+	// Apple Developer → Keys — in that case point APPLE_SIWA_KEY_P8
+	// and APPLE_APNS_KEY_P8 at the same file.
+	AppleTeamID         string // APPLE_TEAM_ID — 10-char Team ID (Apple Developer → Membership)
+	AppleSIWAClientID   string // APPLE_SIWA_CLIENT_ID — iOS bundle id (native) OR Services ID (web)
+	AppleSIWAKeyID      string // APPLE_SIWA_KEY_ID — 10-char key id for the .p8 with "Sign in with Apple" ticked
+	AppleSIWAKeyP8      string // APPLE_SIWA_KEY_P8 — raw or base64 of the .p8 file
+
+	// Direct APNs (Apple Push Notification service). When configured,
+	// device rows with platform="ios" route through Apple's HTTP/2
+	// push endpoint instead of FCM. When NOT configured, iOS devices
+	// fall back to FCM (which forwards to APNs under the hood — still
+	// works, just one extra hop).
+	//
+	// APPLE_APNS_KEY_P8 can be the SAME physical .p8 as
+	// APPLE_SIWA_KEY_P8 if the key was created with both services
+	// ticked in Apple Developer → Keys; if so, point both env vars at
+	// the same file. APPLE_APNS_ENVIRONMENT is "production" (App Store
+	// + TestFlight builds against prod profile) or "sandbox" (Xcode
+	// debug builds, dev provisioning). Wrong choice fails per-message
+	// with `BadDeviceToken` — see the boot log line for the chosen
+	// environment.
+	AppleAPNSKeyID       string // APPLE_APNS_KEY_ID — 10-char key id for the .p8 with APNs ticked
+	AppleAPNSKeyP8       string // APPLE_APNS_KEY_P8 — raw or base64 of the .p8 file
+	AppleAPNSEnvironment string // APPLE_APNS_ENVIRONMENT=production|sandbox
+
 	// AppleSignInBundleIDs are the `aud` values we accept on the
 	// identity token returned by Sign in with Apple. Comma-separated so
 	// one server can serve the iOS app bundle id AND the web Services
@@ -280,6 +316,15 @@ func Load() (*Config, error) {
 		AppleAPIKeyID:    os.Getenv("APPLE_API_KEY_ID"),
 		AppleAPIKeyP8:    decodePossibleBase64PEM("APPLE_API_KEY_P8"),
 		AppleAPIIssuerID: os.Getenv("APPLE_API_ISSUER_ID"),
+
+		AppleTeamID:       os.Getenv("APPLE_TEAM_ID"),
+		AppleSIWAClientID: os.Getenv("APPLE_SIWA_CLIENT_ID"),
+		AppleSIWAKeyID:    os.Getenv("APPLE_SIWA_KEY_ID"),
+		AppleSIWAKeyP8:    decodePossibleBase64PEM("APPLE_SIWA_KEY_P8"),
+
+		AppleAPNSKeyID:       os.Getenv("APPLE_APNS_KEY_ID"),
+		AppleAPNSKeyP8:       decodePossibleBase64PEM("APPLE_APNS_KEY_P8"),
+		AppleAPNSEnvironment: strings.ToLower(strings.TrimSpace(os.Getenv("APPLE_APNS_ENVIRONMENT"))),
 
 		AppleSignInBundleIDs: splitCSV(os.Getenv("APPLE_SIGN_IN_BUNDLE_IDS")),
 
