@@ -16,6 +16,8 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/notification"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/redis"
+	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 )
 
 var (
@@ -146,11 +148,11 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a session platform"})
 	} else {
 		switch platformStr {
-		case "zoom", "google_meet", "messenger":
+		case "zoom", "google_meet", "messenger", "whatsapp", "imessage":
 			// ok
 		default:
 			h.log.Warn("HandleCreateBookingSession: invalid session_platform", "value", platformStr)
-			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, or messenger"})
+			fieldErrors = append(fieldErrors, api.FieldError{Field: "sessionPlatform", Message: "select a valid session platform: zoom, google_meet, imessage, whatsapp or messenger"})
 		}
 	}
 	// messenger_handle is required when platform=messenger; otherwise
@@ -158,11 +160,18 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 	// the discovery handler's validation; Facebook handles vary wildly
 	// in format so we don't try to match a pattern).
 	var messengerHandle string
+	var phoneNumber string
 	if request.MessengerHandle != nil {
 		messengerHandle = strings.TrimSpace(*request.MessengerHandle)
 	}
+	if request.PhoneNumber != nil {
+		phoneNumber = strings.TrimSpace(*request.PhoneNumber)
+	}
 	if platformStr == "messenger" && messengerHandle == "" {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle is required when session_platform is messenger"})
+	}
+	if (platformStr == "whatsapp" || platformStr == "imessage") && phoneNumber == "" {
+		fieldErrors = append(fieldErrors, api.FieldError{Field: "phone_number", Message: "phone_number is required when session_platform is whatsapp or imessage"})
 	}
 	if len(messengerHandle) > 255 {
 		fieldErrors = append(fieldErrors, api.FieldError{Field: "messenger_handle", Message: "messenger_handle must not exceed 255 characters"})
@@ -184,8 +193,12 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		return
 	}
 	var messengerNS sql.NullString
+	var phoneNumberNS sql.NullString
 	if messengerHandle != "" {
 		messengerNS = sql.NullString{Valid: true, String: messengerHandle}
+	}
+	if phoneNumber != "" {
+		phoneNumberNS = sql.NullString{Valid: true, String: phoneNumber}
 	}
 	data := &db.CreateBookingParams{
 		TrainerID:       request.TrainerId,
@@ -195,6 +208,7 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		BookingStatus:   sql.NullString{Valid: true, String: defaultBookingStatus},
 		SessionPlatform: sql.NullString{Valid: true, String: platformStr},
 		MessengerHandle: messengerNS,
+		PhoneNumber:     phoneNumberNS,
 		Timezone:        sql.NullString{Valid: true, String: request.Timezone},
 	}
 	userData, err := h.service.GetUserByID(c.Request.Context(), userID)
@@ -219,8 +233,32 @@ func (h *bookingHandler) HandleCreateBookingSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to get trainer by id", api.CodeServerError))
 		return
 	}
+
+	bookingConflict, err := h.service.CheckBookingConflictForClient(c.Request.Context(), db.CheckBookingConflictForClientParams{
+		TrainerID: data.TrainerID,
+		NewStart:  sql.NullTime{Valid: true, Time: data.ScheduledStart.Time},
+		NewEnd:    sql.NullTime{Valid: true, Time: data.ScheduledEnd.Time},
+	})
+	if err != nil {
+		h.log.Error("failed to check db for conflict", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
+		return
+	}
+	if bookingConflict > 0 {
+		h.log.Warn("booking conflict detected", "trainer_id", data.TrainerID, "start", data.ScheduledStart.Time, "end", data.ScheduledEnd.Time)
+		c.JSON(http.StatusConflict, api.NewError("booking with trainer within timeslot exists", api.CodeConflict))
+		return
+	}
+
 	created, err := h.service.CreateBooking(c.Request.Context(), *data, *userData, *trainer)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == pqerror.ExclusionViolation {
+			h.log.Warn("booking conflict caught by exclusion constraint", "trainerID", data.TrainerID, "err", err)
+			c.JSON(http.StatusConflict, api.NewError("this time slot conflicts with an existing booking", api.CodeConflict))
+			return
+
+		}
 		h.log.Error("failed to create booking session", "err", err)
 		c.JSON(http.StatusInternalServerError, api.NewError("failed to create booking session", api.CodeServerError))
 		return

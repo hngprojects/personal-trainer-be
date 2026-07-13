@@ -105,7 +105,7 @@ func (q *Queries) PeekAccountSetupToken(ctx context.Context, tokenHash string) (
 const updateUserPasswordByID = `-- name: UpdateUserPasswordByID :one
 UPDATE users SET password = $2, updated_at = NOW()
 WHERE id = $1 AND auth_provider = 'local' AND is_active = true
-RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id
+RETURNING id, email, name, password, auth_provider, is_active, created_at, updated_at, role, gender, fitness_goals, fitness_level, avatar_url, phone_number, apple_user_id, apple_refresh_token_enc
 `
 
 type UpdateUserPasswordByIDParams struct {
@@ -138,6 +138,7 @@ func (q *Queries) UpdateUserPasswordByID(ctx context.Context, arg UpdateUserPass
 		&i.AvatarUrl,
 		&i.PhoneNumber,
 		&i.AppleUserID,
+		&i.AppleRefreshTokenEnc,
 	)
 	return i, err
 }

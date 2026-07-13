@@ -36,6 +36,7 @@ type BookingService interface {
 	GetTrainerDetails(ctx context.Context, id uuid.UUID) (*db.GetTrainerUserDetailsRow, error)
 	CheckSubscription(ctx context.Context, subID uuid.UUID) (bool, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*db.User, error)
+	CheckBookingConflictForClient(ctx context.Context, arg db.CheckBookingConflictForClientParams) (int64, error)
 }
 
 type bookingService struct {
@@ -151,7 +152,10 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledStart.Time,
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
+		platform,
 		meetingURL,
+		args.MessengerHandle.String,
+		args.PhoneNumber.String,
 		false,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
@@ -164,7 +168,10 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.ScheduledStart.Time,
 		args.ScheduledEnd.Time,
 		args.Timezone.String,
+		platform,
 		meetingURL,
+		args.MessengerHandle.String,
+		args.PhoneNumber.String,
 		true,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation to trainer", "error", err)
@@ -202,4 +209,8 @@ func (s *bookingService) GetTrainerDetails(ctx context.Context, id uuid.UUID) (*
 		return nil, err
 	}
 	return &trainer, nil
+}
+
+func (s *bookingService) CheckBookingConflictForClient(ctx context.Context, arg db.CheckBookingConflictForClientParams) (int64, error) {
+	return s.repo.CheckBookingConflictForClient(ctx, arg)
 }

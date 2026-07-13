@@ -47,6 +47,7 @@ type Booking struct {
 	ZoomMeetingID      sql.NullString
 	RescheduleCount    int32
 	MessengerHandle    sql.NullString
+	PhoneNumber        sql.NullString
 }
 
 type BookingRescheduleHistory struct {
@@ -136,6 +137,15 @@ type FailedVideoUpload struct {
 	Attempts  int32
 	LastError string
 	CreatedAt time.Time
+}
+
+type FeatureFlag struct {
+	Key       string
+	Enabled   bool
+	UpdatedBy uuid.NullUUID
+	Notes     sql.NullString
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Notification struct {
@@ -289,21 +299,22 @@ type TrainerImage struct {
 }
 
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	Name         string
-	Password     sql.NullString
-	AuthProvider string
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	Role         string
-	Gender       sql.NullString
-	FitnessGoals []string
-	FitnessLevel sql.NullString
-	AvatarUrl    sql.NullString
-	PhoneNumber  sql.NullString
-	AppleUserID  sql.NullString
+	ID                   uuid.UUID
+	Email                string
+	Name                 string
+	Password             sql.NullString
+	AuthProvider         string
+	IsActive             bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	Role                 string
+	Gender               sql.NullString
+	FitnessGoals         []string
+	FitnessLevel         sql.NullString
+	AvatarUrl            sql.NullString
+	PhoneNumber          sql.NullString
+	AppleUserID          sql.NullString
+	AppleRefreshTokenEnc sql.NullString
 }
 
 type UserDevice struct {
