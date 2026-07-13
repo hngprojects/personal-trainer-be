@@ -137,7 +137,15 @@ jobs:
             # crash-restart loop (auto-restarted → active momentarily
             # between failures), leaving the deploy "green" while prod
             # was broken.
-            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-staging; then
+            #
+            # `is-active` is a read-only query that does NOT require root —
+            # running under sudo previously tripped a sudoers rule that
+            # allowed `restart` and `status` but not `is-active`, causing
+            # every deploy to false-positive as "service failed to reach
+            # active state" and triggering a spurious rollback of a
+            # perfectly healthy service. Query without sudo; the
+            # subsequent `status` calls that DO need sudo are unchanged.
+            if ! /usr/bin/systemctl is-active --quiet personal-trainer-backend-staging; then
               sudo -n /usr/bin/systemctl status personal-trainer-backend-staging || true
               echo "service failed to reach active state — deploy will roll back"
               exit 1
@@ -290,7 +298,10 @@ jobs:
 
             sleep 5
 
-            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-production; then
+            # See the staging counterpart: is-active runs WITHOUT sudo
+            # because sudoers permits `restart` and `status` but not
+            # `is-active`, and the query itself doesn't need root.
+            if ! /usr/bin/systemctl is-active --quiet personal-trainer-backend-production; then
               sudo -n /usr/bin/systemctl status personal-trainer-backend-production || true
               echo "service failed to reach active state — deploy will roll back"
               exit 1
