@@ -8,7 +8,11 @@ ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_session_platform_check;
 
 -- Remap legacy 'whatsapp' rows to 'zoom' before the new constraint is applied.
 UPDATE bookings SET session_platform = 'zoom'
-WHERE session_platform NOT IN ('zoom', 'google_meet', 'messenger');
+WHERE session_platform NOT IN ('zoom',
+    'google_meet',
+    'messenger',
+    'imessage',
+    'whatsapp');
 
 
 ALTER TABLE bookings

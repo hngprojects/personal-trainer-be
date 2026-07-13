@@ -29,7 +29,9 @@ import (
 // trainerPhoneE164Regex validates the phone_number form field on
 // POST /trainers. Same shape the discovery-call phone_callback path
 // uses so trainers and that flow share one phone format.
-var trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+var (
+	trainerPhoneE164Regex = regexp.MustCompile(`^\+[1-9]\d{6,14}$`)
+)
 
 // trainersStore now carries the raw *sql.DB so the admin-create handler can
 // run the user/trainer/benefits inserts inside one transaction. The existing
@@ -1608,6 +1610,12 @@ func trainerBookingRowToMap(r db.ListBookingsByTrainerRow) map[string]interface{
 	}
 	if r.ZoomMeetingLink.Valid {
 		m["zoom_meeting_link"] = r.ZoomMeetingLink.String
+	}
+	if r.PhoneNumber.Valid {
+		m["client_phone_number"] = r.PhoneNumber.String
+	}
+	if r.MessengerHandle.Valid {
+		m["client_messenger_handle"] = r.MessengerHandle.String
 	}
 	return m
 }

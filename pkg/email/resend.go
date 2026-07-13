@@ -89,6 +89,14 @@ func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
 	return m.send(to, waitlistConfirmationSubject, body)
 }
 
+func (m *ResendMailer) SendWaitlistNotification(to, name, joinerEmail, phone, location string) error {
+	body, err := waitlistNotificationHTML(name, joinerEmail, phone, location)
+	if err != nil {
+		return fmt.Errorf("resend: build waitlist notification email body: %w", err)
+	}
+	return m.send(to, waitlistNotificationSubject, body)
+}
+
 func (m *ResendMailer) send(to, subject, htmlBody string) error {
 	payload, err := json.Marshal(resendRequest{
 		From:    m.from,
@@ -177,8 +185,8 @@ func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, clientNa
 	return m.send(to, paidRescheduleTrainerSubject, html)
 }
 
-func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, zoomLink string, toTrainer bool) error {
-	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, zoomLink, toTrainer)
+func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
+	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, toTrainer)
 	if err != nil {
 		return fmt.Errorf("resend: build booking confirmation email: %w", err)
 	}

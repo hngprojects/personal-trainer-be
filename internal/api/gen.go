@@ -636,7 +636,9 @@ func (e HandleRefresh200JSONResponseBodyStatus) Valid() bool {
 // Defines values for CreateBookingJSONBodySessionPlatform.
 const (
 	CreateBookingJSONBodySessionPlatformGoogleMeet CreateBookingJSONBodySessionPlatform = "google_meet"
+	CreateBookingJSONBodySessionPlatformImessage   CreateBookingJSONBodySessionPlatform = "imessage"
 	CreateBookingJSONBodySessionPlatformMessenger  CreateBookingJSONBodySessionPlatform = "messenger"
+	CreateBookingJSONBodySessionPlatformWhatsapp   CreateBookingJSONBodySessionPlatform = "whatsapp"
 	CreateBookingJSONBodySessionPlatformZoom       CreateBookingJSONBodySessionPlatform = "zoom"
 )
 
@@ -645,7 +647,11 @@ func (e CreateBookingJSONBodySessionPlatform) Valid() bool {
 	switch e {
 	case CreateBookingJSONBodySessionPlatformGoogleMeet:
 		return true
+	case CreateBookingJSONBodySessionPlatformImessage:
+		return true
 	case CreateBookingJSONBodySessionPlatformMessenger:
+		return true
+	case CreateBookingJSONBodySessionPlatformWhatsapp:
 		return true
 	case CreateBookingJSONBodySessionPlatformZoom:
 		return true
@@ -838,6 +844,9 @@ type AddAvailabilityRequest struct {
 
 // AppleSignInRequest defines model for AppleSignInRequest.
 type AppleSignInRequest struct {
+	// AuthorizationCode Optional. Apple delivers a single-use `authorizationCode` alongside the identity token on the FIRST authorization (via `ASAuthorizationAppleIDCredential.authorizationCode` on iOS, the `code` query parameter on the web flow). When the mobile client forwards it here, the server exchanges it with Apple's `/auth/token` endpoint for a refresh token, encrypts it, and stores it on the user row. The refresh token is consumed by `DELETE /users/me` to call Apple's `/auth/revoke` — required for App Store Review Guideline 5.1.1 (v) compliance. Subsequent sign-ins for the same user do not carry a fresh code; absent means "skip the exchange step".
+	AuthorizationCode *string `json:"authorization_code,omitempty"`
+
 	// IdToken Apple-signed identity token (JWT) obtained client-side via Sign in with Apple — either the native AuthenticationServices API on iOS, the REST flow on Android, or "Sign in with Apple JS" on the web. The server verifies the signature against Apple's JWKS (https://appleid.apple.com/auth/keys), checks the `iss` claim and that `aud` matches one of the configured bundle IDs (`APPLE_SIGN_IN_BUNDLE_IDS`, falling back to `APPLE_BUNDLE_ID`).
 	IdToken string `json:"id_token"`
 
@@ -1730,6 +1739,14 @@ type AdminListDiscoveryBookingsParams struct {
 // AdminListDiscoveryBookingsParamsStatus defines parameters for AdminListDiscoveryBookings.
 type AdminListDiscoveryBookingsParamsStatus string
 
+// SetAdminFeatureFlagJSONBody defines parameters for SetAdminFeatureFlag.
+type SetAdminFeatureFlagJSONBody struct {
+	Enabled bool `json:"enabled"`
+
+	// Notes Free-text rationale stored on the row for audit
+	Notes *string `json:"notes,omitempty"`
+}
+
 // AdminListSessionsParams defines parameters for AdminListSessions.
 type AdminListSessionsParams struct {
 	Page  *int `form:"page,omitempty" json:"page,omitempty"`
@@ -1819,9 +1836,12 @@ type GetTrainersBookingSlotsParams struct {
 type CreateBookingJSONBody struct {
 	// MessengerHandle Required when session_platform is messenger. Same
 	// semantics as the discovery booking field.
-	MessengerHandle *string   `json:"messenger_handle,omitempty"`
-	ScheduledEnd    time.Time `json:"scheduled_end"`
-	ScheduledStart  time.Time `json:"scheduled_start"`
+	MessengerHandle *string `json:"messenger_handle,omitempty"`
+
+	// PhoneNumber Whatsapp or iMessage phone number. Required when session_platform is whatsapp or imessage
+	PhoneNumber    *string   `json:"phone_number,omitempty"`
+	ScheduledEnd   time.Time `json:"scheduled_end"`
+	ScheduledStart time.Time `json:"scheduled_start"`
 
 	// SessionPlatform `zoom` and `google_meet` mint a meeting URL via
 	// their respective APIs; `messenger` stores the
@@ -2051,6 +2071,9 @@ type HandleGoogleWebhookJSONBody struct {
 // AdminAddJSONRequestBody defines body for AdminAdd for application/json ContentType.
 type AdminAddJSONRequestBody AdminAddJSONBody
 
+// SetAdminFeatureFlagJSONRequestBody defines body for SetAdminFeatureFlag for application/json ContentType.
+type SetAdminFeatureFlagJSONRequestBody SetAdminFeatureFlagJSONBody
+
 // AdminCancelSessionJSONRequestBody defines body for AdminCancelSession for application/json ContentType.
 type AdminCancelSessionJSONRequestBody AdminCancelSessionJSONBody
 
@@ -2203,6 +2226,12 @@ type ServerInterface interface {
 	// List every booked discovery call (admin or super_admin) — paginated
 	// (GET /admin/discovery-bookings)
 	AdminListDiscoveryBookings(c *gin.Context, params AdminListDiscoveryBookingsParams)
+	// List feature flags with audit metadata (admin or super_admin)
+	// (GET /admin/feature-flags)
+	ListAdminFeatureFlags(c *gin.Context)
+	// Set the value of a feature flag (admin or super_admin)
+	// (PUT /admin/feature-flags/{key})
+	SetAdminFeatureFlag(c *gin.Context, key string)
 	// Revenue snapshot and latest payment (super_admin only)
 	// (GET /admin/revenue)
 	GetAdminRevenue(c *gin.Context)
@@ -2317,6 +2346,9 @@ type ServerInterface interface {
 	// Update a discovery slot (admin or customer_care only)
 	// (PUT /discovery-slots/{id})
 	UpdateDiscoverySlot(c *gin.Context, id openapi_types.UUID)
+	// List public feature flag values (no auth)
+	// (GET /feature-flags)
+	GetPublicFeatureFlags(c *gin.Context)
 	// Health check endpoint
 	// (GET /health)
 	HealthCheck(c *gin.Context)
@@ -2437,6 +2469,9 @@ type ServerInterface interface {
 	// Admin sets a trainer's weekly availability
 	// (PUT /trainers/{id}/availability)
 	PutTrainerAvailability(c *gin.Context, id openapi_types.UUID)
+	// Stream booking-created availability events for a trainer
+	// (GET /trainers/{id}/availability/events)
+	GetTrainerAvailabilityEvents(c *gin.Context, id openapi_types.UUID)
 	// Admin deletes one availability slot for a specific trainer
 	// (DELETE /trainers/{id}/availability/{slot_id})
 	DeleteTrainerAvailabilitySlot(c *gin.Context, id openapi_types.UUID, slotId openapi_types.UUID)
@@ -2669,6 +2704,48 @@ func (siw *ServerInterfaceWrapper) AdminListDiscoveryBookings(c *gin.Context) {
 	}
 
 	siw.Handler.AdminListDiscoveryBookings(c, params)
+}
+
+// ListAdminFeatureFlags operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminFeatureFlags(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminFeatureFlags(c)
+}
+
+// SetAdminFeatureFlag operation middleware
+func (siw *ServerInterfaceWrapper) SetAdminFeatureFlag(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", c.Param("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter key: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SetAdminFeatureFlag(c, key)
 }
 
 // GetAdminRevenue operation middleware
@@ -3488,6 +3565,21 @@ func (siw *ServerInterfaceWrapper) UpdateDiscoverySlot(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateDiscoverySlot(c, id)
+}
+
+// GetPublicFeatureFlags operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicFeatureFlags(c *gin.Context) {
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPublicFeatureFlags(c)
 }
 
 // HealthCheck operation middleware
@@ -4418,6 +4510,33 @@ func (siw *ServerInterfaceWrapper) PutTrainerAvailability(c *gin.Context) {
 	siw.Handler.PutTrainerAvailability(c, id)
 }
 
+// GetTrainerAvailabilityEvents operation middleware
+func (siw *ServerInterfaceWrapper) GetTrainerAvailabilityEvents(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(string(BearerAuthScopes), []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrainerAvailabilityEvents(c, id)
+}
+
 // DeleteTrainerAvailabilitySlot operation middleware
 func (siw *ServerInterfaceWrapper) DeleteTrainerAvailabilitySlot(c *gin.Context) {
 
@@ -4833,6 +4952,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/admin/clients/:id", wrapper.DeleteAdminClient)
 	router.GET(options.BaseURL+"/admin/clients/:id", wrapper.GetAdminClientByID)
 	router.GET(options.BaseURL+"/admin/discovery-bookings", wrapper.AdminListDiscoveryBookings)
+	router.GET(options.BaseURL+"/admin/feature-flags", wrapper.ListAdminFeatureFlags)
+	router.PUT(options.BaseURL+"/admin/feature-flags/:key", wrapper.SetAdminFeatureFlag)
 	router.GET(options.BaseURL+"/admin/revenue", wrapper.GetAdminRevenue)
 	router.GET(options.BaseURL+"/admin/sessions", wrapper.AdminListSessions)
 	router.GET(options.BaseURL+"/admin/sessions/active", wrapper.AdminListActiveSessions)
@@ -4871,6 +4992,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/discovery-slots/bulk", wrapper.CreateDiscoverySlotsBulk)
 	router.DELETE(options.BaseURL+"/discovery-slots/:id", wrapper.DeleteDiscoverySlot)
 	router.PUT(options.BaseURL+"/discovery-slots/:id", wrapper.UpdateDiscoverySlot)
+	router.GET(options.BaseURL+"/feature-flags", wrapper.GetPublicFeatureFlags)
 	router.GET(options.BaseURL+"/health", wrapper.HealthCheck)
 	router.GET(options.BaseURL+"/media", wrapper.ListOrganisationMedia)
 	router.POST(options.BaseURL+"/media/images", wrapper.UploadOrganisationImage)
@@ -4911,6 +5033,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/trainers/:id/availability", wrapper.GetTrainerAvailability)
 	router.POST(options.BaseURL+"/trainers/:id/availability", wrapper.AddTrainerAvailability)
 	router.PUT(options.BaseURL+"/trainers/:id/availability", wrapper.PutTrainerAvailability)
+	router.GET(options.BaseURL+"/trainers/:id/availability/events", wrapper.GetTrainerAvailabilityEvents)
 	router.DELETE(options.BaseURL+"/trainers/:id/availability/:slot_id", wrapper.DeleteTrainerAvailabilitySlot)
 	router.GET(options.BaseURL+"/trainers/:id/images", wrapper.ListTrainerImages)
 	router.POST(options.BaseURL+"/trainers/:id/images", wrapper.UploadTrainerImages)
