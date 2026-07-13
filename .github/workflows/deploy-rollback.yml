@@ -1,0 +1,128 @@
+name: Rollback Backend
+
+# Manual rollback workflow. Trigger from the Actions tab when you need
+# to restore the previous release WITHOUT waiting for another deploy
+# to fail. The auto-rollback path lives inside `deploy-backend.yml`
+# (via `if: failure()` on the deploy jobs) and covers the common case
+# of a bad deploy that never became stable. This workflow is for
+# situations that failure() doesn't catch:
+#
+#   - The deploy "succeeded" (service reported active for 5 seconds)
+#     but is now crash-looping or has a runtime regression.
+#   - The previous auto-rollback itself couldn't restore for some
+#     reason (SSH transient failure) and you need to retry.
+#   - A CodeRabbit / on-call decision to revert while the fix bakes.
+#
+# The rollback source is `personal-trainer-api.prev` on the server —
+# the snapshot the last successful deploy left behind. If that file
+# is missing (never deployed, first-ever deploy failed), the workflow
+# fails loudly rather than doing something unexpected.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which environment to roll back"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      reason:
+        description: "Free-text reason for the rollback (logged on the server)"
+        required: true
+        type: string
+
+# Prevent overlapping rollback runs against the same environment.
+concurrency:
+  group: rollback-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Rollback ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Log rollback intent
+        # NOTE: values passed via `env:` — NOT inline ${{ }} interpolation.
+        # inputs.reason is free text and would allow shell injection if
+        # spliced into a run: block directly. env: makes it a normal
+        # environment variable the shell doesn't parse.
+        run: |
+          echo "Rolling back environment=$ENVIRONMENT"
+          echo "Triggered by $ACTOR"
+          echo "Reason: $REASON"
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+
+      - name: Restore previous release
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          # Note: `envs:` here — NOT ${{ }} interpolation into the
+          # script body — because `inputs.reason` is user-supplied
+          # free text. Inline interpolation would allow shell-command
+          # injection ("reason": "foo && rm -rf /").
+          envs: ENVIRONMENT,REASON,ACTOR
+          script: |
+            set -e
+            case "$ENVIRONMENT" in
+              staging)
+                RELEASE_DIR=/var/www/personal-trainer/backend/staging
+                SERVICE=personal-trainer-backend-staging
+                ;;
+              production)
+                RELEASE_DIR=/var/www/personal-trainer/backend/production
+                SERVICE=personal-trainer-backend-production
+                ;;
+              *)
+                echo "unknown environment: $ENVIRONMENT" >&2
+                exit 1
+                ;;
+            esac
+
+            cd "$RELEASE_DIR"
+
+            if [ ! -f personal-trainer-api.prev ]; then
+              echo "no personal-trainer-api.prev snapshot in $RELEASE_DIR — cannot roll back" >&2
+              ls -lah "$RELEASE_DIR" >&2
+              exit 1
+            fi
+
+            # Record the rollback for the audit log. Keeps the last
+            # 50 rollbacks so an operator can reconstruct "who rolled
+            # back what and why" without going to GitHub Actions.
+            mkdir -p /var/log/personal-trainer
+            echo "$(date -Iseconds) actor=$ACTOR env=$ENVIRONMENT reason=$REASON" \
+              >> /var/log/personal-trainer/rollbacks.log
+            tail -n 50 /var/log/personal-trainer/rollbacks.log > /var/log/personal-trainer/rollbacks.log.trimmed \
+              && mv /var/log/personal-trainer/rollbacks.log.trimmed /var/log/personal-trainer/rollbacks.log
+
+            echo "rolling back to snapshot: $(cat .prev-info 2>/dev/null || echo unknown)"
+
+            cp -f personal-trainer-api personal-trainer-api.failed || true
+            cp -f personal-trainer-api.prev personal-trainer-api
+            chmod +x personal-trainer-api
+
+            sudo -n /usr/bin/systemctl restart "$SERVICE"
+            sleep 5
+
+            if ! sudo -n /usr/bin/systemctl is-active --quiet "$SERVICE"; then
+              sudo -n /usr/bin/systemctl status "$SERVICE" || true
+              echo "rollback did not produce an active service — the .prev binary is also unhealthy" >&2
+              exit 1
+            fi
+
+            sudo -n /usr/bin/systemctl status "$SERVICE"
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}

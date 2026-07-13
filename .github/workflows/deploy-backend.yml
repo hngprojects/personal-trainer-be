@@ -46,7 +46,46 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
           cp -r migrations deploy/migrations
           cp api.yaml deploy/api.yaml
-          echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
+
+      # Write .env using printf against an env var — NOT `echo "..."` with
+      # inline ${{ secrets... }} interpolation. The old form breaks the
+      # instant the secret contains a literal `"` (comment strings,
+      # certain passwords, JSON blobs). printf %s writes the bytes as-is;
+      # the env: block makes the secret a normal environment variable so
+      # its value isn't parsed by the outer shell.
+      - name: Write env file
+        run: printf '%s' "$BACKEND_ENV_FILE" > deploy/.env
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+
+      # Snapshot the current release BEFORE rsync mutates the target
+      # directory. Rollback (if this deploy fails downstream) copies
+      # personal-trainer-api.prev back over the current binary. Keep
+      # the .env untouched — it's chmod 600 and would fail on some
+      # transient errors we don't want to also rollback.
+      #
+      # SHA capture: the remote is NOT a git working tree, so we can't
+      # derive the deployed SHA with `git rev-parse` there. Instead
+      # each successful deploy writes its GITHUB_SHA into a RELEASE_SHA
+      # file (see "Migrate and restart"); this snapshot step reads that
+      # value back and stamps it into .prev-info so rollbacks can log
+      # a meaningful "reverting to <sha>" line.
+      - name: Snapshot previous release (staging)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/staging
+            if [ -f personal-trainer-api ]; then
+              cp -f personal-trainer-api personal-trainer-api.prev
+              PREV_SHA=$(cat RELEASE_SHA 2>/dev/null || echo unknown)
+              echo "snapshot at $(date -Iseconds) sha=$PREV_SHA" > .prev-info
+            fi
 
       - name: Upload backend staging
         uses: easingthemes/ssh-deploy@main
@@ -57,16 +96,26 @@ jobs:
           REMOTE_PORT: ${{ secrets.SERVER_PORT }}
           SOURCE: deploy/
           TARGET: /var/www/personal-trainer/backend/staging/
-          ARGS: -rlgoDzvc --delete
+          # NOTE: --exclude keeps the snapshot + release-metadata files
+          # from being deleted by rsync --delete.
+          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info --exclude=RELEASE_SHA
 
       - name: Migrate and restart staging
+        id: migrate_restart_staging
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           request_pty: false
+          # `envs:` forwards named env vars from the workflow context into
+          # the remote SSH script. Without this the `env:` block above
+          # only affects the runner, not the appleboy/ssh-action target,
+          # and $RELEASE_SHA would be empty on the server.
+          envs: RELEASE_SHA
           script: |
             set -e
 
@@ -82,6 +131,61 @@ jobs:
 
             sleep 5
 
+            # If the service isn't `active (running)` after the sleep, exit
+            # non-zero so the workflow's failure() rollback kicks in. Prior
+            # to this, systemctl status would sometimes exit 0 on a
+            # crash-restart loop (auto-restarted → active momentarily
+            # between failures), leaving the deploy "green" while prod
+            # was broken.
+            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-staging; then
+              sudo -n /usr/bin/systemctl status personal-trainer-backend-staging || true
+              echo "service failed to reach active state — deploy will roll back"
+              exit 1
+            fi
+
+            sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
+
+            # Persist the SHA that just went live so the NEXT deploy's
+            # snapshot step can label its .prev-info with a meaningful
+            # value. Only reached after the service is confirmed
+            # active — a failed deploy leaves the previous
+            # RELEASE_SHA untouched (correct: that older SHA is what's
+            # about to be restored by rollback).
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
+      # Auto-rollback runs on ANY prior-step failure — including rsync
+      # (which can leave a partial binary on disk) and the snapshot
+      # step itself. The internal `[ ! -f personal-trainer-api.prev ]`
+      # guard makes it safe to run before the snapshot succeeded:
+      # first-ever deploys have no .prev and this step exits with a
+      # loud "nothing to roll back to" message.
+      #
+      # Deliberately does NOT roll back the DB — goose down can be
+      # destructive, and additive migrations (which is most of ours)
+      # are compatible with the previous binary. If a specific
+      # migration IS binary-incompatible with rollback we need to
+      # catch that at review time, not here.
+      - name: Auto-rollback (staging)
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/staging
+            if [ ! -f personal-trainer-api.prev ]; then
+              echo "no .prev snapshot found — nothing to roll back to"
+              exit 1
+            fi
+            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
+            cp -f personal-trainer-api.prev personal-trainer-api
+            chmod +x personal-trainer-api
+            sudo -n /usr/bin/systemctl restart personal-trainer-backend-staging
+            sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
 
   deploy-production:
@@ -107,7 +211,11 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o deploy/personal-trainer-api ./cmd/server
           cp -r migrations deploy/migrations
           cp api.yaml deploy/api.yaml
-          echo "${{ secrets.BACKEND_ENV_FILE }}" > deploy/.env
+
+      - name: Write env file
+        run: printf '%s' "$BACKEND_ENV_FILE" > deploy/.env
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
 
       - name: Backup production database
         uses: appleboy/ssh-action@v1.2.0
@@ -126,6 +234,24 @@ jobs:
               "${{ secrets.PRODUCTION_DATABASE_URL }}" \
               > /var/backups/personal-trainer/postgres/prod-$(date +%F-%H%M%S).sql
 
+      # See the staging counterpart for the SHA-capture rationale.
+      - name: Snapshot previous release (production)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/production
+            if [ -f personal-trainer-api ]; then
+              cp -f personal-trainer-api personal-trainer-api.prev
+              PREV_SHA=$(cat RELEASE_SHA 2>/dev/null || echo unknown)
+              echo "snapshot at $(date -Iseconds) sha=$PREV_SHA" > .prev-info
+            fi
+
       - name: Upload backend production
         uses: easingthemes/ssh-deploy@main
         with:
@@ -135,16 +261,20 @@ jobs:
           REMOTE_PORT: ${{ secrets.SERVER_PORT }}
           SOURCE: deploy/
           TARGET: /var/www/personal-trainer/backend/production/
-          ARGS: -rlgoDzvc --delete
+          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info --exclude=RELEASE_SHA
 
       - name: Migrate and restart production
+        id: migrate_restart_production
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           request_pty: false
+          envs: RELEASE_SHA
           script: |
             set -e
 
@@ -160,4 +290,39 @@ jobs:
 
             sleep 5
 
+            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-production; then
+              sudo -n /usr/bin/systemctl status personal-trainer-backend-production || true
+              echo "service failed to reach active state — deploy will roll back"
+              exit 1
+            fi
+
+            sudo -n /usr/bin/systemctl status personal-trainer-backend-production
+
+            # See staging: persist the just-deployed SHA so the next
+            # deploy's snapshot can name it correctly. Not reached on
+            # deploy failure — the prior RELEASE_SHA (i.e. what
+            # rollback restores to) stays intact.
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
+      - name: Auto-rollback (production)
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/production
+            if [ ! -f personal-trainer-api.prev ]; then
+              echo "no .prev snapshot found — nothing to roll back to"
+              exit 1
+            fi
+            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
+            cp -f personal-trainer-api.prev personal-trainer-api
+            chmod +x personal-trainer-api
+            sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
+            sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
