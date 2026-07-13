@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f4f4f5;
+      font-family: Arial, sans-serif;
+    "
+  >
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 0">
+      <tr>
+        <td align="center">
+          <table
+            width="520"
+            cellpadding="0"
+            cellspacing="0"
+            style="background: #ffffff; border-radius: 8px; padding: 40px"
+          >
+            <tr>
+              <td style="padding-bottom: 24px">
+                <h2 style="margin: 0; font-size: 22px; color: #111827">
+                  New Discovery Call Booked
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  padding: 20px;
+                  background: #f9fafb;
+                  border-radius: 8px;
+                  padding-bottom: 24px;
+                "
+              >
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Client:</strong> {{ .ClientName }}
+                </p>
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Email:</strong> {{ .ClientEmail }}
+                </p>
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Contact Mode:</strong> {{ .ContactMode }}
+                </p>
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Date:</strong> {{ .Date }}
+                </p>
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Time:</strong> {{ .Time }} ({{ .Timezone }})
+                </p>
+                {{ if .PhoneNumber }}
+                <p style="margin: 0 0 10px; font-size: 14px; color: #374151">
+                  <strong>Phone:</strong> {{ .PhoneNumber }}
+                </p>
+                {{ end }} {{ if .ZoomLink }}
+                <p style="margin: 0; font-size: 14px; color: #374151">
+                  <strong>Zoom Link:</strong>
+                  <a href="{{ .ZoomLink }}" style="color: #2563eb"
+                    >{{ .ZoomLink }}</a
+                  >
+                </p>
+                {{ end }}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

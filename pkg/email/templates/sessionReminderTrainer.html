@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Session Reminder</title>
+  </head>
+  <body
+    style="
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    "
+  >
+    <h2 style="color: #1a1a2e">Hi Coach {{.TrainerName}},</h2>
+    <p>
+      You have a FitCall session with <strong>{{.ClientName}}</strong> starting
+      in <strong>1 hour</strong>.
+    </p>
+    <ul>
+      <li><strong>Time:</strong> {{.Time}} ({{.Timezone}})</li>
+      {{ if .ZoomLink }}
+      <li><strong>Join:</strong> <a href="{{.ZoomLink}}">{{.ZoomLink}}</a></li>
+      {{ end }}
+    </ul>
+    <p>Prepare your materials and be ready!</p>
+    — Team FitCall
+  </body>
+</html>

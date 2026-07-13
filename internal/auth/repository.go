@@ -60,6 +60,7 @@ type RoleIDs struct {
 type AdminUserRepository interface {
 	UpsertAdminUser(ctx context.Context, email, name, password string) (*db.User, error)
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
+	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 }
 
 // TrainerUserRepository covers the user-provisioning side of the admin-creates-trainer
@@ -67,6 +68,7 @@ type AdminUserRepository interface {
 type TrainerUserRepository interface {
 	UpsertTrainerUser(ctx context.Context, email, name, password string) (*db.User, error)
 	FindByEmail(ctx context.Context, email string) (*db.User, error)
+	FindByEmailAndProvider(ctx context.Context, email, provider string) (*db.User, error)
 }
 
 // SessionRepository defines what the auth feature needs from the sessions table.
