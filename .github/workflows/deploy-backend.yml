@@ -137,7 +137,11 @@ jobs:
             # crash-restart loop (auto-restarted → active momentarily
             # between failures), leaving the deploy "green" while prod
             # was broken.
-            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-staging; then
+            # is-active is a read-only query — no sudo needed. The
+            # server's sudoers permits `restart`/`status` for this user
+            # but not `is-active`, so wrapping this call in sudo -n
+            # tripped a false-positive rollback of healthy services.
+            if ! /usr/bin/systemctl is-active --quiet personal-trainer-backend-staging; then
               sudo -n /usr/bin/systemctl status personal-trainer-backend-staging || true
               echo "service failed to reach active state — deploy will roll back"
               exit 1
@@ -290,7 +294,11 @@ jobs:
 
             sleep 5
 
-            if ! sudo -n /usr/bin/systemctl is-active --quiet personal-trainer-backend-production; then
+            # is-active is a read-only query — no sudo needed. The
+            # server's sudoers permits `restart`/`status` for this user
+            # but not `is-active`, so wrapping this call in sudo -n
+            # tripped a false-positive rollback of healthy services.
+            if ! /usr/bin/systemctl is-active --quiet personal-trainer-backend-production; then
               sudo -n /usr/bin/systemctl status personal-trainer-backend-production || true
               echo "service failed to reach active state — deploy will roll back"
               exit 1
