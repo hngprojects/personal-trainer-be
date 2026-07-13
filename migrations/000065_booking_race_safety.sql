@@ -18,8 +18,12 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- the cancellation_reason string isn't a reliable discriminator vs.
 -- legitimate user cancels that happen to hit the same text.
 --
--- Wrapped in +goose StatementBegin/End so goose sends the DO block as
--- a single statement instead of trying to split on the inner `;`.
+-- The DO block below is wrapped in StatementBegin/StatementEnd
+-- markers so goose sends it as a single statement instead of
+-- trying to split on the inner semicolons. (Avoiding the literal
+-- annotation token inside this comment — goose treats any line
+-- containing it as an annotation, even mid-sentence, which
+-- previously broke this migration's parse.)
 
 -- +goose StatementBegin
 DO $$
