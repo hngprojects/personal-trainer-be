@@ -46,10 +46,18 @@ jobs:
 
     steps:
       - name: Log rollback intent
+        # NOTE: values passed via `env:` — NOT inline ${{ }} interpolation.
+        # inputs.reason is free text and would allow shell injection if
+        # spliced into a run: block directly. env: makes it a normal
+        # environment variable the shell doesn't parse.
         run: |
-          echo "Rolling back environment=${{ inputs.environment }}"
-          echo "Triggered by ${{ github.actor }}"
-          echo "Reason: ${{ inputs.reason }}"
+          echo "Rolling back environment=$ENVIRONMENT"
+          echo "Triggered by $ACTOR"
+          echo "Reason: $REASON"
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
 
       - name: Restore previous release
         uses: appleboy/ssh-action@v1.2.0

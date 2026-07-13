@@ -63,6 +63,13 @@ jobs:
       # personal-trainer-api.prev back over the current binary. Keep
       # the .env untouched — it's chmod 600 and would fail on some
       # transient errors we don't want to also rollback.
+      #
+      # SHA capture: the remote is NOT a git working tree, so we can't
+      # derive the deployed SHA with `git rev-parse` there. Instead
+      # each successful deploy writes its GITHUB_SHA into a RELEASE_SHA
+      # file (see "Migrate and restart"); this snapshot step reads that
+      # value back and stamps it into .prev-info so rollbacks can log
+      # a meaningful "reverting to <sha>" line.
       - name: Snapshot previous release (staging)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -76,8 +83,8 @@ jobs:
             cd /var/www/personal-trainer/backend/staging
             if [ -f personal-trainer-api ]; then
               cp -f personal-trainer-api personal-trainer-api.prev
-              # Record which SHA the .prev came from so rollback logs are meaningful.
-              echo "snapshot at $(date -Iseconds) sha=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" > .prev-info
+              PREV_SHA=$(cat RELEASE_SHA 2>/dev/null || echo unknown)
+              echo "snapshot at $(date -Iseconds) sha=$PREV_SHA" > .prev-info
             fi
 
       - name: Upload backend staging
@@ -89,19 +96,26 @@ jobs:
           REMOTE_PORT: ${{ secrets.SERVER_PORT }}
           SOURCE: deploy/
           TARGET: /var/www/personal-trainer/backend/staging/
-          # NOTE: --exclude=personal-trainer-api.prev keeps the snapshot we
-          # just made from being deleted by --delete.
-          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info
+          # NOTE: --exclude keeps the snapshot + release-metadata files
+          # from being deleted by rsync --delete.
+          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info --exclude=RELEASE_SHA
 
       - name: Migrate and restart staging
         id: migrate_restart_staging
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           request_pty: false
+          # `envs:` forwards named env vars from the workflow context into
+          # the remote SSH script. Without this the `env:` block above
+          # only affects the runner, not the appleboy/ssh-action target,
+          # and $RELEASE_SHA would be empty on the server.
+          envs: RELEASE_SHA
           script: |
             set -e
 
@@ -131,14 +145,28 @@ jobs:
 
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
 
-      # Auto-rollback runs iff any prior step in this job failed. Restores
-      # the .prev binary and restarts. Deliberately does NOT roll back the
-      # DB — goose down can be destructive, and additive migrations
-      # (which is most of ours) are compatible with the previous binary.
-      # If a specific migration IS binary-incompatible with rollback we
-      # need to catch that at review time, not here.
+            # Persist the SHA that just went live so the NEXT deploy's
+            # snapshot step can label its .prev-info with a meaningful
+            # value. Only reached after the service is confirmed
+            # active — a failed deploy leaves the previous
+            # RELEASE_SHA untouched (correct: that older SHA is what's
+            # about to be restored by rollback).
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
+      # Auto-rollback runs on ANY prior-step failure — including rsync
+      # (which can leave a partial binary on disk) and the snapshot
+      # step itself. The internal `[ ! -f personal-trainer-api.prev ]`
+      # guard makes it safe to run before the snapshot succeeded:
+      # first-ever deploys have no .prev and this step exits with a
+      # loud "nothing to roll back to" message.
+      #
+      # Deliberately does NOT roll back the DB — goose down can be
+      # destructive, and additive migrations (which is most of ours)
+      # are compatible with the previous binary. If a specific
+      # migration IS binary-incompatible with rollback we need to
+      # catch that at review time, not here.
       - name: Auto-rollback (staging)
-        if: failure() && steps.migrate_restart_staging.conclusion != 'skipped'
+        if: failure()
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -206,6 +234,7 @@ jobs:
               "${{ secrets.PRODUCTION_DATABASE_URL }}" \
               > /var/backups/personal-trainer/postgres/prod-$(date +%F-%H%M%S).sql
 
+      # See the staging counterpart for the SHA-capture rationale.
       - name: Snapshot previous release (production)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -219,7 +248,8 @@ jobs:
             cd /var/www/personal-trainer/backend/production
             if [ -f personal-trainer-api ]; then
               cp -f personal-trainer-api personal-trainer-api.prev
-              echo "snapshot at $(date -Iseconds)" > .prev-info
+              PREV_SHA=$(cat RELEASE_SHA 2>/dev/null || echo unknown)
+              echo "snapshot at $(date -Iseconds) sha=$PREV_SHA" > .prev-info
             fi
 
       - name: Upload backend production
@@ -231,17 +261,20 @@ jobs:
           REMOTE_PORT: ${{ secrets.SERVER_PORT }}
           SOURCE: deploy/
           TARGET: /var/www/personal-trainer/backend/production/
-          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info
+          ARGS: -rlgoDzvc --delete --exclude=personal-trainer-api.prev --exclude=.prev-info --exclude=RELEASE_SHA
 
       - name: Migrate and restart production
         id: migrate_restart_production
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          RELEASE_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           request_pty: false
+          envs: RELEASE_SHA
           script: |
             set -e
 
@@ -265,8 +298,14 @@ jobs:
 
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
 
+            # See staging: persist the just-deployed SHA so the next
+            # deploy's snapshot can name it correctly. Not reached on
+            # deploy failure — the prior RELEASE_SHA (i.e. what
+            # rollback restores to) stays intact.
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
       - name: Auto-rollback (production)
-        if: failure() && steps.migrate_restart_production.conclusion != 'skipped'
+        if: failure()
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
