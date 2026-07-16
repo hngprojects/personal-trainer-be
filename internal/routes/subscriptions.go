@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
+	featureflags "github.com/hngprojects/personal-trainer-be/internal/feature_flags"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/iap"
 	"github.com/lib/pq"
@@ -94,6 +95,29 @@ func (s *routerImpl) CreateSubscription(c *gin.Context) {
 	userID, ok := userIDFromContext(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, api.NewError("unauthorized", api.CodeUnauthorized))
+		return
+	}
+
+	// Payment kill-switch. The mobile client reads the same flag via
+	// GET /feature-flags and hides the upgrade UI when off — but a
+	// motivated client can call this endpoint directly, so we enforce
+	// the flag here too. Defaults to OFF when Redis/DB are unreachable
+	// (see featureflags.Service.IsEnabled contract), which means a
+	// flag-system outage refuses purchases rather than letting them
+	// through unverified.
+	//
+	// Nil-service is treated as "flag system unavailable" and rejects
+	// too — never silently bypass. This can happen in a routes.go
+	// wiring bug or an intentionally-stripped test binary; either way
+	// we prefer to refuse purchases over accepting them without the
+	// gate.
+	if s.featureFlagsSvc == nil || !s.featureFlagsSvc.IsEnabled(c.Request.Context(), featureflags.PaymentEnabled) {
+		if s.featureFlagsSvc == nil {
+			s.logger.Warn("create subscription: featureFlagsSvc is nil — refusing per default-OFF contract", "userID", userID)
+		} else {
+			s.logger.Info("create subscription: payment_enabled flag is OFF, rejecting", "userID", userID)
+		}
+		c.JSON(http.StatusServiceUnavailable, api.NewError("payments are temporarily disabled", api.CodeServerError))
 		return
 	}
 

@@ -23,6 +23,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/dev"
 	"github.com/hngprojects/personal-trainer-be/internal/discovery"
 	"github.com/hngprojects/personal-trainer-be/internal/events"
+	featureflags "github.com/hngprojects/personal-trainer-be/internal/feature_flags"
 	"github.com/hngprojects/personal-trainer-be/internal/handlers"
 	"github.com/hngprojects/personal-trainer-be/internal/health"
 	"github.com/hngprojects/personal-trainer-be/internal/middleware"
@@ -203,7 +204,29 @@ type routerImpl struct {
 	notificationService *notification.NotificationService
 	userDeviceHandler   *userdevice.UserDeviceHandler
 	notificationHandler *notification.NotificationHandler
+	featureFlags        *featureflags.Handler
+	// featureFlagsSvc is the service-layer view of the same flags the
+	// HTTP handler above exposes. Held separately so non-HTTP code
+	// paths (subscription creation, push send) can consult flags
+	// without round-tripping through the handler.
+	featureFlagsSvc *featureflags.Service
 	wsHub               *websocket.Hub
+
+	// siwaOAuth talks to Apple's /auth/token and /auth/revoke
+	// endpoints. Nil unless all four SIWA config knobs are set
+	// (team id, client id, key id, .p8). When nil, the auth-code
+	// exchange at sign-in is skipped silently AND the
+	// revoke-on-delete step is a no-op — Apple SIWA still works for
+	// login regardless, since identity-token verification doesn't
+	// need OAuth credentials.
+	siwaOAuth *apple.SIWAOAuth
+
+	// cryptoBox is the AES-GCM helper used to encrypt Apple refresh
+	// tokens at rest. Shares the existing ZOOM_TOKEN_ENCRYPTION_KEY
+	// — both are "long-lived OAuth tokens we got from a third party,
+	// keep encrypted at rest" so the same key is appropriate. nil if
+	// the key isn't configured.
+	cryptoBox *cryptoutil.AESGCM
 
 	// zoomOAuth handles the per-trainer /trainers/me/zoom/{connect,
 	// callback,status} + DELETE /trainers/me/zoom routes. When the
@@ -331,6 +354,39 @@ func (s *Router) Routes() *gin.Engine {
 			impl.notificationService = notificationService
 			impl.notificationHandler = notification.NewNotificationHandler(notificationService, s.log)
 
+			// Direct APNs client. When configured, iOS device rows
+			// route through Apple's HTTP/2 push endpoint instead of
+			// FCM. Missing config is non-fatal — iOS push still works
+			// via FCM (Firebase forwards to APNs), just one extra hop.
+			if s.cfg.AppleAPNSKeyID != "" && s.cfg.AppleAPNSKeyP8 != "" && s.cfg.AppleTeamID != "" && s.cfg.AppleBundleID != "" {
+				env := apple.APNSProduction
+				if s.cfg.AppleAPNSEnvironment == "sandbox" {
+					env = apple.APNSSandbox
+				}
+				apnsClient, apnsErr := apple.NewAPNSClient(apple.APNSConfig{
+					TeamID:        s.cfg.AppleTeamID,
+					KeyID:         s.cfg.AppleAPNSKeyID,
+					PrivateKeyPEM: s.cfg.AppleAPNSKeyP8,
+					BundleID:      s.cfg.AppleBundleID,
+					Environment:   env,
+				})
+				if apnsErr != nil {
+					s.log.Error("apns: init failed — iOS push will fall back to FCM", "err", apnsErr)
+				} else {
+					notificationService.WithAPNS(apnsClient)
+					s.log.Info("apns: direct push ready", "environment", env)
+				}
+			}
+
+			// Feature flags service is wired here so the handler is
+			// available when admin/feature-flag routes register below
+			// AND so the subscription handler can consult it as a
+			// kill-switch. Redis is optional — service degrades to
+			// DB-only reads if redis is nil.
+			featureFlagsSvc := featureflags.NewService(q, s.redis, s.log)
+			impl.featureFlagsSvc = featureFlagsSvc
+			impl.featureFlags = featureflags.NewHandler(featureFlagsSvc, s.log)
+
 			usersRepo := auth.NewPostgresUserRepo(q)
 			waitlistRepo := waitlist.NewPostgresWaitlistRepo(q)
 			sessionsRepo := auth.NewPostgresSessionRepo(q)
@@ -411,6 +467,7 @@ func (s *Router) Routes() *gin.Engine {
 				if encErr != nil {
 					s.log.Error("zoom token encryption key invalid — per-trainer Zoom disabled", "err", encErr)
 				} else {
+					impl.cryptoBox = enc // shared with Apple SIWA refresh-token storage; same key class
 					oauth := appzoom.NewOAuthClient(s.cfg.ZoomOAuthClientID, s.cfg.ZoomOAuthClientSecret, s.cfg.ZoomOAuthRedirectURL)
 					credStore = zoomflow.NewCredentialStore(q, s.db, enc, oauth, s.log)
 					impl.zoomOAuth = newZoomOAuthHandler(credStore, oauth, s.redis, s.log, notificationService)
@@ -418,6 +475,36 @@ func (s *Router) Routes() *gin.Engine {
 				}
 			} else if s.cfg.ZoomMeetingHost == "trainer" {
 				s.log.Warn("ZOOM_MEETING_HOST=trainer set but ZOOM_TOKEN_ENCRYPTION_KEY / ZOOM_OAUTH_CLIENT_* / ZOOM_OAUTH_REDIRECT_URL missing — selector will always fall back to org provider")
+			}
+
+			// Apple Sign in with Apple OAuth side channel. All four
+			// config knobs (team id, services/bundle id, key id, .p8)
+			// must be present for revocation to work. Missing config is
+			// non-fatal — identity-token sign-in keeps working; only
+			// the App Store guideline 5.1.1 (v) revoke-on-delete step
+			// gets skipped, logged at info on first sign-in attempt.
+			siwaCfg := apple.SIWAOAuthConfig{
+				TeamID:        s.cfg.AppleTeamID,
+				ClientID:      s.cfg.AppleSIWAClientID,
+				KeyID:         s.cfg.AppleSIWAKeyID,
+				PrivateKeyPEM: s.cfg.AppleSIWAKeyP8,
+			}
+			if !siwaCfg.IsZero() {
+				if oauth, err := apple.NewSIWAOAuth(siwaCfg); err != nil {
+					s.log.Error("apple SIWA oauth init failed — revoke-on-delete disabled", "err", err)
+				} else {
+					impl.siwaOAuth = oauth
+					// Chain the OAuth pipeline into the existing
+					// AppleHandler so it can exchange authorization_code
+					// at sign-in. cryptoBox can be nil here (no zoom
+					// token key configured); WithOAuth tolerates partial
+					// wiring and silently skips the exchange when any
+					// dependency is missing.
+					if impl.apple != nil {
+						impl.apple = impl.apple.WithOAuth(oauth, impl.cryptoBox, &siwaRefreshTokenWriter{q: q})
+					}
+					s.log.Info("apple SIWA oauth pipeline ready")
+				}
 			}
 
 			zoomSelector := &zoomflow.MeetingSelector{

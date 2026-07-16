@@ -272,6 +272,28 @@ func (s *routerImpl) DeleteMyAccount(c *gin.Context) {
 		return
 	}
 
+	// Apple Sign In compliance (App Store Review Guideline 5.1.1 (v)):
+	// when an account that signed in with Apple is deleted, we MUST
+	// also revoke the refresh token Apple issued. Best-effort —
+	// Apple being unreachable or returning an error doesn't block
+	// account deletion (the user took the action; the audit row in
+	// our logs is the only consequence of a revoke failure).
+	if s.siwaOAuth != nil &&
+		user.AuthProvider == "apple" &&
+		user.AppleRefreshTokenEnc.Valid &&
+		user.AppleRefreshTokenEnc.String != "" {
+		refreshToken, decErr := s.cryptoBox.Decrypt(user.AppleRefreshTokenEnc.String)
+		if decErr != nil {
+			s.logger.Warn("delete account: failed to decrypt apple refresh token, skipping revoke",
+				"userID", userID, "err", decErr)
+		} else if revErr := s.siwaOAuth.Revoke(c.Request.Context(), string(refreshToken)); revErr != nil {
+			s.logger.Warn("delete account: apple revoke failed, proceeding with deletion",
+				"userID", userID, "err", revErr)
+		} else {
+			s.logger.Info("delete account: apple refresh token revoked", "userID", userID)
+		}
+	}
+
 	rows, err := s.users.q.HardDeleteClient(c.Request.Context(), userID)
 	if err != nil {
 		s.logger.Error("delete account: db error", "userID", userID, "err", err)
