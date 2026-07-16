@@ -13,7 +13,7 @@ func TestSanitizeHeaderValueRejectsNewlines(t *testing.T) {
 func TestSMTPMailerSendRejectsInjectedRecipient(t *testing.T) {
 	t.Parallel()
 
-	mailer := NewSMTPMailer("smtp.example.com", "587", "user", "pass", "from@example.com")
+	mailer := NewSMTPMailer("smtp.example.com", "587", "user", "pass", "from@example.com", "")
 
 	err := mailer.SendVerificationCode("victim@example.com\r\nBcc: attacker@example.com", "123456", 15)
 	if err == nil {
