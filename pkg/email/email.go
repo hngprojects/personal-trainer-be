@@ -232,8 +232,12 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 	return nil
 }
 
-func (m *LogMailer) SendWaitlistConfirmation(to, _ string) error {
-	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
+func (m *LogMailer) SendWaitlistConfirmation(to, name string) error {
+	displayName := name
+	if displayName == "" {
+		displayName = "there"
+	}
+	slog.Info("email", "to", to, "subject", fmt.Sprintf(waitlistConfirmationSubject, displayName))
 	return nil
 }
 
@@ -524,13 +528,13 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to, name string) error {
 	if err != nil {
 		return fmt.Errorf("invalid recipient address: %w", err)
 	}
-	body, err := waitlistConfirmationHTML(name)
+	displayName := "there"
+	if safe, serr := sanitizeHeaderValue(name); serr == nil && safe != "" {
+		displayName = safe
+	}
+	body, err := waitlistConfirmationHTML(name, m.appURL)
 	if err != nil {
 		return fmt.Errorf("build waitlist confirmation email body: %w", err)
-	}
-	displayName := name
-	if displayName == "" {
-		displayName = "there"
 	}
 	subject := fmt.Sprintf(waitlistConfirmationSubject, displayName)
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
@@ -566,12 +570,19 @@ const waitlistConfirmationSubject = "You're in, %s"
 
 var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/waitlistConfirmation.html"))
 
-func waitlistConfirmationHTML(name string) (string, error) {
+func waitlistConfirmationHTML(name, appURL string) (string, error) {
 	if name == "" {
 		name = "there"
 	}
+	logoURL := "https://fitcall.me/logo.svg"
+	if appURL != "" {
+		logoURL = appURL + "/logo.png"
+	}
 	var body bytes.Buffer
-	if err := waitlistConfirmationTemplate.Execute(&body, struct{ Name string }{Name: name}); err != nil {
+	if err := waitlistConfirmationTemplate.Execute(&body, struct {
+		Name    string
+		LogoURL string
+	}{Name: name, LogoURL: logoURL}); err != nil {
 		return "", err
 	}
 	return body.String(), nil

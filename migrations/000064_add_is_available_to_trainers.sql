@@ -10,3 +10,5 @@ ALTER TABLE trainers ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFA
 -- +goose Down
 
 ALTER TABLE trainers DROP COLUMN IF EXISTS is_available;
+
+
