@@ -16,13 +16,15 @@ const resendEndpoint = "https://api.resend.com/emails"
 type ResendMailer struct {
 	apiKey string
 	from   string
+	appURL string
 	client *http.Client
 }
 
-func NewResendMailer(apiKey, from string) *ResendMailer {
+func NewResendMailer(apiKey, from, appURL string) *ResendMailer {
 	return &ResendMailer{
 		apiKey: apiKey,
 		from:   from,
+		appURL: appURL,
 		client: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -81,12 +83,16 @@ func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int)
 	return m.send(to, passwordResetSubject, body)
 }
 
-func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
-	body, err := waitlistConfirmationHTML()
+func (m *ResendMailer) SendWaitlistConfirmation(to, name string) error {
+	body, err := waitlistConfirmationHTML(name)
 	if err != nil {
 		return fmt.Errorf("resend: build waitlist confirmation email body: %w", err)
 	}
-	return m.send(to, waitlistConfirmationSubject, body)
+	displayName := name
+	if displayName == "" {
+		displayName = "there"
+	}
+	return m.send(to, fmt.Sprintf(waitlistConfirmationSubject, displayName), body)
 }
 
 func (m *ResendMailer) SendWaitlistNotification(to, name, joinerEmail, phone, location string) error {

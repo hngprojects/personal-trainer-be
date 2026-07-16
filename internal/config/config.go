@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Env         string
 	Port        string
+	AppURL      string
 	DatabaseURL string
 	LogLevel    string
 	LogFormat   string
@@ -194,6 +195,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Env:         getenv("APP_ENV", "development"),
 		Port:        getenv("PORT", "8080"),
+		AppURL:      os.Getenv("APP_URL"),
 		LogLevel:    getenv("LOG_LEVEL", "info"),
 		LogFormat:   os.Getenv("LOG_FORMAT"),
 		FrontendURL: getenv("FRONTEND_URL", "http://localhost:3000"),
