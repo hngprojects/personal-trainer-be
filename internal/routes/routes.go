@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -288,6 +289,10 @@ func (s *Router) Routes() *gin.Engine {
 	// so flipping team ID / fingerprint at runtime works without a
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
+
+	r.GET("/logo.png", func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/png", email.LogoBytes)
+	})
 
 	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
 	if err != nil {
@@ -875,7 +880,7 @@ func (r *reminderNotifSender) SendNotificationToUser(ctx context.Context, userID
 func (s *Router) buildMailer() email.Mailer {
 	if s.cfg.ResendAPIKey != "" && s.cfg.ResendFrom != "" {
 		s.log.Info("using Resend mailer", "from", s.cfg.ResendFrom)
-		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom)
+		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom, s.cfg.AppURL)
 	}
 	if s.cfg.SMTPHost != "" {
 		s.log.Info("using SMTP mailer", "host", s.cfg.SMTPHost, "from", s.cfg.SMTPFrom)
@@ -885,6 +890,7 @@ func (s *Router) buildMailer() email.Mailer {
 			s.cfg.SMTPUser,
 			s.cfg.SMTPPassword,
 			s.cfg.SMTPFrom,
+			s.cfg.AppURL,
 		)
 	}
 	if s.cfg.Env != "development" {

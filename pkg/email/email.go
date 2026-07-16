@@ -15,6 +15,9 @@ import (
 //go:embed templates/*.html
 var templates embed.FS
 
+//go:embed assets/logo.png
+var LogoBytes []byte
+
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
 	SendAdminCredentials(to, password string) error
@@ -26,7 +29,7 @@ type Mailer interface {
 	// /auth/set-password along with their chosen password.
 	SendAccountSetupLink(to, name, link string, expiryHours int) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
-	SendWaitlistConfirmation(to string) error
+	SendWaitlistConfirmation(to, name string) error
 	SendWaitlistNotification(to, name, joinerEmail, phone, location string) error
 	SendContactConfirmation(to, name string) error
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
@@ -45,10 +48,11 @@ type SMTPMailer struct {
 	username string
 	password string
 	from     string
+	appURL   string
 }
 
-func NewSMTPMailer(host, port, username, password, from string) *SMTPMailer {
-	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from}
+func NewSMTPMailer(host, port, username, password, from, appURL string) *SMTPMailer {
+	return &SMTPMailer{host: host, port: port, username: username, password: password, from: from, appURL: appURL}
 }
 
 func (m *SMTPMailer) SendVerificationCode(to, code string, expiryMinutes int) error {
@@ -228,8 +232,12 @@ func (m *LogMailer) SendPasswordResetCode(to, code string, expiryMinutes int) er
 	return nil
 }
 
-func (m *LogMailer) SendWaitlistConfirmation(to string) error {
-	slog.Info("email", "to", to, "subject", waitlistConfirmationSubject)
+func (m *LogMailer) SendWaitlistConfirmation(to, name string) error {
+	displayName := name
+	if displayName == "" {
+		displayName = "there"
+	}
+	slog.Info("email", "to", to, "subject", fmt.Sprintf(waitlistConfirmationSubject, displayName))
 	return nil
 }
 
@@ -511,7 +519,7 @@ func passwordResetHTML(code string, expiryMinutes int) (string, error) {
 	return body.String(), nil
 }
 
-func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
+func (m *SMTPMailer) SendWaitlistConfirmation(to, name string) error {
 	fromAddr, err := sanitizeAddress(m.from)
 	if err != nil {
 		return fmt.Errorf("invalid from address: %w", err)
@@ -520,14 +528,19 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to string) error {
 	if err != nil {
 		return fmt.Errorf("invalid recipient address: %w", err)
 	}
-	body, err := waitlistConfirmationHTML()
+	displayName := "there"
+	if safe, serr := sanitizeHeaderValue(name); serr == nil && safe != "" {
+		displayName = safe
+	}
+	body, err := waitlistConfirmationHTML(name, m.appURL)
 	if err != nil {
 		return fmt.Errorf("build waitlist confirmation email body: %w", err)
 	}
+	subject := fmt.Sprintf(waitlistConfirmationSubject, displayName)
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, toAddr, waitlistConfirmationSubject, body,
+		fromAddr, toAddr, subject, body,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
@@ -553,13 +566,23 @@ func (m *SMTPMailer) SendContactConfirmation(to, name string) error {
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-const waitlistConfirmationSubject = "You're on the waitlist!"
+const waitlistConfirmationSubject = "You're in, %s"
 
 var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/waitlistConfirmation.html"))
 
-func waitlistConfirmationHTML() (string, error) {
+func waitlistConfirmationHTML(name, appURL string) (string, error) {
+	if name == "" {
+		name = "there"
+	}
+	logoURL := "https://fitcall.me/logo.svg"
+	if appURL != "" {
+		logoURL = appURL + "/logo.png"
+	}
 	var body bytes.Buffer
-	if err := waitlistConfirmationTemplate.Execute(&body, nil); err != nil {
+	if err := waitlistConfirmationTemplate.Execute(&body, struct {
+		Name    string
+		LogoURL string
+	}{Name: name, LogoURL: logoURL}); err != nil {
 		return "", err
 	}
 	return body.String(), nil
