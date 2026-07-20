@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -289,6 +290,10 @@ func (s *Router) Routes() *gin.Engine {
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
 
+	r.GET("/logo.png", func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/png", email.LogoBytes)
+	})
+
 	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
 	if err != nil {
 		s.log.Warn("availability SSE listener failed to start", "err", err)
@@ -559,7 +564,7 @@ func (s *Router) Routes() *gin.Engine {
 			userDeviceService := userdevice.NewUserDeviceService(userDeviceRepo, s.log)
 			impl.userDeviceHandler = userdevice.NewUserDeviceHandler(userDeviceService, s.log)
 
-			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService, s.redis)
+			impl.booking = bookings.NewBookingHandler(bookingService, s.log, notificationService)
 			impl.paidReschedule = bookings.NewHandler(bookingsRepo, meetingSelector, mailer, s.log, s.cfg.ZoomJoinMode, s.cfg.UniversalLinkDomain, orgMeetingProvider, notificationService)
 
 			if s.redis != nil {
@@ -875,7 +880,7 @@ func (r *reminderNotifSender) SendNotificationToUser(ctx context.Context, userID
 func (s *Router) buildMailer() email.Mailer {
 	if s.cfg.ResendAPIKey != "" && s.cfg.ResendFrom != "" {
 		s.log.Info("using Resend mailer", "from", s.cfg.ResendFrom)
-		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom)
+		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom, s.cfg.AppURL)
 	}
 	if s.cfg.SMTPHost != "" {
 		s.log.Info("using SMTP mailer", "host", s.cfg.SMTPHost, "from", s.cfg.SMTPFrom)
@@ -885,6 +890,7 @@ func (s *Router) buildMailer() email.Mailer {
 			s.cfg.SMTPUser,
 			s.cfg.SMTPPassword,
 			s.cfg.SMTPFrom,
+			s.cfg.AppURL,
 		)
 	}
 	if s.cfg.Env != "development" {
