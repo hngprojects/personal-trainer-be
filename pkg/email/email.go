@@ -532,7 +532,7 @@ func (m *SMTPMailer) SendWaitlistConfirmation(to, name string) error {
 	if safe, serr := sanitizeHeaderValue(name); serr == nil && safe != "" {
 		displayName = safe
 	}
-	body, err := waitlistConfirmationHTML(name, m.appURL)
+	body, err := waitlistConfirmationHTML(displayName, m.appURL)
 	if err != nil {
 		return fmt.Errorf("build waitlist confirmation email body: %w", err)
 	}
@@ -570,14 +570,18 @@ const waitlistConfirmationSubject = "You're in, %s"
 
 var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/waitlistConfirmation.html"))
 
+func resolveLogoURL(appURL string) string {
+	if appURL != "" {
+		return appURL + "/logo.png"
+	}
+	return "https://fitcall.me/logo.svg"
+}
+
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
 	if name == "" {
 		name = "there"
 	}
-	logoURL := "https://fitcall.me/logo.svg"
-	if appURL != "" {
-		logoURL = appURL + "/logo.png"
-	}
+	logoURL := resolveLogoURL(appURL)
 	var body bytes.Buffer
 	if err := waitlistConfirmationTemplate.Execute(&body, struct {
 		Name    string
@@ -831,7 +835,12 @@ var bookingConfirmationTemplate = template.Must(template.ParseFS(templates, "tem
 
 var trainerBookingConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/trainerBookingConfirmation.html"))
 
-func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) (string, error) {
+var bookingConfirmationWhatsAppTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationWhatsApp.html"))
+var bookingConfirmationGoogleMeetTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationGoogleMeet.html"))
+var bookingConfirmationFaceTimeTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationFaceTime.html"))
+var bookingConfirmationMessengerTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationMessenger.html"))
+
+func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -839,23 +848,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	localScheduledStartTime := scheduledStartTime.In(loc)
 	localScheduledEndTime := scheduledEndTime.In(loc)
 
-	var buf bytes.Buffer
-	if toTrainer {
-		err = trainerBookingConfirmationTemplate.Execute(&buf, map[string]interface{}{
-			"ClientName":      name,
-			"TrainerName":     trainerName,
-			"Date":            localScheduledStartTime.Format("Monday, January 2, 2006"),
-			"StartTime":       localScheduledStartTime.Format("3:04 PM"),
-			"EndTime":         localScheduledEndTime.Format("3:04 PM"),
-			"Timezone":        timezone,
-			"Platform":        platform,
-			"MeetingLink":     meetingLink,
-			"MessengerHandle": messengerHandle,
-			"PhoneNumber":     phoneNumber,
-		})
-		return buf.String(), err
-	}
-	err = bookingConfirmationTemplate.Execute(&buf, map[string]interface{}{
+	data := map[string]interface{}{
 		"ClientName":      name,
 		"TrainerName":     trainerName,
 		"Date":            localScheduledStartTime.Format("Monday, January 2, 2006"),
@@ -866,13 +859,36 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 		"MeetingLink":     meetingLink,
 		"MessengerHandle": messengerHandle,
 		"PhoneNumber":     phoneNumber,
-	})
-	return buf.String(), err
+		"Duration":        int(scheduledEndTime.Sub(scheduledStartTime).Minutes()),
+		"LogoURL":         resolveLogoURL(appURL),
+	}
 
+	var buf bytes.Buffer
+	if toTrainer {
+		err = trainerBookingConfirmationTemplate.Execute(&buf, data)
+		return buf.String(), err
+	}
+
+	var tmpl *template.Template
+	switch platform {
+	case "whatsapp":
+		tmpl = bookingConfirmationWhatsAppTemplate
+	case "google_meet":
+		tmpl = bookingConfirmationGoogleMeetTemplate
+	case "imessage":
+		tmpl = bookingConfirmationFaceTimeTemplate
+	case "messenger":
+		tmpl = bookingConfirmationMessengerTemplate
+	default:
+		tmpl = bookingConfirmationTemplate
+	}
+
+	err = tmpl.Execute(&buf, data)
+	return buf.String(), err
 }
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
-	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, toTrainer)
+	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, toTrainer)
 	if err != nil {
 		return fmt.Errorf("smtp: build booking confirmation email: %w", err)
 	}
