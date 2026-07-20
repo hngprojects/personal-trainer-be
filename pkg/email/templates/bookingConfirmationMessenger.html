@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Session Confirmed</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:12px 12px 0 0;padding:20px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:12px;vertical-align:middle;">
+                    <img src="{{.LogoURL}}" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall.me</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="background:#0A3528;padding:40px 28px 48px;text-align:center;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(0,200,180,0.45);background:rgba(0,200,180,0.08);text-align:center;vertical-align:middle;">
+                    <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0 0 12px;color:#ffffff;font-size:26px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.2;">
+                Session confirmed. Your trainer is ready.
+              </h1>
+              <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                Everything is set. All you have to do is show up.
+              </p>
+            </td>
+          </tr>
+
+          <!-- BODY COPY -->
+          <tr>
+            <td style="background:#ffffff;padding:32px 36px 24px;">
+              <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                Hey {{.ClientName}}!
+              </p>
+              <p style="margin:0;font-size:15px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                Your trainer has confirmed the session and will be live on screen at the time below.
+              </p>
+            </td>
+          </tr>
+
+          <!-- SESSION DETAILS CARD -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 32px;">
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#EDF5FF;border:1.5px solid #C3DEFF;border-radius:12px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">Platform: Messenger</p>
+                    <p style="margin:0 0 16px;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">You will be attending your session via Facebook Messenger. Your assigned trainer will reach out to you directly on Messenger at your scheduled time.</p>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #C3DEFF;">
+                      {{if .MessengerHandle}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Trainer Messenger</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">@{{.MessengerHandle}}</td>
+                      </tr>
+                      {{end}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Scheduled Time</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} at {{.StartTime}} ({{.Timezone}})</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
+                      </tr>
+                    </table>
+                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Please ensure you are active and reachable on Messenger at the scheduled time.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- RESCHEDULING POLICY -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 32px;">
+              <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Rescheduling policy</p>
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 4px 4px 0;">
+                <tr>
+                  <td style="padding:14px 16px;font-size:13px;font-style:italic;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                    You can reschedule up to 12 hours before your session. After that window closes, the session cannot be rescheduled or refunded. A reminder will be sent 24 hours before your session.
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 0;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;">
+                Need to reschedule? <a href="https://fitcall.me" style="color:#1a56db;text-decoration:underline;">Click here</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- SOCIAL ICONS -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 36px;text-align:center;border-bottom:1px solid #e5e7eb;">
+              <p style="margin:0 0 14px;font-size:14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
+                Share your fitness journey with the FitCall.me community
+              </p>
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                <tr>
+                  <td style="padding:0 5px;">
+                    <a href="https://www.facebook.com/fitcall.me" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#1877F2;text-align:center;line-height:40px;text-decoration:none;font-size:15px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">f</a>
+                  </td>
+                  <td style="padding:0 5px;">
+                    <a href="https://www.instagram.com/fitcall_me?igsh=Y245b25ycmZ0dms2" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#C13584;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">IG</a>
+                  </td>
+                  <td style="padding:0 5px;">
+                    <a href="https://www.linkedin.com/company/fitcall-app/posts/?feedView=all" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#0077B5;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">in</a>
+                  </td>
+                  <td style="padding:0 5px;">
+                    <a href="https://x.com/fitcall_me?s=11" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#000000;text-align:center;line-height:40px;text-decoration:none;font-size:13px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">X</a>
+                  </td>
+                  <td style="padding:0 5px;">
+                    <a href="https://www.tiktok.com/@fitcall.me?_r=1&_t=ZS-98BYHlii7c0" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#000000;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">TT</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+                You're receiving this because you booked a session on FitCall.me.<br/>
+                Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
+                &nbsp;|&nbsp;
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Privacy Policy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
