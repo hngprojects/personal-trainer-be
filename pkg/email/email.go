@@ -3,6 +3,7 @@ package email
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -17,6 +18,30 @@ var templates embed.FS
 
 //go:embed assets/logo.png
 var LogoBytes []byte
+
+//go:embed assets/icons/facebook.svg
+var FacebookIconSVG []byte
+
+//go:embed assets/icons/instagram.svg
+var InstagramIconSVG []byte
+
+//go:embed assets/icons/linkedin.svg
+var LinkedInIconSVG []byte
+
+//go:embed assets/icons/twitter.svg
+var TwitterIconSVG []byte
+
+//go:embed assets/icons/tiktok.svg
+var TikTokIconSVG []byte
+
+// SocialIcons maps icon filename to embedded SVG bytes for /icons/:name routes.
+var SocialIcons = map[string][]byte{
+	"facebook.svg":  FacebookIconSVG,
+	"instagram.svg": InstagramIconSVG,
+	"linkedin.svg":  LinkedInIconSVG,
+	"twitter.svg":   TwitterIconSVG,
+	"tiktok.svg":    TikTokIconSVG,
+}
 
 type Mailer interface {
 	SendVerificationCode(to, code string, expiryMinutes int) error
@@ -37,7 +62,7 @@ type Mailer interface {
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
 	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
-	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error
+	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error
 	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
 	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
 }
@@ -280,7 +305,7 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	return nil
 }
 
-func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
+func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "platform", platform)
 	return nil
 }
@@ -574,7 +599,15 @@ func resolveLogoURL(appURL string) string {
 	if appURL != "" {
 		return appURL + "/logo.png"
 	}
-	return "https://fitcall.me/logo.svg"
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(LogoBytes)
+}
+
+func resolveRescheduleLink(appURL, bookingID string) string {
+	base := "https://fitcall.me"
+	if appURL != "" {
+		base = appURL
+	}
+	return fmt.Sprintf("%s/session/%s/reschedule", base, bookingID)
 }
 
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
@@ -830,6 +863,7 @@ var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "te
 var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleTrainer.html"))
 
 const bookingConfirmationSubject = "You've successfully booked a session with us"
+const trainerBookingConfirmationSubject = "New session booking — a client just booked with you"
 
 var bookingConfirmationTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmation.html"))
 
@@ -840,7 +874,7 @@ var bookingConfirmationGoogleMeetTemplate = template.Must(template.ParseFS(templ
 var bookingConfirmationFaceTimeTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationFaceTime.html"))
 var bookingConfirmationMessengerTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationMessenger.html"))
 
-func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL string, toTrainer bool) (string, error) {
+func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -848,19 +882,46 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	localScheduledStartTime := scheduledStartTime.In(loc)
 	localScheduledEndTime := scheduledEndTime.In(loc)
 
+	platformNames := map[string]string{
+		"whatsapp":    "WhatsApp Video Call",
+		"google_meet": "Google Meet",
+		"imessage":    "FaceTime",
+		"messenger":   "Messenger",
+	}
+	platformName := platformNames[platform]
+	if platformName == "" {
+		platformName = platform
+	}
+
+	platformDescriptions := map[string]string{
+		"whatsapp":    "Reach out to your client directly via WhatsApp Video Call using the number below.",
+		"google_meet": "Join your client via Google Meet at the scheduled time. The meeting link is below.",
+		"imessage":    "Call your client directly via FaceTime using the phone number or Apple ID below.",
+		"messenger":   "Reach out to your client directly on Facebook Messenger using the handle below.",
+	}
+	platformDesc := platformDescriptions[platform]
+	if platformDesc == "" {
+		platformDesc = "Your client is expecting you at the scheduled time below."
+	}
+
 	data := map[string]interface{}{
-		"ClientName":      name,
-		"TrainerName":     trainerName,
-		"Date":            localScheduledStartTime.Format("Monday, January 2, 2006"),
-		"StartTime":       localScheduledStartTime.Format("3:04 PM"),
-		"EndTime":         localScheduledEndTime.Format("3:04 PM"),
-		"Timezone":        timezone,
-		"Platform":        platform,
-		"MeetingLink":     meetingLink,
-		"MessengerHandle": messengerHandle,
-		"PhoneNumber":     phoneNumber,
-		"Duration":        int(scheduledEndTime.Sub(scheduledStartTime).Minutes()),
-		"LogoURL":         resolveLogoURL(appURL),
+		"ClientName":          name,
+		"TrainerName":         trainerName,
+		"Date":                localScheduledStartTime.Format("Monday, January 2, 2006"),
+		"StartTime":           localScheduledStartTime.Format("3:04 PM"),
+		"EndTime":             localScheduledEndTime.Format("3:04 PM"),
+		"Timezone":            timezone,
+		"Platform":            platform,
+		"PlatformName":        platformName,
+		"PlatformDescription": platformDesc,
+		"MeetingLink":         meetingLink,
+		"MessengerHandle":     messengerHandle,
+		"PhoneNumber":         phoneNumber,
+		"Duration":            int(scheduledEndTime.Sub(scheduledStartTime).Minutes()),
+		"TimezoneAbbr":        localScheduledStartTime.Format("MST"),
+		"LogoURL":             resolveLogoURL(appURL),
+		"AppURL":              appURL,
+		"RescheduleLink":      resolveRescheduleLink(appURL, bookingID),
 	}
 
 	var buf bytes.Buffer
@@ -887,8 +948,8 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	return buf.String(), err
 }
 
-func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
-	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, toTrainer)
+func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
+	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)
 	if err != nil {
 		return fmt.Errorf("smtp: build booking confirmation email: %w", err)
 	}
@@ -901,9 +962,13 @@ func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string,
 		return fmt.Errorf("smtp: invalid recipient address: %w", err)
 	}
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	subject := bookingConfirmationSubject
+	if toTrainer {
+		subject = trainerBookingConfirmationSubject
+	}
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, toAddr, bookingConfirmationSubject, html,
+		fromAddr, toAddr, subject, html,
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }

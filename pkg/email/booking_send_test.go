@@ -23,7 +23,7 @@ func TestSendBookingEmailPreviews(t *testing.T) {
 		t.Skip("RESEND_API_KEY or RESEND_FROM not set — skipping live send")
 	}
 
-	to := "quoussusiprede-4467@yopmail.com"
+	to := "mairogospel36@gmail.com"
 	mailer := NewResendMailer(apiKey, from, appURL)
 
 	loc, _ := time.LoadLocation("America/New_York")
@@ -71,12 +71,56 @@ func TestSendBookingEmailPreviews(t *testing.T) {
 			c.meetingLink,
 			c.messengerHandle,
 			c.phoneNumber,
+			"preview-booking-id-001",
 			false,
 		)
 		if err != nil {
 			t.Errorf("%s: send failed: %v", c.label, err)
 		} else {
-			t.Logf("✓ sent %s → %s", c.label, to)
+			t.Logf("✓ sent %s (client) → %s", c.label, to)
 		}
+	}
+
+	trainerTo := "gospelmairo@gmail.com"
+	for _, c := range cases {
+		err := mailer.SendBookingConfirmation(
+			trainerTo,
+			"Gospel",
+			"Coach Alex",
+			start,
+			end,
+			"America/New_York",
+			c.platform,
+			c.meetingLink,
+			c.messengerHandle,
+			c.phoneNumber,
+			"preview-booking-id-001",
+			true,
+		)
+		if err != nil {
+			t.Errorf("%s trainer: send failed: %v", c.label, err)
+		} else {
+			t.Logf("✓ sent %s (trainer) → %s", c.label, trainerTo)
+		}
+	}
+}
+
+func TestSendWaitlistEmailPreview(t *testing.T) {
+	apiKey := os.Getenv("RESEND_API_KEY")
+	from := os.Getenv("RESEND_FROM")
+	appURL := os.Getenv("APP_URL")
+
+	if apiKey == "" || from == "" {
+		t.Skip("RESEND_API_KEY or RESEND_FROM not set — skipping live send")
+	}
+
+	to := "mairogospel36@gmail.com"
+	mailer := NewResendMailer(apiKey, from, appURL)
+
+	err := mailer.SendWaitlistConfirmation(to, "Gospel")
+	if err != nil {
+		t.Errorf("waitlist: send failed: %v", err)
+	} else {
+		t.Logf("✓ sent waitlist confirmation → %s", to)
 	}
 }
