@@ -1,47 +1,215 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light">
+  <title>New Session Booking</title>
+  <style type="text/css">
+    @media (prefers-color-scheme: dark) {
+      .keep-dark { background-color: #000000 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
 
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>New Session Booking</title>
-  </head>
-  <body
-    style="
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    "
-  >
-    <img src="{{.LogoURL}}" alt="FitCall" width="80" style="display:block;margin-bottom:16px;border-radius:8px;" />
-    <h2 style="color: #1a1a2e">Hi Coach {{.TrainerName}},</h2>
+          <!-- HEADER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:12px 12px 0 0;padding:20px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:12px;vertical-align:middle;">
+                    <img src="{{.LogoURL}}" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <p>You have received a new session booking on FitCall.</p>
+          <!-- HERO -->
+          <tr>
+            <td style="background:#0D1B3E;padding:40px 28px 48px;text-align:center;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);text-align:center;vertical-align:middle;">
+                    <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0 0 12px;color:#ffffff;font-size:26px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.2;">
+                New booking confirmed.
+              </h1>
+              <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                A client has locked in a session with you.
+              </p>
+            </td>
+          </tr>
 
-    <p><strong>Session Details:</strong></p>
-    <ul>
-      <li>Client: {{.ClientName}}</li>
-      <li>Date: {{.Date}}</li>
-      <li>Time: {{.StartTime}} - {{.EndTime}}</li>
-      <li>Platform: {{.Platform}}</li>
-      {{if and (or (eq .Platform "zoom") (eq .Platform "google_meet")) .MeetingLink}}
-      <li><a href="{{.MeetingLink}}">Click here to join</a>.</li>
-      {{end}} {{if .MessengerHandle}}
-      <li>Messenger handle: {{.MessengerHandle}}</li>
-      {{end}} {{if .PhoneNumber}}
-      <li>Client's Phone Number: {{.PhoneNumber}}</li>
-      {{end}}
-    </ul>
+          <!-- BODY COPY -->
+          <tr>
+            <td style="background:#ffffff;padding:32px 36px 24px;">
+              <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                Hey Coach {{.TrainerName}}!
+              </p>
+              <p style="margin:0;font-size:15px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                {{.PlatformDescription}}
+              </p>
+            </td>
+          </tr>
 
-    <p>
-      Please review the booking and reach out to your client if any preparation
-      or follow-up is required before the session.
-    </p>
+          <!-- SESSION DETAILS CARD -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 32px;">
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#EDF5FF;border:1.5px solid #C3DEFF;border-radius:12px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #C3DEFF;">
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Client</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.ClientName}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Platform</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.PlatformName}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Scheduled Time</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} at {{.StartTime}} ({{.TimezoneAbbr}})</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
+                      </tr>
+                      {{if and (eq .Platform "whatsapp") .PhoneNumber}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's WhatsApp</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
+                      </tr>
+                      {{end}}
+                      {{if and (eq .Platform "imessage") .PhoneNumber}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client Phone / Apple ID</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
+                      </tr>
+                      {{end}}
+                      {{if and (eq .Platform "messenger") .MessengerHandle}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's Messenger</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">@{{.MessengerHandle}}</td>
+                      </tr>
+                      {{end}}
+                      {{if and (eq .Platform "google_meet") .MeetingLink}}
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Meeting Link</td>
+                        <td style="padding:10px 0;">
+                          <a href="{{.MeetingLink}}" style="font-size:13px;font-weight:700;color:#1a56db;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Join here</a>
+                        </td>
+                      </tr>
+                      {{end}}
+                    </table>
+                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Please review the session details and prepare accordingly. Your client is counting on you.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <p>
-      Thank you for helping clients stay consistent with their fitness goals.
-    </p>
+          <!-- RESCHEDULING POLICY -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 32px;">
+              <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Rescheduling policy</p>
+              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 4px 4px 0;">
+                <tr>
+                  <td style="padding:14px 16px;font-size:13px;font-style:italic;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                    Clients can reschedule up to 12 hours before the session. After that window closes, the session is confirmed and cannot be changed. A reminder will be sent 24 hours before the session.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <p>— Team FitCall</p>
-  </body>
+          <!-- SOCIAL ICONS -->
+          <tr>
+            <td style="background:#ffffff;padding:0 36px 36px;text-align:center;border-bottom:1px solid #e5e7eb;">
+              <p style="margin:0 0 14px;font-size:14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
+                Share your fitness journey with the FitCall community
+              </p>
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                <tr>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.facebook.com/fitcall.me" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#1877F2" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://cdn.simpleicons.org/facebook/ffffff" width="22" height="22" alt="Facebook" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
+                  </td>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.instagram.com/fitcall_me?igsh=Y245b25ycmZ0dms2" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#E1306C" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://cdn.simpleicons.org/instagram/ffffff" width="22" height="22" alt="Instagram" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
+                  </td>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.linkedin.com/company/fitcall-app/posts/?feedView=all" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#0077B5" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://api.iconify.design/simple-icons:linkedin.svg?color=%23ffffff" width="22" height="22" alt="LinkedIn" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
+                  </td>
+                  <td style="padding:0 6px;">
+                    <a href="https://x.com/fitcall_me?s=11" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                          <img src="https://cdn.simpleicons.org/x/ffffff" width="22" height="22" alt="X" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
+                  </td>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.tiktok.com/@fitcall.me?_r=1&amp;_t=ZS-98BYHlii7c0" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                          <img src="https://cdn.simpleicons.org/tiktok/ffffff" width="22" height="22" alt="TikTok" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+                You're receiving this because a client booked a session with you on FitCall.<br/>
+                Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
+                &nbsp;|&nbsp;
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Privacy Policy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>

@@ -156,6 +156,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		meetingURL,
 		args.MessengerHandle.String,
 		args.PhoneNumber.String,
+		booking.ID.String(),
 		false,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation", "error", err)
@@ -172,6 +173,7 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		meetingURL,
 		args.MessengerHandle.String,
 		args.PhoneNumber.String,
+		booking.ID.String(),
 		true,
 	); err != nil {
 		s.log.Error("failed to send booking confirmation to trainer", "error", err)

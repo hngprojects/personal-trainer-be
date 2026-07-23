@@ -64,6 +64,7 @@ func TestBookingEmailPreviews(t *testing.T) {
 			c.messengerHandle,
 			c.phoneNumber,
 			"", // appURL empty → falls back to fitcall.me/logo.svg
+			"preview-booking-id-001",
 			false,
 		)
 		if err != nil {

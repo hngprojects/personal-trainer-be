@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light">
   <title>Session Confirmed</title>
+  <style type="text/css">
+    @media (prefers-color-scheme: dark) {
+      .keep-dark { background-color: #000000 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -20,7 +27,7 @@
                     <img src="{{.LogoURL}}" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
                   </td>
                   <td style="vertical-align:middle;">
-                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall.me</span>
+                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall</span>
                   </td>
                 </tr>
               </table>
@@ -29,10 +36,10 @@
 
           <!-- HERO -->
           <tr>
-            <td style="background:#0A3528;padding:40px 28px 48px;text-align:center;">
+            <td style="background:#0D1B3E;padding:40px 28px 48px;text-align:center;">
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
-                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(0,200,180,0.45);background:rgba(0,200,180,0.08);text-align:center;vertical-align:middle;">
+                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);text-align:center;vertical-align:middle;">
                     <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
                   </td>
                 </tr>
@@ -64,26 +71,30 @@
               <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#EDF5FF;border:1.5px solid #C3DEFF;border-radius:12px;">
                 <tr>
                   <td style="padding:20px;">
-                    <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">Google Meet Session Details</p>
+                    <p style="margin:0 0 16px;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">You will be attending your session via Google Meet. Your trainer will join you on screen at the scheduled time below.</p>
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #C3DEFF;">
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Date and Time</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} &ndash; {{.StartTime}} ({{.Timezone}})</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Scheduled Time</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} at {{.StartTime}} ({{.TimezoneAbbr}})</td>
                       </tr>
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Duration</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Platform</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Google Meet</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
                         <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
                       </tr>
                       {{if .MeetingLink}}
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Meeting</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Meeting Link</td>
                         <td style="padding:10px 0;border-bottom:1px solid #C3DEFF;">
                           <a href="{{.MeetingLink}}" style="font-size:13px;font-weight:700;color:#1a56db;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Join here</a>
                         </td>
                       </tr>
                       {{else}}
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Meeting</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Meeting Link</td>
                         <td style="padding:10px 0;font-size:13px;color:#374151;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Link will be shared shortly</td>
                       </tr>
                       {{end}}
@@ -92,6 +103,7 @@
                         <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.TrainerName}}</td>
                       </tr>
                     </table>
+                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Please ensure you are available and have a stable internet connection for your Google Meet session.</p>
                   </td>
                 </tr>
               </table>
@@ -110,7 +122,7 @@
                 </tr>
               </table>
               <p style="margin:14px 0 0;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;">
-                Need to reschedule? <a href="https://fitcall.me" style="color:#1a56db;text-decoration:underline;">Click here</a>
+                Need to reschedule? <a href="{{.RescheduleLink}}" style="color:#1a56db;text-decoration:underline;">Click here</a>
               </p>
             </td>
           </tr>
@@ -119,24 +131,54 @@
           <tr>
             <td style="background:#ffffff;padding:0 36px 36px;text-align:center;border-bottom:1px solid #e5e7eb;">
               <p style="margin:0 0 14px;font-size:14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
-                Share your fitness journey with the FitCall.me community
+                Share your fitness journey with the FitCall community
               </p>
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
                 <tr>
-                  <td style="padding:0 5px;">
-                    <a href="https://www.facebook.com/fitcall.me" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#1877F2;text-align:center;line-height:40px;text-decoration:none;font-size:15px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">f</a>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.facebook.com/fitcall.me" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#1877F2" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://cdn.simpleicons.org/facebook/ffffff" width="22" height="22" alt="Facebook" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
                   </td>
-                  <td style="padding:0 5px;">
-                    <a href="https://www.instagram.com/fitcall_me?igsh=Y245b25ycmZ0dms2" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#C13584;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">IG</a>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.instagram.com/fitcall_me?igsh=Y245b25ycmZ0dms2" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#E1306C" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://cdn.simpleicons.org/instagram/ffffff" width="22" height="22" alt="Instagram" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
                   </td>
-                  <td style="padding:0 5px;">
-                    <a href="https://www.linkedin.com/company/fitcall-app/posts/?feedView=all" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#0077B5;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">in</a>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.linkedin.com/company/fitcall-app/posts/?feedView=all" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#0077B5" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                          <img src="https://api.iconify.design/simple-icons:linkedin.svg?color=%23ffffff" width="22" height="22" alt="LinkedIn" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
                   </td>
-                  <td style="padding:0 5px;">
-                    <a href="https://x.com/fitcall_me?s=11" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#000000;text-align:center;line-height:40px;text-decoration:none;font-size:13px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">X</a>
+                  <td style="padding:0 6px;">
+                    <a href="https://x.com/fitcall_me?s=11" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                          <img src="https://cdn.simpleicons.org/x/ffffff" width="22" height="22" alt="X" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
                   </td>
-                  <td style="padding:0 5px;">
-                    <a href="https://www.tiktok.com/@fitcall.me?_r=1&_t=ZS-98BYHlii7c0" target="_blank" style="display:inline-block;width:40px;height:40px;border-radius:20px;background:#000000;text-align:center;line-height:40px;text-decoration:none;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#ffffff;">TT</a>
+                  <td style="padding:0 6px;">
+                    <a href="https://www.tiktok.com/@fitcall.me?_r=1&amp;_t=ZS-98BYHlii7c0" target="_blank" style="text-decoration:none;display:inline-block;">
+                      <table cellpadding="0" cellspacing="0" border="0"><tr>
+                        <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                          <img src="https://cdn.simpleicons.org/tiktok/ffffff" width="22" height="22" alt="TikTok" border="0" style="display:block;margin:9px auto;" />
+                        </td>
+                      </tr></table>
+                    </a>
                   </td>
                 </tr>
               </table>
@@ -147,7 +189,7 @@
           <tr>
             <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
               <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
-                You're receiving this because you booked a session on FitCall.me.<br/>
+                You're receiving this because you booked a session on FitCall.<br/>
                 Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
                 <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
                 &nbsp;|&nbsp;
