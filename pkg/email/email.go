@@ -602,6 +602,14 @@ func resolveLogoURL(appURL string) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(LogoBytes)
 }
 
+func resolveRescheduleLink(appURL, bookingID string) string {
+	base := "https://fitcall.me"
+	if appURL != "" {
+		base = appURL
+	}
+	return fmt.Sprintf("%s/session/%s/reschedule", base, bookingID)
+}
+
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
 	if name == "" {
 		name = "there"
@@ -913,7 +921,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 		"TimezoneAbbr":        localScheduledStartTime.Format("MST"),
 		"LogoURL":             resolveLogoURL(appURL),
 		"AppURL":              appURL,
-		"RescheduleLink":      fmt.Sprintf("https://fitcall.me/session/%s/reschedule", bookingID),
+		"RescheduleLink":      resolveRescheduleLink(appURL, bookingID),
 	}
 
 	var buf bytes.Buffer
