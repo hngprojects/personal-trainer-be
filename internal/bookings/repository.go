@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
@@ -23,6 +24,7 @@ type Repository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (db.User, error)
 	GetTrainerByID(ctx context.Context, id uuid.UUID) (db.Trainer, error)
 	FindBookingSlotByTrainerID(ctx context.Context, trainerID uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error)
+	FindBookingSlotByTrainerIDForDate(ctx context.Context, trainerID uuid.UUID, targetDate time.Time) ([]db.GetTrainersBookingSlotsRow, error)
 	CreateBooking(ctx context.Context, args db.CreateBookingParams) (*db.Booking, error)
 	GetSubscriptionDetails(ctx context.Context, subID uuid.UUID) (db.Subscription, error)
 	GetTrainerDetails(ctx context.Context, trainerID uuid.UUID) (db.GetTrainerUserDetailsRow, error)
@@ -41,6 +43,23 @@ type postgresRepo struct {
 
 func NewPostgresRepo(q *db.Queries) Repository {
 	return &postgresRepo{q: q}
+}
+
+func (r *postgresRepo) FindBookingSlotByTrainerIDForDate(ctx context.Context, trainerID uuid.UUID, targetDate time.Time) ([]db.GetTrainersBookingSlotsRow, error) {
+	all, err := r.FindBookingSlotByTrainerID(ctx, trainerID)
+	if err != nil {
+		return nil, err
+	}
+	// booking_slots.day_of_week uses the same 0=Sun…6=Sat convention as
+	// PostgreSQL EXTRACT(DOW) and Go's time.Weekday().
+	dow := int16(targetDate.Weekday())
+	filtered := all[:0]
+	for _, s := range all {
+		if s.DayOfWeek == dow {
+			filtered = append(filtered, s)
+		}
+	}
+	return filtered, nil
 }
 
 func (r *postgresRepo) FindBookingSlotByTrainerID(ctx context.Context, trainerID uuid.UUID) ([]db.GetTrainersBookingSlotsRow, error) {

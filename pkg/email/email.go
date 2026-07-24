@@ -946,6 +946,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 
 	err = tmpl.Execute(&buf, data)
 	return buf.String(), err
+
 }
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
