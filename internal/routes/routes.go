@@ -405,7 +405,7 @@ func (s *Router) Routes() *gin.Engine {
 
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
 			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log, mailer)
-			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
+			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log, mailer)
 
 			// Apple Sign In. Constructed only when bundle IDs are
 			// configured — the verifier fetches Apple's JWKS at

@@ -33,7 +33,7 @@ type MobileGoogleHandler struct {
 	validateFunc func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error) // swappable for tests
 }
 
-func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, log *slog.Logger) *MobileGoogleHandler {
+func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, log *slog.Logger, mailer email.Mailer) *MobileGoogleHandler {
 	// Accept any of: web, android, ios. Empty entries are filtered so missing
 	// platforms don't accidentally allow tokens with empty audience claims.
 	auds := make([]string, 0, 3)
@@ -51,6 +51,7 @@ func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions S
 		log:          log,
 		allowedAuds:  auds,
 		validateFunc: idtoken.Validate,
+		mailer:       mailer,
 	}
 }
 
