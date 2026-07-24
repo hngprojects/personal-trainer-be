@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light only">
   <meta name="supported-color-schemes" content="light">
-  <title>New Session Booking</title>
+  <title>Session Confirmed</title>
   <style type="text/css">
     @media (prefers-color-scheme: dark) {
       .keep-dark { background-color: #000000 !important; }
@@ -45,10 +45,10 @@
                 </tr>
               </table>
               <h1 style="margin:0 0 12px;color:#ffffff;font-size:26px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.2;">
-                New booking confirmed.
+                Session confirmed. Your trainer is ready.
               </h1>
               <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                A client has locked in a session with you.
+                Everything is set. All you have to do is show up.
               </p>
             </td>
           </tr>
@@ -57,10 +57,10 @@
           <tr>
             <td style="background:#ffffff;padding:32px 36px 24px;">
               <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
-                Hey Coach {{.TrainerName}}!
+                Hey {{.ClientName}}!
               </p>
               <p style="margin:0;font-size:15px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                {{.PlatformDescription}}
+                Your trainer has confirmed the session and will be live on screen at the time below.
               </p>
             </td>
           </tr>
@@ -71,51 +71,26 @@
               <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#EDF5FF;border:1.5px solid #C3DEFF;border-radius:12px;">
                 <tr>
                   <td style="padding:20px;">
+                    <p style="margin:0 0 16px;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">You will be attending your session via WhatsApp Video Call. Your assigned trainer will contact you directly using the number provided below ahead of the session.</p>
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #C3DEFF;">
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Client</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.ClientName}}</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Trainer's WhatsApp Number</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
                       </tr>
                       <tr>
                         <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Platform</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.PlatformName}}</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">WhatsApp Video Call</td>
                       </tr>
                       <tr>
                         <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Scheduled Time</td>
                         <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} at {{.StartTime}} ({{.TimezoneAbbr}})</td>
                       </tr>
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
                       </tr>
-                      {{if and (eq .Platform "whatsapp") .PhoneNumber}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's WhatsApp</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "imessage") .PhoneNumber}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client Phone / Apple ID</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "messenger") .MessengerHandle}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's Messenger</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">@{{.MessengerHandle}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "google_meet") .MeetingLink}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Meeting Link</td>
-                        <td style="padding:10px 0;">
-                          <a href="{{.MeetingLink}}" style="font-size:13px;font-weight:700;color:#1a56db;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Join here</a>
-                        </td>
-                      </tr>
-                      {{end}}
                     </table>
-                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Please review the session details and prepare accordingly. Your client is counting on you.</p>
+                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Kindly ensure you are available and reachable at the scheduled time.</p>
                   </td>
                 </tr>
               </table>
@@ -129,10 +104,13 @@
               <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 4px 4px 0;">
                 <tr>
                   <td style="padding:14px 16px;font-size:13px;font-style:italic;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                    Clients can reschedule up to 12 hours before the session. After that window closes, the session is confirmed and cannot be changed. A reminder will be sent 24 hours before the session.
+                    You can reschedule up to 12 hours before your session. After that window closes, the session cannot be rescheduled or refunded. A reminder will be sent 24 hours before your session.
                   </td>
                 </tr>
               </table>
+              <p style="margin:14px 0 0;font-size:14px;color:#374151;font-family:Arial,Helvetica,sans-serif;">
+                Need to reschedule? <a href="{{.RescheduleLink}}" style="color:#1a56db;text-decoration:underline;">Click here</a>
+              </p>
             </td>
           </tr>
 
@@ -198,7 +176,7 @@
           <tr>
             <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
               <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
-                You're receiving this because a client booked a session with you on FitCall.<br/>
+                You're receiving this because you booked a session on FitCall.<br/>
                 Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
                 <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
                 &nbsp;|&nbsp;

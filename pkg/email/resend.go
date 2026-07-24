@@ -191,12 +191,16 @@ func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, clientNa
 	return m.send(to, paidRescheduleTrainerSubject, html)
 }
 
-func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
-	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, toTrainer)
+func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
+	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)
 	if err != nil {
 		return fmt.Errorf("resend: build booking confirmation email: %w", err)
 	}
-	return m.send(to, bookingConfirmationSubject, html)
+	subject := bookingConfirmationSubject
+	if toTrainer {
+		subject = trainerBookingConfirmationSubject
+	}
+	return m.send(to, subject, html)
 }
 
 func (m *ResendMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
