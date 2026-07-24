@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -29,14 +30,16 @@ type GoogleHandler struct {
 	oauthCfg *oauth2.Config
 	users    UserRepository
 	log      *slog.Logger
+	mailer   email.Mailer
 	isProd   bool
 }
 
-func NewGoogleHandler(cfg *config.Config, users UserRepository, log *slog.Logger) *GoogleHandler {
+func NewGoogleHandler(cfg *config.Config, users UserRepository, log *slog.Logger, mailer email.Mailer) *GoogleHandler {
 	return &GoogleHandler{
 		users:  users,
 		log:    log,
 		isProd: cfg.Env == "production",
+		mailer: mailer,
 		oauthCfg: &oauth2.Config{
 			ClientID:     cfg.GoogleClientID,
 			ClientSecret: cfg.GoogleClientSecret,
@@ -142,6 +145,12 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 		"is_new_user":   isNewUser,
 		"expires_in":    int(accessTokenTTL / time.Second),
 	}
+	if isNewUser {
+		if err := h.mailer.SendSignupConfirmation(user.Email, user.Name); err != nil {
+			h.log.Error("google oauth: failed to send new user welcome message", "err", err)
+		}
+	}
+
 	c.JSON(http.StatusOK, api.NewSuccessResponse("Google authentication successful", api.CodeOK, googleData, nil))
 }
 
