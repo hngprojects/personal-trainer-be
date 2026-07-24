@@ -5330,6 +5330,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: GetAdminClientByID
+      tags:
+        - Admin
+      summary: Get a client by ID (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client user ID
+      responses:
+        "200":
+          description: Client detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          email:
+                            type: string
+                          is_active:
+                            type: boolean
+                          joined_at:
+                            type: string
+                            format: date-time
+                          gender:
+                            type: string
+                            nullable: true
+                          fitness_goals:
+                            type: array
+                            items:
+                              type: string
+                          fitness_level:
+                            type: string
+                            nullable: true
+                          avatar_url:
+                            type: string
+                            nullable: true
+                          sessions_booked:
+                            type: integer
+                          revenue:
+                            type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: DeleteAdminClient
+      tags:
+        - Admin
+      summary: Deactivate a client account (super_admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client user ID
+      responses:
+        "200":
+          description: Client deactivated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              example:
+                status: success
+                code: OK
+                message: client deactivated successfully
+                data: null
+        "400":
+          description: Invalid client ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Client is already deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /users/me:
     delete:
       operationId: DeleteMyAccount
@@ -6413,19 +6557,6 @@ paths:
           schema:
             type: string
           description: IANA timezone to convert slots into (e.g. America/New_York)
-        - name: date
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date
-          description: >-
-            When provided (YYYY-MM-DD), the server filters out any slot
-            already booked on this specific date — both via
-            `discovery_bookings`. The returned slots are guaranteed to
-            be bookable for that date. Omit to receive the full
-            template list (every active slot, regardless of which dates
-            are taken).
       responses:
         "200":
           description: Booking slots retrieved
@@ -6659,19 +6790,6 @@ paths:
             type: string
             format: uuid
           description: ID of the trainer to retrieve booking slots for
-        - name: date
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date
-          description: >-
-            When provided (YYYY-MM-DD), the server filters out any slot
-            that overlaps with an existing non-cancelled booking on
-            this date — both paid sessions (`bookings`) and discovery
-            calls (`discovery_bookings`) for the same trainer. Omit to
-            receive the full template list (every active slot,
-            regardless of which dates are taken).
       responses:
         "200":
           description: Booking slots retrieved

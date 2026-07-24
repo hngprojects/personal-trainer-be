@@ -2158,14 +2158,14 @@ type PutTrainersMeAvailabilityJSONRequestBody = SetAvailabilityRequest
 // ToggleTrainerAvailabilityJSONRequestBody defines body for ToggleTrainerAvailability for application/json ContentType.
 type ToggleTrainerAvailabilityJSONRequestBody ToggleTrainerAvailabilityJSONBody
 
-// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
-type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
-
 // ResendTrainerSetupJSONRequestBody defines body for ResendTrainerSetup for application/json ContentType.
 type ResendTrainerSetupJSONRequestBody ResendTrainerSetupJSONBody
 
 // HandleSetPasswordJSONRequestBody defines body for HandleSetPassword for application/json ContentType.
 type HandleSetPasswordJSONRequestBody HandleSetPasswordJSONBody
+
+// PatchTrainersMeJSONRequestBody defines body for PatchTrainersMe for application/json ContentType.
+type PatchTrainersMeJSONRequestBody = PatchTrainersMeRequest
 
 // UpdateTrainerJSONRequestBody defines body for UpdateTrainer for application/json ContentType.
 type UpdateTrainerJSONRequestBody = UpdateTrainerRequest
