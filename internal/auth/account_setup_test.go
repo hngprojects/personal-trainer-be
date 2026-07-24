@@ -88,10 +88,11 @@ type captureMailer struct {
 	err  error
 }
 
-func (m *captureMailer) SendVerificationCode(_, _ string, _ int) error  { return nil }
-func (m *captureMailer) SendAdminCredentials(_, _ string) error         { return nil }
-func (m *captureMailer) SendTrainerCredentials(_, _ string) error       { return nil }
-func (m *captureMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
+func (m *captureMailer) SendVerificationCode(_, _ string, _ int) error       { return nil }
+func (m *captureMailer) SendSignupConfirmation(_, _ string) error            { return nil }
+func (m *captureMailer) SendAdminCredentials(_, _ string) error              { return nil }
+func (m *captureMailer) SendTrainerCredentials(_, _ string) error            { return nil }
+func (m *captureMailer) SendPasswordResetCode(_, _ string, _ int) error      { return nil }
 func (m *captureMailer) SendWaitlistConfirmation(_, _ string) error          { return nil }
 func (m *captureMailer) SendWaitlistNotification(_, _, _, _, _ string) error { return nil }
 func (m *captureMailer) SendContactConfirmation(_, _ string) error           { return nil }

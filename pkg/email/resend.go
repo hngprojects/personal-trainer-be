@@ -203,6 +203,15 @@ func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, sch
 	return m.send(to, subject, html)
 }
 
+func (m *ResendMailer) SendSignupConfirmation(to, name string) error {
+	html, err := signupConfirmation(name)
+	if err != nil {
+		return fmt.Errorf("resend: build signup confirmation: %w", err)
+	}
+	subject := signupConfirmationSubject
+	return m.send(to, subject, html)
+}
+
 func (m *ResendMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {
 	html, err := sessionReminderClientHTML(clientName, trainerName, scheduledStart, timezone, zoomLink)
 	if err != nil {

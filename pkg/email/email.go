@@ -53,6 +53,7 @@ type Mailer interface {
 	// land on the FE set-password page, and POST the supplied token to
 	// /auth/set-password along with their chosen password.
 	SendAccountSetupLink(to, name, link string, expiryHours int) error
+	SendSignupConfirmation(to, name string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to, name string) error
 	SendWaitlistNotification(to, name, joinerEmail, phone, location string) error
@@ -302,6 +303,11 @@ func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName 
 
 func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	slog.Info("email", "to", to, "subject", contactConfirmationSubject)
+	return nil
+}
+
+func (m *LogMailer) SendSignupConfirmation(to, name string) error {
+	slog.Info("email (account creation)", "to", to, "name", name)
 	return nil
 }
 
@@ -858,10 +864,12 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 	return buf.String(), err
 }
 
+var signupTemplate = template.Must(template.ParseFS(templates, "templates/signupTemplate.html"))
 var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleClient.html"))
 
 var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleTrainer.html"))
 
+const signupConfirmationSubject = "Welcome to FitCall"
 const bookingConfirmationSubject = "You've successfully booked a session with us"
 const trainerBookingConfirmationSubject = "New session booking — a client just booked with you"
 
@@ -873,6 +881,14 @@ var bookingConfirmationWhatsAppTemplate = template.Must(template.ParseFS(templat
 var bookingConfirmationGoogleMeetTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationGoogleMeet.html"))
 var bookingConfirmationFaceTimeTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationFaceTime.html"))
 var bookingConfirmationMessengerTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationMessenger.html"))
+
+func signupConfirmation(name string) (string, error) {
+	var buf bytes.Buffer
+	err := signupTemplate.Execute(&buf, map[string]interface{}{
+		"Name": name,
+	})
+	return buf.String(), err
+}
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -947,6 +963,28 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	err = tmpl.Execute(&buf, data)
 	return buf.String(), err
 
+}
+
+func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
+	html, err := signupConfirmation(name)
+	if err != nil {
+		return fmt.Errorf("smtp: build signup confirmation email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	subject := signupConfirmationSubject
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, subject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {

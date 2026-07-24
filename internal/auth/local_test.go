@@ -149,6 +149,9 @@ func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
+func (m *fakeMailer) SendSignupConfirmation(_, _ string) error {
+	return m.err
+}
 
 func (m *fakeMailer) SendWaitlistConfirmation(_, _ string) error          { return m.err }
 func (m *fakeMailer) SendWaitlistNotification(_, _, _, _, _ string) error { return nil }
