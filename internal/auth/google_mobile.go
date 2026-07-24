@@ -13,6 +13,7 @@ import (
 
 	"github.com/hngprojects/personal-trainer-be/internal/api"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
@@ -27,8 +28,9 @@ type MobileGoogleHandler struct {
 	users        UserRepository
 	sessions     SessionRepository
 	log          *slog.Logger
-	allowedAuds  []string                                                                          // accepted `aud` claim values
-	validateFunc func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error)     // swappable for tests
+	mailer       email.Mailer
+	allowedAuds  []string                                                                      // accepted `aud` claim values
+	validateFunc func(ctx context.Context, idToken, audience string) (*idtoken.Payload, error) // swappable for tests
 }
 
 func NewMobileGoogleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, log *slog.Logger) *MobileGoogleHandler {
@@ -142,6 +144,11 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 		RefreshToken: refreshToken,
 		IsNewUser:    isNewUser,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
+	}
+	if isNewUser {
+		if err := h.mailer.SendSignupConfirmation(user.Email, user.Name); err != nil {
+			h.log.Error("mobile google sign-in: failed to send welcome email message", "err", err)
+		}
 	}
 	c.JSON(http.StatusOK, api.NewSuccess("Google authentication successful", api.CodeOK, data))
 }
