@@ -309,8 +309,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	}
 	finalJoinLink := h.joinLinks.Build(finalZoomLink, sessionID)
 
-	duration := int(booking.ScheduledEnd.Time.Sub(booking.ScheduledStart.Time).Minutes())
-
+	duration := int(newEnd.Sub(newStart).Minutes())
 	if clientErr == nil {
 		if err := h.mailer.SendPaidSessionRescheduleConfirmation(
 			clientUser.Email, generateFirstName(clientUser.Name), newStart, duration, req.Timezone, platform, finalJoinLink,
@@ -384,5 +383,9 @@ func bookingToResponse(b db.Booking) map[string]interface{} {
 }
 
 func generateFirstName(s string) string {
-	return strings.Split(s, " ")[0]
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }

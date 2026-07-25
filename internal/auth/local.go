@@ -410,5 +410,9 @@ func emailDomain(email string) string {
 }
 
 func generateFirstName(s string) string {
-	return strings.Split(s, " ")[0]
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }
