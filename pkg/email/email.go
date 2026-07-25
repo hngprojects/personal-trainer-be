@@ -1032,28 +1032,6 @@ func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
-	html, err := signupConfirmation(name)
-	if err != nil {
-		return fmt.Errorf("smtp: build signup confirmation email: %w", err)
-	}
-	fromAddr, err := sanitizeAddress(m.from)
-	if err != nil {
-		return fmt.Errorf("smtp: invalid from address: %w", err)
-	}
-	toAddr, err := sanitizeAddress(to)
-	if err != nil {
-		return fmt.Errorf("smtp: invalid recipient address: %w", err)
-	}
-	auth := smtp.PlainAuth("", m.username, m.password, m.host)
-	subject := signupConfirmationSubject
-	msg := fmt.Sprintf(
-		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		fromAddr, toAddr, subject, html,
-	)
-	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
-}
-
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)
 	if err != nil {
