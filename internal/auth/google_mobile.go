@@ -147,7 +147,7 @@ func (h *MobileGoogleHandler) SignIn(c *gin.Context) {
 		ExpiresIn:    int(accessTokenTTL / time.Second),
 	}
 	if isNewUser {
-		if err := h.mailer.SendSignupConfirmation(user.Email, user.Name); err != nil {
+		if err := h.mailer.SendSignupConfirmation(user.Email, generateFirstName(user.Name)); err != nil {
 			h.log.Error("mobile google sign-in: failed to send welcome email message", "err", err)
 		}
 	}
