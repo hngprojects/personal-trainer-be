@@ -146,7 +146,7 @@ func (h *GoogleHandler) HandleGoogleCallback(c *gin.Context, state, code string)
 		"expires_in":    int(accessTokenTTL / time.Second),
 	}
 	if isNewUser {
-		if err := h.mailer.SendSignupConfirmation(user.Email, user.Name); err != nil {
+		if err := h.mailer.SendSignupConfirmation(user.Email, generateFirstName(user.Name)); err != nil {
 			h.log.Error("google oauth: failed to send new user welcome message", "err", err)
 		}
 	}

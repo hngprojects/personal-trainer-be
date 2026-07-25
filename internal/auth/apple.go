@@ -182,7 +182,7 @@ func (h *AppleHandler) SignIn(c *gin.Context) {
 	// Reuse GoogleAuthData — same shape, no point duplicating it. The
 	// FE branches on the route, not the payload type.
 	if isNewUser {
-		if err := h.mailer.SendSignupConfirmation(authUser.Email, authUser.Name); err != nil {
+		if err := h.mailer.SendSignupConfirmation(authUser.Email, generateFirstName(authUser.Name)); err != nil {
 			h.log.Error("apple sign-in: failed to send signup welcome email", "err", err)
 		}
 	}

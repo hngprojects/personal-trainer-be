@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light">
+  <title>Your client rescheduled a session</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;text-transform:capitalize;">
+    {{.ClientName}} moved your session to a new time.
+  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:12px 12px 0 0;padding:20px 28px;">
+              <table cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:12px;vertical-align:middle;">
+                    <img src="https://fitcall.me/logo.svg" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall.me</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="background:#1A2A4E;padding:40px 28px 48px;text-align:center;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+                <tr>
+                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(96,197,168,0.3);background:rgba(96,197,168,0.12);text-align:center;vertical-align:middle;">
+                    <img src="https://fitcall.me/logo.svg" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0 0 12px;color:#ffffff;font-size:24px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                Your client rescheduled. &#9989; New time locked in.
+              </h1>
+              <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                Your calendar's already updated. Nothing else for you to do.
+              </p>
+            </td>
+          </tr>
+
+          <!-- BODY COPY -->
+          <tr>
+            <td style="background:#ffffff;padding:36px 32px 8px;">
+              <p style="margin:0 0 8px;font-size:17px;font-weight:600;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;text-transform:capitalize;">
+                Hey {{.TrainerName}},
+              </p>
+              <p style="margin:0;font-size:15px;color:#444444;font-family:Arial,Helvetica,sans-serif;line-height:1.75;">
+                <span style="text-transform:capitalize;">
+                    {{.ClientName}} 
+                </span>
+                moved their upcoming session to a new time. Here are the updated details — no action needed on your end.
+              </p>
+            </td>
+          </tr>
+
+          <!-- NEW SESSION DETAILS CARD -->
+          <tr>
+            <td style="background:#ffffff;padding:20px 32px 8px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDF5FF;border:1px solid #C3DEFF;border-radius:12px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+                      <tr>
+                        <td style="padding-right:6px;vertical-align:middle;">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D1B3E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+                            <rect x="4" y="5" width="16" height="16" rx="2"></rect>
+                            <path d="M16 3v4"></path>
+                            <path d="M8 3v4"></path>
+                            <path d="M4 11h16"></path>
+                            <path d="M10 16l1.5 1.5l3 -3"></path>
+                          </svg>
+                        </td>
+                        <td style="vertical-align:middle;">
+                          <span style="font-size:14px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">Updated session details</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Client</td>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;text-transform:capitalize;">{{.ClientName}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Platform</td>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;text-transform:capitalize;">{{.Platform}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">New Date and Time</td>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.NewTime}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- RESCHEDULING POLICY NOTE -->
+          <!-- <tr>
+            <td style="background:#ffffff;padding:20px 32px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFF8E1;border:1px solid #F5D87A;border-radius:10px;">
+                <tr>
+                  <td style="padding:16px 20px;font-size:13px;color:#7C5A00;font-family:Arial,Helvetica,sans-serif;line-height:1.65;">
+                    {{.ClientName}} can reschedule again up to <strong>12 hours before</strong> the session. After that window closes, it can no longer be rescheduled or refunded. You'll both get a reminder 24 hours out.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr> -->
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
+              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+                You're receiving this because a client rescheduled a session booked with you on FitCall.<br/>
+                Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
+                &nbsp;|&nbsp;
+                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Privacy Policy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
