@@ -616,7 +616,7 @@ func resolveRescheduleLink(appURL, bookingID string) string {
 }
 
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		name = "there"
 	}
 	logoURL := resolveLogoURL(appURL)
@@ -895,10 +895,10 @@ func signupConfirmation(name string) (string, error) {
 }
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		name = "there"
 	}
-	if trainerName == "" {
+	if strings.TrimSpace(trainerName) == "" {
 		trainerName = "your trainer"
 	}
 	loc, err := time.LoadLocation(timezone)
