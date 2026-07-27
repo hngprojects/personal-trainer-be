@@ -16,6 +16,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/auth"
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 func init() {
@@ -80,7 +81,8 @@ func testHandler(repo auth.UserRepository) *auth.GoogleHandler {
 		GoogleRedirectURL:  "http://localhost:8080/auth/google/callback",
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return auth.NewGoogleHandler(cfg, repo, log)
+	newMailer := email.NewLogMailer()
+	return auth.NewGoogleHandler(cfg, repo, log, newMailer)
 }
 
 func TestGoogleLogin_SetsStateCookie(t *testing.T) {

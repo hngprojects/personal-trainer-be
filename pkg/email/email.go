@@ -53,6 +53,7 @@ type Mailer interface {
 	// land on the FE set-password page, and POST the supplied token to
 	// /auth/set-password along with their chosen password.
 	SendAccountSetupLink(to, name, link string, expiryHours int) error
+	SendSignupConfirmation(to, name string) error
 	SendPasswordResetCode(to, code string, expiryMinutes int) error
 	SendWaitlistConfirmation(to, name string) error
 	SendWaitlistNotification(to, name, joinerEmail, phone, location string) error
@@ -60,8 +61,8 @@ type Mailer interface {
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
-	SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error
-	SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error
+	SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error
+	SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error
 	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
 	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
@@ -290,12 +291,12 @@ func (m *LogMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
 	slog.Info("email (paid session reschedule)", "to", to, "name", name, "new_time", newTime)
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
+func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
 	slog.Info("email (paid session reschedule trainer notification)", "to", to, "client", clientName, "new_time", newTime)
 	return nil
 }
@@ -304,6 +305,12 @@ func (m *LogMailer) SendContactConfirmation(to, _ string) error {
 	slog.Info("email", "to", to, "subject", contactConfirmationSubject)
 	return nil
 }
+
+func (m *LogMailer) SendSignupConfirmation(to, name string) error {
+	slog.Info("email (account creation)", "to", to, "name", name)
+	return nil
+}
+
 
 func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "platform", platform)
@@ -778,8 +785,8 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 
 var discoveryRescheduleTemplate = template.Must(template.ParseFS(templates, "templates/discoveryReschedule.html"))
 
-func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
+func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
 	}
@@ -799,8 +806,8 @@ func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldT
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
+func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule trainer notification email: %w", err)
 	}
@@ -820,11 +827,11 @@ func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-const paidRescheduleClientSubject = "Your Training Session Has Been Rescheduled"
+const paidRescheduleClientSubject = "Your session has been rescheduled."
 
 const paidRescheduleTrainerSubject = "Client Rescheduled Training Session"
 
-func paidRescheduleClientHTML(name string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+func paidRescheduleClientHTML(name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -832,16 +839,18 @@ func paidRescheduleClientHTML(name string, oldTime, newTime time.Time, timezone,
 
 	var buf bytes.Buffer
 	err = paidRescheduleClientTemplate.Execute(&buf, map[string]interface{}{
-		"Name":     name,
-		"OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"Timezone": timezone,
-		"ZoomLink": zoomLink,
+		"Name": name,
+		// "OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":   newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Duration":  duration,
+		"Timezone":  timezone,
+		"Platform":  platform,
+		"FinalLink": finalJoinLink,
 	})
 	return buf.String(), err
 }
 
-func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, timezone, zoomLink string) (string, error) {
+func paidRescheduleTrainerHTML(trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -849,19 +858,24 @@ func paidRescheduleTrainerHTML(clientName string, oldTime, newTime time.Time, ti
 
 	var buf bytes.Buffer
 	err = paidRescheduleTrainerTemplate.Execute(&buf, map[string]interface{}{
-		"ClientName": clientName,
-		"OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"NewTime":    newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"Timezone":   timezone,
-		"ZoomLink":   zoomLink,
+		"TrainerName": trainerName,
+		"ClientName":  clientName,
+		// "OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Duration": duration,
+		"Timezone": timezone,
+		"Platform": platform,
+		// "ZoomLink":   zoomLink,
 	})
 	return buf.String(), err
 }
 
-var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleClient.html"))
+var signupTemplate = template.Must(template.ParseFS(templates, "templates/signupTemplate.html"))
+var paidRescheduleClientTemplate = template.Must(template.ParseFS(templates, "templates/clientSessionRescheduleTemplate.html"))
 
-var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/paidRescheduleTrainer.html"))
+var paidRescheduleTrainerTemplate = template.Must(template.ParseFS(templates, "templates/trainerSessionReschedule.html"))
 
+const signupConfirmationSubject = "Welcome to FitCall"
 const bookingConfirmationSubject = "You've successfully booked a session with us"
 const trainerBookingConfirmationSubject = "New session booking — a client just booked with you"
 
@@ -873,6 +887,15 @@ var bookingConfirmationWhatsAppTemplate = template.Must(template.ParseFS(templat
 var bookingConfirmationGoogleMeetTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationGoogleMeet.html"))
 var bookingConfirmationFaceTimeTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationFaceTime.html"))
 var bookingConfirmationMessengerTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationMessenger.html"))
+
+func signupConfirmation(name string) (string, error) {
+	var buf bytes.Buffer
+	err := signupTemplate.Execute(&buf, map[string]interface{}{
+		"Name": name,
+	})
+	return buf.String(), err
+}
+
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
 	loc, err := time.LoadLocation(timezone)
@@ -948,6 +971,29 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 	return buf.String(), err
 
 }
+
+func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
+	html, err := signupConfirmation(name)
+	if err != nil {
+		return fmt.Errorf("smtp: build signup confirmation email: %w", err)
+	}
+	fromAddr, err := sanitizeAddress(m.from)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid from address: %w", err)
+	}
+	toAddr, err := sanitizeAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid recipient address: %w", err)
+	}
+	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+	subject := signupConfirmationSubject
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
+		fromAddr, toAddr, subject, html,
+	)
+	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
+}
+
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)

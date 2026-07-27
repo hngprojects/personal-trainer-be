@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -308,9 +309,10 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	}
 	finalJoinLink := h.joinLinks.Build(finalZoomLink, sessionID)
 
+	duration := int(newEnd.Sub(newStart).Minutes())
 	if clientErr == nil {
 		if err := h.mailer.SendPaidSessionRescheduleConfirmation(
-			clientUser.Email, clientUser.Name, oldStart, newStart, req.Timezone, finalJoinLink,
+			clientUser.Email, generateFirstName(clientUser.Name), newStart, duration, req.Timezone, platform, finalJoinLink,
 		); err != nil {
 			h.log.Error("failed to send reschedule confirmation email to client", "err", err)
 		}
@@ -325,7 +327,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 				clientName = clientUser.Name
 			}
 			if err := h.mailer.SendPaidSessionRescheduleTrainerNotification(
-				trainerUser.Email, clientName, oldStart, newStart, req.Timezone, finalJoinLink,
+				trainerUser.Email, generateFirstName(trainerUser.Name), clientName, newStart, duration, req.Timezone, platform,
 			); err != nil {
 				h.log.Error("failed to send reschedule notification email to trainer", "err", err)
 			}
@@ -378,4 +380,12 @@ func bookingToResponse(b db.Booking) map[string]interface{} {
 		resp["zoom_meeting_link"] = b.ZoomMeetingLink.String
 	}
 	return resp
+}
+
+func generateFirstName(s string) string {
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }

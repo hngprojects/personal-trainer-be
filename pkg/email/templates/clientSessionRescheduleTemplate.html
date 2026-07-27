@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light only">
   <meta name="supported-color-schemes" content="light">
-  <title>New Session Booking</title>
+  <title>Your session has been rescheduled</title>
   <style type="text/css">
     @media (prefers-color-scheme: dark) {
       .keep-dark { background-color: #000000 !important; }
@@ -13,6 +13,9 @@
   </style>
 </head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    Your trainer is ready and waiting.
+  </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0">
     <tr>
       <td align="center" style="padding:40px 16px;">
@@ -24,10 +27,10 @@
               <table cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="padding-right:12px;vertical-align:middle;">
-                    <img src="{{.LogoURL}}" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
+                    <img src="https://fitcall.me/logo.svg" alt="FitCall" width="44" height="44" style="display:block;border-radius:10px;" />
                   </td>
                   <td style="vertical-align:middle;">
-                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall</span>
+                    <span style="color:#ffffff;font-size:18px;font-weight:700;font-family:Arial,Helvetica,sans-serif;">FitCall.me</span>
                   </td>
                 </tr>
               </table>
@@ -36,100 +39,132 @@
 
           <!-- HERO -->
           <tr>
-            <td style="background:#0D1B3E;padding:40px 28px 48px;text-align:center;">
+            <td style="background:#1A2A4E;padding:40px 28px 48px;text-align:center;">
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
-                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);text-align:center;vertical-align:middle;">
-                    <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                  <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(96,197,168,0.3);background:rgba(96,197,168,0.12);text-align:center;vertical-align:middle;">
+                    <img src="https://fitcall.me/logo.svg" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
                   </td>
                 </tr>
               </table>
-              <h1 style="margin:0 0 12px;color:#ffffff;font-size:26px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.2;">
-                New booking confirmed.
+              <h1 style="margin:0 0 12px;color:#ffffff;font-size:24px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
+                Session rescheduled. &#9989; Your new time is confirmed.
               </h1>
               <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                A client has locked in a session with you.
+                Your trainer has been notified. See you at your new session time.
               </p>
             </td>
           </tr>
 
           <!-- BODY COPY -->
           <tr>
-            <td style="background:#ffffff;padding:32px 36px 24px;">
-              <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
-                Hey Coach {{.TrainerName}}!
+            <td style="background:#ffffff;padding:36px 32px 8px;">
+              <p style="margin:0 0 8px;font-size:17px;font-weight:600;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;text-transform:capitalize;">
+                Hey {{.Name}},
               </p>
-              <p style="margin:0;font-size:15px;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                {{.PlatformDescription}}
+              <p style="margin:0;font-size:15px;color:#444444;font-family:Arial,Helvetica,sans-serif;line-height:1.75;">
+                Your session has been successfully rescheduled. Your trainer has been notified and will be ready at your new time.
               </p>
             </td>
           </tr>
 
-          <!-- SESSION DETAILS CARD -->
+          <!-- NEW SESSION DETAILS CARD -->
           <tr>
-            <td style="background:#ffffff;padding:0 36px 32px;">
-              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#EDF5FF;border:1.5px solid #C3DEFF;border-radius:12px;">
+            <td style="background:#ffffff;padding:20px 32px 8px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDF5FF;border:1px solid #C3DEFF;border-radius:12px;">
                 <tr>
                   <td style="padding:20px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #C3DEFF;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;width:160px;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Client</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.ClientName}}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Platform</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.PlatformName}}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Scheduled Time</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Date}} at {{.StartTime}} ({{.TimezoneAbbr}})</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;border-bottom:1px solid #C3DEFF;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
-                      </tr>
-                      {{if and (eq .Platform "whatsapp") .PhoneNumber}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's WhatsApp</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "imessage") .PhoneNumber}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client Phone / Apple ID</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "messenger") .MessengerHandle}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client's Messenger</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">@{{.MessengerHandle}}</td>
-                      </tr>
-                      {{end}}
-                      {{if and (eq .Platform "google_meet") .MeetingLink}}
-                      <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Meeting Link</td>
-                        <td style="padding:10px 0;">
-                          <a href="{{.MeetingLink}}" style="font-size:13px;font-weight:700;color:#1a56db;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Join here</a>
+                        <td style="padding-right:8px;vertical-align:middle;">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                            <rect x="4" y="5" width="16" height="16" rx="2" />
+                            <path d="M16 3v4" />
+                            <path d="M8 3v4" />
+                            <path d="M4 11h16" />
+                            <path d="M10 16l1.5 1.5l3 -3" />
+                          </svg>
+                          
+                        </td>
+                        <td style="vertical-align:middle;">
+                          <span style="font-size:14px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">Your new session details</span>
                         </td>
                       </tr>
-                      {{end}}
                     </table>
-                    <p style="margin:16px 0 0;font-size:13px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;">Please review the session details and prepare accordingly. Your client is counting on you.</p>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif; text-transform: capitalize ">Platform</td>
+                              <td style="font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.Platform}}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Platform Link</td>
+                              <td style="font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">
+                                <a href="{{.FinalLink}}" style="text-transform: capitalize;"> click here </a>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Session Date and Time</td>
+                              <td style="font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.NewTime}}</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 0;">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
+                              <td style="font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
-          <!-- RESCHEDULING POLICY -->
-          <tr>
-            <td style="background:#ffffff;padding:0 36px 32px;">
-              <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Rescheduling policy</p>
-              <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 4px 4px 0;">
+          <!-- RESCHEDULING POLICY NOTE -->
+          <!-- <tr>
+            <td style="background:#ffffff;padding:20px 32px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFF8E1;border:1px solid #F5D87A;border-radius:10px;">
                 <tr>
-                  <td style="padding:14px 16px;font-size:13px;font-style:italic;color:#374151;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-                    Clients can reschedule up to 12 hours before the session. After that window closes, the session is confirmed and cannot be changed. A reminder will be sent 24 hours before the session.
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0;font-size:13px;color:#7C5A00;line-height:1.65;font-family:Arial,Helvetica,sans-serif;">
+                      Heads up: you can reschedule again up to <strong>12 hours before</strong> your session. After that window closes, the session cannot be rescheduled or refunded.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>  -->
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="background:#ffffff;padding:0 32px 32px;">
+              <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                <tr>
+                  <td bgcolor="#60C5A8" style="border-radius:100px;text-align:center;">
+                    <a href="#" style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#0D1B3E;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">View Session Details</a>
                   </td>
                 </tr>
               </table>
@@ -139,7 +174,7 @@
           <!-- SOCIAL ICONS -->
           <tr>
             <td style="background:#ffffff;padding:0 36px 36px;text-align:center;border-bottom:1px solid #e5e7eb;">
-              <p style="margin:0 0 14px;font-size:14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
+              <p style="margin:0 0 14px;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
                 Share your fitness journey with the FitCall community
               </p>
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
@@ -198,7 +233,7 @@
           <tr>
             <td style="background:#0D1B3E;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
               <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
-                You're receiving this because a client booked a session with you on FitCall.<br/>
+                You're receiving this because you have a session booked on FitCall.<br/>
                 Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
                 <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
                 &nbsp;|&nbsp;

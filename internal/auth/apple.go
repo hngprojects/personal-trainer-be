@@ -17,6 +17,7 @@ import (
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/apple"
 	"github.com/hngprojects/personal-trainer-be/pkg/cryptoutil"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 	pkgerrors "github.com/hngprojects/personal-trainer-be/pkg/errors"
 )
 
@@ -53,7 +54,7 @@ type AppleHandler struct {
 	sessions SessionRepository
 	verifier AppleVerifier
 	log      *slog.Logger
-
+	mailer   email.Mailer
 	// oauth / cryptoBox / refreshStore are all optional. When all
 	// three are non-nil AND the client supplied an authorization_code,
 	// the handler exchanges it for a refresh token at sign-in and
@@ -66,7 +67,7 @@ type AppleHandler struct {
 	refreshStore SIWARefreshTokenWriter
 }
 
-func NewAppleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, verifier AppleVerifier, log *slog.Logger) *AppleHandler {
+func NewAppleHandler(cfg *config.Config, users UserRepository, sessions SessionRepository, verifier AppleVerifier, log *slog.Logger, mailer email.Mailer) *AppleHandler {
 	if cfg != nil && len(cfg.AppleSignInBundleIDs) == 0 {
 		log.Warn("apple sign-in: APPLE_SIGN_IN_BUNDLE_IDS (and APPLE_BUNDLE_ID fallback) are empty — endpoint will reject every token")
 	}
@@ -75,6 +76,7 @@ func NewAppleHandler(cfg *config.Config, users UserRepository, sessions SessionR
 		sessions: sessions,
 		verifier: verifier,
 		log:      log,
+		mailer:   mailer,
 	}
 }
 
@@ -179,6 +181,11 @@ func (h *AppleHandler) SignIn(c *gin.Context) {
 	authUser, _ := buildAuthUser(c.Request.Context(), h.users, user, h.log)
 	// Reuse GoogleAuthData — same shape, no point duplicating it. The
 	// FE branches on the route, not the payload type.
+	if isNewUser {
+		if err := h.mailer.SendSignupConfirmation(authUser.Email, generateFirstName(authUser.Name)); err != nil {
+			h.log.Error("apple sign-in: failed to send signup welcome email", "err", err)
+		}
+	}
 	data := api.GoogleAuthData{
 		User:         authUser,
 		AccessToken:  accessToken,
