@@ -3,7 +3,6 @@ package email
 import (
 	"bytes"
 	"embed"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -605,7 +604,7 @@ func resolveLogoURL(appURL string) string {
 	if appURL != "" {
 		return appURL + "/logo.png"
 	}
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(LogoBytes)
+	return "https://fitcall.me/logo.svg"
 }
 
 func resolveRescheduleLink(appURL, bookingID string) string {
@@ -617,7 +616,7 @@ func resolveRescheduleLink(appURL, bookingID string) string {
 }
 
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		name = "there"
 	}
 	logoURL := resolveLogoURL(appURL)
@@ -896,6 +895,12 @@ func signupConfirmation(name string) (string, error) {
 }
 
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		name = "there"
+	}
+	if strings.TrimSpace(trainerName) == "" {
+		trainerName = "your trainer"
+	}
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
