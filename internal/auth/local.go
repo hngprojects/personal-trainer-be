@@ -245,6 +245,9 @@ func (h *LocalHandler) VerifyEmail(c *gin.Context) {
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL / time.Second),
 	}
+	if err := h.mailer.SendSignupConfirmation(user.Email, generateFirstName(user.Name)); err != nil {
+		h.log.Error("failed to send signup welcome message", "err", err)
+	}
 	c.JSON(http.StatusOK, api.NewSuccess("Email verified successfully", api.CodeOK, data))
 }
 
@@ -404,4 +407,12 @@ func emailDomain(email string) string {
 		return email[i:]
 	}
 	return "[unknown]"
+}
+
+func generateFirstName(s string) string {
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }
