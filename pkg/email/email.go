@@ -3,7 +3,6 @@ package email
 import (
 	"bytes"
 	"embed"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -311,7 +310,6 @@ func (m *LogMailer) SendSignupConfirmation(to, name string) error {
 	return nil
 }
 
-
 func (m *LogMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	slog.Info("email (booking confirmation)", "to", to, "client", clientName, "start", scheduledStartTime, "end", scheduledEndTime, "timezone", timezone, "platform", platform)
 	return nil
@@ -606,7 +604,7 @@ func resolveLogoURL(appURL string) string {
 	if appURL != "" {
 		return appURL + "/logo.png"
 	}
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(LogoBytes)
+	return "https://fitcall.me/logo.svg"
 }
 
 func resolveRescheduleLink(appURL, bookingID string) string {
@@ -618,7 +616,7 @@ func resolveRescheduleLink(appURL, bookingID string) string {
 }
 
 func waitlistConfirmationHTML(name, appURL string) (string, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		name = "there"
 	}
 	logoURL := resolveLogoURL(appURL)
@@ -896,8 +894,13 @@ func signupConfirmation(name string) (string, error) {
 	return buf.String(), err
 }
 
-
 func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone, platform, meetingLink, messengerHandle, phoneNumber, appURL, bookingID string, toTrainer bool) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		name = "there"
+	}
+	if strings.TrimSpace(trainerName) == "" {
+		trainerName = "your trainer"
+	}
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
@@ -993,7 +996,6 @@ func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
 	)
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
-
 
 func (m *SMTPMailer) SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
 	html, err := bookingConfirmation(clientName, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)
