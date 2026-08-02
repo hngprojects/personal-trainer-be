@@ -88,11 +88,12 @@ type captureMailer struct {
 	err  error
 }
 
-func (m *captureMailer) SendVerificationCode(_, _ string, _ int) error  { return nil }
-func (m *captureMailer) SendAdminCredentials(_, _ string) error         { return nil }
-func (m *captureMailer) SendTrainerCredentials(_, _ string) error       { return nil }
-func (m *captureMailer) SendPasswordResetCode(_, _ string, _ int) error { return nil }
-func (m *captureMailer) SendWaitlistConfirmation(_ string) error             { return nil }
+func (m *captureMailer) SendVerificationCode(_, _ string, _ int) error       { return nil }
+func (m *captureMailer) SendSignupConfirmation(_, _ string) error            { return nil }
+func (m *captureMailer) SendAdminCredentials(_, _ string) error              { return nil }
+func (m *captureMailer) SendTrainerCredentials(_, _ string) error            { return nil }
+func (m *captureMailer) SendPasswordResetCode(_, _ string, _ int) error      { return nil }
+func (m *captureMailer) SendWaitlistConfirmation(_, _ string) error          { return nil }
 func (m *captureMailer) SendWaitlistNotification(_, _, _, _, _ string) error { return nil }
 func (m *captureMailer) SendContactConfirmation(_, _ string) error           { return nil }
 func (m *captureMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
@@ -104,13 +105,13 @@ func (m *captureMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ 
 func (m *captureMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ time.Time, _, _ string) error {
+func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _ time.Time, _ int, _, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
+func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _, _ string, _ time.Time, _ int, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ string, _ string, _ bool) error {
+func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ string, _ string, _ string, _ bool) error {
 	return nil
 }
 func (m *captureMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {

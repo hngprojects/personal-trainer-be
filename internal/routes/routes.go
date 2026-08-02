@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -209,7 +210,7 @@ type routerImpl struct {
 	// paths (subscription creation, push send) can consult flags
 	// without round-tripping through the handler.
 	featureFlagsSvc *featureflags.Service
-	wsHub               *websocket.Hub
+	wsHub *websocket.Hub
 
 	// siwaOAuth talks to Apple's /auth/token and /auth/revoke
 	// endpoints. Nil unless all four SIWA config knobs are set
@@ -288,6 +289,10 @@ func (s *Router) Routes() *gin.Engine {
 	// so flipping team ID / fingerprint at runtime works without a
 	// redeploy.
 	registerWellKnown(r, s.cfg, s.log)
+
+	r.GET("/logo.png", func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/png", email.LogoBytes)
+	})
 
 	stop, err := events.StartPGListener(s.cfg.DatabaseURL, s.availabilityBroker, s.log)
 	if err != nil {
@@ -399,8 +404,8 @@ func (s *Router) Routes() *gin.Engine {
 			impl.mailer = mailer
 
 			impl.adminLogin = handlers.NewAdminLogin(adminLoginService, s.log)
-			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log)
-			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log)
+			impl.google = auth.NewGoogleHandler(s.cfg, usersRepo, s.log, mailer)
+			impl.googleMobile = auth.NewMobileGoogleHandler(s.cfg, usersRepo, sessionsRepo, s.log, mailer)
 
 			// Apple Sign In. Constructed only when bundle IDs are
 			// configured — the verifier fetches Apple's JWKS at
@@ -414,7 +419,7 @@ func (s *Router) Routes() *gin.Engine {
 				if err != nil {
 					s.log.Warn("apple sign-in: verifier init failed — endpoint will 503", "err", err)
 				} else {
-					impl.apple = auth.NewAppleHandler(s.cfg, usersRepo, sessionsRepo, appleVerifier, s.log)
+					impl.apple = auth.NewAppleHandler(s.cfg, usersRepo, sessionsRepo, appleVerifier, s.log, mailer)
 				}
 			} else {
 				s.log.Warn("apple sign-in: APPLE_SIGN_IN_BUNDLE_IDS / APPLE_BUNDLE_ID empty — endpoint will 503")
@@ -875,7 +880,7 @@ func (r *reminderNotifSender) SendNotificationToUser(ctx context.Context, userID
 func (s *Router) buildMailer() email.Mailer {
 	if s.cfg.ResendAPIKey != "" && s.cfg.ResendFrom != "" {
 		s.log.Info("using Resend mailer", "from", s.cfg.ResendFrom)
-		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom)
+		return email.NewResendMailer(s.cfg.ResendAPIKey, s.cfg.ResendFrom, s.cfg.AppURL)
 	}
 	if s.cfg.SMTPHost != "" {
 		s.log.Info("using SMTP mailer", "host", s.cfg.SMTPHost, "from", s.cfg.SMTPFrom)
@@ -885,6 +890,7 @@ func (s *Router) buildMailer() email.Mailer {
 			s.cfg.SMTPUser,
 			s.cfg.SMTPPassword,
 			s.cfg.SMTPFrom,
+			s.cfg.AppURL,
 		)
 	}
 	if s.cfg.Env != "development" {

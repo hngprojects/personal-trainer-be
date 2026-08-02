@@ -16,13 +16,15 @@ const resendEndpoint = "https://api.resend.com/emails"
 type ResendMailer struct {
 	apiKey string
 	from   string
+	appURL string
 	client *http.Client
 }
 
-func NewResendMailer(apiKey, from string) *ResendMailer {
+func NewResendMailer(apiKey, from, appURL string) *ResendMailer {
 	return &ResendMailer{
 		apiKey: apiKey,
 		from:   from,
+		appURL: appURL,
 		client: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -81,12 +83,16 @@ func (m *ResendMailer) SendPasswordResetCode(to, code string, expiryMinutes int)
 	return m.send(to, passwordResetSubject, body)
 }
 
-func (m *ResendMailer) SendWaitlistConfirmation(to string) error {
-	body, err := waitlistConfirmationHTML()
+func (m *ResendMailer) SendWaitlistConfirmation(to, name string) error {
+	body, err := waitlistConfirmationHTML(name, m.appURL)
 	if err != nil {
 		return fmt.Errorf("resend: build waitlist confirmation email body: %w", err)
 	}
-	return m.send(to, waitlistConfirmationSubject, body)
+	displayName := name
+	if displayName == "" {
+		displayName = "there"
+	}
+	return m.send(to, fmt.Sprintf(waitlistConfirmationSubject, displayName), body)
 }
 
 func (m *ResendMailer) SendWaitlistNotification(to, name, joinerEmail, phone, location string) error {
@@ -169,28 +175,41 @@ func (m *ResendMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldT
 	return m.send(to, discoveryRescheduleSubject, html)
 }
 
-func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleClientHTML(name, oldTime, newTime, timezone, zoomLink)
+func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink)
 	if err != nil {
 		return fmt.Errorf("resend: build paid session reschedule email: %w", err)
 	}
 	return m.send(to, paidRescheduleClientSubject, html)
 }
 
-func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, clientName string, oldTime, newTime time.Time, timezone, zoomLink string) error {
-	html, err := paidRescheduleTrainerHTML(clientName, oldTime, newTime, timezone, zoomLink)
+func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform)
 	if err != nil {
 		return fmt.Errorf("resend: build paid session reschedule trainer notification email: %w", err)
 	}
 	return m.send(to, paidRescheduleTrainerSubject, html)
 }
 
-func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, toTrainer bool) error {
-	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, toTrainer)
+func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error {
+	html, err := bookingConfirmation(name, trainerName, scheduledStartTime, scheduledEndTime, timezone, platform, meetingLink, messengerHandle, phoneNumber, m.appURL, bookingID, toTrainer)
 	if err != nil {
 		return fmt.Errorf("resend: build booking confirmation email: %w", err)
 	}
-	return m.send(to, bookingConfirmationSubject, html)
+	subject := bookingConfirmationSubject
+	if toTrainer {
+		subject = trainerBookingConfirmationSubject
+	}
+	return m.send(to, subject, html)
+}
+
+func (m *ResendMailer) SendSignupConfirmation(to, name string) error {
+	html, err := signupConfirmation(name)
+	if err != nil {
+		return fmt.Errorf("resend: build signup confirmation: %w", err)
+	}
+	subject := signupConfirmationSubject
+	return m.send(to, subject, html)
 }
 
 func (m *ResendMailer) SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error {

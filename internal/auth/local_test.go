@@ -149,8 +149,11 @@ func (m *fakeMailer) SendAccountSetupLink(_, _, _ string, _ int) error {
 func (m *fakeMailer) SendPasswordResetCode(_, _ string, _ int) error {
 	return m.err
 }
+func (m *fakeMailer) SendSignupConfirmation(_, _ string) error {
+	return m.err
+}
 
-func (m *fakeMailer) SendWaitlistConfirmation(_ string) error             { return m.err }
+func (m *fakeMailer) SendWaitlistConfirmation(_, _ string) error          { return m.err }
 func (m *fakeMailer) SendWaitlistNotification(_, _, _, _, _ string) error { return nil }
 func (m *fakeMailer) SendContactConfirmation(_, _ string) error           { return m.err }
 func (m *fakeMailer) SendDiscoveryBookingConfirmation(_, _ string, _ time.Time, _, _, _, _ string) error {
@@ -162,13 +165,13 @@ func (m *fakeMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ tim
 func (m *fakeMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error {
 	return m.err
 }
-func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _, _ time.Time, _, _ string) error {
+func (m *fakeMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _ time.Time, _ int, _, _, _ string) error {
 	return m.err
 }
-func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _ string, _, _ time.Time, _, _ string) error {
+func (m *fakeMailer) SendPaidSessionRescheduleTrainerNotification(_, _, _ string, _ time.Time, _ int, _, _ string) error {
 	return m.err
 }
-func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ string, _ string, _ bool) error {
+func (m *fakeMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ string, _ string, _ string, _ bool) error {
 	return m.err
 }
 func (m *fakeMailer) SendSessionReminder(_, _, _ string, _ time.Time, _, _ string) error {
