@@ -1,176 +1,169 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcome to FitCall</title>
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light">
+    <title>You're in, {{.Name}}</title>
+    <style type="text/css">
+      @media (prefers-color-scheme: dark) {
+        .keep-dark { background-color: #000000 !important; }
+      }
+    </style>
   </head>
-
-  <body
-    style="
-      margin: 0;
-      padding: 0;
-      background-color: #f5f7fa;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #111827;
-    "
-  >
-    <table width="100%" cellpadding="0" cellspacing="0">
+  <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td align="center" style="padding: 48px 20px">
-          <table
-            width="560"
-            cellpadding="0"
-            cellspacing="0"
-            style="
-              background: #ffffff;
-              border-radius: 20px;
-              overflow: hidden;
-              box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
-            "
-          >
-            <!-- Top Bar -->
+        <td align="center" style="padding:40px 16px;">
+          <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+            <!-- HEADER -->
             <tr>
-              <td
-                style="
-                  background: linear-gradient(90deg, #16a34a, #22c55e);
-                  height: 8px;
-                "
-              ></td>
-            </tr>
-
-            <!-- Main Content -->
-            <tr>
-              <td style="padding: 48px 40px">
-                <!-- Brand -->
-                <p
-                  style="
-                    margin: 0 0 24px;
-                    text-align: center;
-                    font-size: 13px;
-                    font-weight: 700;
-                    letter-spacing: 2px;
-                    color: #16a34a;
-                    text-transform: uppercase;
-                  "
-                >
-                  FitCall
-                </p>
-
-                <!-- Heading -->
-                <h1
-                  style="
-                    margin: 0 0 20px;
-                    text-align: center;
-                    font-size: 34px;
-                    line-height: 1.2;
-                    color: #111827;
-                  "
-                >
-                  You're on the list.
-                </h1>
-
-                <!-- Intro -->
-                <p
-                  style="
-                    margin: 0 auto 32px;
-                    text-align: center;
-                    max-width: 420px;
-                    color: #6b7280;
-                    font-size: 16px;
-                    line-height: 1.8;
-                  "
-                >
-                  Thanks for joining FitCall. We're building a better way to
-                  connect with certified fitness trainers through scheduled
-                  coaching sessions that help you stay focused, accountable, and
-                  moving toward your goals.
-                </p>
-
-                <!-- Highlight Card -->
-                <table
-                  width="100%"
-                  cellpadding="0"
-                  cellspacing="0"
-                  style="
-                    background: #f9fafb;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 14px;
-                  "
-                >
+              <td style="background:#0D1B3E;border-radius:12px 12px 0 0;padding:20px 28px;">
+                <table cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td style="padding: 24px">
-                      <h3
-                        style="
-                          margin: 0 0 12px;
-                          font-size: 16px;
-                          color: #111827;
-                        "
-                      >
-                        What to expect
-                      </h3>
-
-                      <p
-                        style="
-                          margin: 0;
-                          font-size: 14px;
-                          line-height: 1.8;
-                          color: #6b7280;
-                        "
-                      >
-                        • Access to certified fitness trainers<br />
-                        • One-on-one coaching sessions through whatever medium
-                        you choose<br />
-                        • Personalized guidance and accountability<br />
-                        • A simpler path to staying consistent
-                      </p>
+                    <td style="padding-right:12px;vertical-align:middle;">
+                      
+                    </td>
+                    <td style="vertical-align:middle;">
+                      
                     </td>
                   </tr>
                 </table>
-
-                <!-- Waitlist Info -->
-                <p
-                  style="
-                    margin: 32px 0 0;
-                    text-align: center;
-                    color: #6b7280;
-                    font-size: 15px;
-                    line-height: 1.8;
-                  "
-                >
-                  As soon as we're live, we'll send you an invitation with
-                  everything you need to get started.
-                </p>
-
-                <!-- Closing -->
-                <p
-                  style="
-                    margin: 36px 0 0;
-                    text-align: center;
-                    color: #111827;
-                    font-size: 16px;
-                    font-weight: 600;
-                  "
-                >
-                  One call can change a routine. Consistency changes results.
-                </p>
               </td>
             </tr>
 
-            <!-- Footer -->
+            <!-- HERO -->
             <tr>
-              <td
-                style="
-                  padding: 24px;
-                  text-align: center;
-                  border-top: 1px solid #e5e7eb;
-                  color: #9ca3af;
-                  font-size: 13px;
-                "
-              >
-                - FitCall
+              <td style="background:#0D1B3E;padding:40px 28px 48px;text-align:center;">
+                <!-- Logo circle — table-based so Gmail renders it -->
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
+                  <tr>
+                    <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);text-align:center;vertical-align:middle;">
+                      <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                    </td>
+                  </tr>
+                </table>
+                <h1 style="margin:0 0 12px;color:#ffffff;font-size:26px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.2;">
+                  You're on the list.
+                </h1>
+                <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+                  Welcome to FitCall, where real accountability meets real results.
+                </p>
               </td>
             </tr>
+
+            <!-- BODY COPY -->
+            <tr>
+              <td style="background:#ffffff;padding:40px 36px;">
+                <p style="margin:0 0 20px;font-size:16px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                  Hey {{.Name}}, welcome aboard!
+                </p>
+                <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                  The best results come from 1-on-1 accountability.
+                </p>
+                <p style="margin:0 0 28px;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                  That's the whole point of FitCall. And you're at the front of the line.
+                </p>
+                <p style="margin:0 0 16px;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                  Anticipate:
+                </p>
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+                  <tr>
+                    <td style="padding:4px 0;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                      &#8226;&nbsp; A real coach who keeps you accountable
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 0;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                      &#8226;&nbsp; A fitness plan built around your life
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 0;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                      &#8226;&nbsp; Expert guidance without the guesswork
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0;font-size:15px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">
+                  We'll be back soon with your next FitCall update.
+                </p>
+              </td>
+            </tr>
+
+            <!-- SOCIAL ICONS -->
+            <tr>
+              <td style="background:#ffffff;padding:0 36px 36px;text-align:center;border-bottom:1px solid #e5e7eb;">
+                <p style="margin:0 0 14px;font-size:14px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">
+                  Follow us for trainer spotlights and fitness tips
+                </p>
+                <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                  <tr>
+                    <td style="padding:0 6px;">
+                      <a href="https://www.facebook.com/fitcall.me" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="40" height="40" bgcolor="#1877F2" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                            <img src="https://cdn.simpleicons.org/facebook/ffffff" width="22" height="22" alt="Facebook" border="0" style="display:block;margin:9px auto;" />
+                          </td>
+                        </tr></table>
+                      </a>
+                    </td>
+                    <td style="padding:0 6px;">
+                      <a href="https://www.instagram.com/fitcall_me?igsh=Y245b25ycmZ0dms2" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="40" height="40" bgcolor="#E1306C" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                            <img src="https://cdn.simpleicons.org/instagram/ffffff" width="22" height="22" alt="Instagram" border="0" style="display:block;margin:9px auto;" />
+                          </td>
+                        </tr></table>
+                      </a>
+                    </td>
+                    <td style="padding:0 6px;">
+                      <a href="https://www.linkedin.com/company/fitcall-app/posts/?feedView=all" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="40" height="40" bgcolor="#0077B5" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;">
+                            <img src="https://api.iconify.design/simple-icons:linkedin.svg?color=%23ffffff" width="22" height="22" alt="LinkedIn" border="0" style="display:block;margin:9px auto;" />
+                          </td>
+                        </tr></table>
+                      </a>
+                    </td>
+                    <td style="padding:0 6px;">
+                      <a href="https://x.com/fitcall_me?s=11" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                            <img src="https://cdn.simpleicons.org/x/ffffff" width="22" height="22" alt="X" border="0" style="display:block;margin:9px auto;" />
+                          </td>
+                        </tr></table>
+                      </a>
+                    </td>
+                    <td style="padding:0 6px;">
+                      <a href="https://www.tiktok.com/@fitcall.me?_r=1&amp;_t=ZS-98BYHlii7c0" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="40" height="40" bgcolor="#000000" class="keep-dark" style="width:40px;height:40px;border-radius:20px;text-align:center;vertical-align:middle;background-color:#000000;">
+                            <img src="https://cdn.simpleicons.org/tiktok/ffffff" width="22" height="22" alt="TikTok" border="0" style="display:block;margin:9px auto;" />
+                          </td>
+                        </tr></table>
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- FOOTER -->
+            <tr>
+              <td style="background:#f9fafb;border-radius:0 0 12px 12px;padding:24px 36px;text-align:center;">
+                <p style="margin:0;font-size:13px;color:#9ca3af;font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
+                  You're receiving this because you joined the FitCall waitlist.<br/>
+                  <a href="https://fitcall.me" style="color:#9ca3af;text-decoration:underline;">Unsubscribe</a>
+                  &nbsp;|&nbsp;
+                  <a href="https://fitcall.me/privacy-policy" style="color:#9ca3af;text-decoration:underline;">Privacy Policy</a>
+                  &nbsp;|&nbsp;
+                  <a href="https://fitcall.me" style="color:#9ca3af;text-decoration:underline;">fitcall.me</a>
+                </p>
+              </td>
+            </tr>
+
           </table>
         </td>
       </tr>

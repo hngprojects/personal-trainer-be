@@ -20,6 +20,7 @@ import (
 	"github.com/hngprojects/personal-trainer-be/internal/config"
 	db "github.com/hngprojects/personal-trainer-be/internal/repository/db"
 	"github.com/hngprojects/personal-trainer-be/pkg/apple"
+	"github.com/hngprojects/personal-trainer-be/pkg/email"
 )
 
 // fakeAppleVerifier returns whatever's set on it — never touches Apple.
@@ -113,7 +114,8 @@ func newAppleTestHandler(t *testing.T, users *fakeAppleUserRepo, sessions *fakeA
 	cfg := &config.Config{
 		AppleSignInBundleIDs: []string{"com.fitcal.app"},
 	}
-	return auth.NewAppleHandler(cfg, users, sessions, ver, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	mailer := email.NewLogMailer()
+	return auth.NewAppleHandler(cfg, users, sessions, ver, slog.New(slog.NewTextHandler(io.Discard, nil)), mailer)
 }
 
 func postAppleSignIn(t *testing.T, h *auth.AppleHandler, body any) *httptest.ResponseRecorder {
