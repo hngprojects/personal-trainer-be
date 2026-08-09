@@ -47,16 +47,44 @@ jobs:
           cp -r migrations deploy/migrations
           cp api.yaml deploy/api.yaml
 
-      # Write .env using printf against an env var — NOT `echo "..."` with
-      # inline ${{ secrets... }} interpolation. The old form breaks the
-      # instant the secret contains a literal `"` (comment strings,
-      # certain passwords, JSON blobs). printf %s writes the bytes as-is;
-      # the env: block makes the secret a normal environment variable so
-      # its value isn't parsed by the outer shell.
+      # Compose the .env from TWO secrets and concatenate them into a
+      # single file:
+      #
+      #   BACKEND_ENV_FILE  — everything the app needs, minus SMTP.
+      #                        This is the primary blob.
+      #   BACKEND_SMTP_ENV  — the five SMTP_* lines split out into
+      #                        their own secret so the SMTP provider
+      #                        can be rotated (or the whole SMTP block
+      #                        toggled) without re-pasting the entire
+      #                        main secret. Optional — when unset the
+      #                        primary blob's values (or lack of them)
+      #                        stand alone and the app boots without
+      #                        SMTP configured.
+      #
+      # printf %s writes each secret's bytes verbatim; the env: block
+      # makes both secrets normal environment variables so the outer
+      # shell doesn't parse embedded quotes / backticks in the values.
+      # A `printf '\n'` between the two blobs forces a newline
+      # boundary — the main secret's trailing newline can't be
+      # relied on, and .env parsers are tolerant of extra blank lines.
+      #
+      # Precedence: SMTP_ENV is written AFTER ENV_FILE, so if the SAME
+      # key appears in both, the SMTP_ENV value wins — which is the
+      # right thing when you're intentionally overriding the primary
+      # secret's SMTP entries during a provider rotation.
       - name: Write env file
-        run: printf '%s' "$BACKEND_ENV_FILE" > deploy/.env
+        run: |
+          {
+            printf '%s' "$BACKEND_ENV_FILE"
+            printf '\n'
+            if [ -n "$BACKEND_SMTP_ENV" ]; then
+              printf '%s' "$BACKEND_SMTP_ENV"
+              printf '\n'
+            fi
+          } > deploy/.env
         env:
           BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+          BACKEND_SMTP_ENV: ${{ secrets.BACKEND_SMTP_ENV }}
 
       # Snapshot the current release BEFORE rsync mutates the target
       # directory. Rollback (if this deploy fails downstream) copies
@@ -195,6 +223,19 @@ jobs:
             sudo -n /usr/bin/systemctl restart personal-trainer-backend-staging
             sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
+
+      # Local-runner cleanup. GitHub-hosted runners are already ephemeral
+      # (discarded after each job), so this is defense-in-depth rather
+      # than the primary secrecy mechanism — but a stray `deploy/.env`
+      # left on disk could still be scooped up by a debug artifact
+      # upload, a downstream step that logs the workspace tree, or a
+      # future self-hosted-runner move. Removing it as soon as the
+      # deploy is done shrinks that window. `if: always()` runs after
+      # both success and failure, and `rm -f` doesn't error if the file
+      # never existed (write-env step itself failed).
+      - name: Clean up local secrets (staging)
+        if: always()
+        run: rm -f deploy/.env
 
   deploy-production:
     if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true
@@ -337,3 +378,10 @@ jobs:
             sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
             sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
+
+      # See the staging counterpart's comment. Runs on both success and
+      # failure so the local runner never keeps the composed .env
+      # around after this job returns.
+      - name: Clean up local secrets (production)
+        if: always()
+        run: rm -f deploy/.env
