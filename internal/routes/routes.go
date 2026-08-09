@@ -210,7 +210,7 @@ type routerImpl struct {
 	// paths (subscription creation, push send) can consult flags
 	// without round-tripping through the handler.
 	featureFlagsSvc *featureflags.Service
-	wsHub *websocket.Hub
+	wsHub           *websocket.Hub
 
 	// siwaOAuth talks to Apple's /auth/token and /auth/revoke
 	// endpoints. Nil unless all four SIWA config knobs are set
