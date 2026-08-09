@@ -105,10 +105,10 @@ func (m *captureMailer) SendDiscoveryBookingAdminNotification(_, _, _ string, _ 
 func (m *captureMailer) SendDiscoveryRescheduleConfirmation(_, _ string, _, _ time.Time, _, _, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _ time.Time, _ int, _, _, _ string) error {
+func (m *captureMailer) SendPaidSessionRescheduleConfirmation(_, _ string, _ time.Time, _ int, _, _, _, _, _ string) error {
 	return nil
 }
-func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _, _ string, _ time.Time, _ int, _, _ string) error {
+func (m *captureMailer) SendPaidSessionRescheduleTrainerNotification(_, _, _ string, _ time.Time, _ int, _, _, _, _ string) error {
 	return nil
 }
 func (m *captureMailer) SendBookingConfirmation(_, _, _ string, _, _ time.Time, _, _ string, _ string, _ string, _ string, _ string, _ bool) error {
