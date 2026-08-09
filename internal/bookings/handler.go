@@ -313,6 +313,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	if clientErr == nil {
 		if err := h.mailer.SendPaidSessionRescheduleConfirmation(
 			clientUser.Email, generateFirstName(clientUser.Name), newStart, duration, req.Timezone, platform, finalJoinLink,
+			updated.PhoneNumber.String, updated.MessengerHandle.String,
 		); err != nil {
 			h.log.Error("failed to send reschedule confirmation email to client", "err", err)
 		}
@@ -328,6 +329,7 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 			}
 			if err := h.mailer.SendPaidSessionRescheduleTrainerNotification(
 				trainerUser.Email, generateFirstName(trainerUser.Name), clientName, newStart, duration, req.Timezone, platform,
+				updated.PhoneNumber.String, updated.MessengerHandle.String,
 			); err != nil {
 				h.log.Error("failed to send reschedule notification email to trainer", "err", err)
 			}

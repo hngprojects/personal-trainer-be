@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"net/smtp"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -60,8 +61,8 @@ type Mailer interface {
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
-	SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error
-	SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error
+	SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phoneNumber, messengerHandle string) error
+	SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phoneNumber, messengerHandle string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error
 	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
 	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
@@ -290,12 +291,12 @@ func (m *LogMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phoneNumber, messengerHandle string) error {
 	slog.Info("email (paid session reschedule)", "to", to, "name", name, "new_time", newTime)
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phoneNumber, messengerHandle string) error {
 	slog.Info("email (paid session reschedule trainer notification)", "to", to, "client", clientName, "new_time", newTime)
 	return nil
 }
@@ -602,7 +603,13 @@ var waitlistConfirmationTemplate = template.Must(template.ParseFS(templates, "te
 
 func resolveLogoURL(appURL string) string {
 	if appURL != "" {
-		return appURL + "/logo.png"
+		u, err := url.Parse(appURL)
+		if err == nil {
+			h := strings.ToLower(u.Hostname())
+			if h != "localhost" && h != "127.0.0.1" && h != "::1" {
+				return appURL + "/logo.png"
+			}
+		}
 	}
 	return "https://fitcall.me/logo.svg"
 }
@@ -783,8 +790,8 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 
 var discoveryRescheduleTemplate = template.Must(template.ParseFS(templates, "templates/discoveryReschedule.html"))
 
-func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
-	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink)
+func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phoneNumber, messengerHandle string) error {
+	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink, phoneNumber, messengerHandle)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
 	}
@@ -804,8 +811,8 @@ func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newT
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
-	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform)
+func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phoneNumber, messengerHandle string) error {
+	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform, phoneNumber, messengerHandle)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule trainer notification email: %w", err)
 	}
@@ -829,41 +836,68 @@ const paidRescheduleClientSubject = "Your session has been rescheduled."
 
 const paidRescheduleTrainerSubject = "Client Rescheduled Training Session"
 
-func paidRescheduleClientHTML(name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) (string, error) {
+func paidRescheduleClientHTML(name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phoneNumber, messengerHandle string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
+	}
+
+	platformDisplayNames := map[string]string{
+		"whatsapp":    "WhatsApp",
+		"google_meet": "Google Meet",
+		"imessage":    "FaceTime",
+		"messenger":   "Messenger",
+	}
+	platformDisplay := platformDisplayNames[platform]
+	if platformDisplay == "" {
+		platformDisplay = platform
 	}
 
 	var buf bytes.Buffer
 	err = paidRescheduleClientTemplate.Execute(&buf, map[string]interface{}{
-		"Name": name,
-		// "OldTime":  oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"NewTime":   newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"Duration":  duration,
-		"Timezone":  timezone,
-		"Platform":  platform,
-		"FinalLink": finalJoinLink,
+		"Name":            name,
+		"NewTime":         newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Duration":        duration,
+		"Timezone":        timezone,
+		"Platform":        platformDisplay,
+		"RawPlatform":     platform,
+		"FinalLink":       finalJoinLink,
+		"PhoneNumber":     phoneNumber,
+		"MessengerHandle": messengerHandle,
+		"LogoURL":         resolveLogoURL(""),
 	})
 	return buf.String(), err
 }
 
-func paidRescheduleTrainerHTML(trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) (string, error) {
+func paidRescheduleTrainerHTML(trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phoneNumber, messengerHandle string) (string, error) {
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		loc = time.UTC
 	}
 
+	platformDisplayNames := map[string]string{
+		"whatsapp":    "WhatsApp",
+		"google_meet": "Google Meet",
+		"imessage":    "FaceTime",
+		"messenger":   "Messenger",
+	}
+	platformDisplay := platformDisplayNames[platform]
+	if platformDisplay == "" {
+		platformDisplay = platform
+	}
+
 	var buf bytes.Buffer
 	err = paidRescheduleTrainerTemplate.Execute(&buf, map[string]interface{}{
-		"TrainerName": trainerName,
-		"ClientName":  clientName,
-		// "OldTime":    oldTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"NewTime":  newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
-		"Duration": duration,
-		"Timezone": timezone,
-		"Platform": platform,
-		// "ZoomLink":   zoomLink,
+		"TrainerName":     trainerName,
+		"ClientName":      clientName,
+		"NewTime":         newTime.In(loc).Format("Monday, January 2, 2006 at 3:04 PM"),
+		"Duration":        duration,
+		"Timezone":        timezone,
+		"Platform":        platformDisplay,
+		"RawPlatform":     platform,
+		"PhoneNumber":     phoneNumber,
+		"MessengerHandle": messengerHandle,
+		"LogoURL":         resolveLogoURL(""),
 	})
 	return buf.String(), err
 }
