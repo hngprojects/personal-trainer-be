@@ -38,12 +38,12 @@
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
                   <td width="106" height="106" style="width:106px;height:106px;border-radius:53px;border:3px solid rgba(96,197,168,0.3);background:rgba(96,197,168,0.12);text-align:center;vertical-align:middle;">
-                    <img src="https://fitcall.me/logo.svg" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
+                    <img src="{{.LogoURL}}" alt="FitCall" width="72" height="72" style="display:block;margin:14px auto;border-radius:14px;" />
                   </td>
                 </tr>
               </table>
               <h1 style="margin:0 0 12px;color:#ffffff;font-size:24px;font-weight:700;font-family:Arial,Helvetica,sans-serif;line-height:1.3;">
-                Your client rescheduled. &#9989; New time locked in.
+                Your client rescheduled. New time locked in.
               </h1>
               <p style="margin:0;color:rgba(255,255,255,0.65);font-size:15px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
                 Your calendar's already updated. Nothing else for you to do.
@@ -61,7 +61,7 @@
                 <span style="text-transform:capitalize;">
                     {{.ClientName}} 
                 </span>
-                moved their upcoming session to a new time. Here are the updated details — no action needed on your end.
+                moved their upcoming session to a new time. Here are the updated details. No action needed on your end.
               </p>
             </td>
           </tr>
@@ -96,16 +96,34 @@
                       </tr>
                       <tr>
                         <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Platform</td>
-                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;text-transform:capitalize;">{{.Platform}}</td>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.Platform}}</td>
                       </tr>
                       <tr>
-                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">New Date and Time</td>
+                        <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">New Date &amp; Time</td>
                         <td style="padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.NewTime}}</td>
                       </tr>
                       <tr>
                         <td style="padding:10px 0;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Session Duration</td>
                         <td style="padding:10px 0;font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.Duration}} minutes</td>
                       </tr>
+                      {{if and (eq .RawPlatform "imessage") .PhoneNumber}}
+                      <tr>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Client's Apple ID</td>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;word-break:break-all;">{{.PhoneNumber}}</td>
+                      </tr>
+                      {{end}}
+                      {{if and (eq .RawPlatform "whatsapp") .PhoneNumber}}
+                      <tr>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Client's WhatsApp</td>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
+                      </tr>
+                      {{end}}
+                      {{if and (eq .RawPlatform "messenger") .MessengerHandle}}
+                      <tr>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Client's Messenger</td>
+                        <td style="padding:10px 0;border-top:1px solid rgba(0,0,0,0.06);font-size:13px;font-weight:600;color:#0D1B3E;text-align:right;font-family:Arial,Helvetica,sans-serif;">@{{.MessengerHandle}}</td>
+                      </tr>
+                      {{end}}
                     </table>
                   </td>
                 </tr>
@@ -119,7 +137,7 @@
               <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
                 You're receiving this because a client rescheduled a session booked with you on FitCall.<br/>
                 Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
-                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
+                <a href="mailto:support@fitcall.me?subject=Unsubscribe" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
                 &nbsp;|&nbsp;
                 <a href="https://fitcall.me/privacy-policy" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Privacy Policy</a>
               </p>
