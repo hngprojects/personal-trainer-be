@@ -96,8 +96,8 @@
                       {{end}}
                       {{if and (eq .Platform "imessage") .PhoneNumber}}
                       <tr>
-                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Client Phone / Apple ID</td>
-                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;">{{.PhoneNumber}}</td>
+                        <td style="padding:10px 0;font-size:13px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;white-space:nowrap;">Client's Apple ID</td>
+                        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#0D1B3E;font-family:Arial,Helvetica,sans-serif;word-break:break-all;">{{.PhoneNumber}}</td>
                       </tr>
                       {{end}}
                       {{if and (eq .Platform "messenger") .MessengerHandle}}
@@ -200,7 +200,7 @@
               <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.65);font-family:Arial,Helvetica,sans-serif;line-height:1.8;">
                 You're receiving this because a client booked a session with you on FitCall.<br/>
                 Questions? Reply to this email or visit <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">fitcall.me</a><br/>
-                <a href="https://fitcall.me" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
+                <a href="mailto:support@fitcall.me?subject=Unsubscribe" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Unsubscribe</a>
                 &nbsp;|&nbsp;
                 <a href="https://fitcall.me/privacy-policy" style="color:rgba(255,255,255,0.65);text-decoration:underline;">Privacy Policy</a>
               </p>
