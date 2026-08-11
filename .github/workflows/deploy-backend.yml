@@ -196,6 +196,62 @@ jobs:
             sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
 
+            # Persist the SHA that just went live so the NEXT deploy's
+            # snapshot step can label its .prev-info with a meaningful
+            # value. Only reached after the service is confirmed
+            # active — a failed deploy leaves the previous
+            # RELEASE_SHA untouched (correct: that older SHA is what's
+            # about to be restored by rollback).
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
+      # Auto-rollback runs on ANY prior-step failure — including rsync
+      # (which can leave a partial binary on disk) and the snapshot
+      # step itself. The internal `[ ! -f personal-trainer-api.prev ]`
+      # guard makes it safe to run before the snapshot succeeded:
+      # first-ever deploys have no .prev and this step exits with a
+      # loud "nothing to roll back to" message.
+      #
+      # Deliberately does NOT roll back the DB — goose down can be
+      # destructive, and additive migrations (which is most of ours)
+      # are compatible with the previous binary. If a specific
+      # migration IS binary-incompatible with rollback we need to
+      # catch that at review time, not here.
+      - name: Auto-rollback (staging)
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/staging
+            if [ ! -f personal-trainer-api.prev ]; then
+              echo "no .prev snapshot found — nothing to roll back to"
+              exit 1
+            fi
+            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
+            cp -f personal-trainer-api.prev personal-trainer-api
+            chmod +x personal-trainer-api
+            sudo -n /usr/bin/systemctl restart personal-trainer-backend-staging
+            sleep 5
+            sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
+
+      # Local-runner cleanup. GitHub-hosted runners are already ephemeral
+      # (discarded after each job), so this is defense-in-depth rather
+      # than the primary secrecy mechanism — but a stray `deploy/.env`
+      # left on disk could still be scooped up by a debug artifact
+      # upload, a downstream step that logs the workspace tree, or a
+      # future self-hosted-runner move. Removing it as soon as the
+      # deploy is done shrinks that window. `if: always()` runs after
+      # both success and failure, and `rm -f` doesn't error if the file
+      # never existed (write-env step itself failed).
+      - name: Clean up local secrets (staging)
+        if: always()
+        run: rm -f deploy/.env
+
   deploy-production:
     if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true
     name: Deploy Backend Production
@@ -337,3 +393,39 @@ jobs:
             sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
             sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
+
+            # See staging: persist the just-deployed SHA so the next
+            # deploy's snapshot can name it correctly. Not reached on
+            # deploy failure — the prior RELEASE_SHA (i.e. what
+            # rollback restores to) stays intact.
+            echo "$RELEASE_SHA" > RELEASE_SHA
+
+      - name: Auto-rollback (production)
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          request_pty: false
+          script: |
+            set -e
+            cd /var/www/personal-trainer/backend/production
+            if [ ! -f personal-trainer-api.prev ]; then
+              echo "no .prev snapshot found — nothing to roll back to"
+              exit 1
+            fi
+            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
+            cp -f personal-trainer-api.prev personal-trainer-api
+            chmod +x personal-trainer-api
+            sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
+            sleep 5
+            sudo -n /usr/bin/systemctl status personal-trainer-backend-production
+
+      # See the staging counterpart's comment. Runs on both success and
+      # failure so the local runner never keeps the composed .env
+      # around after this job returns.
+      - name: Clean up local secrets (production)
+        if: always()
+        run: rm -f deploy/.env
