@@ -383,6 +383,18 @@ components:
           description: |
             E.164 phone number from users.phone_number. Optional on
             create; null when never supplied.
+        whatsapp_number:
+          type: string
+          nullable: true
+          description: Trainer's WhatsApp number in E.164 format. Null when not set.
+        apple_id:
+          type: string
+          nullable: true
+          description: Trainer's Apple ID (email or phone) for iMessage/FaceTime sessions. Null when not set.
+        messenger_handle:
+          type: string
+          nullable: true
+          description: Trainer's Facebook Messenger username. Null when not set.
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]

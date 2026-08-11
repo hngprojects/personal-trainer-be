@@ -992,7 +992,12 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 
 	whatsappNumber := existing.WhatsappNumber
 	if body.WhatsappNumber != nil {
-		whatsappNumber = sql.NullString{String: *body.WhatsappNumber, Valid: true}
+		wn := strings.TrimSpace(*body.WhatsappNumber)
+		if !trainerPhoneE164Regex.MatchString(wn) {
+			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
 	appleID := existing.AppleID
