@@ -36,8 +36,10 @@ func main() {
 	sessionTime := time.Now().Add(48 * time.Hour).UTC()
 	sessionEnd := sessionTime.Add(time.Hour)
 
+	var failed bool
+
 	// 1. Client booking confirmation (FaceTime)
-	err := mailer.SendBookingConfirmation(
+	if err := mailer.SendBookingConfirmation(
 		clientEmail,
 		"Test Client",
 		"Test Trainer",
@@ -50,15 +52,15 @@ func main() {
 		testPhone,
 		"test-booking-id-001",
 		false,
-	)
-	if err != nil {
+	); err != nil {
 		log.Printf("client booking email failed: %v", err)
+		failed = true
 	} else {
 		fmt.Println("✓ Client booking confirmation sent to", clientEmail)
 	}
 
 	// 2. Trainer booking confirmation (FaceTime)
-	err = mailer.SendBookingConfirmation(
+	if err := mailer.SendBookingConfirmation(
 		trainerEmail,
 		"Test Client",
 		"Test Trainer",
@@ -71,16 +73,16 @@ func main() {
 		testPhone,
 		"test-booking-id-001",
 		true,
-	)
-	if err != nil {
+	); err != nil {
 		log.Printf("trainer booking email failed: %v", err)
+		failed = true
 	} else {
 		fmt.Println("✓ Trainer booking confirmation sent to", trainerEmail)
 	}
 
 	// 3. Trainer reschedule notification
 	newTime := sessionTime.Add(2 * time.Hour)
-	err = mailer.SendPaidSessionRescheduleTrainerNotification(
+	if err := mailer.SendPaidSessionRescheduleTrainerNotification(
 		trainerEmail,
 		"Test Trainer",
 		"Test Client",
@@ -88,15 +90,15 @@ func main() {
 		60,
 		"Africa/Lagos",
 		"imessage",
-	)
-	if err != nil {
+	); err != nil {
 		log.Printf("trainer reschedule email failed: %v", err)
+		failed = true
 	} else {
 		fmt.Println("✓ Trainer reschedule notification sent to", trainerEmail)
 	}
 
 	// 4. Client reschedule confirmation
-	err = mailer.SendPaidSessionRescheduleConfirmation(
+	if err := mailer.SendPaidSessionRescheduleConfirmation(
 		clientEmail,
 		"Test Client",
 		newTime,
@@ -104,10 +106,14 @@ func main() {
 		"Africa/Lagos",
 		"imessage",
 		"",
-	)
-	if err != nil {
+	); err != nil {
 		log.Printf("client reschedule email failed: %v", err)
+		failed = true
 	} else {
 		fmt.Println("✓ Client reschedule confirmation sent to", clientEmail)
+	}
+
+	if failed {
+		os.Exit(1)
 	}
 }
