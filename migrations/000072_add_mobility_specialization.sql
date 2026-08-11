@@ -5,10 +5,10 @@
 ALTER TABLE trainers DROP CONSTRAINT IF EXISTS trainers_specializations_catalog_chk;
 
 -- +goose Down
--- Restore the original 5-value constraint.
-ALTER TABLE trainers
-    ADD CONSTRAINT trainers_specializations_catalog_chk
-    CHECK (
-        specializations <@ ARRAY['yoga','speed','cardio','endurance','strength']::text[]
-        AND cardinality(specializations) BETWEEN 0 AND 5
-    );
+-- NOTE: This rollback is intentionally a no-op.
+-- Restoring the original 5-value CHECK constraint after this migration has run
+-- would fail if any trainer row already holds a slug outside that set
+-- (e.g. "mobility", "hiit") — PostgreSQL will reject the ADD CONSTRAINT.
+-- Rolling back requires a manual data audit first. Leave the constraint absent
+-- and roll back the application code separately if needed.
+SELECT 1; -- no-op placeholder required by goose

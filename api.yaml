@@ -340,7 +340,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -452,7 +452,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -792,8 +792,8 @@ components:
           minItems: 1
           maxItems: 5
           description: |
-            One or more specializations from the fixed catalog
-            (yoga, speed, cardio, endurance, strength). At least one is required
+            One or more specializations from the admin-managed categories catalog.
+            Valid values are the slugs of active categories. At least one is required
             on create; admin can edit later via PATCH.
         training_styles:
           type: array
