@@ -257,12 +257,11 @@ components:
 
     TrainerSpecialization:
       type: string
-      enum: [yoga, speed, cardio, endurance, strength]
       description: |
-        Canonical specialization tag. A trainer can hold multiple — the set
-        is fixed (yoga, speed, cardio, endurance, strength) and enforced
-        by both an API enum and a Postgres CHECK constraint. Adding a new
-        value requires a migration plus an api.yaml bump.
+        Specialization tag. A trainer can hold multiple — valid values are
+        the slugs of active entries in the categories table, managed by
+        admins via the admin settings page. No code change is needed to
+        add new specializations.
 
     TrainerBenefitInput:
       type: object
@@ -341,7 +340,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -453,7 +452,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -793,8 +792,8 @@ components:
           minItems: 1
           maxItems: 5
           description: |
-            One or more specializations from the fixed catalog
-            (yoga, speed, cardio, endurance, strength). At least one is required
+            One or more specializations from the admin-managed categories catalog.
+            Valid values are the slugs of active categories. At least one is required
             on create; admin can edit later via PATCH.
         training_styles:
           type: array
