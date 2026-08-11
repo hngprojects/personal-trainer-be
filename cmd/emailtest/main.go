@@ -90,6 +90,8 @@ func main() {
 		60,
 		"Africa/Lagos",
 		"imessage",
+		testPhone,
+		"",
 	); err != nil {
 		log.Printf("trainer reschedule email failed: %v", err)
 		failed = true
@@ -105,6 +107,8 @@ func main() {
 		60,
 		"Africa/Lagos",
 		"imessage",
+		"",
+		testPhone,
 		"",
 	); err != nil {
 		log.Printf("client reschedule email failed: %v", err)

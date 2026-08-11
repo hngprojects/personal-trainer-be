@@ -175,7 +175,7 @@ func (m *ResendMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldT
 	return m.send(to, discoveryRescheduleSubject, html)
 }
 
-func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phone, messenger string) error {
 	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink)
 	if err != nil {
 		return fmt.Errorf("resend: build paid session reschedule email: %w", err)
@@ -183,7 +183,7 @@ func (m *ResendMailer) SendPaidSessionRescheduleConfirmation(to, name string, ne
 	return m.send(to, paidRescheduleClientSubject, html)
 }
 
-func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+func (m *ResendMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phone, messenger string) error {
 	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform)
 	if err != nil {
 		return fmt.Errorf("resend: build paid session reschedule trainer notification email: %w", err)

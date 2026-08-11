@@ -60,8 +60,8 @@ type Mailer interface {
 	SendDiscoveryBookingConfirmation(to, name string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryBookingAdminNotification(to, clientName, clientEmail string, scheduledAt time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
 	SendDiscoveryRescheduleConfirmation(to, name string, oldTime, newTime time.Time, timezone, contactMode, phoneNumber, zoomLink string) error
-	SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error
-	SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error
+	SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phone, messenger string) error
+	SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phone, messenger string) error
 	SendBookingConfirmation(to, clientName, trainerName string, scheduledStartTime, scheduledEndTime time.Time, timezone string, platform string, meetingLink string, messengerHandle string, phoneNumber string, bookingID string, toTrainer bool) error
 	SendSessionReminder(to, clientName, trainerName string, scheduledStart time.Time, timezone, zoomLink string) error
 	SendSessionReminderTrainer(to, trainerName, clientName string, scheduledStart time.Time, timezone, zoomLink string) error
@@ -290,12 +290,12 @@ func (m *LogMailer) SendDiscoveryRescheduleConfirmation(to, name string, oldTime
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+func (m *LogMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phone, messenger string) error {
 	slog.Info("email (paid session reschedule)", "to", to, "name", name, "new_time", newTime)
 	return nil
 }
 
-func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+func (m *LogMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phone, messenger string) error {
 	slog.Info("email (paid session reschedule trainer notification)", "to", to, "client", clientName, "new_time", newTime)
 	return nil
 }
@@ -783,7 +783,7 @@ func discoveryRescheduleHTML(name string, oldTime, newTime time.Time, timezone, 
 
 var discoveryRescheduleTemplate = template.Must(template.ParseFS(templates, "templates/discoveryReschedule.html"))
 
-func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink string) error {
+func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newTime time.Time, duration int, timezone, platform, finalJoinLink, phone, messenger string) error {
 	html, err := paidRescheduleClientHTML(name, newTime, duration, timezone, platform, finalJoinLink)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule email: %w", err)
@@ -804,7 +804,7 @@ func (m *SMTPMailer) SendPaidSessionRescheduleConfirmation(to, name string, newT
 	return smtp.SendMail(m.host+":"+m.port, auth, fromAddr, []string{toAddr}, []byte(msg))
 }
 
-func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform string) error {
+func (m *SMTPMailer) SendPaidSessionRescheduleTrainerNotification(to, trainerName, clientName string, newTime time.Time, duration int, timezone, platform, phone, messenger string) error {
 	html, err := paidRescheduleTrainerHTML(trainerName, clientName, newTime, duration, timezone, platform)
 	if err != nil {
 		return fmt.Errorf("smtp: build paid session reschedule trainer notification email: %w", err)
