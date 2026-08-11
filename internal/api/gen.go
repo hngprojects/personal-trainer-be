@@ -1215,7 +1215,16 @@ type PatchTrainersMeRequest struct {
 	DisplayPicture *string `json:"display_picture,omitempty"`
 
 	// PhoneNumber E.164 format (e.g. +2348012345678).
-	PhoneNumber       *string                  `json:"phone_number,omitempty"`
+	PhoneNumber *string `json:"phone_number,omitempty"`
+
+	// WhatsappNumber Trainer's WhatsApp number in E.164 format.
+	WhatsappNumber *string `json:"whatsapp_number,omitempty"`
+
+	// AppleID Trainer's Apple ID (email or phone) for iMessage/FaceTime sessions.
+	AppleID *string `json:"apple_id,omitempty"`
+
+	// MessengerHandle Trainer's Facebook Messenger username.
+	MessengerHandle   *string                  `json:"messenger_handle,omitempty"`
 	Specializations   *[]TrainerSpecialization `json:"specializations,omitempty"`
 	YearsOfExperience *int                     `json:"years_of_experience,omitempty"`
 }

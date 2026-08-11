@@ -45,16 +45,6 @@ func newTrainersStore(rawDB *sql.DB, q *db.Queries) *trainersStore {
 	return &trainersStore{db: rawDB, q: q}
 }
 
-// allowedTrainerSpecializations mirrors the CHECK constraint added in
-// migration 000037. Kept here as a Go-side allow-list so we can return a
-// clean 400 instead of letting the DB raise a constraint violation.
-var allowedTrainerSpecializations = map[string]struct{}{
-	"yoga":      {},
-	"speed":     {},
-	"cardio":    {},
-	"endurance": {},
-	"strength":  {},
-}
 
 const (
 	// Hard cap on the display-picture file. Mirrors the 5 MiB profile used by
@@ -109,6 +99,21 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 		out["display_picture"] = t.DisplayPicture.String
 	} else {
 		out["display_picture"] = nil
+	}
+	if t.WhatsappNumber.Valid {
+		out["whatsapp_number"] = t.WhatsappNumber.String
+	} else {
+		out["whatsapp_number"] = nil
+	}
+	if t.AppleID.Valid {
+		out["apple_id"] = t.AppleID.String
+	} else {
+		out["apple_id"] = nil
+	}
+	if t.MessengerHandle.Valid {
+		out["messenger_handle"] = t.MessengerHandle.String
+	} else {
+		out["messenger_handle"] = nil
 	}
 
 	return out
@@ -337,7 +342,13 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 		return
 	}
 
-	specializations, err := parseTrainerSpecializations(c.Request.MultipartForm.Value["specializations"])
+	allowedSpecs, err := loadAllowedSpecializations(c.Request.Context(), s.trainers.q)
+	if err != nil {
+		s.logger.Error("create trainer: failed to load specialization catalog", "err", err)
+		c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+		return
+	}
+	specializations, err := parseTrainerSpecializations(c.Request.MultipartForm.Value["specializations"], allowedSpecs)
 	if err != nil {
 		s.logger.Warn("create trainer: invalid specializations", "email", emailAddr, "err", err)
 		c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
@@ -346,7 +357,7 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 	if len(specializations) == 0 {
 		s.logger.Warn("create trainer: no specializations provided", "email", emailAddr)
 		c.JSON(http.StatusBadRequest, api.NewValidationError([]api.FieldError{
-			{Field: "specializations", Message: "at least one specialization is required (yoga, speed, cardio, endurance, strength)"},
+			{Field: "specializations", Message: "at least one specialization is required"},
 		}))
 		return
 	}
@@ -670,7 +681,8 @@ func (s *routerImpl) CreateTrainer(c *gin.Context) {
 // ("yoga,cardio") and a multi-valued field repeated for each entry. Either
 // form is convenient depending on the admin frontend; both reduce to the
 // same []string after dedup + catalog validation.
-func parseTrainerSpecializations(raw []string) ([]string, error) {
+// allowed is the set of valid slugs from the categories table.
+func parseTrainerSpecializations(raw []string, allowed map[string]struct{}) ([]string, error) {
 	seen := make(map[string]struct{}, len(raw))
 	out := make([]string, 0, len(raw))
 	for _, entry := range raw {
@@ -679,8 +691,8 @@ func parseTrainerSpecializations(raw []string) ([]string, error) {
 			if v == "" {
 				continue
 			}
-			if _, ok := allowedTrainerSpecializations[v]; !ok {
-				return nil, fmt.Errorf("invalid specialization %q (allowed: yoga, speed, cardio, endurance, strength)", v)
+			if _, ok := allowed[v]; !ok {
+				return nil, fmt.Errorf("invalid specialization %q — must be one of the specializations set by the admin", v)
 			}
 			if _, dup := seen[v]; dup {
 				continue
@@ -693,6 +705,20 @@ func parseTrainerSpecializations(raw []string) ([]string, error) {
 		return nil, fmt.Errorf("at most 5 specializations allowed")
 	}
 	return out, nil
+}
+
+// loadAllowedSpecializations fetches the current category slugs from the DB
+// and returns them as a set for use in parseTrainerSpecializations.
+func loadAllowedSpecializations(ctx context.Context, q *db.Queries) (map[string]struct{}, error) {
+	cats, err := q.ListCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[string]struct{}, len(cats))
+	for _, c := range cats {
+		allowed[strings.ToLower(c.Slug)] = struct{}{}
+	}
+	return allowed, nil
 }
 
 // parseTrainerTrainingStyles accepts the same CSV-or-multi-valued shapes as
@@ -944,11 +970,17 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 	// Specializations
 	specializations := existing.Specializations
 	if body.Specializations != nil {
+		allowedSpecs, err := loadAllowedSpecializations(ctx, s.trainers.q)
+		if err != nil {
+			s.logger.Error("patch trainers me: failed to load specialization catalog", "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
+		}
 		strs := make([]string, 0, len(*body.Specializations))
 		for _, sp := range *body.Specializations {
 			strs = append(strs, string(sp))
 		}
-		validated, err := parseTrainerSpecializations(strs)
+		validated, err := parseTrainerSpecializations(strs, allowedSpecs)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))
 			return
@@ -975,6 +1007,26 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
+	whatsappNumber := existing.WhatsappNumber
+	if body.WhatsappNumber != nil {
+		wn := strings.TrimSpace(*body.WhatsappNumber)
+		if !trainerPhoneE164Regex.MatchString(wn) {
+			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		whatsappNumber = sql.NullString{String: wn, Valid: true}
+	}
+
+	appleID := existing.AppleID
+	if body.AppleID != nil {
+		appleID = sql.NullString{String: *body.AppleID, Valid: true}
+	}
+
+	messengerHandle := existing.MessengerHandle
+	if body.MessengerHandle != nil {
+		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+	}
+
 	updated, err := s.trainers.q.UpdateTrainer(ctx, db.UpdateTrainerParams{
 		ID:                trainerID,
 		Specializations:   specializations,
@@ -984,6 +1036,9 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 		IntroVideoUrl:     existing.IntroVideoUrl,
 		DisplayPicture:    displayPicture,
 		OnboardingStatus:  sql.NullString{},
+		WhatsappNumber:    whatsappNumber,
+		AppleID:           appleID,
+		MessengerHandle:   messengerHandle,
 	})
 	if err != nil {
 		s.logger.Error("patch trainers me: update trainer failed", "trainerID", trainerID, "err", err)
@@ -1117,6 +1172,9 @@ func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.U
 		UpdatedAt:         row.UpdatedAt,
 		Specializations:   row.Specializations,
 		TrainingStyles:    row.TrainingStyles,
+		WhatsappNumber:    row.WhatsappNumber,
+		AppleID:           row.AppleID,
+		MessengerHandle:   row.MessengerHandle,
 	})
 	payload["name"] = row.TrainerName
 	payload["email"] = row.TrainerEmail
@@ -1172,11 +1230,17 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	// validate the new value against the catalog / cardinality rules.
 	var specializations []string
 	if body.Specializations != nil {
-		strs := make([]string, 0, len(*body.Specializations))
-		for _, s := range *body.Specializations {
-			strs = append(strs, string(s))
+		allowedSpecs, err := loadAllowedSpecializations(c.Request.Context(), s.trainers.q)
+		if err != nil {
+			s.logger.Error("update trainer: failed to load specialization catalog", "err", err)
+			c.JSON(http.StatusInternalServerError, api.NewError("internal server error", api.CodeServerError))
+			return
 		}
-		validated, err := parseTrainerSpecializations(strs)
+		strs := make([]string, 0, len(*body.Specializations))
+		for _, sp := range *body.Specializations {
+			strs = append(strs, string(sp))
+		}
+		validated, err := parseTrainerSpecializations(strs, allowedSpecs)
 		if err != nil {
 			s.logger.Warn("update trainer: invalid specializations", "trainerID", trainerID.String(), "err", err)
 			c.JSON(http.StatusBadRequest, api.NewError(err.Error(), api.CodeBadRequest))

@@ -257,12 +257,11 @@ components:
 
     TrainerSpecialization:
       type: string
-      enum: [yoga, speed, cardio, endurance, strength]
       description: |
-        Canonical specialization tag. A trainer can hold multiple — the set
-        is fixed (yoga, speed, cardio, endurance, strength) and enforced
-        by both an API enum and a Postgres CHECK constraint. Adding a new
-        value requires a migration plus an api.yaml bump.
+        Specialization tag. A trainer can hold multiple — valid values are
+        the slugs of active entries in the categories table, managed by
+        admins via the admin settings page. No code change is needed to
+        add new specializations.
 
     TrainerBenefitInput:
       type: object
@@ -341,7 +340,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -383,6 +382,18 @@ components:
           description: |
             E.164 phone number from users.phone_number. Optional on
             create; null when never supplied.
+        whatsapp_number:
+          type: string
+          nullable: true
+          description: Trainer's WhatsApp number in E.164 format. Null when not set.
+        apple_id:
+          type: string
+          nullable: true
+          description: Trainer's Apple ID (email or phone) for iMessage/FaceTime sessions. Null when not set.
+        messenger_handle:
+          type: string
+          nullable: true
+          description: Trainer's Facebook Messenger username. Null when not set.
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
@@ -441,7 +452,7 @@ components:
             $ref: "#/components/schemas/TrainerSpecialization"
           minItems: 0
           maxItems: 5
-          description: Multi-valued; cardinality 0..5 from the fixed catalog.
+          description: Multi-valued; cardinality 0..5. Valid values are slugs from the admin-managed categories table.
         training_styles:
           type: array
           items:
@@ -781,8 +792,8 @@ components:
           minItems: 1
           maxItems: 5
           description: |
-            One or more specializations from the fixed catalog
-            (yoga, speed, cardio, endurance, strength). At least one is required
+            One or more specializations from the admin-managed categories catalog.
+            Valid values are the slugs of active categories. At least one is required
             on create; admin can edit later via PATCH.
         training_styles:
           type: array
@@ -861,6 +872,16 @@ components:
           type: string
           pattern: "^\\+[1-9]\\d{6,14}$"
           description: E.164 format (e.g. +2348012345678).
+        whatsapp_number:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: Trainer's WhatsApp number in E.164 format (e.g. +2348012345678).
+        apple_id:
+          type: string
+          description: Trainer's Apple ID (email address or phone number) for iMessage/FaceTime sessions.
+        messenger_handle:
+          type: string
+          description: Trainer's Facebook Messenger username.
 
     UpdateTrainerRequest:
       type: object
