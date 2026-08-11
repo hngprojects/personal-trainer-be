@@ -204,7 +204,7 @@ func (m *ResendMailer) SendBookingConfirmation(to, name, trainerName string, sch
 }
 
 func (m *ResendMailer) SendSignupConfirmation(to, name string) error {
-	html, err := signupConfirmation(name)
+	html, err := signupConfirmation(name, m.appURL)
 	if err != nil {
 		return fmt.Errorf("resend: build signup confirmation: %w", err)
 	}

@@ -861,6 +861,16 @@ components:
           type: string
           pattern: "^\\+[1-9]\\d{6,14}$"
           description: E.164 format (e.g. +2348012345678).
+        whatsapp_number:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: Trainer's WhatsApp number in E.164 format (e.g. +2348012345678).
+        apple_id:
+          type: string
+          description: Trainer's Apple ID (email address or phone number) for iMessage/FaceTime sessions.
+        messenger_handle:
+          type: string
+          description: Trainer's Facebook Messenger username.
 
     UpdateTrainerRequest:
       type: object

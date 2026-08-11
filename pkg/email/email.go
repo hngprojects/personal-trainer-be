@@ -920,10 +920,11 @@ var bookingConfirmationGoogleMeetTemplate = template.Must(template.ParseFS(templ
 var bookingConfirmationFaceTimeTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationFaceTime.html"))
 var bookingConfirmationMessengerTemplate = template.Must(template.ParseFS(templates, "templates/bookingConfirmationMessenger.html"))
 
-func signupConfirmation(name string) (string, error) {
+func signupConfirmation(name, appURL string) (string, error) {
 	var buf bytes.Buffer
 	err := signupTemplate.Execute(&buf, map[string]interface{}{
-		"Name": name,
+		"Name":    name,
+		"LogoURL": resolveLogoURL(appURL),
 	})
 	return buf.String(), err
 }
@@ -1010,7 +1011,7 @@ func bookingConfirmation(name, trainerName string, scheduledStartTime, scheduled
 }
 
 func (m *SMTPMailer) SendSignupConfirmation(to, name string) error {
-	html, err := signupConfirmation(name)
+	html, err := signupConfirmation(name, m.appURL)
 	if err != nil {
 		return fmt.Errorf("smtp: build signup confirmation email: %w", err)
 	}
