@@ -257,12 +257,11 @@ components:
 
     TrainerSpecialization:
       type: string
-      enum: [yoga, speed, cardio, endurance, strength]
       description: |
-        Canonical specialization tag. A trainer can hold multiple — the set
-        is fixed (yoga, speed, cardio, endurance, strength) and enforced
-        by both an API enum and a Postgres CHECK constraint. Adding a new
-        value requires a migration plus an api.yaml bump.
+        Specialization tag. A trainer can hold multiple — valid values are
+        the slugs of active entries in the categories table, managed by
+        admins via the admin settings page. No code change is needed to
+        add new specializations.
 
     TrainerBenefitInput:
       type: object
