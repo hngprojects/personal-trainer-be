@@ -47,16 +47,44 @@ jobs:
           cp -r migrations deploy/migrations
           cp api.yaml deploy/api.yaml
 
-      # Write .env using printf against an env var — NOT `echo "..."` with
-      # inline ${{ secrets... }} interpolation. The old form breaks the
-      # instant the secret contains a literal `"` (comment strings,
-      # certain passwords, JSON blobs). printf %s writes the bytes as-is;
-      # the env: block makes the secret a normal environment variable so
-      # its value isn't parsed by the outer shell.
+      # Compose the .env from TWO secrets and concatenate them into a
+      # single file:
+      #
+      #   BACKEND_ENV_FILE  — everything the app needs, minus SMTP.
+      #                        This is the primary blob.
+      #   BACKEND_SMTP_ENV  — the five SMTP_* lines split out into
+      #                        their own secret so the SMTP provider
+      #                        can be rotated (or the whole SMTP block
+      #                        toggled) without re-pasting the entire
+      #                        main secret. Optional — when unset the
+      #                        primary blob's values (or lack of them)
+      #                        stand alone and the app boots without
+      #                        SMTP configured.
+      #
+      # printf %s writes each secret's bytes verbatim; the env: block
+      # makes both secrets normal environment variables so the outer
+      # shell doesn't parse embedded quotes / backticks in the values.
+      # A `printf '\n'` between the two blobs forces a newline
+      # boundary — the main secret's trailing newline can't be
+      # relied on, and .env parsers are tolerant of extra blank lines.
+      #
+      # Precedence: SMTP_ENV is written AFTER ENV_FILE, so if the SAME
+      # key appears in both, the SMTP_ENV value wins — which is the
+      # right thing when you're intentionally overriding the primary
+      # secret's SMTP entries during a provider rotation.
       - name: Write env file
-        run: printf '%s' "$BACKEND_ENV_FILE" > deploy/.env
+        run: |
+          {
+            printf '%s' "$BACKEND_ENV_FILE"
+            printf '\n'
+            if [ -n "$BACKEND_SMTP_ENV" ]; then
+              printf '%s' "$BACKEND_SMTP_ENV"
+              printf '\n'
+            fi
+          } > deploy/.env
         env:
           BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+          BACKEND_SMTP_ENV: ${{ secrets.BACKEND_SMTP_ENV }}
 
       # Snapshot the current release BEFORE rsync mutates the target
       # directory. Rollback (if this deploy fails downstream) copies
@@ -151,49 +179,6 @@ jobs:
               exit 1
             fi
 
-            sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
-
-            # Persist the SHA that just went live so the NEXT deploy's
-            # snapshot step can label its .prev-info with a meaningful
-            # value. Only reached after the service is confirmed
-            # active — a failed deploy leaves the previous
-            # RELEASE_SHA untouched (correct: that older SHA is what's
-            # about to be restored by rollback).
-            echo "$RELEASE_SHA" > RELEASE_SHA
-
-      # Auto-rollback runs on ANY prior-step failure — including rsync
-      # (which can leave a partial binary on disk) and the snapshot
-      # step itself. The internal `[ ! -f personal-trainer-api.prev ]`
-      # guard makes it safe to run before the snapshot succeeded:
-      # first-ever deploys have no .prev and this step exits with a
-      # loud "nothing to roll back to" message.
-      #
-      # Deliberately does NOT roll back the DB — goose down can be
-      # destructive, and additive migrations (which is most of ours)
-      # are compatible with the previous binary. If a specific
-      # migration IS binary-incompatible with rollback we need to
-      # catch that at review time, not here.
-      - name: Auto-rollback (staging)
-        if: failure()
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          request_pty: false
-          script: |
-            set -e
-            cd /var/www/personal-trainer/backend/staging
-            if [ ! -f personal-trainer-api.prev ]; then
-              echo "no .prev snapshot found — nothing to roll back to"
-              exit 1
-            fi
-            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
-            cp -f personal-trainer-api.prev personal-trainer-api
-            chmod +x personal-trainer-api
-            sudo -n /usr/bin/systemctl restart personal-trainer-backend-staging
-            sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-staging
 
             # Persist the SHA that just went live so the NEXT deploy's
@@ -363,35 +348,6 @@ jobs:
               exit 1
             fi
 
-            sudo -n /usr/bin/systemctl status personal-trainer-backend-production
-
-            # See staging: persist the just-deployed SHA so the next
-            # deploy's snapshot can name it correctly. Not reached on
-            # deploy failure — the prior RELEASE_SHA (i.e. what
-            # rollback restores to) stays intact.
-            echo "$RELEASE_SHA" > RELEASE_SHA
-
-      - name: Auto-rollback (production)
-        if: failure()
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          request_pty: false
-          script: |
-            set -e
-            cd /var/www/personal-trainer/backend/production
-            if [ ! -f personal-trainer-api.prev ]; then
-              echo "no .prev snapshot found — nothing to roll back to"
-              exit 1
-            fi
-            echo "rolling back to $(cat .prev-info 2>/dev/null || echo 'unknown snapshot')"
-            cp -f personal-trainer-api.prev personal-trainer-api
-            chmod +x personal-trainer-api
-            sudo -n /usr/bin/systemctl restart personal-trainer-backend-production
-            sleep 5
             sudo -n /usr/bin/systemctl status personal-trainer-backend-production
 
             # See staging: persist the just-deployed SHA so the next

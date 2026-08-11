@@ -16,7 +16,7 @@ func main() {
 	}
 	from := os.Getenv("RESEND_FROM")
 	if from == "" {
-		from = "fitcal@hng14.com"
+		from = "noreply@fitcall.me"
 	}
 	clientEmail := os.Getenv("TEST_CLIENT_EMAIL")
 	if clientEmail == "" {
