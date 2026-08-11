@@ -268,6 +268,9 @@ type Trainer struct {
 	Specializations   []string
 	TrainingStyles    []string
 	IsAvailable       bool
+	WhatsappNumber    sql.NullString
+	AppleID           sql.NullString
+	MessengerHandle   sql.NullString
 }
 
 type TrainerAvailability struct {

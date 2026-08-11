@@ -250,7 +250,10 @@ SELECT
   updated_at,
   specializations,
   training_styles,
-  is_available
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle
 FROM trainers
 WHERE id = $1
 LIMIT 1
@@ -274,6 +277,9 @@ func (q *Queries) GetTrainerByID(ctx context.Context, id uuid.UUID) (Trainer, er
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
 		&i.IsAvailable,
+		&i.WhatsappNumber,
+		&i.AppleID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -336,6 +342,9 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
+  t.whatsapp_number,
+  t.apple_id,
+  t.messenger_handle,
   u.name         AS trainer_name,
   u.email        AS trainer_email,
   u.gender       AS trainer_gender,
@@ -360,6 +369,9 @@ type GetTrainerWithUserByIDRow struct {
 	UpdatedAt          time.Time
 	Specializations    []string
 	TrainingStyles     []string
+	WhatsappNumber     sql.NullString
+	AppleID            sql.NullString
+	MessengerHandle    sql.NullString
 	TrainerName        string
 	TrainerEmail       string
 	TrainerGender      sql.NullString
@@ -388,6 +400,9 @@ func (q *Queries) GetTrainerWithUserByID(ctx context.Context, id uuid.UUID) (Get
 		&i.UpdatedAt,
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
+		&i.WhatsappNumber,
+		&i.AppleID,
+		&i.MessengerHandle,
 		&i.TrainerName,
 		&i.TrainerEmail,
 		&i.TrainerGender,
@@ -644,8 +659,11 @@ SET
   intro_video_url     = COALESCE($5, intro_video_url),
   display_picture     = COALESCE($6, display_picture),
   onboarding_status   = COALESCE($7::text, onboarding_status),
+  whatsapp_number     = COALESCE($8, whatsapp_number),
+  apple_id            = COALESCE($9, apple_id),
+  messenger_handle    = COALESCE($10, messenger_handle),
   updated_at          = NOW()
-WHERE id = $8
+WHERE id = $11
 RETURNING
   id,
   user_id,
@@ -660,7 +678,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle
 `
 
 type UpdateTrainerParams struct {
@@ -671,6 +692,9 @@ type UpdateTrainerParams struct {
 	IntroVideoUrl     sql.NullString
 	DisplayPicture    sql.NullString
 	OnboardingStatus  sql.NullString
+	WhatsappNumber    sql.NullString
+	AppleID           sql.NullString
+	MessengerHandle   sql.NullString
 	ID                uuid.UUID
 }
 
@@ -686,6 +710,9 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
 		arg.OnboardingStatus,
+		arg.WhatsappNumber,
+		arg.AppleID,
+		arg.MessengerHandle,
 		arg.ID,
 	)
 	var i Trainer
@@ -704,6 +731,9 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
 		&i.IsAvailable,
+		&i.WhatsappNumber,
+		&i.AppleID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }

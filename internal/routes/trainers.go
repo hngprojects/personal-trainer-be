@@ -110,6 +110,21 @@ func trainerToMap(t db.Trainer) map[string]interface{} {
 	} else {
 		out["display_picture"] = nil
 	}
+	if t.WhatsappNumber.Valid {
+		out["whatsapp_number"] = t.WhatsappNumber.String
+	} else {
+		out["whatsapp_number"] = nil
+	}
+	if t.AppleID.Valid {
+		out["apple_id"] = t.AppleID.String
+	} else {
+		out["apple_id"] = nil
+	}
+	if t.MessengerHandle.Valid {
+		out["messenger_handle"] = t.MessengerHandle.String
+	} else {
+		out["messenger_handle"] = nil
+	}
 
 	return out
 }
@@ -975,6 +990,26 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
+	whatsappNumber := existing.WhatsappNumber
+	if body.WhatsappNumber != nil {
+		wn := strings.TrimSpace(*body.WhatsappNumber)
+		if !trainerPhoneE164Regex.MatchString(wn) {
+			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		whatsappNumber = sql.NullString{String: wn, Valid: true}
+	}
+
+	appleID := existing.AppleID
+	if body.AppleID != nil {
+		appleID = sql.NullString{String: *body.AppleID, Valid: true}
+	}
+
+	messengerHandle := existing.MessengerHandle
+	if body.MessengerHandle != nil {
+		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+	}
+
 	updated, err := s.trainers.q.UpdateTrainer(ctx, db.UpdateTrainerParams{
 		ID:                trainerID,
 		Specializations:   specializations,
@@ -984,6 +1019,9 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 		IntroVideoUrl:     existing.IntroVideoUrl,
 		DisplayPicture:    displayPicture,
 		OnboardingStatus:  sql.NullString{},
+		WhatsappNumber:    whatsappNumber,
+		AppleID:           appleID,
+		MessengerHandle:   messengerHandle,
 	})
 	if err != nil {
 		s.logger.Error("patch trainers me: update trainer failed", "trainerID", trainerID, "err", err)
@@ -1117,6 +1155,9 @@ func (s *routerImpl) buildTrainerProfilePayload(c *gin.Context, trainerID uuid.U
 		UpdatedAt:         row.UpdatedAt,
 		Specializations:   row.Specializations,
 		TrainingStyles:    row.TrainingStyles,
+		WhatsappNumber:    row.WhatsappNumber,
+		AppleID:           row.AppleID,
+		MessengerHandle:   row.MessengerHandle,
 	})
 	payload["name"] = row.TrainerName
 	payload["email"] = row.TrainerEmail
