@@ -39,7 +39,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available;
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle;
 
 -- name: GetTrainerByID :one
 SELECT
@@ -228,7 +231,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available;
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle;
 
 -- name: GetTrainerByUserID :one
 SELECT
