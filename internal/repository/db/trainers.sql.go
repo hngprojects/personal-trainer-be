@@ -34,7 +34,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle
 `
 
 func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
@@ -55,6 +58,9 @@ func (q *Queries) ApproveTrainer(ctx context.Context, id uuid.UUID) (Trainer, er
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
 		&i.IsAvailable,
+		&i.WhatsappNumber,
+		&i.AppleID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -118,7 +124,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle
 `
 
 type CreateTrainerParams struct {
@@ -166,6 +175,9 @@ func (q *Queries) CreateTrainer(ctx context.Context, arg CreateTrainerParams) (T
 		pq.Array(&i.Specializations),
 		pq.Array(&i.TrainingStyles),
 		&i.IsAvailable,
+		&i.WhatsappNumber,
+		&i.AppleID,
+		&i.MessengerHandle,
 	)
 	return i, err
 }
@@ -213,9 +225,26 @@ RETURNING
   is_available
 `
 
-func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
+type DeleteTrainerRow struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullFloat64
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
+	IsAvailable       bool
+}
+
+func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (DeleteTrainerRow, error) {
 	row := q.db.QueryRowContext(ctx, deleteTrainer, id)
-	var i Trainer
+	var i DeleteTrainerRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -305,9 +334,26 @@ WHERE user_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (Trainer, error) {
+type GetTrainerByUserIDRow struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullFloat64
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
+	IsAvailable       bool
+}
+
+func (q *Queries) GetTrainerByUserID(ctx context.Context, userID uuid.UUID) (GetTrainerByUserIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getTrainerByUserID, userID)
-	var i Trainer
+	var i GetTrainerByUserIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
