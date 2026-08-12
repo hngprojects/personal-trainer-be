@@ -732,4 +732,3 @@ func (q *Queries) UpsertTrainerUser(ctx context.Context, arg UpsertTrainerUserPa
 	)
 	return i, err
 }
-
