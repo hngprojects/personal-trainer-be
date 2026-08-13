@@ -1300,7 +1300,12 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 
 	var whatsappNumber sql.NullString
 	if body.WhatsappNumber != nil {
-		whatsappNumber = sql.NullString{String: *body.WhatsappNumber, Valid: true}
+		wn := strings.TrimSpace(*body.WhatsappNumber)
+		if !trainerPhoneE164Regex.MatchString(wn) {
+			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
 	var appleID sql.NullString

@@ -924,6 +924,8 @@ components:
           enum: [pending, approved, rejected, suspended]
         whatsapp_number:
           type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: Trainer's WhatsApp number in E.164 format (e.g. +2348012345678).
         apple_id:
           type: string
         messenger_handle:
