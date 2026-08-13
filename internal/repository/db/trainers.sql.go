@@ -213,9 +213,26 @@ RETURNING
   is_available
 `
 
-func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (Trainer, error) {
+type DeleteTrainerRow struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Bio               sql.NullString
+	YearsOfExperience sql.NullInt32
+	IntroVideoUrl     sql.NullString
+	DisplayPicture    sql.NullString
+	OnboardingStatus  string
+	AverageRating     sql.NullFloat64
+	TotalReviews      int32
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Specializations   []string
+	TrainingStyles    []string
+	IsAvailable       bool
+}
+
+func (q *Queries) DeleteTrainer(ctx context.Context, id uuid.UUID) (DeleteTrainerRow, error) {
 	row := q.db.QueryRowContext(ctx, deleteTrainer, id)
-	var i Trainer
+	var i DeleteTrainerRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -686,6 +703,9 @@ func (q *Queries) UpdateTrainer(ctx context.Context, arg UpdateTrainerParams) (T
 		arg.IntroVideoUrl,
 		arg.DisplayPicture,
 		arg.OnboardingStatus,
+		arg.WhatsappNumber,
+		arg.AppleID,
+		arg.MessengerHandle,
 		arg.ID,
 	)
 	var i Trainer
