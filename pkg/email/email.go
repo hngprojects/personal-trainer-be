@@ -611,7 +611,7 @@ func resolveLogoURL(appURL string) string {
 			}
 		}
 	}
-	return "https://fitcall.me/logo.svg"
+	return "https://fitcall.me/logo.png"
 }
 
 func resolveRescheduleLink(appURL, bookingID string) string {
