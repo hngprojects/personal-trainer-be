@@ -1010,21 +1010,33 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 	whatsappNumber := existing.WhatsappNumber
 	if body.WhatsappNumber != nil {
 		wn := strings.TrimSpace(*body.WhatsappNumber)
-		if !trainerPhoneE164Regex.MatchString(wn) {
-			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
-			return
+		if wn == "" {
+			whatsappNumber = sql.NullString{}
+		} else {
+			if !trainerPhoneE164Regex.MatchString(wn) {
+				c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+				return
+			}
+			whatsappNumber = sql.NullString{String: wn, Valid: true}
 		}
-		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
 	appleID := existing.AppleID
 	if body.AppleID != nil {
-		appleID = sql.NullString{String: *body.AppleID, Valid: true}
+		if *body.AppleID == "" {
+			appleID = sql.NullString{}
+		} else {
+			appleID = sql.NullString{String: *body.AppleID, Valid: true}
+		}
 	}
 
 	messengerHandle := existing.MessengerHandle
 	if body.MessengerHandle != nil {
-		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+		if *body.MessengerHandle == "" {
+			messengerHandle = sql.NullString{}
+		} else {
+			messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+		}
 	}
 
 	updated, err := s.trainers.q.UpdateTrainer(ctx, db.UpdateTrainerParams{
@@ -1298,24 +1310,36 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
-	var whatsappNumber sql.NullString
+	whatsappNumber := existing.WhatsappNumber
 	if body.WhatsappNumber != nil {
 		wn := strings.TrimSpace(*body.WhatsappNumber)
-		if !trainerPhoneE164Regex.MatchString(wn) {
-			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
-			return
+		if wn == "" {
+			whatsappNumber = sql.NullString{}
+		} else {
+			if !trainerPhoneE164Regex.MatchString(wn) {
+				c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+				return
+			}
+			whatsappNumber = sql.NullString{String: wn, Valid: true}
 		}
-		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
-	var appleID sql.NullString
+	appleID := existing.AppleID
 	if body.AppleID != nil {
-		appleID = sql.NullString{String: *body.AppleID, Valid: true}
+		if *body.AppleID == "" {
+			appleID = sql.NullString{}
+		} else {
+			appleID = sql.NullString{String: *body.AppleID, Valid: true}
+		}
 	}
 
-	var messengerHandle sql.NullString
+	messengerHandle := existing.MessengerHandle
 	if body.MessengerHandle != nil {
-		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+		if *body.MessengerHandle == "" {
+			messengerHandle = sql.NullString{}
+		} else {
+			messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+		}
 	}
 
 	updated, err := s.trainers.q.UpdateTrainer(c.Request.Context(), db.UpdateTrainerParams{
