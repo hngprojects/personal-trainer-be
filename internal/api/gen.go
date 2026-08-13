@@ -1215,9 +1215,18 @@ type PatchTrainersMeRequest struct {
 	DisplayPicture *string `json:"display_picture,omitempty"`
 
 	// PhoneNumber E.164 format (e.g. +2348012345678).
-	PhoneNumber       *string                  `json:"phone_number,omitempty"`
-	Specializations   *[]TrainerSpecialization `json:"specializations,omitempty"`
-	YearsOfExperience *int                     `json:"years_of_experience,omitempty"`
+	PhoneNumber     *string                  `json:"phone_number,omitempty"`
+	Specializations *[]TrainerSpecialization `json:"specializations,omitempty"`
+
+	// WhatsappNumber Trainer's WhatsApp number for client sessions.
+	WhatsappNumber *string `json:"whatsapp_number,omitempty"`
+
+	// AppleID Trainer's Apple ID (email or phone) for FaceTime/iMessage sessions.
+	AppleID *string `json:"apple_id,omitempty"`
+
+	// MessengerHandle Trainer's Facebook Messenger handle for Messenger sessions.
+	MessengerHandle   *string `json:"messenger_handle,omitempty"`
+	YearsOfExperience *int    `json:"years_of_experience,omitempty"`
 }
 
 // RegisterRequest defines model for RegisterRequest.
@@ -1666,6 +1675,9 @@ type UpdateTrainerRequest struct {
 	// TrainingStyles Pass an empty array to clear all training styles.
 	TrainingStyles    *[]string `json:"training_styles,omitempty"`
 	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
+	WhatsappNumber    *string   `json:"whatsapp_number,omitempty"`
+	AppleID           *string   `json:"apple_id,omitempty"`
+	MessengerHandle   *string   `json:"messenger_handle,omitempty"`
 }
 
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.

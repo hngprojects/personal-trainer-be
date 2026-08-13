@@ -861,6 +861,15 @@ components:
           type: string
           pattern: "^\\+[1-9]\\d{6,14}$"
           description: E.164 format (e.g. +2348012345678).
+        whatsapp_number:
+          type: string
+          description: Trainer's WhatsApp number for client sessions.
+        apple_id:
+          type: string
+          description: Trainer's Apple ID (email or phone) for FaceTime/iMessage sessions.
+        messenger_handle:
+          type: string
+          description: Trainer's Facebook Messenger handle for Messenger sessions.
 
     UpdateTrainerRequest:
       type: object
@@ -901,6 +910,12 @@ components:
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
+        whatsapp_number:
+          type: string
+        apple_id:
+          type: string
+        messenger_handle:
+          type: string
 
     AvailabilitySlot:
       type: object
