@@ -168,9 +168,9 @@ SET
   intro_video_url     = COALESCE(sqlc.arg(intro_video_url), intro_video_url),
   display_picture     = COALESCE(sqlc.arg(display_picture), display_picture),
   onboarding_status   = COALESCE(sqlc.narg(onboarding_status)::text, onboarding_status),
-  whatsapp_number     = COALESCE(sqlc.arg(whatsapp_number), whatsapp_number),
-  apple_id            = COALESCE(sqlc.arg(apple_id), apple_id),
-  messenger_handle    = COALESCE(sqlc.arg(messenger_handle), messenger_handle),
+  whatsapp_number     = COALESCE(sqlc.narg(whatsapp_number), whatsapp_number),
+  apple_id            = COALESCE(sqlc.narg(apple_id), apple_id),
+  messenger_handle    = COALESCE(sqlc.narg(messenger_handle), messenger_handle),
   updated_at          = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING

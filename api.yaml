@@ -922,6 +922,12 @@ components:
         onboarding_status:
           type: string
           enum: [pending, approved, rejected, suspended]
+        whatsapp_number:
+          type: string
+        apple_id:
+          type: string
+        messenger_handle:
+          type: string
 
     AvailabilitySlot:
       type: object
