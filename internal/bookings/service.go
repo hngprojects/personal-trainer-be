@@ -156,6 +156,22 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 
 	meetingURL = s.joinLinks.Build(meetingURL, sessionID)
 
+	// Fetch trainer profile to get their platform-specific contact fields
+	// for the client's confirmation email (client needs to know how to
+	// reach the trainer, not themselves).
+	trainerProfile, tpErr := s.repo.GetTrainerByID(ctx, trainer.TrainerID)
+	var trainerPhone, trainerMessenger string
+	if tpErr == nil {
+		switch platform {
+		case "imessage":
+			trainerPhone = trainerProfile.AppleID.String
+		case "whatsapp":
+			trainerPhone = trainerProfile.WhatsappNumber.String
+		case "messenger":
+			trainerMessenger = trainerProfile.MessengerHandle.String
+		}
+	}
+
 	if err := s.mailer.SendBookingConfirmation(
 		client.Email,
 		client.Name,
@@ -165,8 +181,8 @@ func (s *bookingService) CreateBooking(ctx context.Context, args db.CreateBookin
 		args.Timezone.String,
 		platform,
 		meetingURL,
-		args.MessengerHandle.String,
-		args.PhoneNumber.String,
+		trainerMessenger,
+		trainerPhone,
 		booking.ID.String(),
 		false,
 	); err != nil {

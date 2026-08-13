@@ -39,7 +39,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available;
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle;
 
 -- name: GetTrainerByID :one
 SELECT
@@ -56,7 +59,10 @@ SELECT
   updated_at,
   specializations,
   training_styles,
-  is_available
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle
 FROM trainers
 WHERE id = $1
 LIMIT 1;
@@ -81,6 +87,9 @@ SELECT
   t.updated_at,
   t.specializations,
   t.training_styles,
+  t.whatsapp_number,
+  t.apple_id,
+  t.messenger_handle,
   u.name         AS trainer_name,
   u.email        AS trainer_email,
   u.gender       AS trainer_gender,
@@ -159,6 +168,9 @@ SET
   intro_video_url     = COALESCE(sqlc.arg(intro_video_url), intro_video_url),
   display_picture     = COALESCE(sqlc.arg(display_picture), display_picture),
   onboarding_status   = COALESCE(sqlc.narg(onboarding_status)::text, onboarding_status),
+  whatsapp_number     = COALESCE(sqlc.arg(whatsapp_number), whatsapp_number),
+  apple_id            = COALESCE(sqlc.arg(apple_id), apple_id),
+  messenger_handle    = COALESCE(sqlc.arg(messenger_handle), messenger_handle),
   updated_at          = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING
@@ -175,7 +187,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available;
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle;
 
 -- name: DeleteTrainer :one
 DELETE FROM trainers
@@ -216,7 +231,10 @@ RETURNING
   updated_at,
   specializations,
   training_styles,
-  is_available;
+  is_available,
+  whatsapp_number,
+  apple_id,
+  messenger_handle;
 
 -- name: GetTrainerByUserID :one
 SELECT

@@ -310,16 +310,31 @@ func (h *Handler) TryReschedulePaidSession(c *gin.Context, id openapi_types.UUID
 	finalJoinLink := h.joinLinks.Build(finalZoomLink, sessionID)
 
 	duration := int(newEnd.Sub(newStart).Minutes())
+
+	// Fetch trainer profile first so the client email can show the
+	// trainer's contact info (not the client's own number).
+	trainer, trainerErr := h.repo.GetTrainerByID(ctx, booking.TrainerID)
+
 	if clientErr == nil {
+		var trainerPhone, trainerMessenger string
+		if trainerErr == nil {
+			switch platform {
+			case "imessage":
+				trainerPhone = trainer.AppleID.String
+			case "whatsapp":
+				trainerPhone = trainer.WhatsappNumber.String
+			case "messenger":
+				trainerMessenger = trainer.MessengerHandle.String
+			}
+		}
 		if err := h.mailer.SendPaidSessionRescheduleConfirmation(
 			clientUser.Email, generateFirstName(clientUser.Name), newStart, duration, req.Timezone, platform, finalJoinLink,
-			updated.PhoneNumber.String, updated.MessengerHandle.String,
+			trainerPhone, trainerMessenger,
 		); err != nil {
 			h.log.Error("failed to send reschedule confirmation email to client", "err", err)
 		}
 	}
 
-	trainer, trainerErr := h.repo.GetTrainerByID(ctx, booking.TrainerID)
 	if trainerErr == nil {
 		trainerUser, tuErr := h.repo.GetUserByID(ctx, trainer.UserID)
 		if tuErr == nil {
