@@ -1675,6 +1675,9 @@ type UpdateTrainerRequest struct {
 	// TrainingStyles Pass an empty array to clear all training styles.
 	TrainingStyles    *[]string `json:"training_styles,omitempty"`
 	YearsOfExperience *int      `json:"years_of_experience,omitempty"`
+	WhatsappNumber    *string   `json:"whatsapp_number,omitempty"`
+	AppleID           *string   `json:"apple_id,omitempty"`
+	MessengerHandle   *string   `json:"messenger_handle,omitempty"`
 }
 
 // UpdateTrainerRequestOnboardingStatus defines model for UpdateTrainerRequest.OnboardingStatus.

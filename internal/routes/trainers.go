@@ -1298,6 +1298,26 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
+	var whatsappNumber sql.NullString
+	if body.WhatsappNumber != nil {
+		wn := strings.TrimSpace(*body.WhatsappNumber)
+		if !trainerPhoneE164Regex.MatchString(wn) {
+			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+			return
+		}
+		whatsappNumber = sql.NullString{String: wn, Valid: true}
+	}
+
+	var appleID sql.NullString
+	if body.AppleID != nil {
+		appleID = sql.NullString{String: *body.AppleID, Valid: true}
+	}
+
+	var messengerHandle sql.NullString
+	if body.MessengerHandle != nil {
+		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
+	}
+
 	updated, err := s.trainers.q.UpdateTrainer(c.Request.Context(), db.UpdateTrainerParams{
 		ID:                trainerID,
 		Specializations:   specializations,
@@ -1307,6 +1327,9 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 		IntroVideoUrl:     introVideoUrl,
 		DisplayPicture:    displayPicture,
 		OnboardingStatus:  onboardingStatus,
+		WhatsappNumber:    whatsappNumber,
+		AppleID:           appleID,
+		MessengerHandle:   messengerHandle,
 	})
 	if err != nil {
 		s.logger.Warn("error while updating trainer", "trainerID", trainerID, "err", err)
