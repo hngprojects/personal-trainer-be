@@ -1007,23 +1007,27 @@ func (s *routerImpl) PatchTrainersMe(c *gin.Context) {
 		displayPicture = sql.NullString{String: *body.DisplayPicture, Valid: true}
 	}
 
-	whatsappNumber := existing.WhatsappNumber
+	// Contact fields: null or "" = clear, value = update.
+	// Frontend always sends all three in the payload, so nil means the user cleared it.
+	var whatsappNumber sql.NullString
 	if body.WhatsappNumber != nil {
 		wn := strings.TrimSpace(*body.WhatsappNumber)
-		if !trainerPhoneE164Regex.MatchString(wn) {
-			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
-			return
+		if wn != "" {
+			if !trainerPhoneE164Regex.MatchString(wn) {
+				c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+				return
+			}
+			whatsappNumber = sql.NullString{String: wn, Valid: true}
 		}
-		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
-	appleID := existing.AppleID
-	if body.AppleID != nil {
+	var appleID sql.NullString
+	if body.AppleID != nil && *body.AppleID != "" {
 		appleID = sql.NullString{String: *body.AppleID, Valid: true}
 	}
 
-	messengerHandle := existing.MessengerHandle
-	if body.MessengerHandle != nil {
+	var messengerHandle sql.NullString
+	if body.MessengerHandle != nil && *body.MessengerHandle != "" {
 		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
 	}
 
@@ -1301,20 +1305,22 @@ func (s *routerImpl) UpdateTrainer(c *gin.Context, id openapi_types.UUID) {
 	var whatsappNumber sql.NullString
 	if body.WhatsappNumber != nil {
 		wn := strings.TrimSpace(*body.WhatsappNumber)
-		if !trainerPhoneE164Regex.MatchString(wn) {
-			c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
-			return
+		if wn != "" {
+			if !trainerPhoneE164Regex.MatchString(wn) {
+				c.JSON(http.StatusBadRequest, api.NewError("whatsapp_number must be in E.164 format (e.g. +2348012345678)", api.CodeBadRequest))
+				return
+			}
+			whatsappNumber = sql.NullString{String: wn, Valid: true}
 		}
-		whatsappNumber = sql.NullString{String: wn, Valid: true}
 	}
 
 	var appleID sql.NullString
-	if body.AppleID != nil {
+	if body.AppleID != nil && *body.AppleID != "" {
 		appleID = sql.NullString{String: *body.AppleID, Valid: true}
 	}
 
 	var messengerHandle sql.NullString
-	if body.MessengerHandle != nil {
+	if body.MessengerHandle != nil && *body.MessengerHandle != "" {
 		messengerHandle = sql.NullString{String: *body.MessengerHandle, Valid: true}
 	}
 
