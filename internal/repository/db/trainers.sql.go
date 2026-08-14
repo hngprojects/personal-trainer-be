@@ -705,9 +705,9 @@ SET
   intro_video_url     = COALESCE($5, intro_video_url),
   display_picture     = COALESCE($6, display_picture),
   onboarding_status   = COALESCE($7::text, onboarding_status),
-  whatsapp_number     = COALESCE($8, whatsapp_number),
-  apple_id            = COALESCE($9, apple_id),
-  messenger_handle    = COALESCE($10, messenger_handle),
+  whatsapp_number     = $8,
+  apple_id            = $9,
+  messenger_handle    = $10,
   updated_at          = NOW()
 WHERE id = $11
 RETURNING
